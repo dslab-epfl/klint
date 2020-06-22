@@ -1,0 +1,23 @@
+diff --git a/os/Makefile b/os/Makefile
+index 2971854..e3995e4 100644
+--- a/os/Makefile
++++ b/os/Makefile
+@@ -30,7 +30,7 @@ SRCS-y += $(shell echo $(SELF_DIR)/src/**/*.c)
+ #CFLAGS += -I $(RTE_SDK)/$(RTE_TARGET)/include --include rte_config.h
+ 
+ # Build with the libnf
+-LDFLAGS += $(SELF_DIR)/../$(NF)/libnf.so
++LDFLAGS += -L$(SELF_DIR)/../$(NF) -lnf
+ 
+ # Link with DPDK
+ #LDFLAGS += -L $(RTE_SDK)/$(RTE_TARGET)/lib -ldpdk
+diff --git a/run.sh b/run.sh
+index 2956135..2b82bcb 100755
+--- a/run.sh
++++ b/run.sh
+@@ -1,4 +1,4 @@
+ #!/bin/sh
+ 
+-taskset -c 6 sudo ../os/build/app/nf --\
++taskset -c 6 sudo LD_LIBRARY_PATH=../nat ../os/build/app/nf --\
+     --lan-device 0 --wan-device 1 --expiration-time 30000000000 --max-flows 65536 --external-addr 0 --start-port 0

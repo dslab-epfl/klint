@@ -1,0 +1,3 @@
+"""
+Contains external stubs.
+"""

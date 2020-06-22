@@ -1,0 +1,29 @@
+# Common stuff for makefiles, like compiler and flags
+
+# Allow the use of advanced globs in paths
+SHELL := /bin/bash -O extglob -O globstar -c
+
+# Latest GCC, hardcoded for reproducibility
+CC := gcc-9
+
+# C17, latest POSIX with GNU extensions
+CFLAGS += -std=c17 -D_POSIX_C_SOURCE=200809L -D_GNU_SOURCE
+
+# Max optimizations
+CFLAGS += -O3
+CFLAGS += -march=native
+CFLAGS += -flto
+
+# Don't emit unneeded stuff in the binary
+CFLAGS += -fno-asynchronous-unwind-tables
+
+# Good warnings, and make them fatal errors to avoid walls of output for minor mistakes
+CFLAGS += -Wall -Wextra -Werror -pedantic -Wfatal-errors -Wshadow -Wstrict-aliasing
+
+# Debug log
+# CFLAGS += -DDEBUG
+
+# Strip, defined conditionally so it can be overriden with /bin/true to not strip
+STRIP ?= strip
+# Strip everything that's not needed, to show we can still verify despite this
+STRIPFLAGS += -s -R .comment -R .gnu.version -R .note.gnu.build-id
