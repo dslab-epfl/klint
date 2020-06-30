@@ -56,7 +56,7 @@ class SegmentedMemory(SimMemory):
         if offset == 0 and size == element_size:
             value = data
         else:
-            full = self.state.maps.get(base, index)
+            (full, _) = self.state.maps.get(base, index)
             if offset + size < full.length:
                 value = full[(full.length-1):(offset+size)].concat(data)
             else:
@@ -80,7 +80,7 @@ class SegmentedMemory(SimMemory):
         size = self.state.solver.eval(size, cast_to=int)
         (base, index, offset) = self.base_index_offset(addr)
 
-        value = self.state.maps.get(base, index)
+        (value, _) = self.state.maps.get(base, index)
         if offset == 0 and size == self.state.maps.value_size(base):
             return [addr], value, []
         else:

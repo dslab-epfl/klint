@@ -9,15 +9,15 @@ import itertools
 
 
 # "length" is symbolic, and may be larger than len(items) if there are items that are not exactly known
-# "invariants" is a conjunction of Boolean invariants on key/value pairs, represented as lambdas that take (state, key, value) and return an expression
+# "invariants" is a conjunction of Boolean invariants on key/value pairs, represented as lambdas that take (state, key, value, present) and return an expression
 # "items" contains exactly known items, which do not have to obey the invariants
 # !!! "items" is a parameterless lambda returning a list - it allows maps to refer to previous ones' items,
 #     so that invariants can be defined in terms of a specific map rather than whatever the map currently is
-# "missing_value" is a placeholder indicating a missing value, that can be returned by get()
 # "key_size" is the size of keys in bits, as a non-symbolic integer
-Map = recordclass("Map", ["length", "invariants", "items", "missing_value", "key_size"])
+# "value_size" is the size of values in bits, as a non-symbolic integer
+Map = recordclass("Map", ["length", "invariants", "items", "key_size", "value_size"])
 # Items in a map can be redundant but not contradictory (i.e. there cannot be 2 items whose might be equal with values that might not be equal)
-MapItem = namedtuple("MapItem", ["key", "value"])
+MapItem = namedtuple("MapItem", ["key", "value", "present"])
 
 # TODO would be a cleaner API to do state.ghost_maps[obj].xxx()
 class GhostMaps(SimStatePlugin):
@@ -58,18 +58,16 @@ class GhostMaps(SimStatePlugin):
 
         invariants = []
 
-        missing_value = claripy.BVS("missing_value", value_size)
-
         if array_length is None:
             length = claripy.BVV(0, GhostMaps._length_size_in_bits)
         else:
             length = array_length
-            invariants.append(lambda st, k, v: k.ULT(array_length) == (v != missing_value))
+            invariants.append(lambda st, k, v, p: k.ULT(array_length) == p)
 
         if default_value is not None:
-            invariants.append(lambda st, k, v: v == default_value)
+            invariants.append(lambda st, k, v, p: v == default_value)
 
-        self.state.metadata.set(obj, Map(length, invariants, lambda: [], missing_value, key_size))
+        self.state.metadata.set(obj, Map(length, invariants, lambda: [], key_size, value_size))
         return obj
 
 
@@ -78,35 +76,30 @@ class GhostMaps(SimStatePlugin):
         return map.length
 
     def value_size(self, obj):
-        return self.missing_value(obj).size()
-    
-    def missing_value(self, obj):
         map = self.state.metadata.get(Map, obj)
-        return map.missing_value
-
+        return map.value_size
+    
 
     def add(self, obj, key, value):
-        if utils.can_be_true(self.state.solver, self.get(obj, key) != self.missing_value(obj)):
+        if utils.can_be_true(self.state.solver, self.get(obj, key)[1]):
             raise angr.AngrExitError("Cannot add a key that might already be there!")
 
         map = self.state.metadata.get(Map, obj)
 
-        self.state.add_constraints(value != map.missing_value)
-
         old_items = map.items
-        new_items = lambda: old_items() + [MapItem(key, value)]
-        self.state.metadata.set(obj, Map(map.length + 1, map.invariants, new_items, map.missing_value, map.key_size), override=True)
+        new_items = lambda: old_items() + [MapItem(key, value, claripy.true)]
+        self.state.metadata.set(obj, Map(map.length + 1, map.invariants, new_items, map.key_size, map.value_size), override=True)
 
 
     def remove(self, obj, key):
-        if utils.can_be_true(self.state.solver, self.get(obj, key) == self.missing_value(obj)):
+        if utils.can_be_false(self.state.solver, self.get(obj, key)[1]):
             raise angr.AngrExitError("Cannot remove a key that might not be there!")
 
         map = self.state.metadata.get(Map, obj)
 
-        new_items = lambda: [MapItem(item.key, claripy.If(item.key == key, map.missing_value, item.value)) for item in map.items()] + \
-                            [MapItem(key, map.missing_value)]
-        self.state.metadata.set(obj, Map(map.length - 1, map.invariants, new_items, map.missing_value, map.key_size), override=True)
+        new_items = lambda: [MapItem(item.key, item.value, claripy.And(item.present, item.key != key)) for item in map.items()] + \
+                            [MapItem(key, claripy.BVS("map_bad_value"), claripy.false)]
+        self.state.metadata.set(obj, Map(map.length - 1, map.invariants, new_items, map.key_size, map.value_size), override=True)
 
 
     def get(self, obj, key):
@@ -119,45 +112,46 @@ class GhostMaps(SimStatePlugin):
         # First, look up the item; if we know about it, just answer that for simplicity
         for item in map.items():
             if utils.definitely_true(self.state.solver, item.key == key):
-                return item.value
+                return (item.value, item.present)
 
         # If we don't have an item that matches the key, create one
-        # for the item to be there, i.e. value != missing, we must have space
+        # for the item to be there, we must have space
         known_len = claripy.BVV(0, GhostMaps._length_size_in_bits)
         for item in map.items():
-            known_len = known_len + claripy.If(item.value == map.missing_value, claripy.BVV(0, GhostMaps._length_size_in_bits), claripy.BVV(1, GhostMaps._length_size_in_bits))
-        new_item_value = self.state.solver.BVS("map_value", map.missing_value.size())
-        item_constraints = [claripy.Or(new_item_value == map.missing_value, known_len < map.length)] + \
-                           [inv(self.state, key, new_item_value) for inv in map.invariants]
+            known_len = known_len + claripy.If(item.present, claripy.BVV(1, GhostMaps._length_size_in_bits), claripy.BVV(0, GhostMaps._length_size_in_bits))
+        new_item_value = claripy.BVS("map_value", map.value_size)
+        new_item_present = claripy.BoolS("map_present")
+        item_constraints = [claripy.Or(new_item_present == claripy.false, known_len < map.length)] + \
+                           [inv(self.state, key, new_item_value, new_item_present) for inv in map.invariants]
 
         # Avoid adding a pointless "always missing" item, it makes reasoning more complicated
-        if utils.definitely_true(self.state.solver, new_item_value == map.missing_value, extra_constraints=item_constraints):
-            return map.missing_value
+        if utils.definitely_false(self.state.solver, new_item_present, extra_constraints=item_constraints):
+            return (new_item_value, claripy.false)
 
         self.state.add_constraints(*item_constraints)
         old_items = map.items
         # only time we actually MUTATE the map!
-        map.items = lambda: old_items() + [MapItem(key, new_item_value)]
+        map.items = lambda: old_items() + [MapItem(key, new_item_value, new_item_present)]
 
         # Now answer in terms of items
-        value = map.missing_value
+        value = claripy.BVS("map_bad_value", map.value_size)
+        present = claripy.false
         for item in map.items():
             value = claripy.If(item.key == key, item.value, value)
-        return value
+            present = claripy.If(item.key == key, item.present, present)
+        return (value, present)
 
 
     def set(self, obj, key, value):
-        if utils.can_be_true(self.state.solver, self.get(obj, key) == self.missing_value(obj)):
+        if utils.can_be_false(self.state.solver, self.get(obj, key)[1]):
             raise angr.AngrExitError("Cannot set the value of a key that might not be there!")
 
         map = self.state.metadata.get(Map, obj)
 
-        self.state.add_constraints(value != map.missing_value)
-
         # While we allow duplicate items, let's try to avoid them to simplify human debugging
-        new_items = lambda: [MapItem(item.key, claripy.If(item.key == key, value, item.value)) for item in map.items() if not key.structurally_match(item.key)] + \
-                            [MapItem(key, value)]
-        self.state.metadata.set(obj, Map(map.length, map.invariants, new_items, map.missing_value, map.key_size), override=True)
+        new_items = lambda: [MapItem(item.key, claripy.If(item.key == key, value, item.value), claripy.Or(item.present, item.key == key)) for item in map.items() if not key.structurally_match(item.key)] + \
+                            [MapItem(key, value, claripy.true)]
+        self.state.metadata.set(obj, Map(map.length, map.invariants, new_items, map.key_size, map.value_size), override=True)
 
 
     def forall(self, obj, pred):
@@ -165,20 +159,20 @@ class GhostMaps(SimStatePlugin):
 
         known_len = claripy.BVV(0, GhostMaps._length_size_in_bits)
         for item in map.items():
-            known_len = known_len + claripy.If(item.value == map.missing_value, claripy.BVV(0, GhostMaps._length_size_in_bits), claripy.BVV(1, GhostMaps._length_size_in_bits))
+            known_len = known_len + claripy.If(item.present, claripy.BVV(1, GhostMaps._length_size_in_bits), claripy.BVV(0, GhostMaps._length_size_in_bits))
 
         test_key = claripy.BVS("map_test_key", map.key_size)
-        test_value = claripy.BVS("map_test_value", map.missing_value.size())
+        test_value = claripy.BVS("map_test_value", map.value_size)
         return claripy.And(
             # if there are unknown items, the invariants must imply the predicate
             claripy.Or(
                 known_len == map.length,
                 claripy.Or(
-                    claripy.Not(claripy.And(*[inv(self.state, test_key, test_value) for inv in map.invariants])),
+                    claripy.Not(claripy.And(*[inv(self.state, test_key, test_value, claripy.true) for inv in map.invariants])),
                     pred(test_key, test_value)
                 )
             ),
-            *[claripy.Or(item.value == map.missing_value, pred(item.key, item.value)) for item in map.items()]
+            *[claripy.Or(claripy.Not(item.present), pred(item.key, item.value)) for item in map.items()]
         )
 
 
@@ -220,7 +214,7 @@ def pre_process_maps(maps_by_obj, states):
     # 2. Linked invariants
     # first, check that all maps have 0 / 1 items
     def present_items(m):
-        return [i for i in m.items() if not i.value.structurally_match(m.missing_value)]
+        return [i for i in m.items() if not i.present.structurally_match(claripy.false)]
     bad_map = next((m for m_b_o in maps_by_obj for (o, m) in m_b_o if len(present_items(m)) > 1), None)
     if bad_map is not None:
         print("Linked invariant inference gave up. This is not a failure, but if something fails later it might be why...")
@@ -268,19 +262,19 @@ def pre_process_maps(maps_by_obj, states):
     def postproc_valinkey(state, objs, maps, extra):
         m = maps[0]
         (shape, replacement) = extra
-        return (Map(m.length, m.invariants + [lambda st, k, v: claripy.Or(v == m.missing_value, st.maps.get(maps[1], shape.replace(replacement, v)) != maps[1].missing_value)], m.items, m.missing_value, m.key_size), maps[1])
+        return (Map(m.length, m.invariants + [lambda st, k, v, p: claripy.Or(claripy.Not(p), st.maps.get(maps[1], shape.replace(replacement, v))[1])], m.items, m.key_size, m.value_size), maps[1])
     def postproc_valinkeykeyinval(state, objs, maps, extra):
         m = maps[0]
         ((shape1, replacement1), (shape2, replacement2)) = extra
-        return (Map(m.length, m.invariants + [lambda st, k, v: claripy.Or(v == m.missing_value, st.maps.get(maps[1], shape1.replace(replacement1, v)) == shape2.replace(replacement2, k))], m.items, m.missing_value, m.key_size), maps[1])
+        return (Map(m.length, m.invariants + [lambda st, k, v, p: claripy.Or(claripy.Not(p), st.maps.get(maps[1], shape1.replace(replacement1, v))[0] == shape2.replace(replacement2, k))], m.items, m.key_size, m.value_size), maps[1])
     def postproc_keyinkey(state, objs, maps, extra):
         m = maps[0]
         (shape, replacement) = extra
-        return (Map(m.length, m.invariants + [lambda st, k, v: claripy.Or(v == m.missing_value, st.maps.get(maps[1], shape.replace(replacement, k)) != maps[1].missing_value)], m.items, m.missing_value, m.key_size), maps[1])
+        return (Map(m.length, m.invariants + [lambda st, k, v, p: claripy.Or(claripy.Not(p), st.maps.get(maps[1], shape.replace(replacement, k))[1])], m.items, m.key_size, m.value_size), maps[1])
     def postproc_keyinkeyvalinval(state, objs, maps, extra):
         m = maps[0]
         ((shape1, replacement1), (shape2, replacement2)) = extra
-        return (Map(m.length, m.invariants + [lambda st, k, v: claripy.Or(v == m.missing_value, st.maps.get(maps[1], shape1.replace(replacement1, k)) == shape2.replace(replacement2, v))], m.items, m.missing_value, m.key_size), maps[1])
+        return (Map(m.length, m.invariants + [lambda st, k, v, p: claripy.Or(claripy.Not(p), st.maps.get(maps[1], shape1.replace(replacement1, k))[0] == shape2.replace(replacement2, v))], m.items, m.key_size, m.value_size), maps[1])
     # find "matching" maps, i.e. maps whose len(items) is the same in all states as len(our map's items)
     # ideally we should create equivalence classes once, instead of doing this for each map; oh well
     matching_objs_by_obj = [(obj, [o for (o, m) in maps_by_obj[0] if o is not obj and all(len(present_items(m1)) == len(present_items(m2)) for (m1, m2) in [(map_of_obj(obj, m_b_o), map_of_obj(o, m_b_o)) for m_b_o in maps_by_obj])]) for (obj, map) in maps_by_obj[0]]
@@ -318,7 +312,7 @@ def merge_maps(maps, states):
 
     map = maps[0]
     state = states[0]
-    if any(m.invariants != map.invariants or not m.missing_value.structurally_match(map.missing_value) or m.key_size != map.key_size for m in maps[1:]):
+    if any(m.invariants != map.invariants or m.key_size != map.key_size or m.value_size != map.value_size for m in maps[1:]):
         raise angr.AngrExitError("Maps do not match!")
 
     invariants = []
@@ -327,19 +321,19 @@ def merge_maps(maps, states):
     # If any invariant does not apply to an item, add an OR so it does
     # Using "== item.key/value" is likely pointless since their constraints will no longer exist after the merge because they refer to variables within an iteration
     # Instead, try to collect constraints about the key/value
-    for inv in map.invariants + ([lambda st, k, v: claripy.false] if len(map.invariants) == 0 else []):
+    for inv in map.invariants + ([lambda st, k, v, p: claripy.false] if len(map.invariants) == 0 else []):
         alternatives = []
         for (m, st) in zip(maps, states):
             for item in m.items():
-                if utils.can_be_true(st.solver, item.value != m.missing_value) and utils.definitely_false(st.solver, inv(st, item.key, item.value)):
+                if utils.can_be_true(st.solver, item.present) and utils.definitely_false(st.solver, inv(st, item.key, item.value, item.present)):
                     has_changed = True
                     key_cons = get_constraint(st, item.key)
                     value_cons = get_constraint(st, item.value)
                     real_item_key = item.key # avoid capture
                     real_item_value = item.value
-                    alternatives.append(lambda st, k, v: claripy.And(key_cons.replace(real_item_key, k), value_cons.replace(real_item_value, v)))
+                    alternatives.append(lambda st, k, v, p: claripy.And(key_cons.replace(real_item_key, k), value_cons.replace(real_item_value, v)))
         inv_copy = inv # avoid capture
-        invariants.append(lambda st, k, v: claripy.Or(inv_copy(st, k, v), *[i(st, k, v) for i in alternatives]))
+        invariants.append(lambda st, k, v, p: claripy.Or(inv_copy(st, k, v, p), *[i(st, k, v, p) for i in alternatives]))
 
     # If the length differs across states, make it unconstrained and add an unknown element to the invariants
     result_length = map.length
@@ -347,12 +341,12 @@ def merge_maps(maps, states):
         if not m.length.structurally_match(map.length):
             has_changed = True
             result_length = states[0].solver.BVS("map_merged_length", GhostMaps._length_size_in_bits)
-            invariants.append(lambda st, k, v: claripy.Or(claripy.BVS("map_has", 1) == 0, v != m.missing_value)) # note: BoolS was behaving oddly once, let's stay in the BVs...
+            invariants.append(lambda st, k, v, p: claripy.Or(claripy.Not(claripy.BoolS("map_has")), p))
             break
 
     if has_changed:
         GhostMaps.changed_last_merge = True
-    return Map(result_length, invariants, lambda: [], map.missing_value, map.key_size)
+    return Map(result_length, invariants, lambda: [], map.key_size, map.value_size)
 
 def post_process_maps(state, result):
     if not GhostMaps.changed_last_merge:

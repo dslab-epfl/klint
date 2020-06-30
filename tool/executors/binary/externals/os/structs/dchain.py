@@ -75,7 +75,7 @@ class DChainAdd(angr.SimProcedure):
       return state.solver.BVV(0, bitsizes.BOOL)
     def case_false(state):
       print("!!! dchain add has space")
-      state.add_constraints(state.maps.get(dchainp.items, index) == state.maps.missing_value(dchainp.items))
+      state.add_constraints(state.solver.Not(state.maps.get(dchainp.items, index)[1]))
       if not state.satisfiable():
         raise angr.AngrExitError("Could not add constraint: dchain_items_keyed(index, items) == none")
       state.maps.add(dchainp.items, index, time)
@@ -104,7 +104,7 @@ class DChainRefresh(angr.SimProcedure):
       raise angr.AngrExitError("Precondition does not hold: 0 <= index")
     if utils.can_be_false(self.state.solver, index.ULT(dchainp.index_range)):
       raise angr.AngrExitError("Precondition does not hold: index < index_range")
-    if utils.can_be_false(self.state.solver, self.state.maps.get(dchainp.items, index) != self.state.maps.missing_value(dchainp.items)):
+    if utils.can_be_false(self.state.solver, self.state.maps.get(dchainp.items, index)[1]):
       raise angr.AngrExitError("Precondition does not hold: dchain_items_keyed(index, items) != none")
 
     # Postconditions
@@ -148,8 +148,8 @@ class DChainExpire(angr.SimProcedure):
       return state.solver.BVV(0, bitsizes.BOOL)
     def case_false(state):
       print("!!! dchain expire yup")
-      state.add_constraints(state.maps.get(dchainp.items, index) != state.maps.missing_value(dchainp.items))
-      state.add_constraints(state.maps.get(dchainp.items, index).SLT(time))
+      state.add_constraints(state.maps.get(dchainp.items, index)[1])
+      state.add_constraints(state.maps.get(dchainp.items, index)[0].SLT(time))
       if not state.satisfiable():
         raise angr.AngrExitError("Could not add constraint: dchain_items_keyed(index, items) == some(?old) &*& old < time")
       state.maps.remove(dchainp.items, index)

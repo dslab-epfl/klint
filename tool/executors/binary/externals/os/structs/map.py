@@ -74,12 +74,12 @@ class MapGet(angr.SimProcedure):
     # Postconditions
     def case_has(state, item):
       print("!!! map get has", item)
-      state.add_constraints(state.maps.get(mapp.items_key_addrs, key) != state.maps.missing_value(mapp.items_key_addrs))
+      state.add_constraints(state.maps.get(mapp.items_key_addrs, key)[1])
       state.mem[value_out].uint64_t = item
       return state.solver.BVV(1, bitsizes.BOOL)
     def case_not(state):
       print("!!! map get not")
-      state.add_constraints(state.maps.get(mapp.items_key_addrs, key) == state.maps.missing_value(mapp.items_key_addrs))
+      state.add_constraints(state.solver.Not(state.maps.get(mapp.items_key_addrs, key)[1]))
       return state.solver.BVV(0, bitsizes.BOOL)
     return utils.fork_guarded_has(self, mapp.items_values, key, case_has, case_not)
 
@@ -106,7 +106,7 @@ class MapPut(angr.SimProcedure):
     self.state.memory.take(25, key_ptr, mapp.key_size)
     if utils.can_be_false(self.state.solver, self.state.maps.length(mapp.items_key_addrs).ULT(mapp.capacity)):
       raise angr.AngrExitError("Precondition does not hold: length(items) < capacity")
-    if utils.can_be_false(self.state.solver, self.state.maps.get(mapp.items_key_addrs, key) == self.state.maps.missing_value(mapp.items_key_addrs)):
+    if utils.can_be_false(self.state.solver, self.state.solver.Not(self.state.maps.get(mapp.items_key_addrs, key)[1])):
       raise angr.AngrExitError("Precondition does not hold: map_item_keyed(key, items) == none")
 
     # Postconditions
@@ -134,7 +134,7 @@ class MapErase(angr.SimProcedure):
     mapp = self.state.metadata.get(Map, map)
     key = self.state.memory.load(key_ptr, mapp.key_size)
     frac = self.state.memory.take(None, key_ptr, mapp.key_size)
-    if utils.can_be_false(self.state.solver, self.state.maps.get(mapp.items_key_addrs, key) == key_ptr):
+    if utils.can_be_false(self.state.solver, self.state.maps.get(mapp.items_key_addrs, key)[0] == key_ptr):
       raise angr.AngrExitError("Precondition does not hold: map_item_keyed(key, items) == some(map_item(key_ptr, key, _))")
 
     # Postconditions
