@@ -41,7 +41,7 @@ class SegmentedMemory(SimMemory):
 
     def _store(self, request): # request is MemoryStoreRequest; has addr, data=None, size=None, condition=None, endness + "completed" must be set to True and "stored_values" must be set to a singleton list of the written data
         if request.data is None or request.size is None or request.condition is not None:
-            raise angr.AngrExitError("Sorry, can't handle that yet", request.data, request.size, request.condition)
+            raise angr.AngrExitError("Sorry, can't handle that yet")
         if request.size.symbolic:
             raise angr.AngrExitError("Can't handle symbolic sizes")
         if request.endness is not None and request.endness != self.endness:
@@ -56,7 +56,9 @@ class SegmentedMemory(SimMemory):
         if offset == 0 and size == element_size:
             value = data
         else:
-            (full, _) = self.state.maps.get(base, index)
+            (full, present) = self.state.maps.get(base, index)
+            if utils.can_be_false(self.state.solver, present):
+                raise angr.AngrExitError("Memory value may not be present!?")
             if offset + size < full.length:
                 value = full[(full.length-1):(offset+size)].concat(data)
             else:
@@ -80,7 +82,9 @@ class SegmentedMemory(SimMemory):
         size = self.state.solver.eval(size, cast_to=int)
         (base, index, offset) = self.base_index_offset(addr)
 
-        (value, _) = self.state.maps.get(base, index)
+        (value, present) = self.state.maps.get(base, index)
+        if utils.can_be_false(self.state.solver, present):
+            raise angr.AngrExitError("Memory value may not be present!?")
         if offset == 0 and size == self.state.maps.value_size(base):
             return [addr], value, []
         else:
