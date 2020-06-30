@@ -9,13 +9,13 @@ import itertools
 
 
 # "length" is symbolic, and may be larger than len(items) if there are items that are not exactly known
-# "invariants" is a conjunction of Boolean invariants on key/value pairs, represented as lambdas that take (state, key, value, present) and return an expression
-# "items" contains exactly known items, which do not have to obey the invariants
+# "invariant" is a Boolean function on unknown items, represented as a lambda that takes an item and returns an expression
+# "items" contains exactly known items, which do not have to obey the invariant
 # !!! "items" is a parameterless lambda returning a list - it allows maps to refer to previous ones' items,
 #     so that invariants can be defined in terms of a specific map rather than whatever the map currently is
 # "key_size" is the size of keys in bits, as a non-symbolic integer
 # "value_size" is the size of values in bits, as a non-symbolic integer
-Map = recordclass("Map", ["length", "invariants", "items", "key_size", "value_size"])
+Map = recordclass("Map", ["length", "invariant", "items", "key_size", "value_size"])
 # Items in a map can be redundant but not contradictory (i.e. there cannot be 2 items whose might be equal with values that might not be equal)
 MapItem = namedtuple("MapItem", ["key", "value", "present"])
 
@@ -56,28 +56,33 @@ class GhostMaps(SimStatePlugin):
         if obj is None:
             obj = self.state.memory.allocate_opaque(name or "map_obj")
 
-        invariants = []
 
         if array_length is None:
             length = claripy.BVV(0, GhostMaps._length_size_in_bits)
+            invariant = lambda i: claripy.true
         else:
             length = array_length
-            invariants.append(lambda st, k, v, p: k.ULT(array_length) == p)
+            invariant = lambda i: i.key.ULT(array_length) == i.present
 
         if default_value is not None:
-            invariants.append(lambda st, k, v, p: v == default_value)
+            invariant = lambda i, old=invariant: claripy.And(old(i), i.value == default_value)
 
-        self.state.metadata.set(obj, Map(length, invariants, lambda: [], key_size, value_size))
+        self.state.metadata.set(obj, Map(length, invariant, lambda: [], key_size, value_size))
         return obj
 
 
     def length(self, obj):
-        map = self.state.metadata.get(Map, obj)
-        return map.length
+        # Returns the map's length, including both known and unknown items.
+        return self.state.metadata.get(Map, obj).length
+    
+
+    def key_size(self, obj):
+        # Public implementation detail due to Python's untyped nature
+        return self.state.metadata.get(Map, obj).key_size
 
     def value_size(self, obj):
-        map = self.state.metadata.get(Map, obj)
-        return map.value_size
+        # Public implementation detail due to Python's untyped nature
+        return self.state.metadata.get(Map, obj).value_size
 
 
     def add(self, obj, key, value):
@@ -92,12 +97,12 @@ class GhostMaps(SimStatePlugin):
 
         old_items = map.items
         new_items = lambda: old_items() + [MapItem(key, value, claripy.true)]
-        self.state.metadata.set(obj, Map(map.length + 1, map.invariants, new_items, map.key_size, map.value_size), override=True)
+        self.state.metadata.set(obj, Map(map.length + 1, map.invariant, new_items, map.key_size, map.value_size), override=True)
 
 
     def remove(self, obj, key):
         # Requires the map to contain K.
-        # Updates items (K', V', P') into (K', V', P' and K != K')
+        # Updates known items (K', V', P') into (K', V', P' and K != K')
         # Adds (K, V, false) to the known items.
         # Decrements the map length.
 
@@ -108,14 +113,19 @@ class GhostMaps(SimStatePlugin):
 
         new_items = lambda: [MapItem(item.key, item.value, claripy.And(item.present, item.key != key)) for item in map.items()] + \
                             [MapItem(key, claripy.BVS("map_bad_value"), claripy.false)]
-        self.state.metadata.set(obj, Map(map.length - 1, map.invariants, new_items, map.key_size, map.value_size), override=True)
+        self.state.metadata.set(obj, Map(map.length - 1, map.invariant, new_items, map.key_size, map.value_size), override=True)
 
 
     def get(self, obj, key):
         # If K is definitely one of the known items' keys, then return ITE(K = K1, (V1,P1), ITE(K = K2, (V2, P2), ...))
         # given known items [(K1, V1, P1), (K2, V2, P2), ...].
-        # Else, create a fresh value V and presence bit P, add the invariants on (K, V, P) to the path constraint,
-        # *mutate* the map by appending (K, V, P) to the known items, and recursively return get(K).
+        # Otherwise:
+        # - Let L be the number of known items whose presence bit is set
+        # - Create a fresh value V and presence bit P
+        # - Add the invariant on (K, V, P) to the path constraint
+        # - Add P => L < length(M) to the path constraint
+        # - *Mutate* the map by appending (K, V, P) to the known items
+        # - Recursively return get(K)
 
         # backdoor used by invariant inference...
         if isinstance(obj, Map):
@@ -134,29 +144,30 @@ class GhostMaps(SimStatePlugin):
         if utils.definitely_true(self.state.solver, key_is_known):
             return (value, present)
 
-        # If we don't have an item that matches the key, create one
-        # for the item to be there, we must have space
         known_len = claripy.BVV(0, GhostMaps._length_size_in_bits)
         for item in map.items():
             known_len = known_len + claripy.If(item.present, claripy.BVV(1, GhostMaps._length_size_in_bits), claripy.BVV(0, GhostMaps._length_size_in_bits))
         new_item_value = claripy.BVS("map_value", map.value_size)
         new_item_present = claripy.BoolS("map_present")
-        item_constraints = [claripy.Or(claripy.Not(new_item_present), known_len < map.length)] + \
-                           [inv(self.state, key, new_item_value, new_item_present) for inv in map.invariants]
+        new_item = MapItem(key, new_item_value, new_item_present)
 
-        # Avoid adding a pointless "always missing" item, it makes reasoning more complicated
-        if utils.definitely_false(self.state.solver, new_item_present, extra_constraints=item_constraints):
-            return (new_item_value, claripy.false)
-
-        self.state.add_constraints(*item_constraints)
         old_items = map.items
         # only time we actually MUTATE the map!
-        map.items = lambda: old_items() + [MapItem(key, new_item_value, new_item_present)]
+        map.items = lambda: old_items() + [new_item]
+
+        # adding constraints now means that get can be called recursively from an invariant, since any recursive calls will complete through the base case above
+        self.state.add_constraints(
+            claripy.Or(claripy.Not(new_item_present), known_len < map.length), 
+            map.invariant(new_item)
+        )
 
         return self.get(obj, key)
 
 
     def set(self, obj, key, value):
+        # Requires the map to contain K.
+        # Updates known items (K', V', P') into (K', ITE(K = K', V, V'), P' or K = K')
+        # Adds (K, V, true) to the known items
         if utils.can_be_false(self.state.solver, self.get(obj, key)[1]):
             raise angr.AngrExitError("Cannot set the value of a key that might not be there!")
 
@@ -165,10 +176,16 @@ class GhostMaps(SimStatePlugin):
         # While we allow duplicate items, let's try to avoid them to simplify human debugging
         new_items = lambda: [MapItem(item.key, claripy.If(item.key == key, value, item.value), claripy.Or(item.present, item.key == key)) for item in map.items() if not key.structurally_match(item.key)] + \
                             [MapItem(key, value, claripy.true)]
-        self.state.metadata.set(obj, Map(map.length, map.invariants, new_items, map.key_size, map.value_size), override=True)
+        self.state.metadata.set(obj, Map(map.length, map.invariant, new_items, map.key_size, map.value_size), override=True)
 
 
     def forall(self, obj, pred):
+        # Let L be the number of known items whose presence bit is set
+        # Create a fresh symbolic key and value pair (K', V')
+        # Returns true iff:
+        # - for all known items (K, V, P): P => pred(K, V)
+        # - L < length(M) => (invariant(M)(K', V', true) => pred(K', V'))
+
         map = self.state.metadata.get(Map, obj)
 
         known_len = claripy.BVV(0, GhostMaps._length_size_in_bits)
@@ -177,16 +194,16 @@ class GhostMaps(SimStatePlugin):
 
         test_key = claripy.BVS("map_test_key", map.key_size)
         test_value = claripy.BVS("map_test_value", map.value_size)
+        test_item = MapItem(test_key, test_value, claripy.true)
         return claripy.And(
-            # if there are unknown items, the invariants must imply the predicate
+            *[claripy.Or(claripy.Not(item.present), pred(item.key, item.value)) for item in map.items()],
             claripy.Or(
-                known_len == map.length,
+                claripy.Not(known_len < map.length),
                 claripy.Or(
-                    claripy.Not(claripy.And(*[inv(self.state, test_key, test_value, claripy.true) for inv in map.invariants])),
+                    claripy.Not(map.invariant(test_item)),
                     pred(test_key, test_value)
                 )
-            ),
-            *[claripy.Or(claripy.Not(item.present), pred(item.key, item.value)) for item in map.items()]
+            )
         )
 
 
@@ -195,126 +212,112 @@ class GhostMaps(SimStatePlugin):
         for (obj, _) in self.state.metadata.get_all(Map):
             if all(o is not obj for o in other_objs):
                 self.state.metadata.remove(Map, obj)
+                
+    # Implementation details used during invariant inference
+    def _known_items(self, obj): return self.state.metadata.get(Map, obj).items()
+    def _invariant(self, obj): return self.state.metadata.get(Map, obj).invariant
 
 
-# Returns a list of ([objs], lambda) tuples where lambda takes (state, [objs], [maps]) and returns [new_maps]
-def pre_process_maps(maps_by_obj, states):
-    def map_of_obj(o, m_b_o):
-        return next(m for (o2, m) in m_b_o if o2 is o) # yay for O(way too much) algorithms!
-    objs = [o for (o, m) in maps_by_obj[0]]
+# helper function to find FK / FV in the invariant inference algorithm
+def find_f(states, o1, o2, sel1, sel2, allow_const=False):
+    candidate_func = None
+    for st in states:
+        def filter_present(its): return [it for it in its if utils.can_be_true(st.solver, it.present)]
+        items1 = filter_present(st.maps._known_items(o1))
+        items2 = filter_present(st.maps._known_items(o2))
+        if len(items1) > len(items2):
+            # Pigeonhole: there must be an item in 1 that does not match one in 2
+            return None
+        if len(items1) != len(items2):
+            # Lazyness: implementing backtracking in case a guess fails is hard :p
+            raise angr.AngrExitError("backtracking not implemented yet")
+        for x1 in map(sel1, items1):
+            found = False
+            for it2 in items2:
+                x2 = sel2(it2)
+                if candidate_func is not None:
+                    if x2.structurally_match(candidate_func(x1)):
+                        # All good, our candidate worked
+                        found = True
+                        items2.remove(it2)
+                    # else: maybe next item?
+                    break
 
-    # sanity check...
-    for n in range(1, len(states)):
-        nobjs = [o for (o, m) in maps_by_obj[n]]
-        if len(objs) != len(nobjs):
-            raise angr.AngrExitError("Pre process map assertion failure; all states should have the same number of objs")
-        for o in objs:
-            if all(o is not o2 for o2 in nobjs):
-                raise angr.AngrExitError("Pre process map assertion failure; all objs do not match (or maybe they only match with a solver assert...)")
+                fake = claripy.BVS("fake", x1.size())
+                if not x2.replace(x1, fake).structurally_match(x2):
+                    # We found a possible function!
+                    candidate_func = lambda x, x1=x1, x2=x2: x2.replace(x1, x)
+                    found = True
+                    items2.remove(it2)
+                    break
+                elif allow_const:
+                    consts = st.solver.eval_upto(x2, 2, cast_to=int)
+                    if len(consts) == 1:
+                        # We found a possible constant!
+                        candidate_func = lambda x, cs=consts: cs[0]
+                        found = True
+                        items2.remove(it2)
+            if not found:
+                # Found nothing in this state, give up
+                return None
+    # Our candidate has survived all states!
+    # Don't forget to use sel1 here since we want the returned function to take an item
+    return lambda i, sel1=sel1: candidate_func(sel1(i))
 
-    result = []
-    # 1. If length_1 >= length_2 in all states, assume this will hold
-    # ughhhh why doesn't python have custom dictionary comparers that would make this soooo much easier/faster :(
-    for o1 in objs:
-        for o2 in objs:
-            if o1 is o2: continue
+# helper function to copy a map and add an invariant to the copy
+def add_invariant(map, inv):
+    return Map(map.length, lambda i, old=map.invariant: claripy.And(old(st, i), inv(st, i)), map.items, map.key_size, map.value_size)
 
-            def postproc_uge(st, objs, maps, extra):
-                st.add_constraints(maps[0].length.UGE(maps[1].length))
-                return maps
-            if all(utils.definitely_true(states[n].solver, map_of_obj(o1, maps_by_obj[n]).length.UGE(map_of_obj(o2, maps_by_obj[n]).length)) for n in range(len(states))):
-                result.append(([o1, o2], postproc_uge, None))
 
-    # 2. Linked invariants
-    # first, check that all maps have 0 / 1 items
-    def present_items(m):
-        return [i for i in m.items() if not i.present.structurally_match(claripy.false)]
-    bad_map = next((m for m_b_o in maps_by_obj for (o, m) in m_b_o if len(present_items(m)) > 1), None)
-    if bad_map is not None:
-        print("Linked invariant inference gave up. This is not a failure, but if something fails later it might be why...")
-        return result
-    def get_shape(og_obj, cand_obj, og_selector, cand_selector, strict=True):
-        replacement = None
-        shape = None
-        constant = None
-        constant_length = None
-        for (state, og_map, cand_map) in [(states[n], map_of_obj(og_obj, maps_by_obj[n]), map_of_obj(cand_obj, maps_by_obj[n])) for n in range(len(states))]:
-            og_items = present_items(og_map)
-            cand_items = present_items(cand_map)
-            if len(og_items) == 0:
-                continue
-            if len(og_items) != 1 or len(cand_items) != 1:
-                raise angr.AngrExitError("This should never happen, we checked earlier... sanity test")
-            og_val = og_selector(og_items[0])
-            cand_val = cand_selector(cand_items[0])
-            if shape is None and constant is None:
-                replacement = state.solver.BVS('shape_replacement', og_val.length)
-                if strict and not cand_val.structurally_match(og_val) and next((c for c in cand_val.children_asts() if c.structurally_match(og_val)), None) is None: # children_asts doesn't contain root
-                    return None # it doesn't even contain og_val
-                maybe_constant = state.solver.eval_upto(cand_val, 2, cast_to=int) if not strict else []
-                if len(maybe_constant) == 1:
-                    constant = maybe_constant[0] # it's a constant! easy peasy!
-                    constant_length = cand_val.length
-                else:
-                    if og_val.length != cand_val.length:
-                        return None # mismatched sizes - but only check here, if it's a constant we're good
-                    shape = cand_val.replace(og_val, replacement)
-            else:
-               if constant is None:
-                   if not shape.structurally_match(cand_val.replace(og_val, replacement)):
-                      return None
-               else:
-                   maybe_constant = state.solver.eval_upto(cand_val, 2, cast_to=int) if not strict else []
-                   if len(maybe_constant) != 1 or maybe_constant[0] != constant:
-                       return None
-        if constant is not None:
-            return (states[0].solver.BVV(constant, constant_length), replacement) # replacement won't really be used but we have to return something...
-        if shape is not None: # items were always 0-len
-            return (shape, replacement)
-        return None
-    # apologies to future me who might have to maintain this, as well as to anyone who has to read it! it *is* pretty straightforward, just long
-    def postproc_valinkey(state, objs, maps, extra):
-        m = maps[0]
-        (shape, replacement) = extra
-        return (Map(m.length, m.invariants + [lambda st, k, v, p: p == st.maps.get(maps[1], shape.replace(replacement, v))[1]], m.items, m.key_size, m.value_size), maps[1])
-    def postproc_valinkeykeyinval(state, objs, maps, extra):
-        m = maps[0]
-        ((shape1, replacement1), (shape2, replacement2)) = extra
-        return (Map(m.length, m.invariants + [lambda st, k, v, p: p == (st.maps.get(maps[1], shape1.replace(replacement1, v))[0] == shape2.replace(replacement2, k))], m.items, m.key_size, m.value_size), maps[1])
-    def postproc_keyinkey(state, objs, maps, extra):
-        m = maps[0]
-        (shape, replacement) = extra
-        return (Map(m.length, m.invariants + [lambda st, k, v, p: p == st.maps.get(maps[1], shape.replace(replacement, k))[1]], m.items, m.key_size, m.value_size), maps[1])
-    def postproc_keyinkeyvalinval(state, objs, maps, extra):
-        m = maps[0]
-        ((shape1, replacement1), (shape2, replacement2)) = extra
-        return (Map(m.length, m.invariants + [lambda st, k, v, p: p == (st.maps.get(maps[1], shape1.replace(replacement1, k))[0] == shape2.replace(replacement2, v))], m.items, m.key_size, m.value_size), maps[1])
-    # find "matching" maps, i.e. maps whose len(items) is the same in all states as len(our map's items)
-    # ideally we should create equivalence classes once, instead of doing this for each map; oh well
-    matching_objs_by_obj = [(obj, [o for (o, m) in maps_by_obj[0] if o is not obj and all(len(present_items(m1)) == len(present_items(m2)) for (m1, m2) in [(map_of_obj(obj, m_b_o), map_of_obj(o, m_b_o)) for m_b_o in maps_by_obj])]) for (obj, map) in maps_by_obj[0]]
-    already_done = [] # avoid invariant loops of map1.get -> map2.get -> map1.get...
-    matching_objs_by_obj = sorted(matching_objs_by_obj, reverse=True, key=lambda pair: len(pair[1]))
-    for (obj, matching_objs) in matching_objs_by_obj:
-        already_done.append(obj)
-        for matching_obj in matching_objs:
-            if next((o for o in already_done if o.structurally_match(matching_obj)), None) is not None: # don't incur claripy's wrath by using 'in' or 'any(...)' which calls ==
-                continue
-            val_in_key = get_shape(obj, matching_obj, lambda i: i.value, lambda i: i.key)
-            if val_in_key is not None:
-                result.append(([obj, matching_obj], postproc_valinkey, val_in_key))
-                # val could also be in val but that'd be weird, since it's already in key
-                key_in_val = get_shape(obj, matching_obj, lambda i: i.key, lambda i: i.value, strict=False) # not strict; a constant is fine...
-                if key_in_val is not None:
-                    result.append(([obj, matching_obj], postproc_valinkeykeyinval, (val_in_key, key_in_val)))
-            else:
-                key_in_key = get_shape(obj, matching_obj, lambda i: i.key, lambda i: i.key)
-                if key_in_key is not None:
-                    result.append(([obj, matching_obj], postproc_keyinkey, key_in_key))
-                    # key could also be in val but that'd be weird, since it's already in key
-                    val_in_val = get_shape(obj, matching_obj, lambda i: i.value, lambda i: i.value, strict=False)
-                    if val_in_val is not None:
-                        result.append(([obj, matching_obj], postproc_keyinkeyvalinval, (key_in_key, val_in_val)))
-    return result
+def maps_pre_process(states, objs):
+    results = [] # pairs: (maps, lambda states, maps: returns None for no changes or maps to overwrite them)
+    
+    # Invariant inference algorithm
+    for (o1, o2) in itertools.permutations(objs, 2):
+        # Step 1: Length.
+        # For each pair of maps (M1, M2), 
+        #   if length(M1) <= length(M2) across all states,
+        #   then assume this holds the merged state
+        if all(utils.definitely_true(st.solver, st.maps.length(o1) <= st.maps.length(o2)) for st in states):
+            results.append(([], lambda st, _, o1=o1, o2=o2: st.add_constraints(st.maps.length(o1) <= st.maps.length(o2))))
+            
+        # Step 2: Cross-references.
+        # For each pair of maps (M1, M2),
+        #  if all items in M1 are known across all states,
+        #  and there exists a function FK such that for all items (K, V, P) in M1, P => get(M2, FK(K, V)) = (?, true),
+        #  then assume this is an invariant of M1 in the merged state.
+        #  Additionally,
+        #   if there exists a function FV such that for all items (K, V, P) in M1, P => get(M2, FK(K, V)) = (FV(K, V), true),
+        #   then assume this is an invariant of M1 in the merged state.
+        if all(utils.definitely_true(st.solver, st.maps.length(o1) == len(st.maps._known_items(o1))) for st in states):
+            fk = find_f(states, o1, o2, lambda i: i.key, lambda i: i.key) \
+              or find_f(states, o1, o2, lambda i: i.value, lambda i: i.key)
+            if fk is not None:
+                
+                results.append(([o1, o2], lambda st, ms: [add_invariant(ms[0], lambda i: claripy.Or(claripy.Not(p), ms[1].get(fk(i))[1])), ms[1]]))
+                fv = find_f(states, o1, o2, lambda i: i.key, lambda i: i.value, allow_const=True) \
+                  or find_f(states, o1, o2, lambda i: i.value, lambda i: i.value, allow_const=True)
+                if fv is not None:
+                    results.append(([o1, o2], lambda st, ms: [add_invariant(ms[0], lambda i: claripy.Or(claripy.Not(p), ms[1].get(fk(i))[0] == fv(i))), ms[1]]))
+    return results
+
+def maps_merge(states, obj):
+    # Sanity check: the unknown items invariant has not changed, and neither did the key/value size
+    if any(st.maps._invariant(obj) != states[0].maps._invariant(obj) or \
+           st.maps.key_size(obj) != states[0].maps.key_size(obj) or \
+           st.maps.value_size(obj) != states[0].maps.value_size(obj) \
+           for st in states[1:]):
+        raise angr.AngrExitError("Maps do not match!")
+
+    # Oblivion algorithm: "forget" known items by integrating them into the unknown items invariant
+    # For each known item, if the unknown items invariant does not hold on that item, find constraints that do hold and add them as a disjunction to the invariant.
+    invariant = maps[0].invariant
+    for st in states:
+        for item in st.maps._known_items(obj):
+            if utils.can_be_false(st.solver, invariant(st, item)):
+                new = ...
+                invariant = lambda i, old=invariant: claripy.Or(old(st, i), new(st, i))
+
 
 def merge_maps(maps, states):
     def get_constraint(state, expr):
