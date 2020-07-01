@@ -107,11 +107,10 @@ class SegmentedMemory(SimMemory):
         if max_size // 8 > 4096:
             raise angr.AngrExitError("That's a huge block you want to allocate... let's just not: " + str(max_size))
 
-        addr_name = "segmented_memory_addr" if name is None else (name + "_addr")
-        addr = self.state.solver.BVS(addr_name, bitsizes.PTR)
+        name = (name or "segmented_memory") + "_addr"
+        addr = self.state.maps.allocate(bitsizes.PTR, max_size, name=name, array_length=count, default_value=default)
         # neither null nor so high it overflows
         self.state.add_constraints(addr != 0, addr.ULE(self.state.solver.BVV(2**bitsizes.PTR-1, bitsizes.PTR) - max_size))
-        self.state.maps.allocate(bitsizes.PTR, max_size, obj=addr, array_length=count, default_value=default)
         if name is not None and utils.definitely_true(self.state.solver, count == 1):
             lone_value = self.state.solver.BVS(name, max_size)
             if default is not None:

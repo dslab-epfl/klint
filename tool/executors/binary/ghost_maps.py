@@ -38,20 +38,16 @@ class GhostMaps(SimStatePlugin):
 
 
     # Allocates a ghost map with the given key/value sizes, and returns the associated object.
-    # "obj": object; if given, use that instead of allocating an object.
     # "name": str; if given, use that name when allocating an object, useful for debugging purposes.
     # "array_length": BV64; if given, the map represents an array, meaning it already has keys from 0 to array_length-1.
     # "default_value": BV; if given, all values begin as this
-    def allocate(self, key_size, value_size, obj=None, name=None, array_length=None, default_value=None):
+    def allocate(self, key_size, value_size, name=None, array_length=None, default_value=None):
         def to_int(n, name):
             if isinstance(n, claripy.ast.base.Base) and n.symbolic:
                 raise angr.AngrExitError(name + " cannot be symbolic")
             return self.state.solver.eval(n, cast_to=int)
         key_size = to_int(key_size, "key_size")
         value_size = to_int(value_size, "value_size")
-
-        if obj is None:
-            obj = self.state.memory.allocate_opaque(name or "map_obj")
 
         if array_length is None:
             length = claripy.BVV(0, GhostMaps._length_size_in_bits)
@@ -63,6 +59,7 @@ class GhostMaps(SimStatePlugin):
         if default_value is not None:
             invariant = lambda i, old=invariant: claripy.And(old(i), i.value == default_value)
 
+        obj = self.state.memory.allocate_opaque(name or "map_obj")
         self.state.metadata.set(obj, Map(length, invariant, lambda: [], key_size, value_size))
         return obj
 
