@@ -258,7 +258,8 @@ def maps_merge_across(states_to_merge, objs, ancestor_state):
                 for it2 in items2:
                     x2 = sel2(it2)
                     if candidate_func is not None:
-                        if x2.structurally_match(candidate_func(x1)):
+                        # 1st is for replacement, 2nd is for constants
+                        if x2.structurally_match(candidate_func(x1)) or utils.definitely_true(st.solver, x2 == candidate_func(x1)):
                             # All good, our candidate worked
                             found = True
                             items2.remove(it2)
