@@ -2,7 +2,6 @@ import angr
 import archinfo
 import executors.binary.cast as cast
 import executors.binary.utils as utils
-from executors.binary.metadata import Metadata
 from collections import namedtuple
 
 PACKET_MIN = 64 # the NIC will pad it if shorter
@@ -12,8 +11,6 @@ PACKET_MTU = 1512 # 1500 (Ethernet spec) + 2xMAC
 
 # Returns packet_addr
 def packet_init(state, devices_count):
-  Metadata.set_merging_func(NetworkMetadata, merge_network_metadata)
-
   length = state.solver.BVS("packet_length", 16)
   state.add_constraints(length.UGE(PACKET_MIN), length.ULE(PACKET_MTU))
 
@@ -46,7 +43,6 @@ def packet_get_length(state, packet_addr):
 
 
 NetworkMetadata = namedtuple('NetworkMetadata', ['transmitted'])
-def merge_network_metadata(items, states): return None
 
 class Transmit(angr.SimProcedure):
   def run(self, packet, device, ether_header, ipv4_header, tcpudp_header):

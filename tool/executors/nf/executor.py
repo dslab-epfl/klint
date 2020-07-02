@@ -101,15 +101,16 @@ def havoc_iter(nf_folder, state, devices_count):
       print(s.solver.constraints)
       print("===       ===")
       print("")
-      s.maps.keep_only_those_in_state(original_state)
 
     print("Merging...")
-    handled_states[0][0].metadata.call_me_before_merge_always()
-    GhostMaps.changed_last_merge = False # these hacks are getting crazy...
-    (new_state, flag_comps, merged) = handled_states[0][0].merge(*[s for (s, i, o) in handled_states[1:]], common_ancestor=original_state)
-    new_state.metadata.call_me_after_merge_always()
+    other_states = [s for (s, i, o) in handled_states[1:]]
+    opaque_metadata_value = handled_states[0][0].metadata.notify_impending_merge(other_states, original_state)
+    (new_state, flag_comps, merged) = handled_states[0][0].merge(*other_states, common_ancestor=original_state)
     if not merged:
       raise angr.AngrExitError("Not merged...")
+    reached_fixpoint = new_state.metadata.notify_completed_merge(opaque_metadata_value)
+    if reached_fixpoint:
+        return (new_state, True)
 
     # remove a hopefully-pointless constraint
     pointless_constraint = [c for c in new_state.solver.constraints if next((c2 for c2 in c.children_asts() if c2.structurally_match(flag_comps[0])), None) is not None]
@@ -120,7 +121,7 @@ def havoc_iter(nf_folder, state, devices_count):
     print("Merged constraints:")
     print(new_state.solver.constraints)
     print("")
-    return new_state
+    return (new_state, False)
 
 
 def execute(nf_folder):
@@ -135,7 +136,7 @@ def execute(nf_folder):
 #      print("DISCARDING", state.solver.constraints)
       continue
     while True:
-        state = havoc_iter(nf_folder, state, devices_count)
-        if not GhostMaps.changed_last_merge:
+        (state, reached_fixpoint) = havoc_iter(nf_folder, state, devices_count)
+        if reached_fixpoint:
             break
     raise "yay"

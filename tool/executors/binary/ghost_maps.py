@@ -24,7 +24,7 @@ class GhostMaps(SimStatePlugin):
 
     def __init__(self):
         SimStatePlugin.__init__(self)
-        Metadata.set_merging_func(Map, maps_merge_across, maps_merge_one)
+        Metadata.set_merge_funcs(Map, maps_merge_across, maps_merge_one)
 
     def set_state(self, state):
         SimStatePlugin.set_state(self, state)
@@ -220,7 +220,7 @@ class GhostMaps(SimStatePlugin):
 
 
     # Implementation details used during invariant inference
-    def _known_items(self, obj): return self.state.metadata.get(Map, obj).items()
+    def _known_items(self, obj): return self.state.metadata.get(Map, obj).items
     def _invariant(self, obj): return self.state.metadata.get(Map, obj).invariant
 
 
@@ -228,13 +228,13 @@ class GhostMaps(SimStatePlugin):
 
 def maps_merge_across(states_to_merge, objs, ancestor_state):
     results = [] # pairs: (ID, maps, lambda states, maps: returns None for no changes or maps to overwrite them)
-    states = [states_to_merge + ancestor_state]
+    states = states_to_merge + [ancestor_state]
 
     # helper function to find FK / FV in the invariant inference algorithm
     def find_f(o1, o2, sel1, sel2, allow_const=False):
         candidate_func = None
         for st in states:
-            def filter_present(its): return [it for it in its if utils.can_be_true(st.solver, it.present)]
+            def filter_present(its): return [it for it in its() if utils.can_be_true(st.solver, it.present)]
             items1 = filter_present(st.maps._known_items(o1))
             items2 = filter_present(st.maps._known_items(o2))
             if len(items1) > len(items2):
@@ -266,7 +266,7 @@ def maps_merge_across(states_to_merge, objs, ancestor_state):
                         consts = st.solver.eval_upto(x2, 2, cast_to=int)
                         if len(consts) == 1:
                             # We found a possible constant!
-                            candidate_func = lambda x, cs=consts: cs[0]
+                            candidate_func = lambda x, cs=consts: claripy.BVV(cs[0], x.size())
                             found = True
                             items2.remove(it2)
                 if not found:
@@ -278,7 +278,7 @@ def maps_merge_across(states_to_merge, objs, ancestor_state):
 
     # helper function to copy a map and add an invariant to the copy
     def add_invariant(map, inv):
-        return Map(map.length, lambda i, old=map.invariant: claripy.And(old(st, i), inv(st, i)), map.items, map.key_size, map.value_size)
+        return Map(map.length, lambda i, old=map.invariant: claripy.And(old(i), inv(i)), map.items, map.key_size, map.value_size)
 
     # Invariant inference algorithm: if some property P holds in all states to merge and the ancestor state, optimistically assume it is part of the invariant
     for (o1, o2) in itertools.permutations(objs, 2):
@@ -287,7 +287,7 @@ def maps_merge_across(states_to_merge, objs, ancestor_state):
         #   if length(M1) <= length(M2) across all states,
         #   then assume this holds the merged state
         if all(utils.definitely_true(st.solver, st.maps.length(o1) <= st.maps.length(o2)) for st in states):
-            results.append(("length", [], lambda st, ms: st.add_constraints(ms[0].length <= ms[1].length)))
+            results.append(("length", [o1, o2], lambda st, ms: st.add_constraints(ms[0].length <= ms[1].length)))
 
         # Step 2: Cross-references.
         # For each pair of maps (M1, M2),
@@ -297,7 +297,7 @@ def maps_merge_across(states_to_merge, objs, ancestor_state):
         #  Additionally,
         #   if there exists a function FV such that for all items (K, V, P) in M1, P => get(M2, FK(K, V)) = (FV(K, V), true),
         #   then assume this is an invariant of M1 in the merged state.
-        if all(utils.definitely_true(st.solver, st.maps.length(o1) == len(st.maps._known_items(o1))) for st in states):
+        if all(utils.definitely_true(st.solver, st.maps.length(o1) == len(st.maps._known_items(o1)())) for st in states):
             fk = find_f(o1, o2, lambda i: i.key, lambda i: i.key) \
               or find_f(o1, o2, lambda i: i.value, lambda i: i.key)
             if fk is not None: 
@@ -330,8 +330,8 @@ def maps_merge_one(states_to_merge, obj, ancestor_state):
         # For each known item, 
         #  if the unknown items invariant may not hold on that item assuming the item is present,
         #  find constraints that do hold and add them as a disjunction to the invariant.
-        for item in st.maps._known_items(obj):
-            if utils.can_be_true(st.solver, claripy.And(item.present, claripy.Not(invariant(st, item)))):
+        for item in st.maps._known_items(obj)():
+            if utils.can_be_true(st.solver, claripy.And(item.present, claripy.Not(invariant(item)))):
                 key_constraints = find_constraints(st, item.key)
                 value_constraints = find_constraints(st, item.value)
                 invariant = lambda i, old=invariant, ik=item.key, iv=item.value, kc=key_constraints, vc=value_constraints: \
@@ -342,4 +342,4 @@ def maps_merge_one(states_to_merge, obj, ancestor_state):
         if not length_changed and utils.can_be_false(st.solver, st.maps.length(obj) == length):
             length = claripy.BVS("map_length", GhostMaps._length_size_in_bits)
 
-    return Map(length, invariant, ancestor_state.maps._items(obj), ancestor_state.maps.key_size(obj), ancestor_state.maps.value_size(obj))
+    return Map(length, invariant, ancestor_state.maps._known_items(obj), ancestor_state.maps.key_size(obj), ancestor_state.maps.value_size(obj))

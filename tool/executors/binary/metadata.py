@@ -5,25 +5,29 @@ import executors.binary.utils as utils
 import copy
 
 class Metadata(SimStatePlugin):
-    merging_funcs = {}
-    state_to_merge = None
+    merge_funcs = {}
 
-    # func is (items, states) -> new_value; can return None to delete the item, if it cannot be sensibly merged
-    # pre_process is ([items_by_obj for state in states], states) -> result
-    # post_process is (merged_state, pre_process_result) -> None
+    # func_across takes as input ([states], [objs], ancestor_state)
+    #                and returns [(ID, [objs], lambda (state, [meta]): None or [meta] to overwrite)]
+    #                fixed-point if the returned [(ID, [objs])] is a superset of the previous one
+    # func_one takes as input ([states], obj, ancestor_state)
+    #             and returns (meta)
+    #             fixed-point if meta is structurally equal to ancestor_state's
+    # Regardless of whether this method is called for a given class,
+    # metadata that is not present in the ancestor state, regardless of value, will be discarded.
+    # If this method is not called for a given class,
+    # metadata of that class is kept if it is structurally equal in all states and discarded otherwise
     @staticmethod
-    def set_merging_func(cls, func, pre_process=None, post_process=None):
-        if pre_process is None and post_process is not None:
-            raise angr.AngrExitError("Cannot have post-processing without pre-processing")
-        if cls in Metadata.merging_funcs and Metadata.merging_funcs[cls] != (pre_process, func, post_process):
-            raise angr.AngrExitError("Cannot change merging functions once set")
-        Metadata.merging_funcs[cls] = (pre_process, func, post_process)
+    def set_merge_funcs(cls, func_across, func_one):
+        if cls in Metadata.merge_funcs and Metadata.merge_funcs[cls] != (func_across, func_one):
+            raise angr.AngrExitError("Cannot change merge functions once set")
+        Metadata.merge_funcs[cls] = (func_across, func_one)
 
 
     def __init__(self, items=None):
         SimStatePlugin.__init__(self)
         self.items = {} if items is None else items
-        self.to_do = [] # stupid hack: we want to do something after a merge, but after everything has been merged..
+        self.merge_across_results = None
 
 
     def set_state(self, state):
@@ -35,85 +39,91 @@ class Metadata(SimStatePlugin):
         return Metadata(copy.deepcopy(self.items))
 
 
-    def merge(self, others, merge_conditions, common_ancestor=None):
-        def _eq(a, b):
-            if a is None:
-                return b is None
-            if b is None:
+    # HACK: For merging to work correctly, immediately before calling:
+    #   (merged_state, _, _) = state.merge(*other_states, common_ancestor=ancestor_state)
+    # one must call:
+    #   opaque_value = state.metadata.notify_impending_merge(other_states, ancestor_state)
+    # and immediately after one must call:
+    #   reached_fixpoint = merged_state.metadata.notify_completed_merge(opaque_value)
+    def notify_impending_merge(self, other_states, ancestor_state):
+        def structural_eq(a, b):
+            if a is None and b is None:
+                return True
+            if a is None or b is None:
                 return False
             if isinstance(a, claripy.ast.base.Base) and isinstance(b, claripy.ast.base.Base):
                 return a.structurally_match(b)
-            if isinstance(a, claripy.ast.base.Base) or isinstance(b, claripy.ast.base.Base):
-                raise angr.AngrExitError("_eq gave up: " + str(a) + " and " + str(b))
             if hasattr(a, '_asdict') and hasattr(b, '_asdict'):
                 ad = a._asdict()
                 bd = b._asdict()
-                return all(_eq(ad[k], bd[k]) for k in set(ad.keys()).union(bd.keys()))
+                return all(ad[k] is bd[k] for k in set(ad.keys()).union(bd.keys()))
             if isinstance(a, list) and isinstance(b, list):
-                return len(a) == len(b) and all(_eq(a[n], b[n]) for n in range(len(a)))
+                return len(a) == len(b) and all(structural_eq(ai, bi) for (ai, bi) in zip(a, b))
             if isinstance(a, tuple) and isinstance(b, tuple):
-                return _eq(list(a), list(b))
+                return structural_eq(list(a), list(b))
             return a == b
 
-        # HACK: ignore clock.Time, we don't want to merge it anyway
-        time_key = next((k for items in [o.items.keys() for o in [self] + others] for k in items if "clock.Time" in str(k)), None)
-        if any(len([k for k in o.items.keys() if k != time_key]) != len([k for k in self.items.keys() if k != time_key]) for o in others):
-            raise angr.AngrExitError("Merging Metadata instances with different keys is not supported yet")
-        if time_key is not None:
-            self.remove_all(time_key)
+        # note that we keep track of objs as their string representations to avoid comparing Claripy ASTs (which don't like ==)
+        across_previous_results = copy.deepcopy(ancestor_state.metadata.merge_across_results or {})
+        one_results_equal = True
 
-        my_state = Metadata.state_to_merge # see HACK below - at this point 'self.state' might've been modified by other plugins already
-        Metadata.state_to_merge = None
+        merged_items = {}
+        across_results = {}
+        for (cls, items) in self.items.items():
+            if cls not in ancestor_state.metadata.items:
+                # Ignore any metadata class that was not already in the ancestor state
+                continue
+            # Ignore any metadata key that was not already in the ancestor state
+            common_keys = [k for (k, v) in items if ancestor_state.metadata._get(cls, k) != []]
 
-        for cls in self.items:
-            if any(cls not in o.items for o in others) or any(len(o.items[cls]) != len(self.items[cls]) for o in others):
-                raise angr.AngrExitError("Merging Metadata instances with different keys is not supported yet")
+            merged_items[cls] = []
+            if cls in Metadata.merge_funcs:
+                across_results[cls] = Metadata.merge_funcs[cls][0]([self.state] + other_states, common_keys, ancestor_state)
+                # To check if we have reached a superset of the previous across_results, remove all values we now have
+                for (id, objs, _) in across_results[cls]:
+                    if cls in across_previous_results:
+                        try:
+                            across_previous_results[cls].remove((id, map(str, objs)))
+                        except ValueError:
+                            pass # was not in across_previous_results[cls], that's OK
+                # Merge individual values, keeping track of whether any of them changed
+                for key in common_keys:
+                    old_value = ancestor_state.metadata.get(cls, key)
+                    merged_value = Metadata.merge_funcs[cls][1]([self.state] + other_states, key, ancestor_state)
+                    one_results_equal = one_results_equal and structural_eq(old_value, merged_value)
+                    merged_items[cls].append((key, merged_value))
+            else:
+                # No merge function, keep all of the ones that are referentially equal, discard the others
+                for key in common_keys:
+                    value = self.get(cls, key)
+                    if all(structural_eq(other.metadata.get(cls, key), value) for other in other_states):
+                        merged_items[cls].append((key, value))
 
-            (pre_process, merge, post_process) = Metadata.merging_funcs.get(cls, (None, None, None))
+        # As the doc states, fixpoint if all merges resulted in the old result and the across_results are a superset
+        reached_fixpoint = one_results_equal and all(len(items) == 0 for items in across_previous_results.values())
+        return (merged_items, across_results, reached_fixpoint)
 
-            if pre_process is not None:
-                pre_process_result = pre_process([self.items[cls]] + [o.items[cls] for o in others], [my_state] + [o.state for o in others])
+    def notify_completed_merge(self, opaque_value):
+        (merged_items, across_results, reached_fixpoint) = opaque_value
+        self.merge_across_results = {cls: [(id, map(str, objs)) for (id, objs, _) in items] for (cls, items) in across_results.items()}
+        self.items = merged_items
 
-            for (k, v) in self.items[cls]:
-                values = [v]
-                states = [my_state]
-                for o in others + [common_ancestor]:
-                    if cls not in o.items:
-                        continue
-                    ov = [v2 for (k2, v2) in o.items[cls] if k is k2]
-                    if len(ov) == 0:
-                        continue
-                    if len(ov) > 1:
-                        raise angr.AngrExitError("Merging Metadata instances with different keys is not supported yet")
-                    ov = ov[0]
-                    if all(not _eq(ov, vvv) for vvv in values): # poor man's set
-                        values.append(ov)
-                        states.append(o.state)
-                if len(values) != 1: # if 1, nothing to do, all values were exactly the same
-                    if merge is None:
-                        raise angr.AngrExitError("Metadata does not know how to merge " + str(cls) + ", please use Metadata.set_merging_func")
-                    new_v = merge(values, states)
-                    if new_v is None:
-                        self.remove(cls, k)
-                    else:
-                        self.set(k, new_v, override=True)
+        for (cls, items) in across_results.items():
+            for (_, objs, func) in items:
+                vals = [self.get(cls, obj) for obj in objs]
+                new_vals = func(self.state, vals)
+                if new_vals is not None:
+                    for (obj, new_val) in zip(objs, new_vals):
+                        self.set(obj, new_val, override=True)
 
-            if post_process is not None:
-                cls_copy = cls # avoid 'cls' taking on the last value due to python capturing rules...
-                self.to_do.append((lambda s, a: a(s.state, pre_process_result), post_process))
+        return reached_fixpoint
 
+
+    def merge(self, others, merge_conditions, common_ancestor=None):
+        # No logic here because at this point other plugins may have already been merged,
+        # including the solver, which means self.state.solver.constraints may have the merged constraints
+        # instead of the pre-merge constraints we need.
         return True
-
-
-    # HACK: For merging to work correctly, we need to know about the state being merged into before any other plugins can change it
-    def call_me_before_merge_always(self):
-        Metadata.state_to_merge = self.state.copy()
-
-    # HACK: For merging to work correctly with post-processing functions, this MUST be called immediately on the result of state.merge
-    def call_me_after_merge_always(self):
-        for (func, arg) in self.to_do:
-            func(self, arg)
-        self.to_do = []
 
 
     def items_copy(self): # for verification purposes

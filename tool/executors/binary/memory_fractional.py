@@ -3,16 +3,12 @@ import archinfo
 from angr.state_plugins.plugin import SimStatePlugin
 from angr.storage.memory import SimMemory
 from angr.storage.memory import MemoryStoreRequest
-from executors.binary.metadata import Metadata
 from executors.binary.memory_segmented import SegmentedMemory
 import executors.binary.bitsizes as bitsizes
 import executors.binary.utils as utils
 from collections import namedtuple
 
 Facts = namedtuple('Facts', ['fractions', 'size'])
-
-def merge_facts(items, states):
-    raise "fact merge unimplemented"
 
 
 # Supports loads and stores, as well as allocate and take/give; all methods take sizes in bytes
@@ -21,7 +17,6 @@ def merge_facts(items, states):
 class FractionalMemory(SimMemory):
     def __init__(self, memory_id='', memory=None, fractions_memory=None, endness=None):
         SimMemory.__init__(self, endness=endness, abstract_backer=None, stack_region_map=None, generic_region_map=None)
-        Metadata.set_merging_func(Facts, merge_facts)
         self.id = memory_id # magic! needs to be set for SimMemory to work
         self.memory = SegmentedMemory(memory_id) if memory is None else memory
         self.fractions_memory = SegmentedMemory(memory_id) if fractions_memory is None else fractions_memory

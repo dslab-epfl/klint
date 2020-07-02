@@ -1,5 +1,4 @@
 import angr
-from executors.binary.metadata import Metadata
 import executors.binary.bitsizes as bitsizes
 from collections import namedtuple
 
@@ -9,11 +8,6 @@ Time = namedtuple('Time', [])
 time_has_merge_func = False
 
 def get_current_time(state):
-    global time_has_merge_func
-    if not time_has_merge_func:
-        Metadata.set_merging_func(Time, lambda items, states: None)
-        time_has_merge_func = True
-
     existing = state.metadata.get_all(Time)
     if len(existing) != 0:
         # how to handle it:
