@@ -277,7 +277,7 @@ def maps_merge_across(states_to_merge, objs, ancestor_state):
                         consts = st.solver.eval_upto(x2, 2, cast_to=int)
                         if len(consts) == 1:
                             # We found a possible constant!
-                            candidate_func = lambda x, cs=consts: claripy.BVV(cs[0], x.size())
+                            candidate_func = lambda x, consts=consts, sz=x2.size(): claripy.BVV(consts[0], sz)
                             found = True
                             items2.remove(it2)
                 if not found:
