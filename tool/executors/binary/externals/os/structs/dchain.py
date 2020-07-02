@@ -74,7 +74,7 @@ class DChainAdd(angr.SimProcedure):
       print("!!! dchain add full")
       return state.solver.BVV(0, bitsizes.BOOL)
     def case_false(state):
-      print("!!! dchain add has space")
+      print("!!! dchain add has space", index)
       state.add_constraints(state.solver.Not(state.maps.get(dchainp.items, index)[1]))
       if not state.satisfiable():
         raise angr.AngrExitError("Could not add constraint: dchain_items_keyed(index, items) == none")
@@ -147,7 +147,7 @@ class DChainExpire(angr.SimProcedure):
       print("!!! dchain expire nope")
       return state.solver.BVV(0, bitsizes.BOOL)
     def case_false(state):
-      print("!!! dchain expire yup")
+      print("!!! dchain expire yup", index)
       state.add_constraints(state.maps.get(dchainp.items, index)[1])
       state.add_constraints(state.maps.get(dchainp.items, index)[0].SLT(time))
       if not state.satisfiable():
@@ -187,7 +187,7 @@ class DChainGet(angr.SimProcedure):
 
     # Postconditions
     def case_has(state, time):
-      print("!!! dchain get has")
+      print("!!! dchain get has", time)
       state.memory.store(time_out, time) # TODO endiannness (or just commit to time_t -> int64_t and use that in code)
       return state.solver.BVV(1, bitsizes.BOOL)
     def case_not(state):

@@ -6,6 +6,7 @@ from executors.binary.metadata import Metadata
 import executors.binary.utils as utils
 from collections import namedtuple
 
+# TODO FIXME deal with duplicate items - they can be retroactively added behind our back!
 
 # "length" is symbolic, and may be larger than len(items) if there are items that are not exactly known
 # "invariant" is a Boolean function on unknown items, represented as a lambda that takes an item and returns an expression
@@ -94,7 +95,7 @@ class GhostMaps(SimStatePlugin):
 
         map = self._get_map(obj)
 
-        new_items = lambda olds=map.items: olds() + [MapItem(key, value, claripy.true)]
+        new_items = lambda: map.items() + [MapItem(key, value, claripy.true)]
         self.state.metadata.set(obj, Map(map.length + 1, map.invariant, new_items, map.key_size, map.value_size), override=True)
 
 
@@ -109,7 +110,7 @@ class GhostMaps(SimStatePlugin):
 
         map = self._get_map(obj)
 
-        new_items = lambda: [MapItem(item.key, item.value, claripy.And(item.present, item.key != key)) for item in map.items()] + \
+        new_items = lambda: [MapItem(i.key, i.value, claripy.And(i.present, i.key != key)) for i in map.items()] + \
                             [MapItem(key, claripy.BVS("map_bad_value"), claripy.false)]
         self.state.metadata.set(obj, Map(map.length - 1, map.invariant, new_items, map.key_size, map.value_size), override=True)
 
@@ -164,9 +165,8 @@ class GhostMaps(SimStatePlugin):
 
         map = self._get_map(obj)
 
-        # TODO uncomment? # if not key.structurally_match(item.key)] + \
         # Try to avoid duplicate items if possible, it makes debugging and reasoning simpler
-        new_items = lambda: [MapItem(item.key, claripy.If(item.key == key, value, item.value), claripy.And(item.present, item.key != key)) for item in map.items()] + \
+        new_items = lambda: [MapItem(i.key, claripy.If(i.key == key, value, i.value), claripy.And(i.present, i.key != key)) for i in map.items() if not key.structurally_match(i.key)] + \
                             [MapItem(key, value, claripy.true)]
         self.state.metadata.set(obj, Map(map.length, map.invariant, new_items, map.key_size, map.value_size), override=True)
 
@@ -285,11 +285,11 @@ def maps_merge_across(states_to_merge, objs, ancestor_state):
                     return None
         # Our candidate has survived all states!
         # Don't forget to use sel1 here since we want the returned function to take an item
-        return lambda i, sel1=sel1: candidate_func(sel1(i))
+        return lambda i: candidate_func(sel1(i))
 
     # helper function to copy a map and add an invariant to the copy
     def add_invariant(map, inv):
-        return Map(map.length, lambda i, old=map.invariant: claripy.And(old(i), inv(i)), map.items, map.key_size, map.value_size)
+        return Map(map.length, lambda i: claripy.And(map.invariant(i), inv(i)), map.items, map.key_size, map.value_size)
 
     # Invariant inference algorithm: if some property P holds in all states to merge and the ancestor state, optimistically assume it is part of the invariant
     for o1 in objs:
@@ -317,11 +317,11 @@ def maps_merge_across(states_to_merge, objs, ancestor_state):
                 fk = find_f(o1, o2, lambda i: i.key, lambda i: i.key) \
                   or find_f(o1, o2, lambda i: i.value, lambda i: i.key)
                 if fk is not None:
-                    results.append(("cross-key", [o1, o2], lambda st, ms, fk=fk: [add_invariant(ms[0], lambda i: claripy.Or(claripy.Not(i.present), st.maps.get(ms[1], fk(i))[1])), ms[1]]))
+                    results.append(("cross-key", [o1, o2], lambda st, ms, fk=fk: [add_invariant(ms[0], lambda i, st=st, ms=ms, fk=fk: claripy.Or(claripy.Not(i.present), st.maps.get(ms[1], fk(i))[1])), ms[1]]))
                     fv = find_f(o1, o2, lambda i: i.key, lambda i: i.value, allow_const=True) \
                       or find_f(o1, o2, lambda i: i.value, lambda i: i.value, allow_const=True)
                     if fv is not None:
-                        results.append(("cross-value", [o1, o2], lambda st, ms, fk=fk, fv=fv: [add_invariant(ms[0], lambda i: claripy.Or(claripy.Not(i.present), st.maps.get(ms[1], fk(i))[0] == fv(i))), ms[1]]))
+                        results.append(("cross-value", [o1, o2], lambda st, ms, fk=fk, fv=fv: [add_invariant(ms[0], lambda i, st=st, ms=ms, fk=fk, fv=fv: claripy.Or(claripy.Not(i.present), st.maps.get(ms[1], fk(i))[0] == fv(i))), ms[1]]))
     return results
 
 def maps_merge_one(states_to_merge, obj, ancestor_state):

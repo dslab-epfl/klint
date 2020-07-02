@@ -69,6 +69,7 @@ class MapGet(angr.SimProcedure):
     # Preconditions
     mapp = self.state.metadata.get(Map, map)
     key = self.state.memory.load(key_ptr, mapp.key_size)
+    print("!!! map get key", key)
     _ = self.state.mem[value_out].uint64_t.resolved
 
     # Postconditions
@@ -103,6 +104,7 @@ class MapPut(angr.SimProcedure):
     # Preconditions
     mapp = self.state.metadata.get(Map, map)
     key = self.state.memory.load(key_ptr, mapp.key_size)
+    print("!!! map put key", key)
     self.state.memory.take(25, key_ptr, mapp.key_size)
     if utils.can_be_false(self.state.solver, self.state.maps.length(mapp.items_key_addrs).ULT(mapp.capacity)):
       raise angr.AngrExitError("Precondition does not hold: length(items) < capacity")
