@@ -136,7 +136,7 @@ class MapErase(angr.SimProcedure):
     mapp = self.state.metadata.get(Map, map)
     key = self.state.memory.load(key_ptr, mapp.key_size)
     frac = self.state.memory.take(None, key_ptr, mapp.key_size)
-    if utils.can_be_false(self.state.solver, self.state.maps.get(mapp.items_key_addrs, key)[0] == key_ptr):
+    if utils.can_be_false(self.state.solver, self.state.maps.get(mapp.items_key_addrs, key)[1]) or utils.can_be_false(self.state.solver, self.state.maps.get(mapp.items_key_addrs, key)[0] == key_ptr):
       raise angr.AngrExitError("Precondition does not hold: map_item_keyed(key, items) == some(map_item(key_ptr, key, _))")
 
     # Postconditions

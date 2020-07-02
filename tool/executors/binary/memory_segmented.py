@@ -5,6 +5,7 @@ from angr.storage.memory import SimMemory
 import executors.binary.bitsizes as bitsizes
 import executors.binary.utils as utils
 
+
 # Supports loads and stores, as well as "allocate(count, size, ?default) -> addr_symbol" and "base_index_offset(addr_symbol) -> (base_symbol, index_symbol, offset)"; all methods take sizes in bytes but offset is in bits
 # Does not support any other endness than BE
 class SegmentedMemory(SimMemory):
