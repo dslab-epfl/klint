@@ -205,8 +205,8 @@ class GhostMaps(SimStatePlugin):
 
     def forall(self, obj, pred):
         # Let L be the number of known items whose presence bit is set
-        # Create a fresh symbolic bit F, a fresh symbolic key K' and a fresh symbolic value V'
-        # Add F <=> ((P1 => pred(K1, V1)) and (P2 => pred(K2, V2)) and (...) and ((L < length(M)) => (invariant(M)(K', V', true) => pred(K', V')))) to the path constraint
+        # Create a fresh symbolic key K' and a fresh symbolic value V'
+        # Let F = ((P1 => pred(K1, V1)) and (P2 => pred(K2, V2)) and (...) and ((L < length(M)) => (invariant(M)(K', V', true) => pred(K', V')))) to the path constraint
         # Add F => pred(K, V) to the map's invariant
         # Return F
 
@@ -214,28 +214,23 @@ class GhostMaps(SimStatePlugin):
 
         known_len = self._known_length(obj)
 
-        result = claripy.BoolS("map_forall")
         test_key = claripy.BVS("map_test_key", map.key_size)
         test_value = claripy.BVS("map_test_value", map.value_size)
 
-        self.state.add_constraints(
-            result == claripy.And(
-                          *[claripy.Or(claripy.Not(i.present), pred(i.key, i.value)) for i in map.items],
-                          claripy.Or(
-                              claripy.Not(known_len < map.length),
-                              claripy.Or(
-                                  claripy.Not(map.invariant(MapItem(test_key, test_value, claripy.true))),
-                                  pred(test_key, test_value)
-                              )
-                          )
-                      )
+        result = claripy.And(
+            *[claripy.Or(claripy.Not(i.present), pred(i.key, i.value)) for i in map.items],
+            claripy.Or(
+                claripy.Not(known_len < map.length),
+                claripy.Or(
+                    claripy.Not(map.invariant(MapItem(test_key, test_value, claripy.true))),
+                    pred(test_key, test_value)
+                )
+            )
         )
-        if not self.state.satisfiable():
-            raise "wut"
 
         # MUTATE the map!
         # ... but only if there's a chance it's useful, let's not needlessly complicate the invariant
-        if utils.can_be_true(self.state.solver, result):
+        if len(self.state.solver.eval_upto(result, 2)) == 2:
             map.invariant = lambda i, old=map.invariant: claripy.And(claripy.Or(claripy.Not(result), pred(i.key, i.value)), old(i))
 
         return result
@@ -312,9 +307,6 @@ def maps_merge_across(states_to_merge, objs, ancestor_state):
     # helper function to copy a map and add an invariant to the copy
     def add_invariant(map, inv):
         return Map(map.length, lambda i: claripy.And(map.invariant(i), inv(i)), map.items, map.key_size, map.value_size)
-
-    if any(not st.satisfiable() for st in states):
-        raise "waaat"
 
     # Invariant inference algorithm: if some property P holds in all states to merge and the ancestor state, optimistically assume it is part of the invariant
     for o1 in objs:
