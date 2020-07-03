@@ -12,7 +12,15 @@ from collections import namedtuple
 # if two equal but not structurally equivalent values are passed in
 # but this is sound because it can only result in over-approximation
 def CreateUninterpretedFunction(name, creator):
-    def func(value, _cache={}):
+    def func(state, value, _cache={}):
+        # HACK avoid needless concat+extract, to canonicalize a bit, this is needed due to how array indexing works
+        # (the index in an array whose elements have size 2^N and the one in an array whose elements have size 2^M
+        #  are the same in practice but cut off a different number of bits!)
+        if value.op == "Concat" \
+           and value.args[0].structurally_match(claripy.BVV(0, value.args[0].size())) \
+           and value.args[1].op == "Extract" \
+           and utils.definitely_true(state.solver, value.args[1].args[2] == value):
+            value = value.args[1].args[2]
         return _cache.setdefault(str(value), creator(name + "_UF"))
     return func
 
@@ -130,8 +138,8 @@ class GhostMaps(SimStatePlugin):
 
         map = self._get_map(obj)
 
-        value = map.value_func(key)
-        present = map.present_func(key)
+        value = map.value_func(self.state, key)
+        present = map.present_func(self.state, key)
         key_is_known = claripy.false
         for item in map.items:
             value = claripy.If(key == item.key, item.value, value)
@@ -340,7 +348,7 @@ def maps_merge_one(states_to_merge, obj, ancestor_state):
         if not length_changed and utils.can_be_false(state.solver, state.maps.length(obj) == length):
             length = claripy.BVS("map_length", GhostMaps._length_size_in_bits)
             func_has = CreateUninterpretedFunction("map_has", lambda n: claripy.BoolS(n))
-            invariant = lambda st, i, f, func_has=func_has, old=invariant: claripy.And(claripy.Or(claripy.Not(i.present), func_has(i.key)), old(st, i, f))
+            invariant = lambda st, i, f, func_has=func_has, old=invariant: claripy.And(claripy.Or(claripy.Not(i.present), func_has(st, i.key)), old(st, i, f))
 
     return Map(
         length,
