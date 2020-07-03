@@ -22,12 +22,15 @@ class ChainedList:
     def __iter__(self):
         return itertools.chain(self.values, (self.tail_mapper(x) for x in self.tail if self.tail_filter(x)))
 
+    def __len__(self):
+        return len(self.values) + len(self.tail)
+
     def __copy__(self):
         return ChainedList(tail=self)
 
     def __deepcopy__(self, memo):
         result = self.__copy__()
-        memo[id(result)] = result
+        memo[id(self)] = result
         return result
 
 
@@ -90,7 +93,7 @@ class GhostMaps(SimStatePlugin):
 
         if array_length is None:
             length = claripy.BVV(0, GhostMaps._length_size_in_bits)
-            invariant = lambda i: claripy.true
+            invariant = lambda i: claripy.Not(i.present)
         else:
             length = array_length
             invariant = lambda i: i.key.ULT(array_length) == i.present
@@ -159,8 +162,8 @@ class GhostMaps(SimStatePlugin):
         # Otherwise:
         # - Let L be the number of known items whose presence bit is set
         # - Create a fresh value V and presence bit P
-        # - Add the invariant on (K, V, P) to the path constraint
         # - Add P => L < length(M) to the path constraint
+        # - Add invariant(M)(K, V, P) to the path constraint
         # - *Mutate* the map by appending (K, V, P) to the known items
         # - Recursively return get(K)
 
@@ -325,6 +328,7 @@ def maps_merge_across(states_to_merge, objs, ancestor_state):
         all_o1_items_known = all(utils.definitely_true(st.solver, st.maps.length(o1) == st.maps._known_length(o1)) for st in states)
         for o2 in objs:
             if o1 is o2: continue
+            print("Inferring invariants for", o1, o2)
 
             # Step 1: Length.
             # For each pair of maps (M1, M2),
@@ -349,9 +353,11 @@ def maps_merge_across(states_to_merge, objs, ancestor_state):
                   or find_f(o1, o2, lambda i: i.value, lambda i: i.value, allow_const=True)
                 if fv and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fk=fk, fv=fv: st.maps.get(o2, fk(MapItem(k, v, claripy.true)))[0] == fv(MapItem(k, v, claripy.true)))) for st in states):
                     results.append(("cross-value", [o1, o2], lambda st, ms, fk=fk, fv=fv: [add_invariant(ms[0], lambda i, st=st, ms=ms, fk=fk, fv=fv: claripy.Or(claripy.Not(i.present), st.maps.get(ms[1], fk(i))[0] == fv(i))), ms[1]]))
+    print("Cross-map inference done!")
     return results
 
 def maps_merge_one(states_to_merge, obj, ancestor_state):
+    print("Merging map", obj)
     # helper function to find constraints that hold on an expression in a state
     def find_constraints(state, expr):
         # If the expression is constant or constrained to be, return that
@@ -373,6 +379,7 @@ def maps_merge_one(states_to_merge, obj, ancestor_state):
         # For each known item,
         #  if the unknown items invariant may not hold on that item assuming the item is present,
         #  find constraints that do hold and add them as a disjunction to the invariant.
+        print("btw, in state", st, "it has", len(st.maps._known_items(obj)), "items")
         for item in st.maps._known_items(obj):
             if utils.definitely_true(st.solver, claripy.And(item.present, claripy.Not(invariant(item)))):
                 key_constraints = find_constraints(st, item.key)
