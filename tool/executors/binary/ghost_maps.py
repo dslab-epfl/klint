@@ -43,7 +43,7 @@ def CreateUninterpretedBooleanFunction(name):
 
 
 # "length" is symbolic, and may be larger than len(items) if there are items that are not exactly known
-# "invariant" is a Boolean function that represents unknown items: a lambda that takes (K, V) and returns P
+# "invariant" is a function that represents unknown items: a lambda that takes an item and returns a Boolean expression
 # "items" contains exactly known items, which do not have to obey the invariant
 # "key_size" is the size of keys in bits, as a non-symbolic integer
 # "value_size" is the size of values in bits, as a non-symbolic integer
@@ -370,7 +370,7 @@ def maps_merge_one(states_to_merge, obj, ancestor_state):
     length_changed = False
     for st in states_to_merge:
         # Step 1: invariant.
-        # For each known item, 
+        # For each known item,
         #  if the unknown items invariant may not hold on that item assuming the item is present,
         #  find constraints that do hold and add them as a disjunction to the invariant.
         for item in st.maps._known_items(obj):
@@ -385,6 +385,6 @@ def maps_merge_one(states_to_merge, obj, ancestor_state):
         if not length_changed and utils.can_be_false(st.solver, st.maps.length(obj) == length):
             length = claripy.BVS("map_length", GhostMaps._length_size_in_bits)
             func_has = CreateUninterpretedBooleanFunction("map_has")
-            invariant = lambda k, v, old=invariant: func_has()
+            invariant = lambda i, func_has=func_has, old=invariant: func_has(i.key)
 
     return Map(length, invariant, ancestor_state.maps._known_items(obj), ancestor_state.maps.key_size(obj), ancestor_state.maps.value_size(obj))
