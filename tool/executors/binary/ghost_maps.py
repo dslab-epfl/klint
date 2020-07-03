@@ -30,8 +30,20 @@ class ChainedList:
         memo[id(result)] = result
         return result
 
+
+# HUGE HACK
+# Claripy doesn't support uninterpreted functions, and adding that support would probably take a while, so...
+# this creates a pseudo-UF that is really a symbol lookup table; it will return different symbols
+# if two equal but not structurally equivalent values are passed in
+# but this is sound because it can only result in over-approximation
+def CreateUninterpretedBooleanFunction(name):
+    def func(value, _cache={}):
+        return _cache.setdefault(str(value), claripy.BoolS(name + "_UF"))
+    return func
+
+
 # "length" is symbolic, and may be larger than len(items) if there are items that are not exactly known
-# "invariant" is a Boolean function on unknown items, represented as a lambda that takes an item and returns an expression
+# "invariant" is a Boolean function that represents unknown items: a lambda that takes (K, V) and returns P
 # "items" contains exactly known items, which do not have to obey the invariant
 # "key_size" is the size of keys in bits, as a non-symbolic integer
 # "value_size" is the size of values in bits, as a non-symbolic integer
@@ -206,7 +218,7 @@ class GhostMaps(SimStatePlugin):
     def forall(self, obj, pred):
         # Let L be the number of known items whose presence bit is set
         # Create a fresh symbolic key K' and a fresh symbolic value V'
-        # Let F = ((P1 => pred(K1, V1)) and (P2 => pred(K2, V2)) and (...) and ((L < length(M)) => (invariant(M)(K', V', true) => pred(K', V')))) to the path constraint
+        # Let F = ((P1 => pred(K1, V1)) and (P2 => pred(K2, V2)) and (...) and ((L < length(M)) => (invariant(M)(K', V') => pred(K', V'))))
         # Add F => pred(K, V) to the map's invariant
         # Return F
 
@@ -372,5 +384,7 @@ def maps_merge_one(states_to_merge, obj, ancestor_state):
         # replace the length with a fresh symbol
         if not length_changed and utils.can_be_false(st.solver, st.maps.length(obj) == length):
             length = claripy.BVS("map_length", GhostMaps._length_size_in_bits)
+            func_has = CreateUninterpretedBooleanFunction("map_has")
+            invariant = lambda k, v, old=invariant: func_has()
 
     return Map(length, invariant, ancestor_state.maps._known_items(obj), ancestor_state.maps.key_size(obj), ancestor_state.maps.value_size(obj))
