@@ -248,8 +248,6 @@ class GhostMaps(SimStatePlugin):
     def _present_func(self, obj): return self._get_map(obj).present_func
 
 
-# TODO in metadata: adapt signatures to the ones here, automatically do the "remove metadata from objs not in the ancestor"
-
 def maps_merge_across(states_to_merge, objs, ancestor_state):
     results = [] # pairs: (ID, maps, lambda states, maps: returns None for no changes or maps to overwrite them)
     states = states_to_merge + [ancestor_state]
@@ -353,7 +351,8 @@ def maps_merge_across(states_to_merge, objs, ancestor_state):
             #   and if in all states, forall(M2, (K,V): V == FV(_) => get(M1, FK-1(K,V)) == (_, true)),
             #   then assume this is an invariant of M2 in the merged state.
             # TODO: a string ID is not really enough to guarantee the constraints are the same here...
-            # TODO explain why we use 'obj' directly and it works (even if the same key whose val is set by a cross-val was added in the meantime)
+            # We use maps directly to refer to the map state as it was in the ancestor, not during execution;
+            # otherwise, get(M1, k) after remove(M2, k) might add has(M1, k) to the constraints, which is obviously false
             fk, fkr, _ = find_f(o1, o2, lambda i: i.key, lambda i: i.key)
             o1key = True
             if fk is None:
