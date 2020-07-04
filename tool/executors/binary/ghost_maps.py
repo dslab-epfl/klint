@@ -311,7 +311,6 @@ def maps_merge_across(states_to_merge, objs, ancestor_state):
     for o1 in objs:
         for o2 in objs:
             if o1 is o2: continue
-            print("Inferring invariants for", o1, o2)
 
             # Step 1: Length.
             # For each pair of maps (M1, M2),
@@ -339,12 +338,15 @@ def maps_merge_across(states_to_merge, objs, ancestor_state):
                 fk, fkr, _ = find_f(o1, o2, lambda i: i.value, lambda i: i.key)
                 o1key = False
             if fk and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fk=fk: st.maps.get(o2, fk(MapItem(k, v, claripy.true)))[1])) for st in states):
+                print("Inferred: when", o1, "contains (K,V),", o2, "contains", fk(MapItem(claripy.BVS("K", ancestor_state.maps.key_size(o1)), claripy.BVS("V", ancestor_state.maps.value_size(o1)), claripy.true)))
                 results.append(("cross-key", [o1, o2], lambda state, maps, o2=o2, fk=fk: [add_invariant(maps[0], lambda st, i, f, fk=fk, o2=o2: Implies(i.present, st.maps.get(o2, fk(i), fuel=f)[1]) if f >= 0 else claripy.true), maps[1]]))
                 fv, _, fvc = find_f(o1, o2, lambda i: i.key, lambda i: i.value, allow_const=True)
                 if fv is None: fv, _, fvc = find_f(o1, o2, lambda i: i.value, lambda i: i.value, allow_const=True)
                 if fv and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fk=fk, fv=fv: st.maps.get(o2, fk(MapItem(k, v, claripy.true)))[0] == fv(MapItem(k, v, claripy.true)))) for st in states):
+                    print("          in addition, the value is", fv(MapItem(claripy.BVS("K", ancestor_state.maps.key_size(o1)), claripy.BVS("V", ancestor_state.maps.value_size(o1)), claripy.true)))
                     results.append(("cross-value", [o1, o2], lambda state, maps, o2=o2, fk=fk, fv=fv: [add_invariant(maps[0], lambda st, i, f, fk=fk, fv=fv, o2=o2: Implies(i.present, st.maps.get(o2, fk(i), fuel=f)[0] == fv(i)) if f >= 0 else claripy.true), maps[1]]))
                     if o1key and fkr and fvc and all(utils.definitely_true(st.solver, st.maps.forall(o2, lambda k, v, st=st, o1=o1, fkr=fkr, fv=fv: Implies(v == fv(MapItem(None,None,None)), st.maps.get(o1, fkr(MapItem(k, v, claripy.true)))[1]))) for st in states):
+                        print("          furthermore, when", o2, "has that value", o1, "contains an element")
                         results.append(("cross-rev-value", [o1, o2], lambda state, maps, o1=o1, fkr=fkr, fv=fv: [maps[0], add_invariant(maps[1], lambda st, i, f, o1=o1, fkr=fkr, fv=fv: Implies(i.present, Implies(i.value == fv(MapItem(None,None,None)), st.maps.get(o1, fkr(i), fuel=f)[1])) if f >= 0 else claripy.true)]))
 
     print("Cross-map inference done!")
