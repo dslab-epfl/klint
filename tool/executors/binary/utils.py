@@ -1,4 +1,5 @@
 import angr
+import claripy
 
 def read_str(state, ptr):
   result = ""
@@ -77,3 +78,21 @@ def fork_guarded_has(proc, ghost_map, key, case_has, case_not):
   def case_false(state):
       return case_not(state)
   return fork_guarded(proc, present, case_true, case_false)
+
+
+def structural_eq(a, b):
+    if a is None and b is None:
+        return True
+    if a is None or b is None:
+        return False
+    if isinstance(a, claripy.ast.base.Base) and isinstance(b, claripy.ast.base.Base):
+        return a.structurally_match(b)
+    if hasattr(a, '_asdict') and hasattr(b, '_asdict'): # namedtuple
+        ad = a._asdict()
+        bd = b._asdict()
+        return all(structural_eq(ad[k], bd[k]) for k in set(ad.keys()).union(bd.keys()))
+    if isinstance(a, list) and isinstance(b, list):
+        return len(a) == len(b) and all(structural_eq(ai, bi) for (ai, bi) in zip(a, b))
+    if isinstance(a, tuple) and isinstance(b, tuple):
+        return structural_eq(list(a), list(b))
+    return a == b

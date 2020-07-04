@@ -46,23 +46,6 @@ class Metadata(SimStatePlugin):
     # and immediately after one must call:
     #   reached_fixpoint = merged_state.metadata.notify_completed_merge(opaque_value)
     def notify_impending_merge(self, other_states, ancestor_state):
-        def structural_eq(a, b):
-            if a is None and b is None:
-                return True
-            if a is None or b is None:
-                return False
-            if isinstance(a, claripy.ast.base.Base) and isinstance(b, claripy.ast.base.Base):
-                return a.structurally_match(b)
-            if hasattr(a, '_asdict') and hasattr(b, '_asdict'):
-                ad = a._asdict()
-                bd = b._asdict()
-                return all(ad[k] is bd[k] for k in set(ad.keys()).union(bd.keys()))
-            if isinstance(a, list) and isinstance(b, list):
-                return len(a) == len(b) and all(structural_eq(ai, bi) for (ai, bi) in zip(a, b))
-            if isinstance(a, tuple) and isinstance(b, tuple):
-                return structural_eq(list(a), list(b))
-            return a == b
-
         # note that we keep track of objs as their string representations to avoid comparing Claripy ASTs (which don't like ==)
         across_previous_results = copy.deepcopy(ancestor_state.metadata.merge_across_results or {})
         one_results_equal = True
@@ -90,13 +73,13 @@ class Metadata(SimStatePlugin):
                 for key in common_keys:
                     old_value = ancestor_state.metadata.get(cls, key)
                     merged_value = Metadata.merge_funcs[cls][1]([self.state] + other_states, key, ancestor_state)
-                    one_results_equal = one_results_equal and structural_eq(old_value, merged_value)
+                    one_results_equal = one_results_equal and utils.structural_eq(old_value, merged_value)
                     merged_items[cls].append((key, merged_value))
             else:
                 # No merge function, keep all of the ones that are referentially equal, discard the others
                 for key in common_keys:
                     value = self.get(cls, key)
-                    if all(structural_eq(other.metadata.get(cls, key), value) for other in other_states):
+                    if all(utils.structural_eq(other.metadata.get(cls, key), value) for other in other_states):
                         merged_items[cls].append((key, value))
 
         # As the doc states, fixpoint if all merges resulted in the old result and the across_results are a superset
