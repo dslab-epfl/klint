@@ -71,7 +71,7 @@ class GhostMaps(SimStatePlugin):
         def to_int(n, name):
             if isinstance(n, claripy.ast.base.Base) and n.symbolic:
                 raise angr.AngrExitError(name + " cannot be symbolic")
-            return self.state.solver.eval(n, cast_to=int)
+            return self.state.solver.eval_one(n, cast_to=int)
         key_size = to_int(key_size, "key_size")
         value_size = to_int(value_size, "value_size")
 
@@ -223,7 +223,7 @@ class GhostMaps(SimStatePlugin):
 
         # MUTATE the map!
         # Optimization: only if there's a chance it's useful, let's not needlessly complicate the invariant
-        if len(self.state.solver.eval_upto(result, 2)) == 2:
+        if utils.can_be_true_or_false(self.state.solver, result):
             map.invariant = lambda st, i, f, old=map.invariant: claripy.And(Implies(result, pred(i.key, i.value)), old(st, i, f))
 
         return result
@@ -306,10 +306,10 @@ def maps_merge_across(states_to_merge, objs, ancestor_state):
                         items2.remove(it2)
                         break
                     elif allow_const:
-                        consts = state.solver.eval_upto(x2, 2, cast_to=int)
-                        if len(consts) == 1:
+                        const = utils.get_if_constant(state.solver, x2)
+                        if const is not None:
                             # We found a possible constant!
-                            candidate_func = lambda x, consts=consts, sz=x2.size(): claripy.BVV(consts[0], sz)
+                            candidate_func = lambda x, const=const, sz=x2.size(): claripy.BVV(const, sz)
                             is_const = True
                             found = True
                             items2.remove(it2)
@@ -378,9 +378,9 @@ def maps_merge_one(states_to_merge, obj, ancestor_state):
     # helper function to find constraints that hold on an expression in a state
     def find_constraints(state, expr):
         # If the expression is constant or constrained to be, return that
-        constants = state.solver.eval_upto(expr, 2)
-        if len(constants) == 1:
-            return expr == constants[0]
+        const = utils.get_if_constant(state.solver, expr)
+        if const is not None:
+            return expr == const
         # Otherwise, find constraints that contain the expression
         # This might miss stuff due to transitive constraints,
         # but it's sound since having overly lax invariants can only over-approximate

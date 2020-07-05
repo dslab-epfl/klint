@@ -49,7 +49,7 @@ class SegmentedMemory(SimMemory):
             raise angr.AngrExitError("SegmentedMemory supports only BE endness")
 
         data = request.data
-        size = self.state.solver.eval(request.size, cast_to=int) * 8 # we get the size in bytes
+        size = self.state.solver.eval_one(request.size, cast_to=int) * 8 # we get the size in bytes
 
         (base, index, offset) = self.base_index_offset(request.addr)
         element_size = self.state.maps.value_size(base)
@@ -80,7 +80,7 @@ class SegmentedMemory(SimMemory):
         if size.symbolic:
             raise angr.AngrExitError("Can't handle symbolic sizes")
 
-        size = self.state.solver.eval(size, cast_to=int)
+        size = self.state.solver.eval_one(size, cast_to=int)
         (base, index, offset) = self.base_index_offset(addr)
 
         (value, present) = self.state.maps.get(base, index)

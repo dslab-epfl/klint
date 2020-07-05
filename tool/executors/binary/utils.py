@@ -1,13 +1,25 @@
 import angr
 import claripy
 
+
+class FakeState:
+    def __init__(self):
+        self._global_condition = None
+
+fake_state_instance = FakeState()
+def solver_copy(solver):
+    result = solver.copy()
+    result.state = fake_state_instance # otherwise it complains
+    return result
+
+
 def read_str(state, ptr):
   result = ""
   while True:
     char = state.mem[ptr].uint8_t.resolved
     if char.symbolic:
       raise angr.AngrExitError("Trying to read a symbolic string!")
-    char = state.solver.eval(char, cast_to=int)
+    char = state.solver.eval_one(char, cast_to=int)
     if char == 0:
       break
     result += chr(char)
@@ -15,25 +27,37 @@ def read_str(state, ptr):
   return result
 
 
-def can_be_true(solver, cond, extra_constraints=[]):
-  sols = solver.eval_upto(cond, 2, extra_constraints=extra_constraints)
+def can_be_true(solver, cond):
+  sols = solver_copy(solver).eval_upto(cond, 2)
   if len(sols) == 0:
-    raise angr.AngrExitError("Could not evaluate: " + str(condition))
-  else:
-    return True in sols
+    raise angr.AngrExitError("Could not evaluate: " + str(cond))
+  return True in sols
 
-def can_be_false(solver, cond, extra_constraints=[]):
-  sols = solver.eval_upto(cond, 2, extra_constraints=extra_constraints)
+def can_be_false(solver, cond):
+  sols = solver_copy(solver).eval_upto(cond, 2)
   if len(sols) == 0:
-    raise angr.AngrExitError("Could not evaluate: " + str(condition))
-  else:
-    return False in sols
+    raise angr.AngrExitError("Could not evaluate: " + str(cond))
+  return False in sols
 
-def definitely_true(solver, cond, extra_constraints=[]):
-  return not can_be_false(solver, cond, extra_constraints=extra_constraints)
+def can_be_true_or_false(solver, cond):
+  sols = solver_copy(solver).eval_upto(cond, 2)
+  if len(sols) == 0:
+    raise angr.AngrExitError("Could not evaluate: " + str(cond))
+  return len(sols) == 2
 
-def definitely_false(solver, cond, extra_constraints=[]):
-  return not can_be_true(solver, cond, extra_constraints=extra_constraints)
+def definitely_true(solver, cond):
+  return not can_be_false(solver, cond)
+
+def definitely_false(solver, cond):
+  return not can_be_true(solver, cond)
+
+def get_if_constant(solver, expr):
+  sols = solver_copy(solver).eval_upto(expr, 2, cast_to=int)
+  if len(sols) == 0:
+    raise angr.AngrExitError("Could not evaluate: " + str(expr))
+  if len(sols) == 1:
+      return sols[0]
+  return None
 
 
 def fork_always(proc, case_true, case_false):

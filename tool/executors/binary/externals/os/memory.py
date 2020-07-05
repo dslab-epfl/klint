@@ -12,4 +12,4 @@ class MemoryInit(angr.SimProcedure):
       raise angr.AngrExitError("size cannot be symbolic")
 
     # Postconditions
-    return self.state.memory.allocate(count, size, name="allocated", default=self.state.solver.BVV(0, self.state.solver.eval(size, cast_to=int) * 8))
+    return self.state.memory.allocate(count, size, name="allocated", default=self.state.solver.BVV(0, self.state.solver.eval_one(size, cast_to=int) * 8))
