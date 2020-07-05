@@ -145,10 +145,10 @@ class GhostMaps(SimStatePlugin):
 
     def get(self, obj, key, fuel=1):
         # Let V = valuefunc(M)(K), P = presentfunc(M)(K)
+        # Add (K, V, P) to the map's known items
         # Let V' =  ITE(K = K1, V1, ITE(K = K2, V2, ... V))
         # Let P' =  ITE(K = K1, P1, ITE(K = K2, P2, ... P))
-        # Add (K, V', P') to the map's known items
-        # Let L be the number of unique keys in the map whose presence bit is set
+        # Let L be the number of unique known keys in the map whose presence bit is set, including the newly-added item
         # Add L <= length(M) to the path constraint
         # Add invariant(M)(K, V', P') to the path constraint
         # Return (V', P')
@@ -164,24 +164,22 @@ class GhostMaps(SimStatePlugin):
 
         ite_value = value
         ite_present = present
-        key_is_known = claripy.BVV(0, 1)
         for item in map.items:
             ite_value = claripy.If(key == item.key, item.value, ite_value)
             ite_present = claripy.If(key == item.key, item.present, ite_present)
-            key_is_known = claripy.If(key == item.key, claripy.BVV(1, 1), key_is_known)
 
         # Optimization: don't add an item if we already know about it
-        if utils.definitely_true(self.state.solver, key_is_known == 1):
+        key_is_known = claripy.Or(*[key == i.key for i in map.items])
+        if utils.definitely_true(self.state.solver, key_is_known):
             return (ite_value, ite_present == 1)
 
-        self.state.add_constraints(map.invariant(self.state, MapItem(key, value, present), fuel-1))
-        if not self.state.satisfiable():
-            raise "this should never happen"
-
         # MUTATE the map!
-        map.items.append(MapItem(key, ite_value, ite_present))
+        map.items.append(MapItem(key, value, present))
 
-        self.state.add_constraints(self._known_length(obj) <= map.length)
+        self.state.add_constraints(
+            map.invariant(self.state, MapItem(key, value, present), fuel-1),
+            self._known_length(obj) <= map.length
+        )
         if not self.state.satisfiable():
             raise "this should never happen"
 
