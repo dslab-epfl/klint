@@ -118,8 +118,8 @@ class GhostMaps(SimStatePlugin):
         map = self._get_map(obj)
 
         # Optimization: Filter out known-obsolete keys already
-        new_items = [MapItem(key, value, claripy.true)] + \
-                    [i for i in map.items if not i.key.structurally_match(key)]
+        new_items = [i for i in map.items if not i.key.structurally_match(key)] + \
+                    [MapItem(key, value, claripy.true)]
         self.state.metadata.set(obj, Map(map.length + 1, map.invariant, new_items, map.key_size, map.value_size, map.value_func, map.present_func), override=True)
 
 
@@ -135,8 +135,8 @@ class GhostMaps(SimStatePlugin):
         map = self._get_map(obj)
 
         # Optimization: Filter out known-obsolete keys already
-        new_items = [MapItem(key, claripy.BVS("map_bad_value", map.value_size), claripy.false)] + \
-                    [MapItem(i.key, i.value, claripy.And(i.present, i.key != key)) for i in map.items if not i.key.structurally_match(key)]
+        new_items = [MapItem(i.key, i.value, claripy.And(i.present, i.key != key)) for i in map.items if not i.key.structurally_match(key)] + \
+                    [MapItem(key, claripy.BVS("map_bad_value", map.value_size), claripy.false)]
         self.state.metadata.set(obj, Map(map.length - 1, map.invariant, new_items, map.key_size, map.value_size, map.value_func, map.present_func), override=True)
 
 
@@ -178,7 +178,7 @@ class GhostMaps(SimStatePlugin):
         if not self.state.satisfiable():
             raise "this should never happen"
 
-        return (value, present)
+        return (ite_value, ite_present)
 
 
     def set(self, obj, key, value):
@@ -191,8 +191,8 @@ class GhostMaps(SimStatePlugin):
         map = self._get_map(obj)
 
         # Optimization: Filter out known-obsolete keys already
-        new_items = [MapItem(key, value, claripy.true)] + \
-                    [MapItem(i.key, claripy.If(i.key == key, value, i.value), claripy.And(i.present, i.key != key)) for i in map.items if not i.key.structurally_match(key)]
+        new_items = [MapItem(i.key, claripy.If(i.key == key, value, i.value), claripy.And(i.present, i.key != key)) for i in map.items if not i.key.structurally_match(key)] + \
+                    [MapItem(key, value, claripy.true)]
         self.state.metadata.set(obj, Map(map.length, map.invariant, new_items, map.key_size, map.value_size, map.value_func, map.present_func), override=True)
 
 
