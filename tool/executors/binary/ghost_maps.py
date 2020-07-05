@@ -341,10 +341,14 @@ def maps_merge_across(states_to_merge, objs, ancestor_state):
     # Optimization: Ignore maps that have not changed at all, e.g. those that are de facto readonly after initialization
     objs = [o for o in objs if any(not utils.structural_eq(ancestor_state.maps._get_map(o), st.maps._get_map(o)) for st in states)]
 
+    # Copy the states to avoid polluting the real ones for the next steps of inference
+    states = [s.copy() for s in states]
+
     # Invariant inference algorithm: if some property P holds in all states to merge and the ancestor state, optimistically assume it is part of the invariant
     for o1 in objs:
         for o2 in objs:
             if o1 is o2: continue
+            states
 
             # Step 1: Length.
             # For each pair of maps (M1, M2),
@@ -412,15 +416,17 @@ def maps_merge_one(states_to_merge, obj, ancestor_state):
         #  if the unknown items invariant may not hold on that item assuming the item is present,
         #  find constraints that do hold and add them as a disjunction to the invariant.
         for item in state.maps._known_items(obj):
-            if utils.definitely_true(state.solver, claripy.And(item.present == 1, claripy.Not(invariant(state, item, 1)))):
+            if utils.can_be_true(state.solver, claripy.And(item.present == 1, claripy.Not(invariant(state, item, 1)))):
                 key_constraints = find_constraints(state, item.key)
                 value_constraints = find_constraints(state, item.value)
+                print("Item", item, "in map", obj, "does not comply with the invariant; adding constraints ", key_constraints, "for the key and", value_constraints, "for the value")
                 invariant = lambda st, i, f, old=invariant, ik=item.key, iv=item.value, kc=key_constraints, vc=value_constraints: \
                                 claripy.Or(old(st, i, f), claripy.And(kc.replace(ik, i.key), vc.replace(iv, i.value)))
         # Step 2: length.
         # If the length may have changed in any state from the one in the ancestor state,
         # replace the length with a fresh symbol
         if not length_changed and utils.can_be_false(state.solver, state.maps.length(obj) == length):
+            print("Length of map", obj, " was changed; making it symbolic")
             length = claripy.BVS("map_length", GhostMaps._length_size_in_bits)
             func_has = CreateUninterpretedFunction("map_has", lambda n: claripy.BVS(n, 1))
             invariant = lambda st, i, f, func_has=func_has, old=invariant: claripy.And(Implies(i.present == 1, func_has(st, i.key) == 1), old(st, i, f))
