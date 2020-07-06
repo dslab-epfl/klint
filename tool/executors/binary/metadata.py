@@ -4,6 +4,8 @@ from angr.state_plugins.plugin import SimStatePlugin
 import executors.binary.utils as utils
 import copy
 
+# Optimization: the metadata checks for structural equality of keys, which works for our purposes and is faster than checking for actual equality
+
 class Metadata(SimStatePlugin):
     merge_funcs = {}
 
@@ -116,7 +118,7 @@ class Metadata(SimStatePlugin):
     def _get(self, cls, key):
         if cls not in self.items:
             return []
-        return [(k, v) for (k, v) in self.items[cls] if utils.definitely_true(self.state.solver, k == key) and isinstance(v, cls)]
+        return [(k, v) for (k, v) in self.items[cls] if (k.structurally_match(key) if k is not None else k is key)]
 
 
     def get(self, cls, key, default=None):

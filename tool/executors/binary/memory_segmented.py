@@ -136,15 +136,17 @@ class SegmentedMemory(SimMemory):
     # - 'index': BV, is a symbolic index, could be anything
     # - 'offset': int, is an offset in bits, concrete
     def base_index_offset(self, addr):
-        def is_simple(val):
-            return val.op == 'BVS' or \
-                   (len(val.args) == 1 and val.op in ['__add__']) # Sometimes we get "additions" of single values, for some reason
+        def as_simple(val):
+            if val.op == "BVS": return val
+            if val.op == '__add__' and len(val.args) == 1: return as_simple(val.args[0])
+            return None
 
-        if is_simple(addr):
-            return (addr, self.state.solver.BVV(0, 64), 0) # Directly addressing a base, i.e., base[0]
+        simple_addr = as_simple(addr)
+        if simple_addr is not None:
+            return (simple_addr, self.state.solver.BVV(0, 64), 0) # Directly addressing a base, i.e., base[0]
 
         if addr.op == '__add__':
-            base = [a for a in addr.args if is_simple(a)]
+            base = [a for a in map(as_simple, addr.args) if a is not None]
             if len(base) == 1:
                 base = base[0]
             else:
