@@ -382,23 +382,28 @@ def maps_merge_across(states_to_merge, objs, ancestor_state):
                         print("          furthermore, when", o2, "has that value", o1, "contains an element")
                         results.append(("cross-rev-value", [o1, o2], lambda state, maps, fkr=fkr, fv=fv: [maps[0], add_invariant(maps[1], lambda st, i, f: Implies(i.present == 1, Implies(i.value == fv(MapItem(None,None,None)), st.maps.get(maps[0], fkr(i), fuel=f)[1])) if f >= 0 else claripy.true)]))
 
-    print("Cross-map inference done!")
     return results
 
 def maps_merge_one(states_to_merge, obj, ancestor_state):
     print("Merging map", obj)
     # helper function to find constraints that hold on an expression in a state
+    ancestor_variables = ancestor_state.solver.variables(claripy.And(*ancestor_state.solver.constraints))
     def find_constraints(state, expr):
         # If the expression is constant or constrained to be, return that
         const = utils.get_if_constant(state.solver, expr)
         if const is not None:
-            return expr == const
-        # Otherwise, find constraints that contain the expression
+            return [expr == const]
+        # Otherwise, find constraints that contain the expression, but ignore those that also contain variables not in the ancestor
         # This might miss stuff due to transitive constraints,
         # but it's sound since having overly lax invariants can only over-approximate
         fake = claripy.BVS("fake", expr.size())
-        constrs = claripy.And(*[cons for cons in state.solver.constraints if not cons.replace(expr, fake).structurally_match(cons)])
-        return constrs
+        expr_vars = state.solver.variables(expr)
+        results = []
+        for constr in state.solver.constraints:
+            constr_vars = state.solver.variables(constr)
+            if not constr.replace(expr, fake).structurally_match(constr) and constr_vars.difference(expr_vars).issubset(ancestor_variables):
+                results.append(constr)
+        return results
 
     # Optimization: Do not even consider maps that have not changed at all, e.g. those that are de facto readonly after initialization
     if all(utils.structural_eq(ancestor_state.maps._get_map(obj), st.maps._get_map(obj)) for st in states_to_merge):
@@ -407,28 +412,29 @@ def maps_merge_one(states_to_merge, obj, ancestor_state):
 
     # Oblivion algorithm: "forget" known items by integrating them into the unknown items invariant
     invariants = []
+    # Step 1: invariant.
+    # For each conjunction in the unknown items invariant,
+    # for each known item in any state,
+    #  if the conjunction may not hold on that item assuming the item is present,
+    #  find constraints that do hold and add them as a disjunction to the conjunction.
+    for conjunction in ancestor_state.maps._invariants(obj):
+        for state in states_to_merge:
+            for item in state.maps._known_items(obj):
+                if utils.can_be_true(state.solver, claripy.And(item.present == 1, claripy.Not(conjunction(state, item, 1)))):
+                    constraints = claripy.And(*find_constraints(state, item.key), *find_constraints(state, item.value))
+                    print("Item", item, "in map", obj, "does not comply with one invariant conjunction; adding disjunction", constraints)
+                    conjunction = lambda st, i, f, oldc=conjunction, oldi=item, cs=constraints: \
+                                  claripy.Or(oldc(st, i, f), cs.replace(oldi.key, i.key).replace(oldi.value, i.value))
+        invariants.append(conjunction)
+
+    # Step 2: length.
+    # If the length may have changed in any state from the one in the ancestor state,
+    # replace the length with a fresh symbol
     length = ancestor_state.maps.length(obj)
     length_changed = False
     for state in states_to_merge:
-        # Step 1: invariant.
-        # For each conjunction in the unknown items invariant,
-        # for each known item,
-        #  if the conjunction may not hold on that item assuming the item is present,
-        #  find constraints that do hold and add them as a disjunction to the conjunction.
-        for conjunction in ancestor_state.maps._invariants(obj):
-            for item in state.maps._known_items(obj):
-                if utils.can_be_true(state.solver, claripy.And(item.present == 1, claripy.Not(conjunction(state, item, 1)))):
-                    key_constraints = find_constraints(state, item.key)
-                    value_constraints = find_constraints(state, item.value)
-                    print("Item", item, "in map", obj, "does not comply with one invariant conjunction; adding disjunction ", key_constraints, "for the key and", value_constraints, "for the value")
-                    conjunction = lambda st, i, f, old=conjunction, ik=item.key, iv=item.value, kc=key_constraints, vc=value_constraints: \
-                                  claripy.Or(old(st, i, f), claripy.And(kc.replace(ik, i.key), vc.replace(iv, i.value)))
-            invariants.append(conjunction)
-
-        # Step 2: length.
-        # If the length may have changed in any state from the one in the ancestor state,
-        # replace the length with a fresh symbol
         if not length_changed and utils.can_be_false(state.solver, state.maps.length(obj) == length):
+            length_changed = True
             print("Length of map", obj, " was changed; making it symbolic")
             length = claripy.BVS("map_length", GhostMaps._length_size_in_bits)
             func_has = CreateUninterpretedFunction("map_has", lambda n: claripy.BVS(n, 1))
