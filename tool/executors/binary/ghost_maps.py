@@ -156,6 +156,9 @@ class GhostMaps(SimStatePlugin):
             if utils.definitely_true(self.state.solver, key == item.key):
                 return (item.value, item.present == 1)
 
+        # TODO IMPORTANT why can't we use BVS here? (though in order to get rid of UFs we'd need to get rid of "map_has" in inference...)
+        #value = claripy.BVS("map_value", map.value_size)
+        #present = claripy.BVS("map_present", 1)
         value = map.value_func(self.state, key)
         present = map.present_func(self.state, key)
 

@@ -4,7 +4,8 @@ from angr.state_plugins.plugin import SimStatePlugin
 import executors.binary.utils as utils
 import copy
 
-# Optimization: the metadata checks for structural equality of keys, which works for our purposes and is faster than checking for actual equality
+# Optimization: objects are compared structurally instead of with the solver, which might cause spurious failures
+# (this does not work unless ghost maps are doing the "use existing items if possible in get" optimization)
 
 class Metadata(SimStatePlugin):
     merge_funcs = {}

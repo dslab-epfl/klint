@@ -139,6 +139,7 @@ class SegmentedMemory(SimMemory):
         def as_simple(val):
             if val.op == "BVS": return val
             if val.op == '__add__' and len(val.args) == 1: return as_simple(val.args[0])
+            if val.op == 'Extract': return val
             return None
 
         simple_addr = as_simple(addr)
