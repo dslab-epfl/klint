@@ -48,10 +48,9 @@ class MapInit(angr.SimProcedure):
 #          *value_out |-> _;
 # ensures mapp(map, key_size, capacity, values, addrs) &*&
 #         chars(key_ptr, key_size, key) &*&
-#         *value_out |-> ?value &*&
 #         switch(map_item_keyed(key, values)) {
-#           case none: return result == false;
-#           case some(it): return result == true &*& it == value;
+#           case none: return result == false &*& *value_out |-> _;
+#           case some(v): return result == true &*& *value_out |-> v;
 #         };
 class MapGet(angr.SimProcedure):
   def run(self, map, key_ptr, value_out):
@@ -72,9 +71,9 @@ class MapGet(angr.SimProcedure):
     _ = self.state.mem[value_out].uint64_t.resolved
 
     # Postconditions
-    def case_has(state, item):
-      print("!!! map get has", item)
-      state.mem[value_out].uint64_t = item
+    def case_has(state, v):
+      print("!!! map get has", v)
+      state.mem[value_out].uint64_t = v
       return state.solver.BVV(1, bitsizes.BOOL)
     def case_not(state):
       print("!!! map get not")
