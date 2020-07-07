@@ -20,7 +20,7 @@ class DChainInit(angr.SimProcedure):
 
     # Preconditions
     if utils.can_be_false(self.state.solver, index_range.UGT(0)):
-      raise angr.AngrExitError("Precondition does not hold: 0 < index_range")
+      raise "Precondition does not hold: 0 < index_range"
 
     # Postconditions
     def case_true(state):
@@ -58,7 +58,7 @@ class DChainAdd(angr.SimProcedure):
 
     # Symbolism assumptions
     if index_out.symbolic:
-      raise angr.AngrExitError("index_out cannot be symbolic")
+      raise "index_out cannot be symbolic"
 
     # Preconditions
     dchainp = self.state.metadata.get(DChain, dchain)
@@ -77,7 +77,7 @@ class DChainAdd(angr.SimProcedure):
       print("!!! dchain add has space", index)
       state.add_constraints(state.solver.Not(state.maps.get(dchainp.items, index)[1]))
       if not state.satisfiable():
-        raise angr.AngrExitError("Could not add constraint: dchain_items_keyed(index, items) == none")
+        raise "Could not add constraint: dchain_items_keyed(index, items) == none"
       state.maps.add(dchainp.items, index, time)
       return state.solver.BVV(1, bitsizes.BOOL)
     return utils.fork_guarded(self, self.state.maps.length(dchainp.items) == dchainp.index_range, case_true, case_false)
@@ -101,11 +101,11 @@ class DChainRefresh(angr.SimProcedure):
     dchainp = self.state.metadata.get(DChain, dchain)
     clock.assert_is_current_time(self.state, time)
     if utils.can_be_false(self.state.solver, index.UGE(0)):
-      raise angr.AngrExitError("Precondition does not hold: 0 <= index")
+      raise "Precondition does not hold: 0 <= index"
     if utils.can_be_false(self.state.solver, index.ULT(dchainp.index_range)):
-      raise angr.AngrExitError("Precondition does not hold: index < index_range")
+      raise "Precondition does not hold: index < index_range"
     if utils.can_be_false(self.state.solver, self.state.maps.get(dchainp.items, index)[1]):
-      raise angr.AngrExitError("Precondition does not hold: dchain_items_keyed(index, items) != none")
+      raise "Precondition does not hold: dchain_items_keyed(index, items) != none"
 
     # Postconditions
     self.state.maps.set(dchainp.items, index, time)
@@ -132,7 +132,7 @@ class DChainExpire(angr.SimProcedure):
 
     # Symbolism assumptions
     if index_out.symbolic:
-      raise angr.AngrExitError("index_out cannot be symbolic")
+      raise "index_out cannot be symbolic"
 
     # Preconditions
     dchainp = self.state.metadata.get(DChain, dchain)
@@ -151,7 +151,7 @@ class DChainExpire(angr.SimProcedure):
       state.add_constraints(state.maps.get(dchainp.items, index)[1])
       state.add_constraints(state.maps.get(dchainp.items, index)[0].SLT(time))
       if not state.satisfiable():
-        raise angr.AngrExitError("Could not add constraint: dchain_items_keyed(index, items) == some(?old) &*& old < time")
+        raise "Could not add constraint: dchain_items_keyed(index, items) == some(?old) &*& old < time"
       state.maps.remove(dchainp.items, index)
       return state.solver.BVV(1, bitsizes.BOOL)
     return utils.fork_guarded(self, self.state.maps.forall(dchainp.items, lambda k, v: v.SGE(time)), case_true, case_false)
@@ -175,14 +175,14 @@ class DChainGet(angr.SimProcedure):
 
     # Symbolism assumptions
     if time_out.symbolic:
-      raise angr.AngrExitError("time_out cannot be symbolic")
+      raise "time_out cannot be symbolic"
 
     # Preconditions
     dchainp = self.state.metadata.get(DChain, dchain)
     if utils.can_be_false(self.state.solver, index.UGE(0)):
-      raise angr.AngrExitError("Precondition does not hold: 0 <= index")
+      raise "Precondition does not hold: 0 <= index"
     if utils.can_be_false(self.state.solver, index.ULT(dchainp.index_range)):
-      raise angr.AngrExitError("Precondition does not hold: index < index_range")
+      raise "Precondition does not hold: index < index_range"
     self.state.memory.load(time_out, bitsizes.TIME_T // 8)
 
     # Postconditions
@@ -212,9 +212,9 @@ class DChainGet(angr.SimProcedure):
 #    # Preconditions
 #    dchainp = self.state.metadata.get(DChain, dchain)
 #    if utils.can_be_false(self.state.solver, index.SGE(0)):
-#      raise angr.AngrExitError("Precondition does not hold: 0 <= index")
+#      raise "Precondition does not hold: 0 <= index"
 #    if utils.can_be_false(self.state.solver, index.SLT(self.state.aarrays.length(dchainp.time_opts_present))):
-#      raise angr.AngrExitError("Precondition does not hold: index < length(time_opts)")
+#      raise "Precondition does not hold: index < length(time_opts)"
 #
 #    # Postconditions
 #    self.state.aarrays.set(dchainp.time_opts_present, index, self.state.solver.BVV(0, 1))

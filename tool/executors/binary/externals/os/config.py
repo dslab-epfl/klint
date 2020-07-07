@@ -13,7 +13,7 @@ class ConfigU(angr.SimProcedure):
     name = cast.ptr(name)
 
     if name.symbolic:
-      raise angr.AngrExitError("Cannot use symbolic names for config")
+      raise "Cannot use symbolic names for config"
 
     py_name = utils.read_str(self.state, name)
 

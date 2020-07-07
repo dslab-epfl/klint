@@ -18,7 +18,7 @@ class EmptyLibrary():
   class Abort(angr.SimProcedure):
     NO_RET = True
     def run(self, x):
-      raise angr.AngrExitError('Unimplemented function: ' + self.display_name)
+      raise ('Unimplemented function: ' + self.display_name)
 
   def __init__(self):
     # the existence of syscall_number_mapping and minimum/maximum_syscall_number is required by angr

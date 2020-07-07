@@ -26,7 +26,7 @@ class SegmentedMemory(SimMemory):
 
     def merge(self, others, merge_conditions, common_ancestor=None):
         if any(o.id != self.id for o in others) or any(o.endness != self.endness for o in others):
-            raise angr.AngrExitError("Merging SegmentedMemory instances with different IDs or endnesses is not supported")
+            raise "Merging SegmentedMemory instances with different IDs or endnesses is not supported"
         new_segments = set(self.segments)
         for o in others:
             new_segments.update(o.segments)
@@ -42,11 +42,11 @@ class SegmentedMemory(SimMemory):
 
     def _store(self, request): # request is MemoryStoreRequest; has addr, data=None, size=None, condition=None, endness + "completed" must be set to True and "stored_values" must be set to a singleton list of the written data
         if request.data is None or request.size is None or request.condition is not None:
-            raise angr.AngrExitError("Sorry, can't handle that yet")
+            raise "Sorry, can't handle that yet"
         if request.size.symbolic:
-            raise angr.AngrExitError("Can't handle symbolic sizes")
+            raise "Can't handle symbolic sizes"
         if request.endness is not None and request.endness != self.endness:
-            raise angr.AngrExitError("SegmentedMemory supports only BE endness")
+            raise "SegmentedMemory supports only BE endness"
 
         data = request.data
         size = self.state.solver.eval_one(request.size, cast_to=int) * 8 # we get the size in bytes
@@ -59,7 +59,7 @@ class SegmentedMemory(SimMemory):
         else:
             (full, present) = self.state.maps.get(base, index)
             if utils.can_be_false(self.state.solver, present):
-                raise angr.AngrExitError("Memory value may not be present!?")
+                raise "Memory value may not be present!?"
             if offset + size < full.length:
                 value = full[(full.length-1):(offset+size)].concat(data)
             else:
@@ -76,16 +76,16 @@ class SegmentedMemory(SimMemory):
         size = self._to_bv64(size) * 8 # we get the size in bytes
 
         if condition is not None or fallback is not None or ret_on_segv:
-            raise angr.AngrExitError("Sorry, can't handle that yet")
+            raise "Sorry, can't handle that yet"
         if size.symbolic:
-            raise angr.AngrExitError("Can't handle symbolic sizes")
+            raise "Can't handle symbolic sizes"
 
         size = self.state.solver.eval_one(size, cast_to=int)
         (base, index, offset) = self.base_index_offset(addr)
 
         (value, present) = self.state.maps.get(base, index)
         if utils.can_be_false(self.state.solver, present):
-            raise angr.AngrExitError("Memory value may not be present!?")
+            raise "Memory value may not be present!?"
         if offset == 0 and size == self.state.maps.value_size(base):
             return [addr], value, []
         else:
@@ -106,7 +106,7 @@ class SegmentedMemory(SimMemory):
 
         max_size = self.state.solver.max(size)
         if max_size // 8 > 4096:
-            raise angr.AngrExitError("That's a huge block you want to allocate... let's just not: " + str(max_size))
+            raise ("That's a huge block you want to allocate... let's just not: " + str(max_size))
 
         name = (name or "segmented_memory") + "_addr"
         addr = self.state.maps.allocate(bitsizes.PTR, max_size, name=name, array_length=count, default_value=default)
@@ -123,9 +123,9 @@ class SegmentedMemory(SimMemory):
     def _count_size(self, addr):
         results = [(count, size) for (cand_addr, count, size) in self.segments if utils.definitely_true(self.state.solver, addr == cand_addr)]
         if len(results) == 0:
-            raise angr.AngrExitError("No segment with base: " + str(addr))
+            raise ("No segment with base: " + str(addr))
         if len(results) > 1:
-            raise angr.AngrExitError("Multiple possible segments with base: " + str(addr))
+            raise ("Multiple possible segments with base: " + str(addr))
         (count, size) = results[0]
         # more convenient
         return self._to_bv64(count), self._to_bv64(size)
@@ -151,7 +151,7 @@ class SegmentedMemory(SimMemory):
             if len(base) == 1:
                 base = base[0]
             else:
-                raise angr.AngrExitError("!= 1 candidate for base???")
+                raise "!= 1 candidate for base???"
             added = sum([a for a in addr.args if not a.structurally_match(base)])
 
             (count, size) = self._count_size(base)
@@ -168,4 +168,4 @@ class SegmentedMemory(SimMemory):
                 index = self.state.solver.simplify((added - offset) / (size // 8))
             return (base, index, offset * 8)
 
-        raise angr.AngrExitError("B_I_O doesn't know what to do with: " + str(addr) + " of type " + str(type(addr)) + " ; op is " + str(addr.op) + " ; args is " + str(addr.args) + " ; constrs are " + str(self.state.solver.constraints))
+        raise ("B_I_O doesn't know what to do with: " + str(addr) + " of type " + str(type(addr)) + " ; op is " + str(addr.op) + " ; args is " + str(addr.args) + " ; constrs are " + str(self.state.solver.constraints))

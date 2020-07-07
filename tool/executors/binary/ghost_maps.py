@@ -64,7 +64,7 @@ class GhostMaps(SimStatePlugin):
     def allocate(self, key_size, value_size, name=None, array_length=None, default_value=None):
         def to_int(n, name):
             if isinstance(n, claripy.ast.base.Base) and n.symbolic:
-                raise angr.AngrExitError(name + " cannot be symbolic")
+                raise (name + " cannot be symbolic")
             return self.state.solver.eval_one(n, cast_to=int)
         key_size = to_int(key_size, "key_size")
         value_size = to_int(value_size, "value_size")
@@ -107,7 +107,7 @@ class GhostMaps(SimStatePlugin):
         # Increments the map length.
 
         if utils.can_be_true(self.state.solver, self.get(obj, key)[1]):
-            raise angr.AngrExitError("Cannot add a key that might already be there!")
+            raise "Cannot add a key that might already be there!"
 
         map = self._get_map(obj)
 
@@ -124,7 +124,7 @@ class GhostMaps(SimStatePlugin):
         # Decrements the map length.
 
         if utils.can_be_false(self.state.solver, self.get(obj, key)[1]):
-            raise angr.AngrExitError("Cannot remove a key that might not be there!")
+            raise "Cannot remove a key that might not be there!"
 
         map = self._get_map(obj)
 
@@ -181,7 +181,7 @@ class GhostMaps(SimStatePlugin):
         # Updates known items (K', V', P') into (K', ITE(K = K', V, V'), P' or K = K')
         # Adds (K, V, true) to the known items
         if utils.can_be_false(self.state.solver, self.get(obj, key)[1]):
-            raise angr.AngrExitError("Cannot set the value of a key that might not be there!")
+            raise "Cannot set the value of a key that might not be there!"
 
         map = self._get_map(obj)
 
@@ -279,7 +279,7 @@ def maps_merge_across(states_to_merge, objs, ancestor_state):
                 return None
             if len(items1) != len(items2):
                 # Lazyness: implementing backtracking in case a guess fails is hard :p
-                raise angr.AngrExitError("backtracking not implemented yet")
+                raise "backtracking not implemented yet"
             for x1 in map(sel1, items1):
                 found = False
                 for it2 in items2:

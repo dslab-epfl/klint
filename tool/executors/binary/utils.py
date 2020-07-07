@@ -18,7 +18,7 @@ def read_str(state, ptr):
   while True:
     char = state.mem[ptr].uint8_t.resolved
     if char.symbolic:
-      raise angr.AngrExitError("Trying to read a symbolic string!")
+      raise "Trying to read a symbolic string!"
     char = state.solver.eval_one(char, cast_to=int)
     if char == 0:
       break
@@ -30,19 +30,19 @@ def read_str(state, ptr):
 def can_be_true(solver, cond):
   sols = solver_copy(solver).eval_upto(cond, 2)
   if len(sols) == 0:
-    raise angr.AngrExitError("Could not evaluate: " + str(cond))
+    raise ("Could not evaluate: " + str(cond))
   return True in sols
 
 def can_be_false(solver, cond):
   sols = solver_copy(solver).eval_upto(cond, 2)
   if len(sols) == 0:
-    raise angr.AngrExitError("Could not evaluate: " + str(cond))
+    raise ("Could not evaluate: " + str(cond))
   return False in sols
 
 def can_be_true_or_false(solver, cond):
   sols = solver_copy(solver).eval_upto(cond, 2)
   if len(sols) == 0:
-    raise angr.AngrExitError("Could not evaluate: " + str(cond))
+    raise ("Could not evaluate: " + str(cond))
   return len(sols) == 2
 
 def definitely_true(solver, cond):
@@ -54,7 +54,7 @@ def definitely_false(solver, cond):
 def get_if_constant(solver, expr):
   sols = solver_copy(solver).eval_upto(expr, 2, cast_to=int)
   if len(sols) == 0:
-    raise angr.AngrExitError("Could not evaluate: " + str(expr))
+    raise ("Could not evaluate: " + str(expr))
   if len(sols) == 1:
       return sols[0]
   return None
@@ -62,7 +62,8 @@ def get_if_constant(solver, expr):
 
 def fork_always(proc, case_true, case_false):
   false_was_unsat = False
-  original_sat = proc.state.satisfiable()
+  if not proc.state.satisfiable():
+    raise "too lazy to handle this :/"
   try:
     state_copy = proc.state.copy()
     ret_expr = case_false(state_copy)
@@ -77,7 +78,7 @@ def fork_always(proc, case_true, case_false):
     return case_true(proc.state)
   except angr.errors.SimUnsatError as e:
     if false_was_unsat:
-      raise angr.AngrExitError("Both cases were unsat!")
+      raise "Both cases were unsat!"
     else:
       raise e # let it bubble up to angr
 

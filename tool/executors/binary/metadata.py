@@ -23,7 +23,7 @@ class Metadata(SimStatePlugin):
     @staticmethod
     def set_merge_funcs(cls, func_across, func_one):
         if cls in Metadata.merge_funcs and Metadata.merge_funcs[cls] != (func_across, func_one):
-            raise angr.AngrExitError("Cannot change merge functions once set")
+            raise "Cannot change merge functions once set"
         Metadata.merge_funcs[cls] = (func_across, func_one)
 
 
@@ -126,13 +126,13 @@ class Metadata(SimStatePlugin):
         results = self._get(cls, key)
         if len(results) == 0:
             if default is None:
-                raise angr.AngrExitError("No metadata for key: " + str(key) + " of class: " + str(cls))
+                raise ("No metadata for key: " + str(key) + " of class: " + str(cls))
             else:
                 self.set(key, default)
                 return default
 
         if len(results) > 1:
-            raise angr.AngrExitError("More than one matching metadata of type " + str(cls) + " for key: " + str(key))
+            raise ("More than one matching metadata of type " + str(cls) + " for key: " + str(key))
 
         return results[0][1]
 
@@ -145,17 +145,17 @@ class Metadata(SimStatePlugin):
         cls = type(value)
         results = self._get(cls, key)
         if len(results) > 1:
-            raise angr.AngrExitError("More than one existing metadata of type " + str(cls) + " for key: " + str(key))
+            raise ("More than one existing metadata of type " + str(cls) + " for key: " + str(key))
 
         has_already = len(results) == 1
         if has_already:
             if override:
                 self.items[cls] = [(k, v) for (k, v) in self.items[cls] if k is not results[0][0]] # using remove() tests by value, which ends up converting claripy ASTs to bool, which they don't like
             else:
-                raise angr.AngrExitError("There is already metadata of type " + str(cls) + " for key: " + str(key) + ", namely " + str(results))
+                raise ("There is already metadata of type " + str(cls) + " for key: " + str(key) + ", namely " + str(results))
 
         if override and not has_already:
-            raise angr.AngrExitError("There is no metadata of type " + str(cls) + " to override for key: " + str(key))
+            raise ("There is no metadata of type " + str(cls) + " to override for key: " + str(key))
 
         if cls not in self.items:
             self.items[cls] = []

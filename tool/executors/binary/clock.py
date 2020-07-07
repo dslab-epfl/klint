@@ -13,7 +13,7 @@ def get_current_time(state):
         # how to handle it:
         # - store all the times we've given
         # - during spec matching, return those times at each call to the clock
-        raise angr.AngrExitError("Sorry, calling clock multiple times is not handled yet")
+        raise "Sorry, calling clock multiple times is not handled yet"
     time = state.solver.BVS('time', bitsizes.TIME_T)
     state.metadata.set(time, Time())
     return time

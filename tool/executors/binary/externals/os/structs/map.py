@@ -21,13 +21,13 @@ class MapInit(angr.SimProcedure):
 
     # Symbolism assumptions
     if key_size.symbolic:
-      raise angr.AngrExitError("key_size cannot be symbolic")
+      raise "key_size cannot be symbolic"
 
     # Preconditions
     if utils.can_be_false(self.state.solver, capacity.UGT(0)):
-      raise angr.AngrExitError("Precondition does not hold: 0 < capacity")
+      raise "Precondition does not hold: 0 < capacity"
     if utils.can_be_false(self.state.solver, key_size.UGT(0)):
-      raise angr.AngrExitError("Precondition does not hold: 0 < key_size")
+      raise "Precondition does not hold: 0 < key_size"
 
     # Postconditions
     def case_true(state):
@@ -63,7 +63,7 @@ class MapGet(angr.SimProcedure):
 
     # Symbolism assumptions
     if value_out.symbolic:
-      raise angr.AngrExitError("value_out cannot be symbolic")
+      raise "value_out cannot be symbolic"
 
     # Preconditions
     mapp = self.state.metadata.get(Map, map)
@@ -107,9 +107,9 @@ class MapPut(angr.SimProcedure):
     print("!!! map put key", key)
     self.state.memory.take(25, key_ptr, mapp.key_size)
     if utils.can_be_false(self.state.solver, self.state.maps.length(mapp.values).ULT(mapp.capacity)):
-      raise angr.AngrExitError("Precondition does not hold: length(values) < capacity")
+      raise "Precondition does not hold: length(values) < capacity"
     if utils.can_be_false(self.state.solver, self.state.solver.Not(self.state.maps.get(mapp.values, key)[1])):
-      raise angr.AngrExitError("Precondition does not hold: map_item_keyed(key, values) == none")
+      raise "Precondition does not hold: map_item_keyed(key, values) == none"
 
     # Postconditions
     self.state.maps.add(mapp.values, key, value)
@@ -140,7 +140,7 @@ class MapErase(angr.SimProcedure):
     key = self.state.memory.load(key_ptr, mapp.key_size)
     frac = self.state.memory.take(None, key_ptr, mapp.key_size)
     if utils.can_be_false(self.state.solver, self.state.maps.get(mapp.addrs, key_ptr)[1]) or utils.can_be_false(self.state.solver, self.state.maps.get(mapp.addrs, key_ptr)[0] == key):
-      raise angr.AngrExitError("Precondition does not hold: map_item_keyed(key_ptr, addrs) == some(key)")
+      raise "Precondition does not hold: map_item_keyed(key_ptr, addrs) == some(key)"
 
     # Postconditions
     self.state.maps.remove(mapp.values, key)

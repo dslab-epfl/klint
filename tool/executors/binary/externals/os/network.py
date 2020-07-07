@@ -57,13 +57,13 @@ class Transmit(angr.SimProcedure):
     length = packet_get_length(self.state, packet)
 
     if utils.can_be_false(self.state.solver, self.state.solver.Or(ether_header == 0, ether_header == data_addr)):
-        raise angr.AngrExitError("Precondition failed: ether_header is NULL or valid")
+        raise "Precondition failed: ether_header is NULL or valid"
 
     if utils.can_be_false(self.state.solver, self.state.solver.Or(ipv4_header == 0, self.state.solver.And(data[8*13-1:8*12] == 0x08, data[8*14-1:8*13] == 0x00))):
-        raise angr.AngrExitError("Precondition failed: ipv4_header is NULL or valid")
+        raise "Precondition failed: ipv4_header is NULL or valid"
 
     if utils.can_be_false(self.state.solver, self.state.solver.Or(tcpudp_header == 0, self.state.solver.And(tcpudp_header == 34 + data_addr, ipv4_header == 14 + data_addr, self.state.solver.Or(data[8*24-1:8*23] == 6, data[8*24-1:8*23] == 17)))):
-        raise angr.AngrExitError("Precondition failed: tcpudp_header is NULL or valid")
+        raise "Precondition failed: tcpudp_header is NULL or valid"
 
     metadata = self.state.metadata.get(NetworkMetadata, None, default=NetworkMetadata([]))
     metadata.transmitted.append((data, length, device, ether_header != 0, ipv4_header != 0, tcpudp_header != 0))

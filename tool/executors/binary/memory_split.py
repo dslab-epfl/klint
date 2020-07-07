@@ -23,7 +23,7 @@ class SplitMemory(SimMemory):
 
     def merge(self, others, merge_conditions, common_ancestor=None):
         if any(o.id != self.id for o in others) or any(o.endness != self.endness for o in others):
-            raise angr.AngrExitError("Merging SplitMemory instances with different IDs or endnesses is not supported")
+            raise "Merging SplitMemory instances with different IDs or endnesses is not supported"
 
         self.abstract_memory.merge([o.abstract_memory for o in others], merge_conditions, common_ancestor=common_ancestor.abstract_memory if common_ancestor is not None else None)
         self.concrete_memory.merge([o.concrete_memory for o in others], merge_conditions, common_ancestor=common_ancestor.concrete_memory if common_ancestor is not None else None)

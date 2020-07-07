@@ -107,7 +107,7 @@ def havoc_iter(nf_folder, state, devices_count):
     opaque_metadata_value = handled_states[0][0].metadata.notify_impending_merge(other_states, original_state)
     (new_state, flag_comps, merged) = handled_states[0][0].merge(*other_states, common_ancestor=original_state)
     if not merged:
-      raise angr.AngrExitError("Not merged...")
+      raise "Not merged..."
     reached_fixpoint = new_state.metadata.notify_completed_merge(opaque_metadata_value)
     if reached_fixpoint:
         return (new_state, True)
