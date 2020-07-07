@@ -261,36 +261,22 @@ def maps_merge_across(states_to_merge, objs, ancestor_state):
     results = [] # pairs: (ID, maps, lambda states, maps: returns None for no changes or maps to overwrite them)
     states = states_to_merge + [ancestor_state]
 
-    # helper function to find FK / FV in the invariant inference algorithm
-    # returns (F, F', is_const) where F' is the opposite function, or (None, None, False) if not found
-    # if allow_const then F(i) might return a constant in which case F' is definitely None and is_const is True...
-    def find_f(o1, o2, sel1, sel2, allow_const=False):
-        # guess F', which is not easy...
-        def guess_f_rev(state, x1, x2):
-            # x2 == x1
-            if x2.structurally_match(x1):
-                return lambda x: x
-            # x2 == x1[N:0]
-            if x2.op == "Concat" \
-               and x2.args[0].structurally_match(claripy.BVV(0, x2.args[0].size())) \
-               and x2.args[1].op == "Extract" \
-               and utils.definitely_true(state.solver, x2.args[1].args[2] == x1):
-                return lambda x: x
-            return None
+    # helper function to get only the items that are definitely in the map associated with the given obj in the given state
+    def filter_present(state, obj):
+        return [i for i in state.maps._known_items(obj) if utils.definitely_true(state.solver, i.present == 1)]
 
+    # helper function to find FK or FV
+    def find_f(o1, o2, sel1, sel2):
         candidate_func = None
-        candidate_rev = None
-        is_const = False
         for state in states:
-            def filter_present(its): return [it for it in its if utils.definitely_true(state.solver, it.present == 1)]
-            items1 = filter_present(state.maps._known_items(o1))
-            items2 = filter_present(state.maps._known_items(o2))
+            items1 = filter_present(state, o1)
+            items2 = filter_present(state, o2)
             if len(items1) == 0:
                 # If there are no items in 1 it's fine but doesn't give us info either
                 continue
             if len(items1) > len(items2):
                 # Pigeonhole: there must be an item in 1 that does not match one in 2
-                return (None, None, False)
+                return None
             if len(items1) != len(items2):
                 # Lazyness: implementing backtracking in case a guess fails is hard :p
                 raise angr.AngrExitError("backtracking not implemented yet")
@@ -299,8 +285,7 @@ def maps_merge_across(states_to_merge, objs, ancestor_state):
                 for it2 in items2:
                     x2 = sel2(it2)
                     if candidate_func is not None:
-                        # 1st is for replacement, 2nd is for constants
-                        if x2.structurally_match(candidate_func(x1)) or utils.definitely_true(state.solver, x2 == candidate_func(x1)):
+                        if utils.definitely_true(state.solver, x2 == candidate_func(x1)):
                             # All good, our candidate worked
                             found = True
                             items2.remove(it2)
@@ -308,26 +293,35 @@ def maps_merge_across(states_to_merge, objs, ancestor_state):
                         break
                     fake = claripy.BVS("fake", x1.size())
                     if not x2.replace(x1, fake).structurally_match(x2):
-                        # We found a possible function!
+                        # Replacement is a possible function
                         candidate_func = lambda x, x1=x1, x2=x2: x2.replace(x1, x)
-                        candidate_rev = guess_f_rev(state, x1, x2)
                         found = True
                         items2.remove(it2)
                         break
-                    elif allow_const:
-                        const = utils.get_if_constant(state.solver, x2)
-                        if const is not None:
-                            # We found a possible constant!
-                            candidate_func = lambda x, const=const, sz=x2.size(): claripy.BVV(const, sz)
-                            is_const = True
-                            found = True
-                            items2.remove(it2)
+                    if x1.size() == x2.size() and utils.definitely_true(state.solver, x1 == x2):
+                        # Identity is a possible function
+                        candidate_func = lambda x: x
+                        found = True
+                        items2.remove(it2)
+                        break
+                    const = utils.get_if_constant(state.solver, x2)
+                    if const is not None:
+                        # A constant is a possible function
+                        candidate_func = lambda x, const=const, sz=x2.size(): claripy.BVV(const, sz)
+                        found = True
+                        items2.remove(it2)
+                        break
                 if not found:
                     # Found nothing in this state, give up
-                    return (None, None, False)
+                    return None
         # Our candidate has survived all states!
-        # Don't forget to use sels here since we want the returned functions to take an item
-        return (lambda i: candidate_func(sel1(i)), lambda i: candidate_rev(sel2(i)), is_const)
+        # Use sel1 here since we want the returned functions to take an item
+        return lambda i: candidate_func(sel1(i))
+
+    # Helper function to find FP
+    def find_f_constants(o, sel):
+        constants = set([utils.get_if_constant(state.solver, sel(i)) for state in states for i in filter_present(state, o)])
+        return [lambda i: claripy.true] + [lambda i: sel(i) == claripy.BVV(c, sel(i).size()) for c in constants if c is not None]
 
     # helper function to copy a map and add an invariant to the copy
     def add_invariant(map, inv):
@@ -353,35 +347,28 @@ def maps_merge_across(states_to_merge, objs, ancestor_state):
 
             # Step 2: Cross-references.
             # For each pair of maps (M1, M2),
-            #  if there exists a function FK such that in all states, forall(M1, (K,V): get(M2, FK(K, V)) == (_, true)),
+            #  if there exist functions FK, FP such that in all states, forall(M1, (K,V): FP(K,V) => get(M2, FK(K, V)) == (_, true)),
             #  then assume this is an invariant of M1 in the merged state.
             #  Additionally,
-            #   if there exists a function FV such that in all states, forall(M1, (K,V): get(M2, FK(K, V)) == (FV(K, V), true)),
+            #   if there exist functions FV, FP such that in all states, forall(M1, (K,V): FP(K,V) => get(M2, FK(K, V)) == (FV(K, V), true)),
             #   then assume this is an invariant of M1 in the merged state.
-            #   Additionally,
-            #   if FV returns a constant,
-            #   and if in all states, forall(M2, (K,V): V == FV(_) => get(M1, FK-1(K,V)) == (_, true)),
-            #   then assume this is an invariant of M2 in the merged state.
             # TODO: a string ID is not really enough to guarantee the constraints are the same here...
             # We use maps directly to refer to the map state as it was in the ancestor, not during execution;
-            # otherwise, get(M1, k) after remove(M2, k) might add has(M1, k) to the constraints, which is obviously false
-            fk, fkr, _ = find_f(o1, o2, lambda i: i.key, lambda i: i.key)
-            o1key = True
-            if fk is None:
-                fk, fkr, _ = find_f(o1, o2, lambda i: i.value, lambda i: i.key)
-                o1key = False
-            if fk and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fk=fk: st.maps.get(o2, fk(MapItem(k, v, claripy.BVV(1, 1))))[1])) for st in states):
-                print("Inferred: when", o1, "contains (K,V),", o2, "contains", fk(MapItem(claripy.BVS("K", ancestor_state.maps.key_size(o1)), claripy.BVS("V", ancestor_state.maps.value_size(o1)), claripy.BVV(1, 1))))
-                results.append(("cross-key", [o1, o2], lambda state, maps, fk=fk: [add_invariant(maps[0], lambda st, i: Implies(i.present == 1, st.maps.get(maps[1], fk(i))[1])), maps[1]]))
-                fv, _, fvc = find_f(o1, o2, lambda i: i.key, lambda i: i.value, allow_const=True)
-                if fv is None: fv, _, fvc = find_f(o1, o2, lambda i: i.value, lambda i: i.value, allow_const=True)
-                if fv and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fk=fk, fv=fv: st.maps.get(o2, fk(MapItem(k, v, claripy.BVV(1, 1))))[0] == fv(MapItem(k, v, claripy.BVV(1, 1))))) for st in states):
-                    print("          in addition, the value is", fv(MapItem(claripy.BVS("K", ancestor_state.maps.key_size(o1)), claripy.BVS("V", ancestor_state.maps.value_size(o1)), claripy.BVV(1, 1))))
-                    results.append(("cross-value", [o1, o2], lambda state, maps, fk=fk, fv=fv: [add_invariant(maps[0], lambda st, i: Implies(i.present == 1, st.maps.get(maps[1], fk(i))[0] == fv(i))), maps[1]]))
-                    if o1key and fkr and fvc and all(utils.definitely_true(st.solver, st.maps.forall(o2, lambda k, v, st=st, o1=o1, fkr=fkr, fv=fv: Implies(v == fv(MapItem(None,None,None)), st.maps.get(o1, fkr(MapItem(k, v, claripy.BVV(1, 1))))[1]))) for st in states):
-                        print("          furthermore, when", o2, "has that value", o1, "contains an element")
-                        results.append(("cross-rev-value", [o1, o2], lambda state, maps, fkr=fkr, fv=fv: [maps[0], add_invariant(maps[1], lambda st, i: Implies(i.present == 1, Implies(i.value == fv(MapItem(None,None,None)), st.maps.get(maps[0], fkr(i))[1])))]))
-
+            # otherwise, get(M1, k) after remove(M2, k) might add has(M2, k) to the constraints, which is obviously false
+            fk = find_f(o1, o2, lambda i: i.key, lambda i: i.key) \
+              or find_f(o1, o2, lambda i: i.value, lambda i: i.key)
+            fps = find_f_constants(o1, lambda i: i.value)
+            for fp in fps:
+                if fk and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fk=fk, fp=fp: Implies(fp(MapItem(k, v, None)), st.maps.get(o2, fk(MapItem(k, v, None)))[1]))) for st in states):
+                    log_item = MapItem(claripy.BVS("K", ancestor_state.maps.key_size(o1)), claripy.BVS("V", ancestor_state.maps.value_size(o1)), None)
+                    print("Inferred: when", o1, "contains (K,V), if", fp(log_item), "then", o2, "contains", fk(log_item))
+                    results.append(("cross-key", [o1, o2], lambda state, maps, fk=fk, fp=fp: [add_invariant(maps[0], lambda st, i: Implies(i.present == 1, Implies(fp(i), st.maps.get(maps[1], fk(i))[1]))), maps[1]]))
+                    fv = find_f(o1, o2, lambda i: i.key, lambda i: i.value) \
+                      or find_f(o1, o2, lambda i: i.value, lambda i: i.value)
+                    if fv and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fk=fk, fv=fv: Implies(fp(MapItem(k, v, None)), st.maps.get(o2, fk(MapItem(k, v, None)))[0] == fv(MapItem(k, v, None))))) for st in states):
+                        print("          in addition, the value is", fv(log_item))
+                        results.append(("cross-value", [o1, o2], lambda state, maps, fk=fk, fv=fv: [add_invariant(maps[0], lambda st, i: Implies(i.present == 1, Implies(fp(i), st.maps.get(maps[1], fk(i))[0] == fv(i)))), maps[1]]))
+                    break # this might make us miss some stuff in theory? but that's sound; and in practice it doesn't
     return results
 
 def maps_merge_one(states_to_merge, obj, ancestor_state):
