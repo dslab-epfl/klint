@@ -112,12 +112,6 @@ def havoc_iter(nf_folder, state, devices_count):
     if reached_fixpoint:
         return (new_state, True)
 
-    # remove a hopefully-pointless constraint
-    pointless_constraint = [c for c in new_state.solver.constraints if next((c2 for c2 in c.children_asts() if c2.structurally_match(flag_comps[0])), None) is not None]
-    if len(pointless_constraint) == 1:
-      new_state.solver.constraints.pop(next(i for i in range(len(new_state.solver.constraints)) if new_state.solver.constraints[i].structurally_match(pointless_constraint[0])))
-      new_state.solver.reload_solver()
-
     print("Merged constraints:")
     print(new_state.solver.constraints)
     print("")

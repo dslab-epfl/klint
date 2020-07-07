@@ -121,14 +121,17 @@ class SegmentedMemory(SimMemory):
         return addr
 
     def _count_size(self, addr):
-        results = [(count, size) for (cand_addr, count, size) in self.segments if utils.definitely_true(self.state.solver, addr == cand_addr)]
-        if len(results) == 0:
-            raise ("No segment with base: " + str(addr))
-        if len(results) > 1:
-            raise ("Multiple possible segments with base: " + str(addr))
-        (count, size) = results[0]
+        # Optimization: Try structurally matching first before invoking the solver
+        result = next(((count, size) for (cand_addr, count, size) in self.segments if addr.structurally_match(cand_addr)), None)
+        if result is None:
+            results = [(count, size) for (cand_addr, count, size) in self.segments if utils.definitely_true(self.state.solver, addr == cand_addr)]
+            if len(results) == 0:
+                raise ("No segment with base: " + str(addr))
+            if len(results) > 1:
+                raise ("Multiple possible segments with base: " + str(addr))
+            result = results[0]
         # more convenient
-        return self._to_bv64(count), self._to_bv64(size)
+        return self._to_bv64(result[0]), self._to_bv64(result[1])
 
     # Guarantees that:
     # - Result is of the form (base, index, offset)
@@ -157,10 +160,6 @@ class SegmentedMemory(SimMemory):
             (count, size) = self._count_size(base)
             prev_len = len(self.state.solver.constraints)
             offset = self.state.solver.eval_one(added % (size // 8), cast_to=int)
-            # Don't add the concrete offset to the constraints, claripy does it for some reason but it just makes manual inspection harder
-            if len(self.state.solver.constraints) == prev_len + 1:
-                self.state.solver.constraints.pop(prev_len)
-                self.state.solver.reload_solver()
             # Don't make the index be a weird '0 // ...' expr if we can avoid it
             if utils.definitely_true(self.state.solver, added == offset):
                 index = self.state.solver.BVV(0, 64)

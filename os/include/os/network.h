@@ -66,23 +66,19 @@ static inline bool os_net_get_ether_header(struct os_net_packet* packet, struct 
 // Get a packet's IPv4 header given its ethernet header
 static inline bool os_net_get_ipv4_header(struct os_net_ether_header* ether_header, struct os_net_ipv4_header** out_ipv4_header)
 {
-	if (ether_header->ether_type == (IS_LITTLE_ENDIAN_ ? 0x0008 : 0x0800)) {
-		*out_ipv4_header = (struct os_net_ipv4_header*) ((char*) ether_header + sizeof(struct os_net_ether_header));
-		return true;
-	}
-
-	return false;
+	// if we return false this may be 1 past the end of the array, which is legal in C
+	*out_ipv4_header = (struct os_net_ipv4_header*) ((char*) ether_header + sizeof(struct os_net_ether_header));
+	return ether_header->ether_type == (IS_LITTLE_ENDIAN_ ? 0x0008 : 0x0800);
 }
 
 // Get a packet's TCP/UDP common header given its IPv4 header
 static inline bool os_net_get_tcpudp_header(struct os_net_ipv4_header* ipv4_header, struct os_net_tcpudp_header** out_tcpudp_header)
 {
-	if ((ipv4_header->next_proto_id == 6 /* TCP */) | (ipv4_header->next_proto_id == 17 /* UDP */)) {
-		*out_tcpudp_header = (struct os_net_tcpudp_header*) ((char*) ipv4_header + sizeof(struct os_net_ipv4_header));
-		return true;
-	}
-
-	return false;
+	// if we return false this may be 1 past the end of the array, which is legal in C
+	*out_tcpudp_header = (struct os_net_tcpudp_header*) ((char*) ipv4_header + sizeof(struct os_net_ipv4_header));
+	bool result = (ipv4_header->next_proto_id == 6 /* TCP */) | (ipv4_header->next_proto_id == 17 /* UDP */);
+	// Dirty trick to force the compiler to emit a single branch for both conditions, halving the number of paths in symbex
+	return *((volatile bool*)&result);
 }
 
 
