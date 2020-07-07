@@ -96,11 +96,7 @@ def havoc_iter(nf_folder, state, devices_count):
     original_state = state.copy()
     handled_states = list(nf_handle(nf_folder, state, devices_count))
     for (s, i, o) in handled_states:
-      print("=== STATE ===")
-      print("Constraints:")
-      print(s.solver.constraints)
-      print("===       ===")
-      print("")
+      print("State", id(s), "has", len(s.solver.constraints), "constraints")
 
     print("Merging...")
     other_states = [s for (s, i, o) in handled_states[1:]]
@@ -112,8 +108,6 @@ def havoc_iter(nf_folder, state, devices_count):
     if reached_fixpoint:
         return (new_state, True)
 
-    print("Merged constraints:")
-    print(new_state.solver.constraints)
     print("")
     return (new_state, False)
 
