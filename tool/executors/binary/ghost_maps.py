@@ -149,6 +149,9 @@ class GhostMaps(SimStatePlugin):
         # Optimization: If the key exactly matches an item, answer that
         # (note: having to use definitely_true makes it expensive, but it allows for simpler reasoning later)
         for item in map.items:
+            if key.structurally_match(item.key):
+                return (item.value, item.present == 1)
+        for item in map.items:
             if utils.definitely_true(self.state.solver, key == item.key):
                 return (item.value, item.present == 1)
 
@@ -164,7 +167,7 @@ class GhostMaps(SimStatePlugin):
             self._known_length(obj) <= map.length
         )
         if not self.state.satisfiable():
-            raise "this should never happen"
+            raise "Could not add constraints in ghost map get!?"
 
         # MUTATE the map!
         map.items.append(MapItem(key, value, present))
