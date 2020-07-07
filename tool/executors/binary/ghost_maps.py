@@ -350,7 +350,7 @@ def maps_merge_across(states_to_merge, objs, ancestor_state):
             #  if there exist functions FK, FP such that in all states, forall(M1, (K,V): FP(K,V) => get(M2, FK(K, V)) == (_, true)),
             #  then assume this is an invariant of M1 in the merged state.
             #  Additionally,
-            #   if there exist functions FV, FP such that in all states, forall(M1, (K,V): FP(K,V) => get(M2, FK(K, V)) == (FV(K, V), true)),
+            #   if there exists a function FV such that in all states, forall(M1, (K,V): FP(K,V) => get(M2, FK(K, V)) == (FV(K, V), true)),
             #   then assume this is an invariant of M1 in the merged state.
             # TODO: a string ID is not really enough to guarantee the constraints are the same here...
             # We use maps directly to refer to the map state as it was in the ancestor, not during execution;
