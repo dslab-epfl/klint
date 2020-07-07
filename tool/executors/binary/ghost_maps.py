@@ -447,8 +447,6 @@ def maps_merge_one(states_to_merge, obj, ancestor_state):
         if utils.can_be_false(state.solver, state.maps.length(obj) == length):
             print("Length of map", obj, " was changed; making it symbolic")
             length = claripy.BVS("map_length", GhostMaps._length_size_in_bits)
-            func_has = CreateUninterpretedFunction("map_has", lambda n: claripy.BVS(n, 1))
-            invariants.append(lambda st, i, func_has=func_has: Implies(i.present == 1, func_has(st, i.key) == 1))
             break
 
     return Map(
