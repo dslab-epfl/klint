@@ -115,9 +115,11 @@ def structural_eq(a, b):
     if hasattr(a, '_asdict') and hasattr(b, '_asdict'): # namedtuple
         ad = a._asdict()
         bd = b._asdict()
-        return all(structural_eq(ad[k], bd[k]) for k in set(ad.keys()).union(bd.keys()))
-    if isinstance(a, list) and isinstance(b, list):
+        return structural_eq(ad, bd)
+    if isinstance(a, dict) and isinstance(b, dict):
+        return all(structural_eq(a[k], b[k]) for k in set(a.keys()).union(b.keys()))
+    if isinstance(a, str) and isinstance(b, str):
+        return a == b # no point in doing it the complicated way
+    if hasattr(a, '__iter__') and hasattr(b, '__iter__') and hasattr(a, '__len__') and hasattr(b, '__len__'):
         return len(a) == len(b) and all(structural_eq(ai, bi) for (ai, bi) in zip(a, b))
-    if isinstance(a, tuple) and isinstance(b, tuple):
-        return structural_eq(list(a), list(b))
     return a == b

@@ -5,9 +5,43 @@ from recordclass import recordclass
 from executors.binary.metadata import Metadata
 import executors.binary.utils as utils
 from collections import namedtuple
+import copy
+import itertools
 
 # note: we use size-1 bitvectors instead of bools cause they sometimes behave weirdly in angr..
 # e.g. sometimes (p and not(p)) is true :/
+
+class LayeredList:
+    def __init__(self, own=None, below=None, filter=None, map=None):
+        self.own = own or []
+        self.below = below
+        self.map = map or (lambda x: x)
+        self.filter = filter or (lambda x: True)
+
+    def append(self, item, at_bottom=False):
+        if at_bottom and self.below is not None:
+            self.below.append(item, at_bottom=at_bottom)
+        else:
+            self.own.append(item)
+
+    def __iter__(self):
+        return itertools.chain(self.own, () if self.below is None else map(self.map, filter(self.filter, self.below)))
+
+    def __len__(self):
+        return len(self.own) + (0 if self.below is None else sum(1 for i in filter(self.filter, self.below)))
+
+    def __copy__(self):
+        below_copy = None if self.below is None else self.below.copy()
+        return LayeredList(self.own.copy(), below_copy, self.filter, self.map)
+
+    def __deepcopy__(self, memo):
+        result = LayeredList(copy.deepcopy(self.own, memo), copy.deepcopy(self.below, memo), self.filter, self.map)
+        memo[id(self)] = result
+        return result
+
+    def __str__(self):
+        return str(list(self))
+
 
 # HUGE HACK
 # Claripy doesn't support uninterpreted functions, and adding that support would probably take a while, so...
@@ -94,7 +128,7 @@ class GhostMaps(SimStatePlugin):
         present_func = CreateUninterpretedFunction((name or "map") + "_present", lambda n: claripy.BVS(n, 1))
 
         obj = self.state.memory.allocate_opaque(name)
-        self.state.metadata.set(obj, Map(name, length, invariants, [], key_size, value_size, value_func, present_func))
+        self.state.metadata.set(obj, Map(name, length, invariants, LayeredList(), key_size, value_size, value_func, present_func))
         return obj
 
 
@@ -123,8 +157,12 @@ class GhostMaps(SimStatePlugin):
         map = self._get_map(obj)
 
         # Optimization: Filter out known-obsolete keys already
-        new_items = [MapItem(i.key, claripy.If(i.key == key, value, i.value), claripy.If(i.key == key, claripy.BVV(1, 1), i.present)) for i in map.items if not i.key.structurally_match(key)] + \
-                    [MapItem(key, value, claripy.BVV(1, 1))]
+        new_items = LayeredList(
+            own=[MapItem(key, value, claripy.BVV(1, 1))],
+            below=map.items,
+            filter=lambda i: not i.key.structurally_match(key),
+            map=lambda i: MapItem(i.key, claripy.If(i.key == key, value, i.value), claripy.If(i.key == key, claripy.BVV(1, 1), i.present))
+        )
         self.state.metadata.set(obj, Map(map.name, map.length + 1, map.invariants, new_items, map.key_size, map.value_size, map.value_func, map.present_func), override=True)
 
 
@@ -141,12 +179,16 @@ class GhostMaps(SimStatePlugin):
 
         # Optimization: Filter out known-obsolete keys already
         bad_value = claripy.BVS("map_bad_value", map.value_size)
-        new_items = [MapItem(i.key, claripy.If(i.key == key, bad_value, i.value), claripy.If(i.key == key, claripy.BVV(0, 1), i.present)) for i in map.items if not i.key.structurally_match(key)] + \
-                    [MapItem(key, bad_value, claripy.BVV(0, 1))]
+        new_items = LayeredList(
+            own=[MapItem(key, bad_value, claripy.BVV(0, 1))],
+            below=map.items,
+            filter=lambda i: not i.key.structurally_match(key),
+            map=lambda i: MapItem(i.key, claripy.If(i.key == key, bad_value, i.value), claripy.If(i.key == key, claripy.BVV(0, 1), i.present))
+        )
         self.state.metadata.set(obj, Map(map.name, map.length - 1, map.invariants, new_items, map.key_size, map.value_size, map.value_func, map.present_func), override=True)
 
 
-    def get(self, obj, key, visited=None):
+    def get(self, obj, key, visited=None, append_at_bottom=False):
         # Let V = valuefunc(M)(K), P = presentfunc(M)(K)
         # Add (K, V, P) to the map's known items
         # Let V' =  ITE(K = K1, V1, ITE(K = K2, V2, ... V))
@@ -191,7 +233,7 @@ class GhostMaps(SimStatePlugin):
             raise "Could not add constraints in ghost map get!?"
 
         # MUTATE the map!
-        map.items.append(MapItem(key, value, present))
+        map.items.append(MapItem(key, value, present), at_bottom=append_at_bottom)
 
         LOGEND(self.state)
         return (value, present == 1)
@@ -207,12 +249,16 @@ class GhostMaps(SimStatePlugin):
         map = self._get_map(obj)
 
         # Optimization: Filter out known-obsolete keys already
-        new_items = [MapItem(i.key, claripy.If(i.key == key, value, i.value), claripy.If(i.key == key, claripy.BVV(1, 1), i.present)) for i in map.items if not i.key.structurally_match(key)] + \
-                    [MapItem(key, value, claripy.BVV(1, 1))]
+        new_items = LayeredList(
+            own=[MapItem(key, value, claripy.BVV(1, 1))],
+            below=map.items,
+            filter=lambda i: not i.key.structurally_match(key),
+            map=lambda i: MapItem(i.key, claripy.If(i.key == key, value, i.value), claripy.If(i.key == key, claripy.BVV(1, 1), i.present))
+        )
         self.state.metadata.set(obj, Map(map.name, map.length, map.invariants, new_items, map.key_size, map.value_size, map.value_func, map.present_func), override=True)
 
 
-    def forall(self, obj, pred):
+    def forall(self, obj, pred, definite_true_only=False):
         # Let L be the number of known items whose presence bit is set
         # Let K' be a fresh symbolic key and V' a fresh symbolic value
         # Let F = ((P1 => pred(K1, V1)) and (P2 => pred(K2, V2)) and (...) and ((L < length(M)) => (invariant(M)(K', V', true) => pred(K', V'))))
@@ -253,7 +299,7 @@ class GhostMaps(SimStatePlugin):
         if utils.definitely_true(coco.solver, applied_result):
             LOGEND(self.state)
             return claripy.true
-        if utils.definitely_false(coco.solver, applied_result):
+        if utils.definitely_false(coco.solver, applied_result) or not definite_true_only:
             LOGEND(self.state)
             return claripy.false
 
@@ -299,7 +345,7 @@ def maps_merge_across(states_to_merge, objs, ancestor_state):
 
     # helper function to find FK or FV
     ancestor_variables = ancestor_state.solver.variables(claripy.And(*ancestor_state.solver.constraints))
-    def find_f(o1, o2, sel1, sel2):
+    def find_f(o1, o2, sel1, sel2, allow_constant=False):
         candidate_func = None
         for state in states:
             items1 = filter_present(state, o1)
@@ -362,13 +408,14 @@ def maps_merge_across(states_to_merge, objs, ancestor_state):
                                 found = True
                                 items2.remove(it2)
                                 break
-                    const = utils.get_if_constant(state.solver, x2)
-                    if const is not None:
-                        # A constant is a possible function
-                        candidate_func = lambda x, const=const, sz=x2.size(): claripy.BVV(const, sz)
-                        found = True
-                        items2.remove(it2)
-                        break
+                    if allow_constant:
+                        const = utils.get_if_constant(state.solver, x2)
+                        if const is not None:
+                            # A constant is a possible function
+                            candidate_func = lambda x, const=const, sz=x2.size(): claripy.BVV(const, sz)
+                            found = True
+                            items2.remove(it2)
+                            break
                 if not found:
                     # Found nothing in this state, give up
                     return None
@@ -423,15 +470,15 @@ def maps_merge_across(states_to_merge, objs, ancestor_state):
               or find_f(o1, o2, lambda i: i.value, lambda i: i.key)
             fps = find_f_constants(o1, lambda i: i.value)
             for fp in fps:
-                if fk and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk: Implies(fp(MapItem(k, v, None)), st.maps.get(o2, fk(MapItem(k, v, None)))[1]))) for st in states):
+                if fk and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk: Implies(fp(MapItem(k, v, None)), st.maps.get(o2, fk(MapItem(k, v, None)))[1]), definite_true_only=True)) for st in states):
                     log_item = MapItem(claripy.BVS("K", ancestor_state.maps.key_size(o1)), claripy.BVS("V", ancestor_state.maps.value_size(o1)), None)
                     print("Inferred: when", o1, "contains (K,V), if", fp(log_item), "then", o2, "contains", fk(log_item))
-                    results.append(("cross-key", [o1, o2], lambda state, maps, fp=fp, fk=fk: [add_invariant(maps[0], lambda st, i, visited, maps=maps, fp=fp, fk=fk: xxx(visited, maps[1], "k", lambda maps=maps, fp=fp, fk=fk: Implies(i.present == 1, Implies(fp(i), st.maps.get(maps[1], fk(i), visited)[1])))), maps[1]]))
-                    fv = find_f(o1, o2, lambda i: i.key, lambda i: i.value) \
-                      or find_f(o1, o2, lambda i: i.value, lambda i: i.value)
-                    if fv and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk, fv=fv: Implies(fp(MapItem(k, v, None)), st.maps.get(o2, fk(MapItem(k, v, None)))[0] == fv(MapItem(k, v, None))))) for st in states):
+                    results.append(("cross-key", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk: [add_invariant(maps[0], lambda st, i, visited, o2=o2, fp=fp, fk=fk: xxx(visited, maps[1], "k", lambda o2=o2, fp=fp, fk=fk: Implies(i.present == 1, Implies(fp(i), st.maps.get(o2, fk(i), visited, append_at_bottom=True)[1])))), maps[1]]))
+                    fv = find_f(o1, o2, lambda i: i.key, lambda i: i.value, allow_constant=True) \
+                      or find_f(o1, o2, lambda i: i.value, lambda i: i.value, allow_constant=True)
+                    if fv and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk, fv=fv: Implies(fp(MapItem(k, v, None)), st.maps.get(o2, fk(MapItem(k, v, None)))[0] == fv(MapItem(k, v, None))), definite_true_only=True)) for st in states):
                         print("          in addition, the value is", fv(log_item))
-                        results.append(("cross-value", [o1, o2], lambda state, maps, fp=fp, fk=fk, fv=fv: [add_invariant(maps[0], lambda st, i, visited, maps=maps, fp=fp, fk=fk, fv=fv: xxx(visited, maps[1], "v", lambda maps=maps, fp=fp, fk=fk, fv=fv: Implies(i.present == 1, Implies(fp(i), st.maps.get(maps[1], fk(i), visited)[0] == fv(i))))), maps[1]]))
+                        results.append(("cross-value", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk, fv=fv: [add_invariant(maps[0], lambda st, i, visited, o2=o2, fp=fp, fk=fk, fv=fv: xxx(visited, maps[1], "v", lambda o2=o2, fp=fp, fk=fk, fv=fv: Implies(i.present == 1, Implies(fp(i), st.maps.get(o2, fk(i), visited, append_at_bottom=True)[0] == fv(i))))), maps[1]]))
                     break # this might make us miss some stuff in theory? but that's sound; and in practice it doesn't
     return results
 
