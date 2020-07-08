@@ -96,11 +96,10 @@ class Map:
         return known_len
 
     def __copy__(self):
-        previous_copy = None if self._previous is None else self._previous.__copy__()
-        return Map(self.meta, self._length, self._invariants.copy(), self._known_items.copy(), previous_copy, self._filter, self._map)
+        return self.__deepcopy__({})
 
     def __deepcopy__(self, memo):
-        result = self.__copy__() # nothing to deepcopy, all list items are immutable
+        result = Map(self.meta, self._length, copy.deepcopy(self._invariants, memo), copy.deepcopy(self._known_items, memo), copy.deepcopy(self._previous, memo), self._filter, self._map)
         memo[id(self)] = result
         return result
 
@@ -239,7 +238,7 @@ class GhostMaps(SimStatePlugin):
         self.state.metadata.set(obj, map, override=True)
 
 
-    def get(self, obj, key, visited=None, from_present=True):
+    def get(self, obj, key, path=None, from_present=True):
         # Let V be a fresh symbolic value
         # Let P be a fresh symbolic presence bit
         # Add K = K' => (V = V' and P = P') to the path constraint for each item (K', V', P') in the map [from the present or the past],
@@ -272,11 +271,13 @@ class GhostMaps(SimStatePlugin):
         value = claripy.BVS(map.meta.name + "_value", map.meta.value_size)
         present = claripy.BVS(map.meta.name + "_present", 1)
         
-        visited = visited or set()
+        path = path or []
+        path.append(map.meta.name)
         self.state.add_constraints(
             *[Implies(key == i.key, claripy.And(value == i.value, present == i.present)) for i in map.known_items(from_present=from_present)],
-            Implies(claripy.And(*[key != i.key for i in map.known_items(from_present=from_present)]), map.invariant(from_present=from_present)(self.state, MapItem(key, value, present), visited))
+            Implies(claripy.And(*[key != i.key for i in map.known_items(from_present=from_present)]), map.invariant(from_present=from_present)(self.state, MapItem(key, value, present), path))
         )
+        path.pop()
         if not self.state.satisfiable():
             raise "Could not add constraints in ghost map get!?"
 
@@ -341,7 +342,7 @@ class GhostMaps(SimStatePlugin):
                 Implies(
                     known_len < total_len,
                     Implies(
-                        map.invariant()(st, MapItem(test_key, test_value, claripy.BVV(1, 1)), set()),
+                        map.invariant()(st, MapItem(test_key, test_value, claripy.BVV(1, 1)), []),
                         pred(test_key, test_value)
                     )
                 )
@@ -459,12 +460,40 @@ def maps_merge_across(states_to_merge, objs, ancestor_state):
         constants = set([utils.get_if_constant(state.solver, sel(i)) for state in states for i in filter_present(state, o)])
         return [lambda i: claripy.true] + [lambda i, c=c: sel(i) == claripy.BVV(c, sel(i).size()) for c in constants if c is not None]
 
-    def xxx(visited, maps, op, value_func):
-        key = maps[0].meta.name + maps[1].meta.name + op
-        if key in visited:
-            return claripy.true
-        visited.add(key)
-        return value_func()
+    allowed_paths = set()
+    def populate_allowed_paths(results):
+        segments = {}
+        for (id, objs, _) in results:
+            if "cross-" not in id:
+                continue
+            name1 = ancestor_state.maps[objs[0]].meta.name
+            name2 = ancestor_state.maps[objs[1]].meta.name
+            if name1 not in segments:
+                segments[name1] = []
+            if name2 not in segments[name1]:
+                segments[name1].append(name2)
+        # there's probably a better algorithm for this...
+        current = [[k] for k in segments.keys()]
+        final = current.copy() + [[]] # empty path is allowed
+        changed = True
+        while changed:
+            next = []
+            changed = False
+            for path in current:
+                for end in segments[path[-1]]:
+                    if end not in path:
+                        next.append(path + [end])
+                        changed = True
+            final.extend(next)
+            current = next
+        nonlocal allowed_paths
+        allowed_paths.update([tuple(p) for p in final]) # lists aren't hashable in python :/
+
+    def filter_inv(path, maps, value_func):
+        nonlocal allowed_paths
+        if tuple(path + [maps[1].meta.name]) in allowed_paths:
+            return value_func()
+        return claripy.true
 
     # Optimization: Ignore maps that have not changed at all, e.g. those that are de facto readonly after initialization
     objs = [o for o in objs if any(not utils.structural_eq(ancestor_state.maps[o], st.maps[o]) for st in states)]
@@ -501,13 +530,14 @@ def maps_merge_across(states_to_merge, objs, ancestor_state):
                 if fk and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk: Implies(fp(MapItem(k, v, None)), st.maps.get(o2, fk(MapItem(k, v, None)))[1]), definite_true_only=True)) for st in states):
                     log_item = MapItem(claripy.BVS("K", ancestor_state.maps.key_size(o1)), claripy.BVS("V", ancestor_state.maps.value_size(o1)), None)
                     print("Inferred: when", o1, "contains (K,V), if", fp(log_item), "then", o2, "contains", fk(log_item))
-                    results.append(("cross-key", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk: [maps[0].with_added_invariant(lambda st, i, visited, o2=o2, maps=maps, fp=fp, fk=fk: xxx(visited, maps, "k", lambda o2=o2, fp=fp, fk=fk: Implies(i.present == 1, Implies(fp(i), st.maps.get(o2, fk(i), visited, from_present=False)[1])))), maps[1]]))
+                    results.append(("cross-key", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk: [maps[0].with_added_invariant(lambda st, i, path, o2=o2, maps=maps, fp=fp, fk=fk: filter_inv(path, maps, lambda o2=o2, fp=fp, fk=fk: Implies(i.present == 1, Implies(fp(i), st.maps.get(o2, fk(i), path, from_present=False)[1])))), maps[1]]))
                     fv = find_f(o1, o2, lambda i: i.key, lambda i: i.value, allow_constant=True) \
                       or find_f(o1, o2, lambda i: i.value, lambda i: i.value, allow_constant=True)
                     if fv and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk, fv=fv: Implies(fp(MapItem(k, v, None)), st.maps.get(o2, fk(MapItem(k, v, None)))[0] == fv(MapItem(k, v, None))), definite_true_only=True)) for st in states):
                         print("          in addition, the value is", fv(log_item))
-                        results.append(("cross-value", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk, fv=fv: [maps[0].with_added_invariant(lambda st, i, visited, o2=o2, maps=maps, fp=fp, fk=fk, fv=fv: xxx(visited, maps, "v", lambda o2=o2, fp=fp, fk=fk, fv=fv: Implies(i.present == 1, Implies(fp(i), st.maps.get(o2, fk(i), visited, from_present=False)[0] == fv(i))))), maps[1]]))
+                        results.append(("cross-value", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk, fv=fv: [maps[0].with_added_invariant(lambda st, i, path, o2=o2, maps=maps, fp=fp, fk=fk, fv=fv: filter_inv(path, maps, lambda o2=o2, fp=fp, fk=fk, fv=fv: Implies(i.present == 1, Implies(fp(i), st.maps.get(o2, fk(i), path, from_present=False)[0] == fv(i))))), maps[1]]))
                     break # this might make us miss some stuff in theory? but that's sound; and in practice it doesn't
+    populate_allowed_paths(results)
     return results
 
 def maps_merge_one(states_to_merge, obj, ancestor_state):
@@ -546,11 +576,11 @@ def maps_merge_one(states_to_merge, obj, ancestor_state):
     for conjunction in ancestor_state.maps[obj].invariant_conjunctions():
         for state in states_to_merge:
             for item in state.maps[obj].known_items():
-                if utils.can_be_true(state.solver, claripy.And(item.present == 1, claripy.Not(conjunction(state, item, set())))):
+                if utils.can_be_true(state.solver, claripy.And(item.present == 1, claripy.Not(conjunction(state, item, [])))):
                     constraints = claripy.And(*find_constraints(state, item.key), *find_constraints(state, item.value))
                     print("Item", item, "in map", obj, "does not comply with one invariant conjunction; adding disjunction", constraints)
-                    conjunction = lambda st, i, visited, oldc=conjunction, oldi=item, cs=constraints: \
-                                  claripy.Or(oldc(st, i, visited), cs.replace(oldi.key, i.key).replace(oldi.value, i.value))
+                    conjunction = lambda st, i, path, oldc=conjunction, oldi=item, cs=constraints: \
+                                  claripy.Or(oldc(st, i, path), cs.replace(oldi.key, i.key).replace(oldi.value, i.value))
         invariant_conjs.append(conjunction)
 
     # Step 2: length.
