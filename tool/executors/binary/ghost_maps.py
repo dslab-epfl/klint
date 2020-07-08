@@ -459,10 +459,11 @@ def maps_merge_across(states_to_merge, objs, ancestor_state):
         constants = set([utils.get_if_constant(state.solver, sel(i)) for state in states for i in filter_present(state, o)])
         return [lambda i: claripy.true] + [lambda i, c=c: sel(i) == claripy.BVV(c, sel(i).size()) for c in constants if c is not None]
 
-    def xxx(visited, map, op, value_func):
-        if map.meta.name in visited or (map.meta.name + op) in visited:
+    def xxx(visited, maps, op, value_func):
+        key = maps[0].meta.name + maps[1].meta.name + op
+        if maps[1].meta.name in visited or key in visited:
             return claripy.true
-        visited.add(map.meta.name + op)
+        visited.add(key)
         return value_func()
 
     # Optimization: Ignore maps that have not changed at all, e.g. those that are de facto readonly after initialization
@@ -500,12 +501,12 @@ def maps_merge_across(states_to_merge, objs, ancestor_state):
                 if fk and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk: Implies(fp(MapItem(k, v, None)), st.maps.get(o2, fk(MapItem(k, v, None)))[1]), definite_true_only=True)) for st in states):
                     log_item = MapItem(claripy.BVS("K", ancestor_state.maps.key_size(o1)), claripy.BVS("V", ancestor_state.maps.value_size(o1)), None)
                     print("Inferred: when", o1, "contains (K,V), if", fp(log_item), "then", o2, "contains", fk(log_item))
-                    results.append(("cross-key", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk: [maps[0].with_added_invariant(lambda st, i, visited, o2=o2, fp=fp, fk=fk: xxx(visited, maps[1], "k", lambda o2=o2, fp=fp, fk=fk: Implies(i.present == 1, Implies(fp(i), st.maps.get(o2, fk(i), visited, from_present=False)[1])))), maps[1]]))
+                    results.append(("cross-key", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk: [maps[0].with_added_invariant(lambda st, i, visited, o2=o2, maps=maps, fp=fp, fk=fk: xxx(visited, maps, "k", lambda o2=o2, fp=fp, fk=fk: Implies(i.present == 1, Implies(fp(i), st.maps.get(o2, fk(i), visited, from_present=False)[1])))), maps[1]]))
                     fv = find_f(o1, o2, lambda i: i.key, lambda i: i.value, allow_constant=True) \
                       or find_f(o1, o2, lambda i: i.value, lambda i: i.value, allow_constant=True)
                     if fv and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk, fv=fv: Implies(fp(MapItem(k, v, None)), st.maps.get(o2, fk(MapItem(k, v, None)))[0] == fv(MapItem(k, v, None))), definite_true_only=True)) for st in states):
                         print("          in addition, the value is", fv(log_item))
-                        results.append(("cross-value", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk, fv=fv: [maps[0].with_added_invariant(lambda st, i, visited, o2=o2, fp=fp, fk=fk, fv=fv: xxx(visited, maps[1], "v", lambda o2=o2, fp=fp, fk=fk, fv=fv: Implies(i.present == 1, Implies(fp(i), st.maps.get(o2, fk(i), visited, from_present=False)[0] == fv(i))))), maps[1]]))
+                        results.append(("cross-value", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk, fv=fv: [maps[0].with_added_invariant(lambda st, i, visited, o2=o2, maps=maps, fp=fp, fk=fk, fv=fv: xxx(visited, maps, "v", lambda o2=o2, fp=fp, fk=fk, fv=fv: Implies(i.present == 1, Implies(fp(i), st.maps.get(o2, fk(i), visited, from_present=False)[0] == fv(i))))), maps[1]]))
                     break # this might make us miss some stuff in theory? but that's sound; and in practice it doesn't
     return results
 
