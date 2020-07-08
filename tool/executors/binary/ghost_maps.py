@@ -42,20 +42,6 @@ class LayeredList:
     def __str__(self):
         return str(list(self))
 
-
-# HUGE HACK
-# Claripy doesn't support uninterpreted functions, and adding that support would probably take a while, so...
-def CreateUninterpretedFunction(name, creator):
-    def func(state, value, _cache=[]):
-        for (k, v) in _cache:
-            if k.structurally_match(value):
-                return v
-        f = creator(name + "_UF")
-        state.add_constraints(*[Implies(k == value, f == v) for (k, v) in _cache])
-        _cache.append((value, f))
-        return f
-    return func
-
 # Helper function to make expressions clearer
 def Implies(a, b):
     return claripy.Or(claripy.Not(a), b)
@@ -77,7 +63,8 @@ def LOGEND(state):
 # "items" contains exactly known items, which do not have to obey the invariants
 # "key_size" is the size of keys in bits, as a non-symbolic integer
 # "value_size" is the size of values in bits, as a non-symbolic integer
-Map = recordclass("Map", ["name", "length", "invariants", "items", "key_size", "value_size", "value_func", "present_func"])
+MapMeta = namedtuple("MapMeta", ["name", "key_size", "value_size"])
+Map = recordclass("Map", ["meta", "length", "invariants", "items"])
 MapItem = namedtuple("MapItem", ["key", "value", "present"])
 
 class GhostMaps(SimStatePlugin):
@@ -124,11 +111,9 @@ class GhostMaps(SimStatePlugin):
         if default_value is not None:
             invariants.append(lambda st, i, _: i.value == default_value)
 
-        value_func = CreateUninterpretedFunction((name or "map") + "_value", lambda n: claripy.BVS(n, value_size))
-        present_func = CreateUninterpretedFunction((name or "map") + "_present", lambda n: claripy.BVS(n, 1))
-
         obj = self.state.memory.allocate_opaque(name)
-        self.state.metadata.set(obj, Map(name, length, invariants, LayeredList(), key_size, value_size, value_func, present_func))
+        meta = MapMeta(name, key_size, value_size)
+        self.state.metadata.set(obj, Map(meta, length, invariants, LayeredList()))
         return obj
 
 
@@ -139,11 +124,11 @@ class GhostMaps(SimStatePlugin):
 
     def key_size(self, obj):
         # Public implementation detail due to Python's untyped nature
-        return self._get_map(obj).key_size
+        return self._get_map(obj).meta.key_size
 
     def value_size(self, obj):
         # Public implementation detail due to Python's untyped nature
-        return self._get_map(obj).value_size
+        return self._get_map(obj).meta.value_size
 
 
     def add(self, obj, key, value):
@@ -163,7 +148,7 @@ class GhostMaps(SimStatePlugin):
             filter=lambda i: not i.key.structurally_match(key),
             map=lambda i: MapItem(i.key, claripy.If(i.key == key, value, i.value), claripy.If(i.key == key, claripy.BVV(1, 1), i.present))
         )
-        self.state.metadata.set(obj, Map(map.name, map.length + 1, map.invariants, new_items, map.key_size, map.value_size, map.value_func, map.present_func), override=True)
+        self.state.metadata.set(obj, Map(map.meta, map.length + 1, map.invariants, new_items), override=True)
 
 
     def remove(self, obj, key):
@@ -178,17 +163,18 @@ class GhostMaps(SimStatePlugin):
         map = self._get_map(obj)
 
         # Optimization: Filter out known-obsolete keys already
-        bad_value = claripy.BVS("map_bad_value", map.value_size)
+        bad_value = claripy.BVS("map_bad_value", map.meta.value_size)
         new_items = LayeredList(
             own=[MapItem(key, bad_value, claripy.BVV(0, 1))],
             below=map.items,
             filter=lambda i: not i.key.structurally_match(key),
-            map=lambda i: MapItem(i.key, claripy.If(i.key == key, bad_value, i.value), claripy.If(i.key == key, claripy.BVV(0, 1), i.present))
+            map=lambda i, bad_value=bad_value: MapItem(i.key, claripy.If(i.key == key, bad_value, i.value), claripy.If(i.key == key, claripy.BVV(0, 1), i.present))
         )
-        self.state.metadata.set(obj, Map(map.name, map.length - 1, map.invariants, new_items, map.key_size, map.value_size, map.value_func, map.present_func), override=True)
+        self.state.metadata.set(obj, Map(map.meta, map.length - 1, map.invariants, new_items), override=True)
 
 
     def get(self, obj, key, visited=None, append_at_bottom=False):
+        # TODO IMPORTANT REWRITE COMMENT
         # Let V = valuefunc(M)(K), P = presentfunc(M)(K)
         # Add (K, V, P) to the map's known items
         # Let V' =  ITE(K = K1, V1, ITE(K = K2, V2, ... V))
@@ -199,12 +185,12 @@ class GhostMaps(SimStatePlugin):
         # Return (V', P')
 
         map = self._get_map(obj)
-        LOG(self.state, "GET " + map.name + " " + str(key) + " (" + str(len(map.items)) + " items, " + str(len(self.state.solver.constraints)) + " constraints)")
+        LOG(self.state, "GET " + map.meta.name + " " + str(key) + " (" + str(len(map.items)) + " items, " + str(len(self.state.solver.constraints)) + " constraints)")
 
         # Optimization: If the map is empty, the answer is always false
         if map.length.structurally_match(claripy.BVV(0, GhostMaps._length_size_in_bits)):
             LOGEND(self.state)
-            return (claripy.BVS("map_bad_value", map.value_size), claripy.false)
+            return (claripy.BVS("map_bad_value", map.meta.value_size), claripy.false)
 
         # Optimization: If the key exactly matches an item, answer that
         # (note: having to use definitely_true makes it expensive, but it allows for simpler reasoning later)
@@ -217,23 +203,22 @@ class GhostMaps(SimStatePlugin):
                 LOGEND(self.state)
                 return (item.value, item.present == 1)
 
-        # TODO IMPORTANT why can't we use BVS here? (though in order to get rid of UFs we'd need to get rid of "map_has" in inference...)
-        #value = claripy.BVS("map_value", map.value_size)
-        #present = claripy.BVS("map_present", 1)
-        value = map.value_func(self.state, key)
-        present = map.present_func(self.state, key)
+        value = claripy.BVS("map_value", map.meta.value_size)
+        present = claripy.BVS("map_present", 1)
+        
+        old_items = list(map.items)
+        old_known_len = self._known_length(obj)
+        # MUTATE the map!
+        map.items.append(MapItem(key, value, present), at_bottom=append_at_bottom)
 
-        visited = visited or set([map.name])
+        visited = visited or set([map.meta.name])
         self.state.add_constraints(
-            *[Implies(key == i.key, claripy.And(value == i.value, present == i.present)) for i in map.items],
-            Implies(claripy.And(*[key != i.key for i in map.items]), claripy.And(*[inv(self.state, MapItem(key, value, present), visited) for inv in map.invariants])),
-            self._known_length(obj) <= map.length
+            *[Implies(key == i.key, claripy.And(value == i.value, present == i.present)) for i in old_items],
+            Implies(claripy.And(*[key != i.key for i in old_items]), claripy.And(*[inv(self.state, MapItem(key, value, present), visited) for inv in map.invariants])),
+            old_known_len <= map.length
         )
         if not self.state.satisfiable():
             raise "Could not add constraints in ghost map get!?"
-
-        # MUTATE the map!
-        map.items.append(MapItem(key, value, present), at_bottom=append_at_bottom)
 
         LOGEND(self.state)
         return (value, present == 1)
@@ -255,7 +240,7 @@ class GhostMaps(SimStatePlugin):
             filter=lambda i: not i.key.structurally_match(key),
             map=lambda i: MapItem(i.key, claripy.If(i.key == key, value, i.value), claripy.If(i.key == key, claripy.BVV(1, 1), i.present))
         )
-        self.state.metadata.set(obj, Map(map.name, map.length, map.invariants, new_items, map.key_size, map.value_size, map.value_func, map.present_func), override=True)
+        self.state.metadata.set(obj, Map(map.meta, map.length, map.invariants, new_items), override=True)
 
 
     def forall(self, obj, pred, definite_true_only=False):
@@ -266,7 +251,7 @@ class GhostMaps(SimStatePlugin):
         # Return F
 
         map = self._get_map(obj)
-        LOG(self.state, "forall " + map.name + " (" + str(len(map.invariants)) + " invariants, " + str(len(self.state.solver.constraints)) + " constraints)")
+        LOG(self.state, "forall " + map.meta.name + " (" + str(len(map.invariants)) + " invariants, " + str(len(self.state.solver.constraints)) + " constraints)")
 
         # Optimization: If the map is empty, the answer is always true
         if map.length.structurally_match(claripy.BVV(0, GhostMaps._length_size_in_bits)):
@@ -275,8 +260,8 @@ class GhostMaps(SimStatePlugin):
 
         known_len = self._known_length(obj)
 
-        test_key = claripy.BVS("map_test_key", map.key_size)
-        test_value = claripy.BVS("map_test_value", map.value_size)
+        test_key = claripy.BVS("map_test_key", map.meta.key_size)
+        test_value = claripy.BVS("map_test_value", map.meta.value_size)
 
         # Optimization: No need to even call the invariant if we're sure all items are known
         result = lambda st: claripy.And(*[Implies(i.present == 1, pred(i.key, i.value)) for i in map.items])
@@ -286,7 +271,7 @@ class GhostMaps(SimStatePlugin):
                 Implies(
                     known_len < map.length,
                     Implies(
-                        claripy.And(*[inv(st, MapItem(test_key, test_value, claripy.BVV(1, 1)), set([map.name])) for inv in map.invariants]), 
+                        claripy.And(*[inv(st, MapItem(test_key, test_value, claripy.BVV(1, 1)), set([map.meta.name])) for inv in map.invariants]), 
                         pred(test_key, test_value)
                     )
                 )
@@ -329,8 +314,6 @@ class GhostMaps(SimStatePlugin):
     # TODO remove these and use _get_map(...).xxx directly...
     def _known_items(self, obj): return self._get_map(obj).items
     def _invariants(self, obj): return self._get_map(obj).invariants
-    def _value_func(self, obj): return self._get_map(obj).value_func
-    def _present_func(self, obj): return self._get_map(obj).present_func
 
 
 def maps_merge_across(states_to_merge, objs, ancestor_state):
@@ -430,12 +413,12 @@ def maps_merge_across(states_to_merge, objs, ancestor_state):
 
     # helper function to copy a map and add an invariant to the copy
     def add_invariant(map, inv):
-        return Map(map.name, map.length, map.invariants + [inv], map.items, map.key_size, map.value_size, map.value_func, map.present_func)
+        return Map(map.meta, map.length, map.invariants + [inv], map.items)
 
     def xxx(visited, map, op, value_func):
-        if map.name in visited or (map.name + op) in visited:
+        if map.meta.name in visited or (map.meta.name + op) in visited:
             return claripy.true
-        visited.add(map.name + op)
+        visited.add(map.meta.name + op)
         return value_func()
 
     # Optimization: Ignore maps that have not changed at all, e.g. those that are de facto readonly after initialization
@@ -536,12 +519,8 @@ def maps_merge_one(states_to_merge, obj, ancestor_state):
             break
 
     return Map(
-        ancestor_state.maps._get_map(obj).name,
+        ancestor_state.maps._get_map(obj).meta,
         length,
         invariants,
-        ancestor_state.maps._known_items(obj),
-        ancestor_state.maps.key_size(obj),
-        ancestor_state.maps.value_size(obj),
-        ancestor_state.maps._value_func(obj),
-        ancestor_state.maps._present_func(obj)
+        LayeredList(own=ancestor_state.maps._known_items(obj)) # "flatten" the list into a new bottom layer
     )

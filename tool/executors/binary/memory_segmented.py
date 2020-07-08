@@ -110,13 +110,8 @@ class SegmentedMemory(SimMemory):
 
         name = (name or "segmented_memory") + "_addr"
         addr = self.state.maps.allocate(bitsizes.PTR, max_size, name=name, array_length=count, default_value=default)
-        # neither null nor so high it overflows
-        self.state.add_constraints(addr != 0, addr.ULE(self.state.solver.BVV(2**bitsizes.PTR-1, bitsizes.PTR) - max_size))
-        if name is not None and utils.definitely_true(self.state.solver, count == 1):
-            lone_value = self.state.solver.BVS(name, max_size)
-            if default is not None:
-                self.state.add_constraints(lone_value == default)
-            self.state.maps.set(addr, self._to_bv64(0), lone_value)
+        # neither null nor so high it overflows (note the -1 becaus 1-past-the-array is legal C)
+        self.state.add_constraints(addr != 0, addr.ULE(self.state.solver.BVV(2**bitsizes.PTR-1, bitsizes.PTR) - max_size - 1))
         self.segments.append((addr, count, size))
         return addr
 

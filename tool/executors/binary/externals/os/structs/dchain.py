@@ -5,7 +5,7 @@ import executors.binary.clock as clock
 import executors.binary.utils as utils
 from collections import namedtuple
 
-
+# TODO remove any unneded >= 0 on unsigneds
 # predicate dchainp(struct os_dchain* dchain, uint64_t index_range, list<pair<uint64_t, time_t> > items);
 DChain = namedtuple('dchainp', ['index_range', 'items'])
 
