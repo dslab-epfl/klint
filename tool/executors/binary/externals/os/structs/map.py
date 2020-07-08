@@ -118,11 +118,11 @@ class MapPut(angr.SimProcedure):
 # requires mapp(map, ?key_size, ?capacity, ?values, ?addrs) &*&
 #          [?frac]chars(key_ptr, key_size, ?key) &*&
 #          frac != 0.0 &*&
-#          map_item_keyed(key_ptr, addrs) != none;
+#          map_item_keyed(key_ptr, addrs) == some(?key2);
 # ensures mapp(map, key_size, capacity, ?new_values, ?new_addrs) &*&
 #         length(new_values) == length(values) - 1 &*&
 #         true == subset(new_values, values) &*&
-#         map_item_keyed(key, new_values) == none &*&
+#         map_item_keyed(key2, new_values) == none &*&
 #         length(new_addrs) == length(addrs) - 1 &*&
 #         true == subset(new_addrs, addrs) &*&
 #         map_item_keyed(key_ptr, new_addrs) == none &*&
@@ -138,10 +138,11 @@ class MapErase(angr.SimProcedure):
     mapp = self.state.metadata.get(Map, map)
     key = self.state.memory.load(key_ptr, mapp.key_size)
     frac = self.state.memory.take(None, key_ptr, mapp.key_size)
-    if utils.can_be_false(self.state.solver, self.state.maps.get(mapp.addrs, key_ptr)[1]):
-      raise "Precondition does not hold: map_item_keyed(key_ptr, addrs) != none"
+    (key2, key2_present) = self.state.maps.get(mapp.addrs, key_ptr)
+    if utils.can_be_false(self.state.solver, key2_present):
+      raise "Precondition does not hold: map_item_keyed(key_ptr, addrs) == some(?key2)"
 
     # Postconditions
-    self.state.maps.remove(mapp.values, key)
+    self.state.maps.remove(mapp.values, key2)
     self.state.maps.remove(mapp.addrs, key_ptr)
     self.state.memory.give(frac + 25, key_ptr, mapp.key_size)

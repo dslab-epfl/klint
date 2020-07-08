@@ -272,7 +272,7 @@ class GhostMaps(SimStatePlugin):
         value = claripy.BVS(map.meta.name + "_value", map.meta.value_size)
         present = claripy.BVS(map.meta.name + "_present", 1)
         
-        visited = visited or set([map.meta.name])
+        visited = visited or set()
         self.state.add_constraints(
             *[Implies(key == i.key, claripy.And(value == i.value, present == i.present)) for i in map.known_items(from_present=from_present)],
             Implies(claripy.And(*[key != i.key for i in map.known_items(from_present=from_present)]), map.invariant(from_present=from_present)(self.state, MapItem(key, value, present), visited))
@@ -341,7 +341,7 @@ class GhostMaps(SimStatePlugin):
                 Implies(
                     known_len < total_len,
                     Implies(
-                        map.invariant()(st, MapItem(test_key, test_value, claripy.BVV(1, 1)), set([map.meta.name])), 
+                        map.invariant()(st, MapItem(test_key, test_value, claripy.BVV(1, 1)), set()),
                         pred(test_key, test_value)
                     )
                 )
@@ -461,7 +461,7 @@ def maps_merge_across(states_to_merge, objs, ancestor_state):
 
     def xxx(visited, maps, op, value_func):
         key = maps[0].meta.name + maps[1].meta.name + op
-        if maps[1].meta.name in visited or key in visited:
+        if key in visited:
             return claripy.true
         visited.add(key)
         return value_func()
