@@ -26,7 +26,6 @@ pyelftools==0.26
 PySMT==0.8.0
 python-utils==2.4.0
 pyvex==8.20.1.7
-recordclass==0.13.2
 rpyc==4.1.4
 six==1.14.0
 smmap==3.0.1
