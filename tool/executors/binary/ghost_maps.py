@@ -481,7 +481,7 @@ def maps_merge_across(states_to_merge, objs, ancestor_state):
             changed = False
             for path in current:
                 for end in segments[path[-1]]:
-                    if end not in path:
+                    if end not in path or (len(path) > 1 and end == path[0]):
                         next.append(path + [end])
                         changed = True
             final.extend(next)
