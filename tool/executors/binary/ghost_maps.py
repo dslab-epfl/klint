@@ -23,7 +23,7 @@ class Map:
         self._invariants = invariants
         self._known_items = known_items
         self._previous = _previous
-        self._filter = _filter or (lambda i: claripy.true)
+        self._filter = _filter or (lambda i: True)
         self._map = _map or (lambda i: i)
 
     def invariant_conjunctions(self, from_present=True):
@@ -44,7 +44,7 @@ class Map:
 
     def known_items(self, from_present=True, _next=None):
         if from_present:
-            return itertools.chain(self._known_items, () if self._previous is None else map(self._map, filter(self._filter, self._previous.known_items())))
+            return itertools.chain(self._known_items, map(self._map, filter(self._filter, () if self._previous is None else self._previous.known_items())))
 
         result = itertools.chain(self._known_items, map(self._map, filter(self._filter, _next or ())))
         if self._previous is None:
