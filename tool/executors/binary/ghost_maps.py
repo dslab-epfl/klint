@@ -233,14 +233,14 @@ class GhostMaps(SimStatePlugin):
         test_value = claripy.BVS("map_test_value", map.value_size)
 
         # Optimization: No need to even call the invariant if we're sure all items are known
-        result = claripy.And(*[Implies(i.present == 1, pred(i.key, i.value)) for i in map.items])
+        result = lambda st: claripy.And(*[Implies(i.present == 1, pred(i.key, i.value)) for i in map.items])
         if utils.can_be_false(self.state.solver, known_len == map.length):
-            result = claripy.And(
-                result,
+            result = lambda st, old=result: claripy.And(
+                old(st),
                 Implies(
                     known_len < map.length,
                     Implies(
-                        claripy.And(*[inv(self.state, MapItem(test_key, test_value, claripy.BVV(1, 1)), set([map.name])) for inv in map.invariants]), 
+                        claripy.And(*[inv(st, MapItem(test_key, test_value, claripy.BVV(1, 1)), set([map.name])) for inv in map.invariants]), 
                         pred(test_key, test_value)
                     )
                 )
@@ -248,11 +248,19 @@ class GhostMaps(SimStatePlugin):
 
         # MUTATE the map!
         # Optimization: only if there's a chance it's useful, let's not needlessly complicate the invariant
-        if utils.can_be_true_or_false(self.state.solver, result):
-            map.invariants.append(lambda st, i, _: Implies(result, Implies(i.present == 1, pred(i.key, i.value))))
+        coco = self.state.copy()
+        applied_result=result(coco)
+        if utils.definitely_true(coco.solver, applied_result):
+            LOGEND(self.state)
+            return claripy.true
+        if utils.definitely_false(coco.solver, applied_result):
+            LOGEND(self.state)
+            return claripy.false
 
+        applied_result=result(self.state)
+        map.invariants.append(lambda st, i, _: Implies(applied_result, Implies(i.present == 1, pred(i.key, i.value))))
         LOGEND(self.state)
-        return result
+        return applied_result
 
 
     # Implementation details used by other functions
