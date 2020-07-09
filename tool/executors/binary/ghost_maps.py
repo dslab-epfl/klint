@@ -251,7 +251,7 @@ class GhostMaps(SimStatePlugin):
         # Return (V, P)
 
         map = self[obj]
-        LOG(self.state, "GET " + map.meta.name + " " + str(key) + (" present " if from_present else " past ") + ("key: " + str(key)) + (("value: " + str(value)) if value is not None else "") + " (" + str(len(list(map.known_items(from_present=from_present)))) + " items, " + str(len(self.state.solver.constraints)) + " constraints)")
+        LOG(self.state, "GET " + map.meta.name + " " + ("present" if from_present else "past") + (" key: " + str(key)) + ((" value: " + str(value)) if value is not None else "") + " (" + str(len(list(map.known_items(from_present=from_present)))) + " items, " + str(len(self.state.solver.constraints)) + " constraints)")
 
         # Optimization: If the map is empty, the answer is always false
         if map.is_empty(from_present=from_present):
