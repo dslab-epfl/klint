@@ -9,6 +9,7 @@ import itertools
 
 # note: we use size-1 bitvectors instead of bools cause they sometimes behave weirdly in angr..
 # e.g. sometimes (p and not(p)) is true :/
+# TODO https://github.com/angr/angr/issues/2237 this has been fixed so maybe go back? or double-check their simplifications first?
 
 # "length" is symbolic, and may be larger than len(items) if there are items that are not exactly known
 # "invariants" is a list of conjunctions that represents unknown items: each is a lambda that takes (state, item) and returns a Boolean expression
@@ -32,7 +33,7 @@ class Map:
         return itertools.chain(self._invariants, self._previous.invariant_conjunctions(from_present=False))
 
     def invariant(self, from_present=True):
-        return lambda st, i, v, invs=self.invariant_conjunctions(from_present): claripy.And(*[inv(st, i, v) for inv in invs])
+        return lambda st, i, invs=self.invariant_conjunctions(from_present): claripy.And(*[inv(st, i) for inv in invs])
 
     def add_invariant(self, conjunction):
         self._invariants.append(conjunction)
@@ -167,13 +168,13 @@ class GhostMaps(SimStatePlugin):
 
         if array_length is None:
             length = claripy.BVV(0, GhostMaps._default_length_size)
-            invariants = [lambda st, i, _: i.present == 0]
+            invariants = [lambda st, i: i.present == 0]
         else:
             length = array_length
-            invariants = [lambda st, i, _: (i.key < array_length) == (i.present == 1)]
+            invariants = [lambda st, i: (i.key < array_length) == (i.present == 1)]
 
         if default_value is not None:
-            invariants.append(lambda st, i, _: i.value == default_value)
+            invariants.append(lambda st, i: i.value == default_value)
 
         obj = self.state.memory.allocate_opaque(name)
         meta = MapMeta(name, key_size, value_size)
@@ -238,7 +239,7 @@ class GhostMaps(SimStatePlugin):
         self.state.metadata.set(obj, map, override=True)
 
 
-    def get(self, obj, key, path=None, from_present=True):
+    def get(self, obj, key, value=None, from_present=True):
         # Let V be a fresh symbolic value
         # Let P be a fresh symbolic presence bit
         # Add K = K' => (V = V' and P = P') to the path constraint for each item (K', V', P') in the map [from the present or the past],
@@ -250,13 +251,14 @@ class GhostMaps(SimStatePlugin):
         # Return (V, P)
 
         map = self[obj]
-        LOG(self.state, "GET " + map.meta.name + " " + str(key) + (" present " if from_present else " past ") + " (" + str(len(list(map.known_items(from_present=from_present)))) + " items, " + str(len(self.state.solver.constraints)) + " constraints)")
+        LOG(self.state, "GET " + map.meta.name + " " + str(key) + (" present " if from_present else " past ") + ("key: " + str(key)) + (("value: " + str(value)) if value is not None else "") + " (" + str(len(list(map.known_items(from_present=from_present)))) + " items, " + str(len(self.state.solver.constraints)) + " constraints)")
 
         # Optimization: If the map is empty, the answer is always false
         if map.is_empty(from_present=from_present):
             LOGEND(self.state)
             return (claripy.BVS(map.meta.name + "_bad_value", map.meta.value_size), claripy.false)
 
+        # TODO IMPORTANT NOT AN OPTIMIZATION
         # Optimization: If the key exactly matches an item, answer that
         # (note: having to use definitely_true makes it expensive, but it allows for simpler reasoning later)
         for item in map.known_items(from_present=from_present):
@@ -268,24 +270,20 @@ class GhostMaps(SimStatePlugin):
                 LOGEND(self.state)
                 return (item.value, item.present == 1)
 
-        value = claripy.BVS(map.meta.name + "_value", map.meta.value_size)
+        if value is None:
+            value = claripy.BVS(map.meta.name + "_value", map.meta.value_size)
         present = claripy.BVS(map.meta.name + "_present", 1)
         
-        path = path or []
-        path.append(map.meta.name)
-        self.state.add_constraints(
-            *[Implies(key == i.key, claripy.And(value == i.value, present == i.present)) for i in map.known_items(from_present=from_present)],
-            Implies(claripy.And(*[key != i.key for i in map.known_items(from_present=from_present)]), map.invariant(from_present=from_present)(self.state, MapItem(key, value, present), path))
-        )
-        path.pop()
-        if not self.state.satisfiable():
-            raise "Could not add constraints in ghost map get!?"
+        known_items = map.known_items(from_present=from_present)
+        known_len = map.known_length(from_present=from_present)
 
         # MUTATE the map!
         map.add_item(MapItem(key, value, present), from_present=from_present)
 
         self.state.add_constraints(
-            map.known_length(from_present=from_present) <= map.length(from_present=from_present)
+            *[Implies(key == i.key, claripy.And(value == i.value, present == i.present)) for i in known_items],
+            Implies(claripy.And(*[key != i.key for i in known_items]), map.invariant(from_present=from_present)(self.state, MapItem(key, value, present))),
+            known_len <= map.length(from_present=from_present)
         )
         if not self.state.satisfiable():
             raise "Could not add constraints in ghost map get!?"
@@ -342,7 +340,7 @@ class GhostMaps(SimStatePlugin):
                 Implies(
                     known_len < total_len,
                     Implies(
-                        map.invariant()(st, MapItem(test_key, test_value, claripy.BVV(1, 1)), []),
+                        map.invariant()(st, MapItem(test_key, test_value, claripy.BVV(1, 1))),
                         pred(test_key, test_value)
                     )
                 )
@@ -355,16 +353,17 @@ class GhostMaps(SimStatePlugin):
         if utils.definitely_true(coco.solver, applied_result):
             LOGEND(self.state)
             return claripy.true
-        if utils.definitely_false(coco.solver, applied_result) or not definite_true_only:
+        if utils.definitely_false(coco.solver, applied_result) or definite_true_only:
             LOGEND(self.state)
             return claripy.false
 
         applied_result=result(self.state)
-        map.add_invariant(lambda st, i, _: Implies(applied_result, Implies(i.present == 1, pred(i.key, i.value))))
+        map.add_invariant(lambda st, i: Implies(applied_result, Implies(i.present == 1, pred(i.key, i.value))))
         LOGEND(self.state)
         return applied_result
 
 
+previous_fs = {}
 def maps_merge_across(states_to_merge, objs, ancestor_state):
     print("Cross-merge of maps starting. State count:", len(states_to_merge))
 
@@ -373,7 +372,12 @@ def maps_merge_across(states_to_merge, objs, ancestor_state):
 
     # helper function to get only the items that are definitely in the map associated with the given obj in the given state
     def filter_present(state, obj):
-        return [i for i in state.maps[obj].known_items() if utils.definitely_true(state.solver, i.present == 1)]
+        known_keys = []
+        present_items = []
+        for i in state.maps[obj].known_items():
+            if utils.definitely_true(state.solver, claripy.And(i.present == 1, *[i.key != pi.key for pi in present_items])):
+                present_items.append(i)
+        return present_items
 
     # helper function to find FK or FV
     ancestor_variables = ancestor_state.solver.variables(claripy.And(*ancestor_state.solver.constraints))
@@ -440,6 +444,11 @@ def maps_merge_across(states_to_merge, objs, ancestor_state):
                                 found = True
                                 items2.remove(it2)
                                 break
+                            if utils.definitely_true(state.solver, x2 == x1.args[0].args[0].zero_extend(x1.size() - x1.args[0].args[0].size())):
+                                candidate_func = lambda x, x1=x1: claripy.Extract(x1.size() - 1, x1.args[0].args[1].size(), x - x1.args[1]).zero_extend(x1.args[0].args[1].size())
+                                found = True
+                                items2.remove(it2)
+                                break
                     if allow_constant:
                         const = utils.get_if_constant(state.solver, x2)
                         if const is not None:
@@ -460,46 +469,11 @@ def maps_merge_across(states_to_merge, objs, ancestor_state):
         constants = set([utils.get_if_constant(state.solver, sel(i)) for state in states for i in filter_present(state, o)])
         return [lambda i: claripy.true] + [lambda i, c=c: sel(i) == claripy.BVV(c, sel(i).size()) for c in constants if c is not None]
 
-    allowed_paths = set()
-    def populate_allowed_paths(results):
-        segments = {}
-        for (id, objs, _) in results:
-            if "cross-" not in id:
-                continue
-            name1 = ancestor_state.maps[objs[0]].meta.name
-            name2 = ancestor_state.maps[objs[1]].meta.name
-            if name1 not in segments:
-                segments[name1] = []
-            if name2 not in segments[name1]:
-                segments[name1].append(name2)
-        # there's probably a better algorithm for this...
-        current = [[k] for k in segments.keys()]
-        final = current.copy() + [[]] # empty path is allowed
-        changed = True
-        while changed:
-            next = []
-            changed = False
-            for path in current:
-                for end in segments[path[-1]]:
-                    if end not in path or (len(path) > 1 and end == path[0]):
-                        next.append(path + [end])
-                        changed = True
-            final.extend(next)
-            current = next
-        nonlocal allowed_paths
-        allowed_paths.update([tuple(p) for p in final]) # lists aren't hashable in python :/
-
-    def filter_inv(path, maps, value_func):
-        nonlocal allowed_paths
-        if tuple(path + [maps[1].meta.name]) in allowed_paths:
-            return value_func()
-        return claripy.true
-
     # Optimization: Ignore maps that have not changed at all, e.g. those that are de facto readonly after initialization
     objs = [o for o in objs if any(not utils.structural_eq(ancestor_state.maps[o], st.maps[o]) for st in states)]
 
     # Copy the states to avoid polluting the real ones for the next steps of inference
-    states = [s.copy() for s in states]
+    orig_states = [s.copy() for s in states]
 
     # Invariant inference algorithm: if some property P holds in all states to merge and the ancestor state, optimistically assume it is part of the invariant
     for o1 in objs:
@@ -523,21 +497,28 @@ def maps_merge_across(states_to_merge, objs, ancestor_state):
             # TODO: a string ID is not really enough to guarantee the constraints are the same here...
             # We use maps directly to refer to the map state as it was in the ancestor, not during execution;
             # otherwise, get(M1, k) after remove(M2, k) might add has(M2, k) to the constraints, which is obviously false
-            fk = find_f(o1, o2, lambda i: i.key, lambda i: i.key) \
+            fk = previous_fs.get(str(o1)+str(o2)+"k", None) \
+              or find_f(o1, o2, lambda i: i.key, lambda i: i.key) \
               or find_f(o1, o2, lambda i: i.value, lambda i: i.key)
             fps = find_f_constants(o1, lambda i: i.value)
             for fp in fps:
+                states = [s.copy() for s in orig_states]
                 if fk and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk: Implies(fp(MapItem(k, v, None)), st.maps.get(o2, fk(MapItem(k, v, None)))[1]), definite_true_only=True)) for st in states):
                     log_item = MapItem(claripy.BVS("K", ancestor_state.maps.key_size(o1)), claripy.BVS("V", ancestor_state.maps.value_size(o1)), None)
                     print("Inferred: when", o1, "contains (K,V), if", fp(log_item), "then", o2, "contains", fk(log_item))
-                    results.append(("cross-key", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk: [maps[0].with_added_invariant(lambda st, i, path, o2=o2, maps=maps, fp=fp, fk=fk: filter_inv(path, maps, lambda o2=o2, fp=fp, fk=fk: Implies(i.present == 1, Implies(fp(i), st.maps.get(o2, fk(i), path, from_present=False)[1])))), maps[1]]))
-                    fv = find_f(o1, o2, lambda i: i.key, lambda i: i.value, allow_constant=True) \
+                    previous_fs[str(o1)+str(o2)+"k"] = fk
+                    fv = previous_fs.get(str(o1)+str(o2)+"v", None) \
+                      or find_f(o1, o2, lambda i: i.key, lambda i: i.value, allow_constant=True) \
                       or find_f(o1, o2, lambda i: i.value, lambda i: i.value, allow_constant=True)
+                    states = [s.copy() for s in orig_states]
                     if fv and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk, fv=fv: Implies(fp(MapItem(k, v, None)), st.maps.get(o2, fk(MapItem(k, v, None)))[0] == fv(MapItem(k, v, None))), definite_true_only=True)) for st in states):
+                        previous_fs[str(o1)+str(o2)+"v"] = fv
                         print("          in addition, the value is", fv(log_item))
-                        results.append(("cross-value", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk, fv=fv: [maps[0].with_added_invariant(lambda st, i, path, o2=o2, maps=maps, fp=fp, fk=fk, fv=fv: filter_inv(path, maps, lambda o2=o2, fp=fp, fk=fk, fv=fv: Implies(i.present == 1, Implies(fp(i), st.maps.get(o2, fk(i), path, from_present=False)[0] == fv(i))))), maps[1]]))
+                        results.append(("cross-key", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk, fv=fv: [maps[0].with_added_invariant(lambda st, i, o2=o2, maps=maps, fp=fp, fk=fk, fv=fv: Implies(i.present == 1, Implies(fp(i), st.maps.get(o2, fk(i), value=fv(i), from_present=False)[1]))), maps[1]]))
+                        results.append(("cross-val", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk, fv=fv: [maps[0].with_added_invariant(lambda st, i, o2=o2, maps=maps, fp=fp, fk=fk, fv=fv: Implies(i.present == 1, Implies(fp(i), st.maps.get(o2, fk(i), value=fv(i), from_present=False)[0] == fv(i)))), maps[1]]))
+                    else:
+                        results.append(("cross-key", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk: [maps[0].with_added_invariant(lambda st, i, o2=o2, maps=maps, fp=fp, fk=fk: Implies(i.present == 1, Implies(fp(i), st.maps.get(o2, fk(i), from_present=False)[1]))), maps[1]]))
                     break # this might make us miss some stuff in theory? but that's sound; and in practice it doesn't
-    populate_allowed_paths(results)
     return results
 
 def maps_merge_one(states_to_merge, obj, ancestor_state):
@@ -576,11 +557,11 @@ def maps_merge_one(states_to_merge, obj, ancestor_state):
     for conjunction in ancestor_state.maps[obj].invariant_conjunctions():
         for state in states_to_merge:
             for item in state.maps[obj].known_items():
-                if utils.can_be_true(state.solver, claripy.And(item.present == 1, claripy.Not(conjunction(state, item, [])))):
+                if utils.can_be_true(state.solver, claripy.And(item.present == 1, claripy.Not(conjunction(state, item)))):
                     constraints = claripy.And(*find_constraints(state, item.key), *find_constraints(state, item.value))
                     print("Item", item, "in map", obj, "does not comply with one invariant conjunction; adding disjunction", constraints)
-                    conjunction = lambda st, i, path, oldc=conjunction, oldi=item, cs=constraints: \
-                                  claripy.Or(oldc(st, i, path), cs.replace(oldi.key, i.key).replace(oldi.value, i.value))
+                    conjunction = lambda st, i, oldc=conjunction, oldi=item, cs=constraints: \
+                                  claripy.Or(oldc(st, i), cs.replace(oldi.key, i.key).replace(oldi.value, i.value))
         invariant_conjs.append(conjunction)
 
     # Step 2: length.
