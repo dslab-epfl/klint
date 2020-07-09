@@ -45,9 +45,9 @@ class Map:
 
     def known_items(self, from_present=True, _next=None):
         if from_present:
-            return itertools.chain(self._known_items, map(self._map, filter(self._filter, () if self._previous is None else self._previous.known_items())))
+            return self._known_items + list(map(self._map, filter(self._filter, () if self._previous is None else self._previous.known_items())))
 
-        result = itertools.chain(self._known_items, map(self._map, filter(self._filter, _next or ())))
+        result = self._known_items + list(map(self._map, filter(self._filter, _next or ())))
         if self._previous is None:
             return result
         return self._previous.known_items(from_present=False, _next=result)
@@ -270,7 +270,7 @@ class GhostMaps(SimStatePlugin):
                 LOGEND(self.state)
                 return (item.value, item.present == 1)
 
-        if value is None:
+        if value is None or not value.symbolic:
             value = claripy.BVS(map.meta.name + "_value", map.meta.value_size)
         present = claripy.BVS(map.meta.name + "_present", 1)
         
