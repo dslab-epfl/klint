@@ -1,4 +1,3 @@
-import angr
 from angr import SimProcedure
 from angr.state_plugins.plugin import SimStatePlugin
 from angr.state_plugins.sim_action import SimActionObject
@@ -8,7 +7,7 @@ class ExternalWrapper(SimProcedure):
     def __init__(self, wrapped):
         self.wrapped = wrapped
         SimProcedure.__init__(self)
-        # fix args count
+        # fix args count (code copied from angr SimProcedure)
         run_spec = inspect.getfullargspec(self.wrapped.run)
         self.num_args = len(run_spec.args) - (len(run_spec.defaults) if run_spec.defaults is not None else 0) - 1
 
@@ -27,7 +26,8 @@ class ExternalWrapper(SimProcedure):
         return getattr(self.wrapped, attr)
 
     def __setattr__(self, attr, value):
-        if attr in ["wrapped"]:
+        # If we don't take care of display_name we end up stuck with "ExternalWrapper" as a name for everything
+        if attr in ["wrapped", "display_name"]:
             super(ExternalWrapper, self).__setattr__(attr, value)
         else:
             setattr(self.wrapped, attr, value)

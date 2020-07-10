@@ -311,7 +311,7 @@ class GhostMaps(SimStatePlugin):
         self.state.metadata.set(obj, map, override=True)
 
 
-    def forall(self, obj, pred, definite_true_only=False):
+    def forall(self, obj, pred):
         # Let L be the number of known items whose presence bit is set
         # Let K' be a fresh symbolic key and V' a fresh symbolic value
         # Let F = ((P1 => pred(K1, V1)) and (P2 => pred(K2, V2)) and (...) and ((L < length(M)) => (invariant(M)(K', V', true) => pred(K', V'))))
@@ -333,14 +333,14 @@ class GhostMaps(SimStatePlugin):
         test_value = claripy.BVS(map.meta.name + "_test_value", map.meta.value_size)
 
         # Optimization: No need to even call the invariant if we're sure all items are known
-        result = lambda st: claripy.And(*[Implies(i.present == 1, pred(i.key, i.value)) for i in map.known_items()])
+        result = claripy.And(*[Implies(i.present == 1, pred(i.key, i.value)) for i in map.known_items()])
         if utils.can_be_false(self.state.solver, known_len == total_len):
-            result = lambda st, old=result: claripy.And(
-                old(st),
+            result = claripy.And(
+                result,
                 Implies(
                     known_len < total_len,
                     Implies(
-                        map.invariant()(st, MapItem(test_key, test_value, claripy.BVV(1, 1))),
+                        map.invariant()(self.state, MapItem(test_key, test_value, claripy.BVV(1, 1))),
                         pred(test_key, test_value)
                     )
                 )
@@ -348,19 +348,16 @@ class GhostMaps(SimStatePlugin):
 
         # MUTATE the map!
         # Optimization: only if there's a chance it's useful, let's not needlessly complicate the invariant
-        coco = self.state.copy()
-        applied_result=result(coco)
-        if utils.definitely_true(coco.solver, applied_result):
+        if utils.definitely_true(self.state.solver, result):
             LOGEND(self.state)
             return claripy.true
-        if utils.definitely_false(coco.solver, applied_result) or definite_true_only:
+        if utils.definitely_false(self.state.solver, result):
             LOGEND(self.state)
             return claripy.false
 
-        applied_result=result(self.state)
-        map.add_invariant(lambda st, i: Implies(applied_result, Implies(i.present == 1, pred(i.key, i.value))))
+        map.add_invariant(lambda st, i: Implies(result, Implies(i.present == 1, pred(i.key, i.value))))
         LOGEND(self.state)
-        return applied_result
+        return result
 
 
 previous_fs = {}
@@ -503,7 +500,7 @@ def maps_merge_across(states_to_merge, objs, ancestor_state):
             fps = find_f_constants(o1, lambda i: i.value)
             for fp in fps:
                 states = [s.copy() for s in orig_states]
-                if fk and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk: Implies(fp(MapItem(k, v, None)), st.maps.get(o2, fk(MapItem(k, v, None)))[1]), definite_true_only=True)) for st in states):
+                if fk and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk: Implies(fp(MapItem(k, v, None)), st.maps.get(o2, fk(MapItem(k, v, None)))[1]))) for st in states):
                     log_item = MapItem(claripy.BVS("K", ancestor_state.maps.key_size(o1)), claripy.BVS("V", ancestor_state.maps.value_size(o1)), None)
                     print("Inferred: when", o1, "contains (K,V), if", fp(log_item), "then", o2, "contains", fk(log_item))
                     previous_fs[str(o1)+str(o2)+"k"] = fk
@@ -511,7 +508,7 @@ def maps_merge_across(states_to_merge, objs, ancestor_state):
                       or find_f(o1, o2, lambda i: i.key, lambda i: i.value, allow_constant=True) \
                       or find_f(o1, o2, lambda i: i.value, lambda i: i.value, allow_constant=True)
                     states = [s.copy() for s in orig_states]
-                    if fv and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk, fv=fv: Implies(fp(MapItem(k, v, None)), st.maps.get(o2, fk(MapItem(k, v, None)))[0] == fv(MapItem(k, v, None))), definite_true_only=True)) for st in states):
+                    if fv and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk, fv=fv: Implies(fp(MapItem(k, v, None)), st.maps.get(o2, fk(MapItem(k, v, None)))[0] == fv(MapItem(k, v, None))))) for st in states):
                         previous_fs[str(o1)+str(o2)+"v"] = fv
                         print("          in addition, the value is", fv(log_item))
                         results.append(("cross-key", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk, fv=fv: [maps[0].with_added_invariant(lambda st, i, o2=o2, maps=maps, fp=fp, fk=fk, fv=fv: Implies(i.present == 1, Implies(fp(i), st.maps.get(o2, fk(i), value=fv(i), from_present=False)[1]))), maps[1]]))
