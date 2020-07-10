@@ -97,6 +97,7 @@ def havoc_iter(nf_folder, state, devices_count):
     handled_states = list(nf_handle(nf_folder, state, devices_count))
     for (s, i, o) in handled_states:
       print("State", id(s), "has", len(s.solver.constraints), "constraints")
+      s.path.print(filter=lambda n: "Init" not in n and "Config" not in n)
 
     print("Merging...")
     other_states = [s for (s, i, o) in handled_states[1:]]

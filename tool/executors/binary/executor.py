@@ -4,6 +4,7 @@ from executors.binary.plugin_dummy import DummyPlugin
 from executors.binary.ghost_maps import GhostMaps
 from executors.binary.memory_split import SplitMemory
 from executors.binary.metadata import Metadata
+from executors.binary.path import Path
 import random
 
 # Disable logs we don't care about
@@ -76,11 +77,12 @@ def create_sim_manager(binary, ext_funcs, main_func_name, *main_func_args, base_
   SimState.register_default("metadata", Metadata)
   SimState.register_default("sym_memory", SplitMemory) # SimState translates "sym_memory" to "memory" under standard options
   SimState.register_default("maps", GhostMaps)
+  SimState.register_default("path", Path)
 
   proj = angr.Project(binary, auto_load_libs=False, use_sim_procedures=False)
   for (fname, fproc) in ext_funcs.items():
     if proj.loader.find_symbol(fname) is not None:
-      proj.hook_symbol(fname, fproc())
+      proj.hook_symbol(fname, Path.wrap(fproc()))
   main_func = proj.loader.find_symbol(main_func_name)
   # Not sure if this is needed but let's do it just in case, to make sure we don't change the base state
   base_state = base_state.copy() if base_state is not None else None

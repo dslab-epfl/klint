@@ -67,6 +67,7 @@ def fork_always(proc, case_true, case_false):
   try:
     state_copy = proc.state.copy()
     ret_expr = case_false(state_copy)
+    state_copy.path.end_record(ret_expr) # hacky, see Path
     ret_addr = proc.cc.teardown_callsite(state_copy, ret_expr, arg_types=[False]*proc.num_args if proc.cc.args is None else None)
   except angr.errors.SimUnsatError:
     false_was_unsat = True
