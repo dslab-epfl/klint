@@ -360,8 +360,7 @@ class GhostMaps(SimStatePlugin):
         return result
 
 
-previous_fs = {}
-def maps_merge_across(states_to_merge, objs, ancestor_state):
+def maps_merge_across(states_to_merge, objs, ancestor_state, _previous_fs={}):
     print("Cross-merge of maps starting. State count:", len(states_to_merge))
 
     results = [] # pairs: (ID, maps, lambda states, maps: returns None for no changes or maps to overwrite them)
@@ -494,22 +493,24 @@ def maps_merge_across(states_to_merge, objs, ancestor_state):
             # TODO: a string ID is not really enough to guarantee the constraints are the same here...
             # We use maps directly to refer to the map state as it was in the ancestor, not during execution;
             # otherwise, get(M1, k) after remove(M2, k) might add has(M2, k) to the constraints, which is obviously false
-            fk = previous_fs.get(str(o1)+str(o2)+"k", None) \
+            fk = _previous_fs.get(str(o1)+str(o2)+"k", None) \
               or find_f(o1, o2, lambda i: i.key, lambda i: i.key) \
               or find_f(o1, o2, lambda i: i.value, lambda i: i.key)
-            fps = find_f_constants(o1, lambda i: i.value)
+            _previous_fs[str(o1)+str(o2)+"k"] = fk
+            fps = _previous_fs.get(str(o1)+str(o2)+"p", None) \
+               or find_f_constants(o1, lambda i: i.value)
+            _previous_fs[str(o1)+str(o2)+"p"] = fps
             for fp in fps:
                 states = [s.copy() for s in orig_states]
                 if fk and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk: Implies(fp(MapItem(k, v, None)), st.maps.get(o2, fk(MapItem(k, v, None)))[1]))) for st in states):
                     log_item = MapItem(claripy.BVS("K", ancestor_state.maps.key_size(o1)), claripy.BVS("V", ancestor_state.maps.value_size(o1)), None)
                     print("Inferred: when", o1, "contains (K,V), if", fp(log_item), "then", o2, "contains", fk(log_item))
-                    previous_fs[str(o1)+str(o2)+"k"] = fk
-                    fv = previous_fs.get(str(o1)+str(o2)+"v", None) \
+                    fv = _previous_fs.get(str(o1)+str(o2)+"v", None) \
                       or find_f(o1, o2, lambda i: i.key, lambda i: i.value, allow_constant=True) \
                       or find_f(o1, o2, lambda i: i.value, lambda i: i.value, allow_constant=True)
+                    _previous_fs[str(o1)+str(o2)+"v"] = fv
                     states = [s.copy() for s in orig_states]
                     if fv and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk, fv=fv: Implies(fp(MapItem(k, v, None)), st.maps.get(o2, fk(MapItem(k, v, None)))[0] == fv(MapItem(k, v, None))))) for st in states):
-                        previous_fs[str(o1)+str(o2)+"v"] = fv
                         print("          in addition, the value is", fv(log_item))
                         results.append(("cross-key", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk, fv=fv: [maps[0].with_added_invariant(lambda st, i, o2=o2, maps=maps, fp=fp, fk=fk, fv=fv: Implies(i.present == 1, Implies(fp(i), st.maps.get(o2, fk(i), value=fv(i), from_present=False)[1]))), maps[1]]))
                         results.append(("cross-val", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk, fv=fv: [maps[0].with_added_invariant(lambda st, i, o2=o2, maps=maps, fp=fp, fk=fk, fv=fv: Implies(i.present == 1, Implies(fp(i), st.maps.get(o2, fk(i), value=fv(i), from_present=False)[0] == fv(i)))), maps[1]]))
