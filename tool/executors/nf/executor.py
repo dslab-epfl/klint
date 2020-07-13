@@ -1,4 +1,5 @@
 # Python
+from datetime import datetime
 import itertools
 import subprocess
 import traceback
@@ -91,7 +92,7 @@ def nf_handle(nf_folder, state, devices_count):
     yield (ended, state_input, state_output)
 
 def havoc_iter(nf_folder, state, devices_count):
-    print("Running an iteration of handle...")
+    print("Running an iteration of handle, at " + str(datetime.now()))
     print("")
     original_state = state.copy()
     handled_states = list(nf_handle(nf_folder, state, devices_count))
@@ -99,7 +100,7 @@ def havoc_iter(nf_folder, state, devices_count):
       print("State", id(s), "has", len(s.solver.constraints), "constraints")
       s.path.print(filter=lambda n: "Init" not in n and "Config" not in n)
 
-    print("Merging...")
+    print("Merging... at " + str(datetime.now()))
     other_states = [s for (s, i, o) in handled_states[1:]]
     opaque_metadata_value = handled_states[0][0].metadata.notify_impending_merge(other_states, original_state)
     (new_state, flag_comps, merged) = handled_states[0][0].merge(*other_states, common_ancestor=original_state)

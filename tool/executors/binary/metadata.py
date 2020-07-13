@@ -27,10 +27,10 @@ class Metadata(SimStatePlugin):
         Metadata.merge_funcs[cls] = (func_across, func_one)
 
 
-    def __init__(self, items=None):
+    def __init__(self, items=None, merge_across_results=None):
         SimStatePlugin.__init__(self)
-        self.items = {} if items is None else items
-        self.merge_across_results = None
+        self.items = items or {}
+        self.merge_across_results = merge_across_results or {}
 
 
     def set_state(self, state):
@@ -39,7 +39,7 @@ class Metadata(SimStatePlugin):
 
     @SimStatePlugin.memo
     def copy(self, memo):
-        return Metadata(copy.deepcopy(self.items))
+        return Metadata(items=copy.deepcopy(self.items), merge_across_results=copy.deepcopy(self.merge_across_results))
 
 
     # HACK: For merging to work correctly, immediately before calling:
@@ -50,7 +50,7 @@ class Metadata(SimStatePlugin):
     #   reached_fixpoint = merged_state.metadata.notify_completed_merge(opaque_value)
     def notify_impending_merge(self, other_states, ancestor_state):
         # note that we keep track of objs as their string representations to avoid comparing Claripy ASTs (which don't like ==)
-        across_previous_results = copy.deepcopy(ancestor_state.metadata.merge_across_results or {})
+        across_previous_results = copy.deepcopy(ancestor_state.metadata.merge_across_results)
         one_results_equal = True
 
         merged_items = {}
@@ -69,7 +69,7 @@ class Metadata(SimStatePlugin):
                 for (id, objs, _) in across_results[cls]:
                     if cls in across_previous_results:
                         try:
-                            across_previous_results[cls].remove((id, map(str, objs)))
+                            across_previous_results[cls].remove((id, list(map(str, objs))))
                         except ValueError:
                             pass # was not in across_previous_results[cls], that's OK
                 # Merge individual values, keeping track of whether any of them changed
@@ -91,7 +91,7 @@ class Metadata(SimStatePlugin):
 
     def notify_completed_merge(self, opaque_value):
         (merged_items, across_results, reached_fixpoint) = opaque_value
-        self.merge_across_results = {cls: [(id, map(str, objs)) for (id, objs, _) in items] for (cls, items) in across_results.items()}
+        self.merge_across_results = {cls: [(id, list(map(str, objs))) for (id, objs, _) in items] for (cls, items) in across_results.items()}
         self.items = merged_items
 
         for (cls, items) in across_results.items():
