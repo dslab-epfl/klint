@@ -98,9 +98,9 @@ def fork_guarded(proc, guard, case_true, case_false):
     return fork_always(proc, case_true_prime, case_false_prime)
 
 def fork_guarded_has(proc, ghost_map, key, case_has, case_not):
-  present = proc.state.maps.has(ghost_map, key)
+  (value, present) = proc.state.maps.get(ghost_map, key)
   def case_true(state):
-      return case_has(state, state.maps.get(ghost_map, key))
+      return case_has(state, value)
   def case_false(state):
       return case_not(state)
   return fork_guarded(proc, present, case_true, case_false)

@@ -122,7 +122,7 @@ def LOG(state, text):
     else:
         level = 1
     LOG_levels[id(state)] = level + 1
-    #print(level, "  " * level, text)
+    print(level, "  " * level, text)
 
 def LOGEND(state):
     LOG_levels[id(state)] = LOG_levels[id(state)] - 1
@@ -197,61 +197,12 @@ class GhostMaps(SimStatePlugin):
         return self[obj].meta.value_size
 
 
-    def has(self, obj, key, value=None, from_present=True):
-        # TODO IMPORTANT UPDATE comment
-        # Let V be a fresh symbolic value
-        # Let P be a fresh symbolic presence bit
-        # Add K = K' => (V = V' and P = P') to the path constraint for each item (K', V', P') in the map [from the present or the past],
-        # Let UNKNOWN be And(K != K') for each key K' in the map's known items [in the present or the past]
-        # Add UNKNOWN => invariant(M)(K', V', P') to the path constraint [invariant in the present or the past]
-        # Add (K, V, P) to the map's known items [in the present or the past]
-        # Let L be the number of unique known keys in the map whose presence bit is set [in the present or the past] (including the newly-added item)
-        # Add L <= length(M) [in the present or the past]
-        # Return (V, P)
-
-        map = self[obj]
-        LOG(self.state, "HAS " + map.meta.name + " " + ("present" if from_present else "past") + (" key: " + str(key)) + ((" value: " + str(value)) if value is not None else "") + " (" + str(len(list(map.known_items(from_present=from_present)))) + " items, " + str(len(self.state.solver.constraints)) + " constraints)")
-
-        # Optimization: If the map is empty, the answer is always false
-        if map.is_empty(from_present=from_present):
-            LOGEND(self.state)
-            return claripy.false
-
-        # TODO IMPORTANT NOT AN OPTIMIZATION
-        # Optimization: If the key exactly matches an item, answer that
-        # (note: having to use definitely_true makes it expensive, but it allows for simpler reasoning later)
-        for item in map.known_items(from_present=from_present):
-            if utils.definitely_true(self.state.solver, key == item.key):
-                LOGEND(self.state)
-                return item.present == 1
-
-        if value is None or not value.symbolic:
-            value = claripy.BVS(map.meta.name + "_value", map.meta.value_size)
-        present = claripy.BVS(map.meta.name + "_present", 1)
-        
-        known_items = map.known_items(from_present=from_present)
-        known_len = map.known_length(from_present=from_present)
-
-        # MUTATE the map!
-        map.add_item(MapItem(key, value, present), from_present=from_present)
-
-        self.state.add_constraints(
-            *[Implies(key == i.key, claripy.And(value == i.value, present == i.present)) for i in known_items],
-            Implies(claripy.And(*[key != i.key for i in known_items]), map.invariant(from_present=from_present)(self.state, MapItem(key, value, present))),
-            known_len <= map.length(from_present=from_present)
-        )
-        if not self.state.satisfiable():
-            raise "Could not add constraints in ghost map get!?"
-
-        LOGEND(self.state)
-        return present == 1
-
     def add(self, obj, key, value):
         # Requires the map to not contain K.
         # Adds (K, V, true) to the known items.
         # Increments the map length.
 
-        if utils.can_be_true(self.state.solver, self.has(obj, key)):
+        if utils.can_be_true(self.state.solver, self.get(obj, key)[1]):
             raise "Cannot add a key that might already be there!"
 
         map = self[obj]
@@ -272,7 +223,7 @@ class GhostMaps(SimStatePlugin):
         # Adds (K, V, false) to the known items.
         # Decrements the map length.
 
-        if utils.can_be_false(self.state.solver, self.has(obj, key)):
+        if utils.can_be_false(self.state.solver, self.get(obj, key)[1]):
             raise "Cannot remove a key that might not be there!"
 
         map = self[obj]
@@ -288,28 +239,60 @@ class GhostMaps(SimStatePlugin):
         self.state.metadata.set(obj, map, override=True)
 
 
-    def get(self, obj, key, from_present=True):
-        # force the key to become known
-        self.has(obj, key, from_present=from_present)
+    def get(self, obj, key, value=None, from_present=True):
+        # Let V be a fresh symbolic value
+        # Let P be a fresh symbolic presence bit
+        # Add K = K' => (V = V' and P = P') to the path constraint for each item (K', V', P') in the map [from the present or the past],
+        # Let UNKNOWN be And(K != K') for each key K' in the map's known items [in the present or the past]
+        # Add UNKNOWN => invariant(M)(K', V', P') to the path constraint [invariant in the present or the past]
+        # Add (K, V, P) to the map's known items [in the present or the past]
+        # Let L be the number of unique known keys in the map whose presence bit is set [in the present or the past] (including the newly-added item)
+        # Add L <= length(M) [in the present or the past]
+        # Return (V, P)
 
         map = self[obj]
+        LOG(self.state, "GET " + map.meta.name + " " + ("present" if from_present else "past") + (" key: " + str(key)) + ((" value: " + str(value)) if value is not None else "") + " (" + str(len(list(map.known_items(from_present=from_present)))) + " items, " + str(len(self.state.solver.constraints)) + " constraints)")
 
+        # Optimization: If the map is empty, the answer is always false
+        if map.is_empty(from_present=from_present):
+            LOGEND(self.state)
+            return (claripy.BVS(map.meta.name + "_bad_value", map.meta.value_size), claripy.false)
+
+        # TODO IMPORTANT NOT AN OPTIMIZATION
+        # Optimization: If the key exactly matches an item, answer that
+        # (note: having to use definitely_true makes it expensive, but it allows for simpler reasoning later)
         for item in map.known_items(from_present=from_present):
             if utils.definitely_true(self.state.solver, key == item.key):
-                # optimization
-                if utils.definitely_true(self.state.solver, item.present == 1):
-                    return item.value
-                bad_value = claripy.BVS("map_bad_value", map.meta.value_size)
-                return claripy.If(item.present == 1, item.value, bad_value)
+                LOGEND(self.state)
+                return (item.value, item.present == 1)
 
-        raise "Cannot get a key that might not be there!"
+        if value is None or not value.symbolic:
+            value = claripy.BVS(map.meta.name + "_value", map.meta.value_size)
+        present = claripy.BVS(map.meta.name + "_present", 1)
+        
+        known_items = map.known_items(from_present=from_present)
+        known_len = map.known_length(from_present=from_present)
 
+        # MUTATE the map!
+        map.add_item(MapItem(key, value, present), from_present=from_present)
 
+        self.state.add_constraints(
+            *[Implies(key == i.key, claripy.And(value == i.value, present == i.present)) for i in known_items],
+            Implies(claripy.And(*[key != i.key for i in known_items]), map.invariant(from_present=from_present)(self.state, MapItem(key, value, present))),
+            known_len <= map.length(from_present=from_present)
+        )
+        if not self.state.satisfiable():
+            raise "Could not add constraints in ghost map get!?"
+
+        LOGEND(self.state)
+        return (value, present == 1)
+
+    # TODO consider removing and using add + remove instead...
     def set(self, obj, key, value):
         # Requires the map to contain K.
         # Updates known items (K', V', P') into (K', ITE(K = K', V, V'), P' or K = K')
         # Adds (K, V, true) to the known items
-        if utils.can_be_false(self.state.solver, self.has(obj, key)):
+        if utils.can_be_false(self.state.solver, self.get(obj, key)[1]):
             raise "Cannot set the value of a key that might not be there!"
 
         map = self[obj]
@@ -360,7 +343,10 @@ class GhostMaps(SimStatePlugin):
             )
 
         # MUTATE the map!
-        # Optimization: only if it's useful, let's not needlessly complicate the invariant
+        # Optimization: only if there's a chance it's useful, let's not needlessly complicate the invariant
+        if utils.definitely_true(self.state.solver, result):
+            LOGEND(self.state)
+            return claripy.true
         if utils.definitely_false(self.state.solver, result):
             LOGEND(self.state)
             return claripy.false
@@ -526,19 +512,20 @@ def maps_merge_across(states_to_merge, objs, ancestor_state, _cache={}):
             set_cached(o1, o2, "p", fps)
             for fp in fps:
                 states = [s.copy() for s in orig_states]
-                if fk and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk: Implies(fp(MapItem(k, v, None)), st.maps.has(o2, fk(MapItem(k, v, None)))), _known_only=not first_time)) for st in states):
+                if fk and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk: Implies(fp(MapItem(k, v, None)), st.maps.get(o2, fk(MapItem(k, v, None)))[1]), _known_only=not first_time)) for st in states):
                     log_item = MapItem(claripy.BVS("K", ancestor_state.maps.key_size(o1)), claripy.BVS("V", ancestor_state.maps.value_size(o1)), None)
                     print("Inferred: when", o1, "contains (K,V), if", fp(log_item), "then", o2, "contains", fk(log_item))
                     fv = get_cached(o1, o2, "v") \
                       or find_f(o1, o2, lambda i: i.key, lambda i: i.value, allow_constant=True) \
                       or find_f(o1, o2, lambda i: i.value, lambda i: i.value, allow_constant=True)
                     set_cached(o1, o2, "v", fv)
-                    if fv and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk, fv=fv: Implies(fp(MapItem(k, v, None)), st.maps.get(o2, fk(MapItem(k, v, None))) == fv(MapItem(k, v, None))), _known_only=not first_time)) for st in states):
+                    states = [s.copy() for s in orig_states]
+                    if fv and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk, fv=fv: Implies(fp(MapItem(k, v, None)), st.maps.get(o2, fk(MapItem(k, v, None)))[0] == fv(MapItem(k, v, None))), _known_only=not first_time)) for st in states):
                         print("          in addition, the value is", fv(log_item))
-                        results.append(("cross-key", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk, fv=fv: [maps[0].with_added_invariant(lambda st, i, o2=o2, maps=maps, fp=fp, fk=fk, fv=fv: Implies(i.present == 1, Implies(fp(i), st.maps.has(o2, fk(i), value=fv(i), from_present=False)))), maps[1]]))
-                        results.append(("cross-val", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk, fv=fv: [maps[0].with_added_invariant(lambda st, i, o2=o2, maps=maps, fp=fp, fk=fk, fv=fv: Implies(i.present == 1, Implies(fp(i), st.maps.get(o2, fk(i), from_present=False) == fv(i)))), maps[1]]))
+                        results.append(("cross-key", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk, fv=fv: [maps[0].with_added_invariant(lambda st, i, o2=o2, maps=maps, fp=fp, fk=fk, fv=fv: Implies(i.present == 1, Implies(fp(i), st.maps.get(o2, fk(i), value=fv(i), from_present=False)[1]))), maps[1]]))
+                        results.append(("cross-val", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk, fv=fv: [maps[0].with_added_invariant(lambda st, i, o2=o2, maps=maps, fp=fp, fk=fk, fv=fv: Implies(i.present == 1, Implies(fp(i), st.maps.get(o2, fk(i), value=fv(i), from_present=False)[0] == fv(i)))), maps[1]]))
                     else:
-                        results.append(("cross-key", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk: [maps[0].with_added_invariant(lambda st, i, o2=o2, maps=maps, fp=fp, fk=fk: Implies(i.present == 1, Implies(fp(i), st.maps.has(o2, fk(i), from_present=False)))), maps[1]]))
+                        results.append(("cross-key", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk: [maps[0].with_added_invariant(lambda st, i, o2=o2, maps=maps, fp=fp, fk=fk: Implies(i.present == 1, Implies(fp(i), st.maps.get(o2, fk(i), from_present=False)[1]))), maps[1]]))
                     break # this might make us miss some stuff in theory? but that's sound; and in practice it doesn't
     return results
 
