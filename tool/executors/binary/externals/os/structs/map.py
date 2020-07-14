@@ -107,7 +107,7 @@ class MapPut(angr.SimProcedure):
     self.state.memory.take(25, key_ptr, mapp.key_size)
     if utils.can_be_false(self.state.solver, self.state.maps.length(mapp.values).ULT(mapp.capacity)):
       raise "Precondition does not hold: length(values) < capacity"
-    if utils.can_be_false(self.state.solver, self.state.solver.Not(self.state.maps.get(mapp.values, key)[1])):
+    if utils.can_be_false(self.state.solver, self.state.solver.Not(self.state.maps.has(mapp.values, key))):
       raise "Precondition does not hold: map_item_keyed(key, values) == none"
 
     # Postconditions
@@ -138,9 +138,10 @@ class MapErase(angr.SimProcedure):
     mapp = self.state.metadata.get(Map, map)
     key = self.state.memory.load(key_ptr, mapp.key_size)
     frac = self.state.memory.take(None, key_ptr, mapp.key_size)
-    (key2, key2_present) = self.state.maps.get(mapp.addrs, key_ptr)
+    key2_present = self.state.maps.has(mapp.addrs, key_ptr)
     if utils.can_be_false(self.state.solver, key2_present):
       raise "Precondition does not hold: map_item_keyed(key_ptr, addrs) == some(?key2)"
+    key2 = self.state.maps.get(mapp.addrs, key_ptr)
 
     # Postconditions
     self.state.maps.remove(mapp.values, key2)
