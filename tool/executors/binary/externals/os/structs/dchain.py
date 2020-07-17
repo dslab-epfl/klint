@@ -29,7 +29,7 @@ class DChainInit(angr.SimProcedure):
     def case_false(state):
       print("!!! dchain init return nonzero")
       result = state.memory.allocate_opaque("os_dchain")
-      items = state.maps.allocate(bitsizes.UINT64_T, bitsizes.TIME_T, name="dchain_items")
+      items = state.maps.new(bitsizes.UINT64_T, bitsizes.TIME_T, name="dchain_items")
       state.metadata.set(result, DChain(index_range, items))
       return result
     return utils.fork_always(self, case_true, case_false)

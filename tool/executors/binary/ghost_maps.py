@@ -128,9 +128,6 @@ def LOGEND(state):
     LOG_levels[id(state)] = LOG_levels[id(state)] - 1
 
 class GhostMaps(SimStatePlugin):
-    _default_length_size = 64
-    _name_counter = 0
-
     def __init__(self):
         SimStatePlugin.__init__(self)
         Metadata.set_merge_funcs(Map, maps_merge_across, maps_merge_one)
@@ -150,37 +147,29 @@ class GhostMaps(SimStatePlugin):
     def __getitem__(self, obj):
         return self.state.metadata.get(Map, obj)
 
-
-    # Allocates a ghost map with the given key/value sizes, and returns the associated object.
-    # "name": str; if given, use that name when allocating an object, useful for debugging purposes.
-    # "array_length": BV64; if given, the map represents an array, meaning it already has keys from 0 to array_length-1.
-    # "default_value": BV; if given, all values begin as this
-    def allocate(self, key_size, value_size, name=None, array_length=None, default_value=None):
+    # Implementation detail used in the new* functions
+    def _new(self, key_size, value_size, name, length, invariants, _name_counter=[0]): # use a list for the counter as a byref equivalent
         def to_int(n, name):
             if isinstance(n, claripy.ast.base.Base) and n.symbolic:
                 raise (name + " cannot be symbolic")
             return self.state.solver.eval_one(n, cast_to=int)
+
         key_size = to_int(key_size, "key_size")
         value_size = to_int(value_size, "value_size")
 
-        name = (name or "map") + "_" + str(GhostMaps._name_counter)
-        GhostMaps._name_counter = GhostMaps._name_counter + 1
-
-        if array_length is None:
-            length = claripy.BVV(0, GhostMaps._default_length_size)
-            invariants = [lambda st, i: i.present == 0]
-        else:
-            length = array_length
-            invariants = [lambda st, i: (i.key < array_length) == (i.present == 1)]
-
-        if default_value is not None:
-            invariants.append(lambda st, i: i.value == default_value)
+        name = name + "_" + str(_name_counter[0])
+        _name_counter[0] = _name_counter[0] + 1
 
         obj = self.state.memory.allocate_opaque(name)
-        meta = MapMeta(name, key_size, value_size)
-        map = Map(meta, length, invariants, [])
-        self.state.metadata.set(obj, map)
+        self.state.metadata.set(obj, Map(MapMeta(name, key_size, value_size), length, invariants, []))
         return obj
+
+
+    def new(self, key_size, value_size, name="map", length_size=64):
+        return self._new(key_size, value_size, name, claripy.BVV(0, length_size), [lambda st, i: i.present == 0])
+
+    def new_array(self, key_size, value_size, length, name="map"):
+        return self._new(key_size, value_size, name, length, [lambda st, i: (i.key < length) == (i.present == 1)])
 
 
     def length(self, obj):

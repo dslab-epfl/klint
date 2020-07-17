@@ -36,8 +36,8 @@ class MapInit(angr.SimProcedure):
     def case_false(state):
       print("!!! map init return nonzero")
       result = state.memory.allocate_opaque("os_map")
-      values = state.maps.allocate(key_size * 8, bitsizes.UINT64_T, name="map_values") # key_size is in bytes
-      addrs = state.maps.allocate(bitsizes.PTR, key_size * 8, name="map_addrs") # key_size is in bytes
+      values = state.maps.new(key_size * 8, bitsizes.UINT64_T, name="map_values") # key_size is in bytes
+      addrs = state.maps.new(bitsizes.PTR, key_size * 8, name="map_addrs") # key_size is in bytes
       state.metadata.set(result, Map(key_size, capacity, values, addrs))
       return result
     return utils.fork_always(self, case_true, case_false)

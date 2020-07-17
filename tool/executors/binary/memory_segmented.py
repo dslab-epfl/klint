@@ -109,7 +109,9 @@ class SegmentedMemory(SimMemory):
             raise ("That's a huge block you want to allocate... let's just not: " + str(max_size))
 
         name = (name or "segmented_memory") + "_addr"
-        addr = self.state.maps.allocate(bitsizes.PTR, max_size, name=name, array_length=count, default_value=default)
+        addr = self.state.maps.new_array(bitsizes.PTR, max_size, count, name=name)
+        if default is not None:
+            self.state.add_constraints(self.state.maps.forall(addr, lambda k, v: v == default))
         # neither null nor so high it overflows (note the -1 becaus 1-past-the-array is legal C)
         self.state.add_constraints(addr != 0, addr.ULE(self.state.solver.BVV(2**bitsizes.PTR-1, bitsizes.PTR) - max_size - 1))
         self.segments.append((addr, count, size))
