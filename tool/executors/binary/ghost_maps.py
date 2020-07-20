@@ -187,7 +187,8 @@ class GhostMaps(SimStatePlugin):
 
 
     def add(self, obj, key, value):
-        # Requires the map to not contain K.
+        # Requires get(K) == (_, false)
+        # Updates known items (K', V', P') into (K', ITE(K = K', V', V), ITE(K = K', true, P'))
         # Adds (K, V, true) to the known items.
         # Increments the map length.
 
@@ -195,20 +196,19 @@ class GhostMaps(SimStatePlugin):
             raise "Cannot add a key that might already be there!"
 
         map = self[obj]
-
-        # Optimization: Filter out known-obsolete keys already
         map = map.with_items_layer(
             items=[MapItem(key, value, claripy.BVV(1, 1))],
             length_change=1,
-            filter=lambda i: not i.key.structurally_match(key),
+            filter=lambda i: not i.key.structurally_match(key), # Optimization: Filter out known-obsolete keys already
             map=lambda i: MapItem(i.key, claripy.If(i.key == key, value, i.value), claripy.If(i.key == key, claripy.BVV(1, 1), i.present))
         )
         self.state.metadata.set(obj, map, override=True)
 
 
     def remove(self, obj, key):
-        # Requires the map to contain K.
-        # Updates known items (K', V', P') into (K', V', P' and K != K')
+        # Requires get(K) == (_, true)
+        # Creates a fresh symbolic value V.
+        # Updates known items (K', V', P') into (K', ITE(K = K', V, V'), ITE(K = K', false, P'))
         # Adds (K, V, false) to the known items.
         # Decrements the map length.
 
@@ -216,24 +216,23 @@ class GhostMaps(SimStatePlugin):
             raise "Cannot remove a key that might not be there!"
 
         map = self[obj]
-
-        # Optimization: Filter out known-obsolete keys already
         bad_value = claripy.BVS("map_bad_value", map.meta.value_size)
         map = map.with_items_layer(
             items=[MapItem(key, bad_value, claripy.BVV(0, 1))],
             length_change=-1,
-            filter=lambda i: not i.key.structurally_match(key),
+            filter=lambda i: not i.key.structurally_match(key), # Optimization: Filter out known-obsolete keys already
             map=lambda i, bad_value=bad_value: MapItem(i.key, claripy.If(i.key == key, bad_value, i.value), claripy.If(i.key == key, claripy.BVV(0, 1), i.present))
         )
         self.state.metadata.set(obj, map, override=True)
 
 
     def get(self, obj, key, value=None, from_present=True):
+        # If the map contains an item (K', V', P') such that K' = K, then return (V', P') [so that invariants can reference each other]
         # Let V be a fresh symbolic value
         # Let P be a fresh symbolic presence bit
         # Add K = K' => (V = V' and P = P') to the path constraint for each item (K', V', P') in the map [from the present or the past],
-        # Let UNKNOWN be And(K != K') for each key K' in the map's known items [in the present or the past]
-        # Add UNKNOWN => invariant(M)(K', V', P') to the path constraint [invariant in the present or the past]
+        # Let UK be And(K != K') for each key K' in the map's known items [in the present or the past]
+        # Add UK => invariant(M)(K', V', P') to the path constraint [invariant in the present or the past]
         # Add (K, V, P) to the map's known items [in the present or the past]
         # Let L be the number of unique known keys in the map whose presence bit is set [in the present or the past] (including the newly-added item)
         # Add L <= length(M) [in the present or the past]
@@ -247,9 +246,6 @@ class GhostMaps(SimStatePlugin):
             LOGEND(self.state)
             return (claripy.BVS(map.meta.name + "_bad_value", map.meta.value_size), claripy.false)
 
-        # TODO IMPORTANT NOT AN OPTIMIZATION
-        # Optimization: If the key exactly matches an item, answer that
-        # (note: having to use definitely_true makes it expensive, but it allows for simpler reasoning later)
         for item in map.known_items(from_present=from_present):
             if utils.definitely_true(self.state.solver, key == item.key):
                 LOGEND(self.state)
@@ -276,21 +272,18 @@ class GhostMaps(SimStatePlugin):
         LOGEND(self.state)
         return (value, present == 1)
 
-    # TODO consider removing and using add + remove instead...
     def set(self, obj, key, value):
-        # Requires the map to contain K.
-        # Updates known items (K', V', P') into (K', ITE(K = K', V, V'), P' or K = K')
+        # Requires get(K) == (_, true).
+        # Updates known items (K', V', P') into (K', ITE(K = K', V, V'), ITE(K = K', P, P'))
         # Adds (K, V, true) to the known items
         if utils.can_be_false(self.state.solver, self.get(obj, key)[1]):
             raise "Cannot set the value of a key that might not be there!"
 
         map = self[obj]
-
-        # Optimization: Filter out known-obsolete keys already
         map = map.with_items_layer(
             items=[MapItem(key, value, claripy.BVV(1, 1))],
             length_change=0,
-            filter=lambda i: not i.key.structurally_match(key),
+            filter=lambda i: not i.key.structurally_match(key), # Optimization: Filter out known-obsolete keys already
             map=lambda i: MapItem(i.key, claripy.If(i.key == key, value, i.value), claripy.If(i.key == key, claripy.BVV(1, 1), i.present))
         )
         self.state.metadata.set(obj, map, override=True)
