@@ -43,6 +43,11 @@ class Map:
         result._invariants.append(conjunction)
         return result
 
+    def with_invariant_conjunctions(self, new_invariant_conjunctions):
+        result = self.__copy__()
+        result._invariants = new_invariant_conjunctions
+        return result
+
     def known_items(self, from_present=True, _next=None):
         if from_present:
             return self._known_items + list(map(self._map, filter(self._filter, () if self._previous is None else self._previous.known_items())))
@@ -69,11 +74,11 @@ class Map:
             _map=map
         )
 
-    def flatten(self, new_length, new_invariant_conjunctions):
+    def flatten(self):
         return Map(
             self.meta,
-            new_length,
-            new_invariant_conjunctions,
+            self._length,
+            self._invariants,
             list(self.known_items())
         )
 
@@ -81,6 +86,11 @@ class Map:
         if from_present or self._previous is None:
             return self._length
         return self._previous.length(from_present=False)
+
+    def with_length(self, new_length):
+        result = self.__copy__()
+        result._length = new_length
+        return result
 
     def is_empty(self, from_present=True):
         l = self.length(from_present=from_present)
@@ -122,7 +132,7 @@ def LOG(state, text):
     else:
         level = 1
     LOG_levels[id(state)] = level + 1
-    print(level, "  " * level, text)
+    #print(level, "  " * level, text)
 
 def LOGEND(state):
     LOG_levels[id(state)] = LOG_levels[id(state)] - 1
@@ -464,18 +474,28 @@ def maps_merge_across(states_to_merge, objs, ancestor_state, _cache={}):
     orig_states = [s.copy() for s in states]
 
     # Invariant inference algorithm: if some property P holds in all states to merge and the ancestor state, optimistically assume it is part of the invariant
+    for o in objs:
+        # Step 1: Length variation.
+        # If the length may have changed in any state from the one in the ancestor state,
+        # replace the length with a fresh symbol
+        ancestor_length = ancestor_state.maps.length(o)
+        for state in states_to_merge:
+            if utils.can_be_false(state.solver, state.maps.length(o) == ancestor_length):
+                print("Length of map", o, " was changed; making it symbolic")
+                results.append(("length-var", [o], lambda st, ms: [ms[0].with_length(claripy.BVS("map_length", ms[0].length().size()))]))
+                break
+
     for o1 in objs:
         for o2 in objs:
             if o1 is o2: continue
-
-            # Step 1: Length.
+            # Step 2: Length relationships.
             # For each pair of maps (M1, M2),
             #   if length(M1) <= length(M2) across all states,
             #   then assume this holds the merged state
             if all(utils.definitely_true(st.solver, st.maps.length(o1) <= st.maps.length(o2)) for st in states):
-                results.append(("length", [o1, o2], lambda st, ms: st.add_constraints(ms[0].length() <= ms[1].length())))
+                results.append(("length-lte", [o1, o2], lambda st, ms: st.add_constraints(ms[0].length() <= ms[1].length())))
 
-            # Step 2: Cross-references.
+            # Step 2: Map relationships.
             # For each pair of maps (M1, M2),
             #  if there exist functions FP, FK such that in all states, forall(M1, (K,V): FP(K,V) => get(M2, FK(K, V)) == (_, true)),
             #  then assume this is an invariant of M1 in the merged state.
@@ -538,12 +558,11 @@ def maps_merge_one(states_to_merge, obj, ancestor_state):
         return ancestor_state.maps[obj]
 
     # Oblivion algorithm: "forget" known items by integrating them into the unknown items invariant
-    invariant_conjs = []
-    # Step 1: invariant.
     # For each conjunction in the unknown items invariant,
     # for each known item in any state,
     #  if the conjunction may not hold on that item assuming the item is present,
     #  find constraints that do hold and add them as a disjunction to the conjunction.
+    invariant_conjs = []
     for conjunction in ancestor_state.maps[obj].invariant_conjunctions():
         for state in states_to_merge:
             for item in state.maps[obj].known_items():
@@ -554,17 +573,4 @@ def maps_merge_one(states_to_merge, obj, ancestor_state):
                                   claripy.Or(oldc(st, i), cs.replace(oldi.key, i.key).replace(oldi.value, i.value))
         invariant_conjs.append(conjunction)
 
-    # Step 2: length.
-    # If the length may have changed in any state from the one in the ancestor state,
-    # replace the length with a fresh symbol
-    length = ancestor_state.maps.length(obj)
-    for state in states_to_merge:
-        if utils.can_be_false(state.solver, state.maps.length(obj) == length):
-            print("Length of map", obj, " was changed; making it symbolic")
-            length = claripy.BVS("map_length", state.maps.length(obj).size())
-            break
-
-    return ancestor_state.maps[obj].flatten(
-        new_length=length,
-        new_invariant_conjunctions=invariant_conjs
-    )
+    return ancestor_state.maps[obj].flatten().with_invariant_conjunctions(invariant_conjs)
