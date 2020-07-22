@@ -78,7 +78,7 @@ class DChainAdd(angr.SimProcedure):
       state.add_constraints(state.solver.Not(state.maps.get(dchainp.items, index)[1]))
       if not state.satisfiable():
         raise "Could not add constraint: dchain_items_keyed(index, items) == none"
-      state.maps.add(dchainp.items, index, time)
+      state.maps.set(dchainp.items, index, time)
       return state.solver.BVV(1, bitsizes.BOOL)
     return utils.fork_guarded(self, self.state.maps.length(dchainp.items) == dchainp.index_range, case_true, case_false)
 

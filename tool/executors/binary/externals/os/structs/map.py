@@ -111,8 +111,8 @@ class MapPut(angr.SimProcedure):
       raise "Precondition does not hold: map_item_keyed(key, values) == none"
 
     # Postconditions
-    self.state.maps.add(mapp.values, key, value)
-    self.state.maps.add(mapp.addrs, key_ptr, key)
+    self.state.maps.set(mapp.values, key, value)
+    self.state.maps.set(mapp.addrs, key_ptr, key)
 
 # void os_map_erase(struct os_map* map, void* key_ptr);
 # requires mapp(map, ?key_size, ?capacity, ?values, ?addrs) &*&
