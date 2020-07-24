@@ -185,7 +185,7 @@ class GhostMaps(SimStatePlugin):
     def length(self, obj):
         # Returns the map's length, including both known and unknown items.
         return self[obj].length()
-    
+
 
     def key_size(self, obj):
         # Public implementation detail due to Python's untyped nature
@@ -224,7 +224,7 @@ class GhostMaps(SimStatePlugin):
         if value is None or not value.symbolic:
             value = claripy.BVS(map.meta.name + "_value", map.meta.value_size)
         present = claripy.BVS(map.meta.name + "_present", 1)
-        
+
         known_items = map.known_items(from_present=from_present)
         known_len = map.known_length(from_present=from_present)
 
@@ -341,14 +341,12 @@ def maps_merge_across(states_to_merge, objs, ancestor_state, _cache={}):
 
     def get_cached(o1, o2, op):
         key = str(o1) + str(o2) + op
-        if key in _cache and _cache[key] != (): # () means negatively cached, see below
-            return _cache[key]
-        return None
+        if key in _cache:
+            return (True, _cache[key]) # value can be None!
+        return (False, None)
 
     def set_cached(o1, o2, op, val):
         key = str(o1) + str(o2) + op
-        if val is None:
-            val = () # negative caching
         _cache[key] = val
 
     # helper function to get only the items that are definitely in the map associated with the given obj in the given state
@@ -488,22 +486,25 @@ def maps_merge_across(states_to_merge, objs, ancestor_state, _cache={}):
             # TODO: a string ID is not really enough to guarantee the constraints are the same here...
             # We use maps directly to refer to the map state as it was in the ancestor, not during execution;
             # otherwise, get(M1, k) after remove(M2, k) might add has(M2, k) to the constraints, which is obviously false
-            fk = get_cached(o1, o2, "k") \
-              or find_f(o1, o2, lambda i: i.key, lambda i: i.key) \
-              or find_f(o1, o2, lambda i: i.value, lambda i: i.key)
-            set_cached(o1, o2, "k", fk)
-            fps = get_cached(o1, o2, "p") \
-               or find_f_constants(o1, lambda i: i.value)
-            set_cached(o1, o2, "p", fps)
+            (fk_is_cached, fk) = get_cached(o1, o2, "k")
+            if not fk_is_cached:
+                fk = find_f(o1, o2, lambda i: i.key, lambda i: i.key) \
+                  or find_f(o1, o2, lambda i: i.value, lambda i: i.key)
+                set_cached(o1, o2, "k", fk)
+            (fps_is_cached, fps) = get_cached(o1, o2, "p")
+            if not fps_is_cached:
+                fps = find_f_constants(o1, lambda i: i.value)
+                set_cached(o1, o2, "p", fps)
             for fp in fps:
                 states = [s.copy() for s in orig_states]
                 if fk and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk: Implies(fp(MapItem(k, v, None)), st.maps.get(o2, fk(MapItem(k, v, None)))[1]), _known_only=not first_time)) for st in states):
                     log_item = MapItem(claripy.BVS("K", ancestor_state.maps.key_size(o1)), claripy.BVS("V", ancestor_state.maps.value_size(o1)), None)
                     print("Inferred: when", o1, "contains (K,V), if", fp(log_item), "then", o2, "contains", fk(log_item))
-                    fv = get_cached(o1, o2, "v") \
-                      or find_f(o1, o2, lambda i: i.key, lambda i: i.value, allow_constant=True) \
-                      or find_f(o1, o2, lambda i: i.value, lambda i: i.value, allow_constant=True)
-                    set_cached(o1, o2, "v", fv)
+                    (fv_is_cached, fv) = get_cached(o1, o2, "v")
+                    if not fv_is_cached:
+                        fv = find_f(o1, o2, lambda i: i.key, lambda i: i.value, allow_constant=True) \
+                          or find_f(o1, o2, lambda i: i.value, lambda i: i.value, allow_constant=True)
+                        set_cached(o1, o2, "v", fv)
                     states = [s.copy() for s in orig_states]
                     if fv and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk, fv=fv: Implies(fp(MapItem(k, v, None)), st.maps.get(o2, fk(MapItem(k, v, None)))[0] == fv(MapItem(k, v, None))), _known_only=not first_time)) for st in states):
                         print("          in addition, the value is", fv(log_item))
@@ -537,7 +538,6 @@ def maps_merge_one(states_to_merge, obj, ancestor_state):
 
     # Optimization: Do not even consider maps that have not changed at all, e.g. those that are de facto readonly after initialization
     if all(utils.structural_eq(ancestor_state.maps[obj], st.maps[obj]) for st in states_to_merge):
-        print("Map", obj, "has not changed at all")
         return ancestor_state.maps[obj]
 
     # Oblivion algorithm: "forget" known items by integrating them into the unknown items invariant
@@ -549,9 +549,10 @@ def maps_merge_one(states_to_merge, obj, ancestor_state):
     for conjunction in ancestor_state.maps[obj].invariant_conjunctions():
         for state in states_to_merge:
             for item in state.maps[obj].known_items():
-                if utils.can_be_true(state.solver, claripy.And(item.present == 1, claripy.Not(conjunction(state, item)))):
+                xxx = conjunction(state, item)
+                if utils.definitely_false(state.solver, Implies(item.present == 1, xxx)):
                     constraints = claripy.And(*find_constraints(state, item.key), *find_constraints(state, item.value))
-                    print("Item", item, "in map", obj, "does not comply with one invariant conjunction; adding disjunction", constraints)
+                    print("Item", item, "in map", obj, "does not comply with invariant conjunction", xxx, "; adding disjunction", constraints)
                     conjunction = lambda st, i, oldc=conjunction, oldi=item, cs=constraints: \
                                   claripy.Or(oldc(st, i), cs.replace(oldi.key, i.key).replace(oldi.value, i.value))
         invariant_conjs.append(conjunction)
