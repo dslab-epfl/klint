@@ -1,4 +1,5 @@
 import angr
+import claripy
 import executors.binary.bitsizes as bitsizes
 import executors.binary.cast as cast
 import executors.binary.clock as clock
@@ -66,20 +67,20 @@ class DChainAdd(angr.SimProcedure):
     _ = self.state.mem[index_out].uint64_t.resolved
 
     # Postconditions
-    index = self.state.solver.BVS("index", bitsizes.UINT64_T)
+    index = claripy.BVS("index", bitsizes.UINT64_T)
     self.state.add_constraints(index.UGE(0))
     self.state.add_constraints(index.ULT(dchainp.index_range))
     self.state.mem[index_out].uint64_t = index
     def case_true(state):
       print("!!! dchain add full")
-      return state.solver.BVV(0, bitsizes.BOOL)
+      return claripy.BVV(0, bitsizes.BOOL)
     def case_false(state):
       print("!!! dchain add has space", index)
-      state.add_constraints(state.solver.Not(state.maps.get(dchainp.items, index)[1]))
+      state.add_constraints(claripy.Not(state.maps.get(dchainp.items, index)[1]))
       if not state.satisfiable():
         raise "Could not add constraint: dchain_items_keyed(index, items) == none"
       state.maps.set(dchainp.items, index, time)
-      return state.solver.BVV(1, bitsizes.BOOL)
+      return claripy.BVV(1, bitsizes.BOOL)
     return utils.fork_guarded(self, self.state.maps.length(dchainp.items) == dchainp.index_range, case_true, case_false)
 
 # void os_dchain_refresh(struct os_dchain* dchain, time_t time, uint64_t index);
@@ -139,13 +140,13 @@ class DChainExpire(angr.SimProcedure):
     _ = self.state.mem[index_out].uint64_t.resolved
 
     # Postconditions
-    index = self.state.solver.BVS('index', bitsizes.UINT64_T)
+    index = claripy.BVS('index', bitsizes.UINT64_T)
     self.state.add_constraints(index.UGE(0))
     self.state.add_constraints(index.ULT(dchainp.index_range))
     self.state.mem[index_out].uint64_t = index
     def case_true(state):
       print("!!! dchain expire nope")
-      return state.solver.BVV(0, bitsizes.BOOL)
+      return claripy.BVV(0, bitsizes.BOOL)
     def case_false(state):
       print("!!! dchain expire yup", index)
       state.add_constraints(state.maps.get(dchainp.items, index)[1])
@@ -153,7 +154,7 @@ class DChainExpire(angr.SimProcedure):
       if not state.satisfiable():
         raise "Could not add constraint: dchain_items_keyed(index, items) == some(?old) &*& old < time"
       state.maps.remove(dchainp.items, index)
-      return state.solver.BVV(1, bitsizes.BOOL)
+      return claripy.BVV(1, bitsizes.BOOL)
     return utils.fork_guarded(self, self.state.maps.forall(dchainp.items, lambda k, v: v.SGE(time)), case_true, case_false)
 
 #bool os_dchain_get(struct os_dchain* dchain, uint64_t index, time_t* time_out);
@@ -189,10 +190,10 @@ class DChainGet(angr.SimProcedure):
     def case_has(state, time):
       print("!!! dchain get has", time)
       state.memory.store(time_out, time) # TODO endiannness (or just commit to time_t -> int64_t and use that in code)
-      return state.solver.BVV(1, bitsizes.BOOL)
+      return claripy.BVV(1, bitsizes.BOOL)
     def case_not(state):
       print("!!! dchain get not")
-      return state.solver.BVV(0, bitsizes.BOOL)
+      return claripy.BVV(0, bitsizes.BOOL)
     return utils.fork_guarded_has(self, dchainp.items, index, case_has, case_not)
 
 # TODO update this
@@ -217,5 +218,5 @@ class DChainGet(angr.SimProcedure):
 #      raise "Precondition does not hold: index < length(time_opts)"
 #
 #    # Postconditions
-#    self.state.aarrays.set(dchainp.time_opts_present, index, self.state.solver.BVV(0, 1))
-#    self.state.aarrays.set(dchainp.time_opts_values, index, self.state.solver.BVV(2**bitsizes.TIME_T-1, bitsizes.TIME_T))
+#    self.state.aarrays.set(dchainp.time_opts_present, index, claripy.BVV(0, 1))
+#    self.state.aarrays.set(dchainp.time_opts_values, index, claripy.BVV(2**bitsizes.TIME_T-1, bitsizes.TIME_T))

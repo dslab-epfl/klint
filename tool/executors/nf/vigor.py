@@ -54,7 +54,7 @@ def check_one(solver, spec_out, code_out):
     sd = sp._asdict()
     cd = cp._asdict()
     for key in sd.keys():
-      constraint = solver.And(constraint, (to_claripy(sd[key]) == cd[key]))
+      constraint = claripy.And(constraint, (to_claripy(sd[key]) == cd[key]))
 
   if solver.eval_upto(constraint, 3) != [True]:
     raise AssertionError("Not necessarily true: " + str(constraint))

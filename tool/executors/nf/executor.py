@@ -116,12 +116,11 @@ def havoc_iter(nf_folder, state, devices_count):
 def execute(nf_folder):
   devices_count = claripy.BVS('devices_count', 16)
   for state in nf_init(nf_folder, devices_count):
-    state.solver.all_variables.append(devices_count) # since it's an arg, we have to add it explicitly... would be cleaner to create a blank state and start from that I guess?
     # code to get the return value copied from angr's "Callable" implementation
     cc = angr.DEFAULT_CC[state.project.arch.name](state.project.arch)
-    init_result = state.solver.simplify(cc.get_return_val(state, stack_base=state.regs.sp - cc.STACKARG_SP_DIFF))
+    init_result = cc.get_return_val(state, stack_base=state.regs.sp - cc.STACKARG_SP_DIFF)
     state.add_constraints(init_result != 0)
-    if not state.solver.satisfiable():
+    if not state.satisfiable():
 #      print("DISCARDING", state.solver.constraints)
       continue
     reached_fixpoint = False

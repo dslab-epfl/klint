@@ -1,8 +1,9 @@
 import angr
-import archinfo
 from angr.state_plugins.plugin import SimStatePlugin
 from angr.storage.memory import SimMemory
 from angr.storage.memory import MemoryStoreRequest
+import archinfo
+import claripy
 from executors.binary.memory_segmented import SegmentedMemory
 import executors.binary.bitsizes as bitsizes
 import executors.binary.utils as utils
@@ -71,12 +72,12 @@ class FractionalMemory(SimMemory):
 
     def allocate(self, count, size, default=None, name=None):
         result = self.memory.allocate(count, size, default=default, name=name)
-        fractions = self.fractions_memory.allocate(count, 1, self.state.solver.BVV(100, 8), name=("fracs" if name is None else (name + "_fracs")))
+        fractions = self.fractions_memory.allocate(count, 1, claripy.BVV(100, 8), name=("fracs" if name is None else (name + "_fracs")))
         self.state.metadata.set(result, Facts(fractions, size))
         return result
 
     def allocate_opaque(self, name):
-        result = self.state.solver.BVS(name + "_opaque", bitsizes.PTR)
+        result = claripy.BVS(name + "_opaque", bitsizes.PTR)
         self.state.add_constraints(result != 0)
         return result
 

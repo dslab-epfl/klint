@@ -62,7 +62,7 @@ def fork_always(proc, case_true, case_false):
     false_was_unsat = True
     pass
   else:
-    proc.successors.add_successor(state_copy, ret_addr, proc.state.solver.true, 'Ijk_Ret')
+    proc.successors.add_successor(state_copy, ret_addr, claripy.true, 'Ijk_Ret')
 
   try:
     return case_true(proc.state)
@@ -82,7 +82,7 @@ def fork_guarded(proc, guard, case_true, case_false):
       state.add_constraints(guard)
       return case_true(state)
     def case_false_prime(state):
-      state.add_constraints(state.solver.Not(guard))
+      state.add_constraints(claripy.Not(guard))
       return case_false(state)
     return fork_always(proc, case_true_prime, case_false_prime)
 

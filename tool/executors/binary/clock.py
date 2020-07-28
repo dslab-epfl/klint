@@ -1,4 +1,5 @@
 import angr
+import claripy
 import executors.binary.bitsizes as bitsizes
 from collections import namedtuple
 
@@ -14,7 +15,7 @@ def get_current_time(state):
         # - store all the times we've given
         # - during spec matching, return those times at each call to the clock
         raise "Sorry, calling clock multiple times is not handled yet"
-    time = state.solver.BVS('time', bitsizes.TIME_T)
+    time = claripy.BVS('time', bitsizes.TIME_T)
     state.metadata.set(time, Time())
     return time
 

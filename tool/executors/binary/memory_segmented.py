@@ -1,7 +1,8 @@
 import angr
-import archinfo
 from angr.state_plugins.plugin import SimStatePlugin
 from angr.storage.memory import SimMemory
+import archinfo
+import claripy
 import executors.binary.bitsizes as bitsizes
 import executors.binary.utils as utils
 
@@ -36,7 +37,7 @@ class SegmentedMemory(SimMemory):
 
     def _to_bv64(self, val): # just a helper function, not some angr internal or anything
         if isinstance(val, int):
-            return self.state.solver.BVV(val, 64)
+            return claripy.BVV(val, 64)
         return val.zero_extend(64 - val.length)
 
 
@@ -113,7 +114,7 @@ class SegmentedMemory(SimMemory):
         if default is not None:
             self.state.add_constraints(self.state.maps.forall(addr, lambda k, v: v == default))
         # neither null nor so high it overflows (note the -1 becaus 1-past-the-array is legal C)
-        self.state.add_constraints(addr != 0, addr.ULE(self.state.solver.BVV(2**bitsizes.PTR-1, bitsizes.PTR) - max_size - 1))
+        self.state.add_constraints(addr != 0, addr.ULE(claripy.BVV(2**bitsizes.PTR-1, bitsizes.PTR) - max_size - 1))
         self.segments.append((addr, count, size))
         return addr
 
@@ -144,7 +145,7 @@ class SegmentedMemory(SimMemory):
 
         simple_addr = as_simple(addr)
         if simple_addr is not None:
-            return (simple_addr, self.state.solver.BVV(0, 64), 0) # Directly addressing a base, i.e., base[0]
+            return (simple_addr, claripy.BVV(0, 64), 0) # Directly addressing a base, i.e., base[0]
 
         if addr.op == '__add__':
             base = [a for a in map(as_simple, addr.args) if a is not None]
@@ -155,13 +156,12 @@ class SegmentedMemory(SimMemory):
             added = sum([a for a in addr.args if not a.structurally_match(base)])
 
             (count, size) = self._count_size(base)
-            prev_len = len(self.state.solver.constraints)
             offset = self.state.solver.eval_one(added % (size // 8), cast_to=int)
             # Don't make the index be a weird '0 // ...' expr if we can avoid it
             if utils.definitely_true(self.state.solver, added == offset):
-                index = self.state.solver.BVV(0, 64)
+                index = claripy.BVV(0, 64)
             else:
-                index = self.state.solver.simplify((added - offset) / (size // 8))
+                index = (added - offset) / (size // 8)
             return (base, index, offset * 8)
 
         raise ("B_I_O doesn't know what to do with: " + str(addr) + " of type " + str(type(addr)) + " ; op is " + str(addr.op) + " ; args is " + str(addr.args) + " ; constrs are " + str(self.state.solver.constraints))

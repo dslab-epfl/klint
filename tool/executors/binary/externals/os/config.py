@@ -1,4 +1,5 @@
 import angr
+import claripy
 import executors.binary.cast as cast
 import executors.binary.utils as utils
 from collections import namedtuple
@@ -20,7 +21,7 @@ class ConfigU(angr.SimProcedure):
     metadata = self.state.metadata.get(ConfigMetadata, None, default=ConfigMetadata({}))
 
     if py_name not in metadata.items:
-      value = self.state.solver.BVS(py_name, self.size())
+      value = claripy.BVS(py_name, self.size())
       metadata.items[py_name] = value
 
     value = metadata.items[py_name]

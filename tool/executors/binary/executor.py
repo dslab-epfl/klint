@@ -10,6 +10,7 @@ import random
 # Disable logs we don't care about
 import logging
 logging.getLogger('cle.loader').setLevel('ERROR')
+logging.getLogger('cle.backends.externs').setLevel('ERROR')
 logging.getLogger('angr.engines.successors').setLevel('ERROR')
 logging.getLogger('angr.project').setLevel('ERROR')
 #logging.getLogger('angr').setLevel('DEBUG')
@@ -31,8 +32,10 @@ class EmptyLibrary():
     angr.SIM_PROCEDURES.clear()
     # set ourselves as a library
     angr.SIM_LIBRARIES['externals'] = self
-    # angr expects a library to be named linux
+    # angr expects some specific libraries to exist
     angr.SIM_LIBRARIES['linux'] = self
+    angr.SIM_LIBRARIES['ld.so'] = self
+    angr.SIM_LIBRARIES['libc.so.6'] = self
     # angr hardcodes some linux procedures
     angr.SIM_PROCEDURES['linux_loader'] = {
       'LinuxLoader': EmptyLibrary.Abort,
@@ -51,6 +54,9 @@ class EmptyLibrary():
       'UnresolvableJumpTarget': EmptyLibrary.Abort,
       'PathTerminator': angr.procedures.stubs.PathTerminator.PathTerminator # this is a real one
     }
+
+  def get(self, name, arch):
+    return EmptyLibrary.Abort
 
   # immutable; this makes things simpler
   def copy(self): return self

@@ -1,4 +1,5 @@
 import angr
+import claripy
 import executors.binary.bitsizes as bitsizes
 import executors.binary.cast as cast
 import executors.binary.utils as utils
@@ -74,10 +75,10 @@ class MapGet(angr.SimProcedure):
     def case_has(state, v):
       print("!!! map get has", v)
       state.mem[value_out].uint64_t = v
-      return state.solver.BVV(1, bitsizes.BOOL)
+      return claripy.BVV(1, bitsizes.BOOL)
     def case_not(state):
       print("!!! map get not")
-      return state.solver.BVV(0, bitsizes.BOOL)
+      return claripy.BVV(0, bitsizes.BOOL)
     return utils.fork_guarded_has(self, mapp.values, key, case_has, case_not)
 
 # void os_map_put(struct os_map* map, void* key_ptr, uint64_t value);
@@ -107,7 +108,7 @@ class MapPut(angr.SimProcedure):
     self.state.memory.take(25, key_ptr, mapp.key_size)
     if utils.can_be_false(self.state.solver, self.state.maps.length(mapp.values).ULT(mapp.capacity)):
       raise "Precondition does not hold: length(values) < capacity"
-    if utils.can_be_false(self.state.solver, self.state.solver.Not(self.state.maps.get(mapp.values, key)[1])):
+    if utils.can_be_false(self.state.solver, claripy.Not(self.state.maps.get(mapp.values, key)[1])):
       raise "Precondition does not hold: map_item_keyed(key, values) == none"
 
     # Postconditions
