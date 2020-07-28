@@ -60,6 +60,16 @@ class EmptyLibrary():
   def maximum_syscall_number(self, abi): return 0
 
 
+
+# Keep only what we need in the engine
+# Not sure SimEngineFailure is even needed, but just in case...
+from angr.engines.failure import SimEngineFailure
+from angr.engines.hook import HooksMixin
+from angr.engines.vex import HeavyVEXMixin
+class CustomEngine(SimEngineFailure, HooksMixin, HeavyVEXMixin):
+    pass
+
+
 bin_exec_initialized = False
 
 def create_sim_manager(binary, ext_funcs, main_func_name, *main_func_args, base_state=None):
@@ -79,7 +89,7 @@ def create_sim_manager(binary, ext_funcs, main_func_name, *main_func_args, base_
   SimState.register_default("maps", GhostMaps)
   SimState.register_default("path", Path)
 
-  proj = angr.Project(binary, auto_load_libs=False, use_sim_procedures=False)
+  proj = angr.Project(binary, auto_load_libs=False, use_sim_procedures=False, engine=CustomEngine)
   for (fname, fproc) in ext_funcs.items():
     if proj.loader.find_symbol(fname) is not None:
       proj.hook_symbol(fname, Path.wrap(fproc()))
