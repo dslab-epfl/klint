@@ -2,17 +2,6 @@ import angr
 import claripy
 
 
-class FakeState:
-    def __init__(self):
-        self._global_condition = None
-
-fake_state_instance = FakeState()
-def solver_copy(solver):
-    result = solver.copy()
-    result.state = fake_state_instance # otherwise it complains
-    return result
-
-
 def read_str(state, ptr):
   result = ""
   while True:
@@ -28,19 +17,19 @@ def read_str(state, ptr):
 
 
 def can_be_true(solver, cond):
-  sols = solver_copy(solver).eval_upto(cond, 2)
+  sols = solver.eval_upto(cond, 2)
   if len(sols) == 0:
     raise ("Could not evaluate: " + str(cond))
   return True in sols
 
 def can_be_false(solver, cond):
-  sols = solver_copy(solver).eval_upto(cond, 2)
+  sols = solver.eval_upto(cond, 2)
   if len(sols) == 0:
     raise ("Could not evaluate: " + str(cond))
   return False in sols
 
 def can_be_true_or_false(solver, cond):
-  sols = solver_copy(solver).eval_upto(cond, 2)
+  sols = solver.eval_upto(cond, 2)
   if len(sols) == 0:
     raise ("Could not evaluate: " + str(cond))
   return len(sols) == 2
@@ -52,7 +41,7 @@ def definitely_false(solver, cond):
   return not can_be_true(solver, cond)
 
 def get_if_constant(solver, expr):
-  sols = solver_copy(solver).eval_upto(expr, 2, cast_to=int)
+  sols = solver.eval_upto(expr, 2, cast_to=int)
   if len(sols) == 0:
     raise ("Could not evaluate: " + str(expr))
   if len(sols) == 1:

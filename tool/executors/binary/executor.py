@@ -69,6 +69,29 @@ from angr.engines.vex import HeavyVEXMixin
 class CustomEngine(SimEngineFailure, HooksMixin, HeavyVEXMixin):
     pass
 
+# Keep only what we need in the solver
+# We especially don't want ConstraintExpansionMixin, which adds constraints after an eval
+# e.g. eval_upto(x, 2) -> [1, 2] results in added constraints x != 1 and x != 2
+import claripy.frontend_mixins as cfms
+from claripy.frontends import CompositeFrontend
+from claripy import backends, SolverCompositeChild
+class CustomSolver(
+    cfms.ConstraintFixerMixin, # fixes types (e.g. bool to BoolV)
+    cfms.ConcreteHandlerMixin, # short-circuit on concrete vals
+    cfms.EagerResolutionMixin, # for eager backends
+    cfms.ConstraintFilterMixin, # applies constraint filters (do we ever use that?)
+    cfms.ConstraintDeduplicatorMixin, # avoids duplicate constraints
+    cfms.SatCacheMixin, # caches satisfiable()
+    cfms.SimplifySkipperMixin, # caches the "simplified" state
+    cfms.SimplifyHelperMixin, # simplifies before calling the solver
+    cfms.CompositedCacheMixin, # sounds useful
+    CompositeFrontend # the actual frontend
+):
+    def __init__(self, **kwargs):
+        track = False
+        template_solver = SolverCompositeChild(track=track)
+        template_solver_string = SolverCompositeChild(track=track, backend=backends.z3)
+        super(CustomSolver, self).__init__(template_solver, template_solver_string, track=track, **kwargs)
 
 bin_exec_initialized = False
 
@@ -97,6 +120,8 @@ def create_sim_manager(binary, ext_funcs, main_func_name, *main_func_args, base_
   # Not sure if this is needed but let's do it just in case, to make sure we don't change the base state
   base_state = base_state.copy() if base_state is not None else None
   init_state = proj.factory.call_state(main_func.rebased_addr, *main_func_args, base_state=base_state)
+  if base_state is None:
+    init_state.solver._stored_solver = CustomSolver()
   # It seems there's no way around enabling these, since code can access uninitialized variables (common in the "return bool, take in a pointer to the result" pattern)
   init_state.options.add(angr.sim_options.SYMBOL_FILL_UNCONSTRAINED_MEMORY)
   init_state.options.add(angr.sim_options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS)
