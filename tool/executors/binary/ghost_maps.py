@@ -5,7 +5,6 @@ from executors.binary.metadata import Metadata
 import executors.binary.utils as utils
 from collections import namedtuple
 import copy
-import itertools
 
 # note: we use size-1 bitvectors instead of bools cause they sometimes behave weirdly in angr..
 # e.g. sometimes (p and not(p)) is true :/
@@ -30,7 +29,7 @@ class Map:
     def invariant_conjunctions(self, from_present=True):
         if from_present or self._previous is None:
             return self._invariants
-        return itertools.chain(self._invariants, self._previous.invariant_conjunctions(from_present=False))
+        return self._invariants + self._previous.invariant_conjunctions(from_present=False)
 
     def invariant(self, from_present=True):
         return lambda st, i, invs=self.invariant_conjunctions(from_present): claripy.And(*[inv(st, i) for inv in invs])
@@ -538,7 +537,12 @@ def maps_merge_one(states_to_merge, obj, ancestor_state):
 
     # Optimization: Do not even consider maps that have not changed at all, e.g. those that are de facto readonly after initialization
     if all(utils.structural_eq(ancestor_state.maps[obj], st.maps[obj]) for st in states_to_merge):
-        return ancestor_state.maps[obj]
+        return (ancestor_state.maps[obj], False)
+
+    flattened_states = [s.copy() for s in states_to_merge]
+    for s in flattened_states:
+        for (o, m) in s.metadata.get_all(Map):
+            s.metadata.set(o, m.flatten(), override=True)
 
     # Oblivion algorithm: "forget" known items by integrating them into the unknown items invariant
     # For each conjunction in the unknown items invariant,
@@ -546,15 +550,17 @@ def maps_merge_one(states_to_merge, obj, ancestor_state):
     #  if the conjunction may not hold on that item assuming the item is present,
     #  find constraints that do hold and add them as a disjunction to the conjunction.
     invariant_conjs = []
+    changed = False
     for conjunction in ancestor_state.maps[obj].invariant_conjunctions():
-        for state in states_to_merge:
+        for state in flattened_states:
             for item in state.maps[obj].known_items():
-                xxx = conjunction(state, item)
-                if utils.definitely_false(state.solver, Implies(item.present == 1, xxx)):
+                conj = conjunction(state, item)
+                if utils.definitely_false(state.solver, Implies(item.present == 1, conj)):
+                    changed = True
                     constraints = claripy.And(*find_constraints(state, item.key), *find_constraints(state, item.value))
-                    print("Item", item, "in map", obj, "does not comply with invariant conjunction", xxx, "; adding disjunction", constraints)
+                    print("Item", item, "in map", obj, "does not comply with invariant conjunction", conj, "; adding disjunction", constraints)
                     conjunction = lambda st, i, oldc=conjunction, oldi=item, cs=constraints: \
                                   claripy.Or(oldc(st, i), cs.replace(oldi.key, i.key).replace(oldi.value, i.value))
         invariant_conjs.append(conjunction)
 
-    return ancestor_state.maps[obj].flatten().with_invariant_conjunctions(invariant_conjs)
+    return (ancestor_state.maps[obj].flatten().with_invariant_conjunctions(invariant_conjs), changed)

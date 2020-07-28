@@ -1,6 +1,5 @@
 # Python
 from datetime import datetime
-import itertools
 import subprocess
 import traceback
 import os
@@ -125,8 +124,8 @@ def execute(nf_folder):
     if not state.solver.satisfiable():
 #      print("DISCARDING", state.solver.constraints)
       continue
-    while True:
-        (state, reached_fixpoint) = havoc_iter(nf_folder, state, devices_count)
-        if reached_fixpoint:
-            break
-    raise "yay"
+    reached_fixpoint = False
+    while not reached_fixpoint:
+      (state, reached_fixpoint) = havoc_iter(nf_folder, state, devices_count)
+    print("Done! at " + str(datetime.now()))
+    return None

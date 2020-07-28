@@ -14,8 +14,8 @@ class Metadata(SimStatePlugin):
     #                and returns [(ID, [objs], lambda (state, [meta]): None or [meta] to overwrite)]
     #                fixed-point if the returned [(ID, [objs])] is a superset of the previous one
     # func_one takes as input ([states], obj, ancestor_state)
-    #             and returns (meta)
-    #             fixed-point if meta is structurally equal to ancestor_state's
+    #             and returns (meta, has_changed)
+    #             fixed-point if not has_changed
     # Regardless of whether this method is called for a given class,
     # metadata that is not present in the ancestor state, regardless of value, will be discarded.
     # If this method is not called for a given class,
@@ -51,7 +51,7 @@ class Metadata(SimStatePlugin):
     def notify_impending_merge(self, other_states, ancestor_state):
         # note that we keep track of objs as their string representations to avoid comparing Claripy ASTs (which don't like ==)
         across_previous_results = copy.deepcopy(ancestor_state.metadata.merge_across_results)
-        one_results_equal = True
+        any_individual_changed = False
 
         merged_items = {}
         across_results = {}
@@ -75,18 +75,18 @@ class Metadata(SimStatePlugin):
                 # Merge individual values, keeping track of whether any of them changed
                 for key in common_keys:
                     old_value = ancestor_state.metadata.get(cls, key)
-                    merged_value = Metadata.merge_funcs[cls][1]([self.state] + other_states, key, ancestor_state)
-                    one_results_equal = one_results_equal and utils.structural_eq(old_value, merged_value)
+                    (merged_value, has_changed) = Metadata.merge_funcs[cls][1]([self.state] + other_states, key, ancestor_state)
+                    any_individual_changed = any_individual_changed or has_changed
                     merged_items[cls].append((key, merged_value))
             else:
-                # No merge function, keep all of the ones that are referentially equal, discard the others
+                # No merge function, keep all of the ones that are structurally equal, discard the others
                 for key in common_keys:
                     value = self.get(cls, key)
                     if all(utils.structural_eq(other.metadata.get(cls, key), value) for other in other_states):
                         merged_items[cls].append((key, value))
 
         # As the doc states, fixpoint if all merges resulted in the old result and the across_results are a superset
-        reached_fixpoint = one_results_equal and all(len(items) == 0 for items in across_previous_results.values())
+        reached_fixpoint = not any_individual_changed and all(len(items) == 0 for items in across_previous_results.values())
         return (merged_items, across_results, reached_fixpoint)
 
     def notify_completed_merge(self, opaque_value):

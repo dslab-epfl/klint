@@ -69,13 +69,12 @@ def check(nf_folder):
   }
 
   nf_results = nf_executor.execute(nf_folder)
-  for (state_solver, state_input, state_output) in nf_results:
-    continue # TODO
+  print("OK")
+  #for (state_solver, state_input, state_output) in nf_results:
     # note: _asdict is named that way to avoid name clashes, we're not using a private method here
-    py_results = py_executor.execute(state_solver, spec_text, state_input._asdict().values(), spec_externals)
-    for (spec_pathcond, spec_output) in py_results:
+  #  py_results = py_executor.execute(state_solver, spec_text, state_input._asdict().values(), spec_externals)
+  #  for (spec_pathcond, spec_output) in py_results:
       # ignore spec_pathcond, the outputs must match regardless of the spec structure
-      check_one(state_solver, defs.NFOutput(**spec_output), state_output)
-  print("all checks pass")
+  #    check_one(state_solver, defs.NFOutput(**spec_output), state_output)
 
 check(str(pathlib.Path(__file__).parent.absolute()) + os.sep + ".." + os.sep + ".." + os.sep + ".." + os.sep + "nat")
