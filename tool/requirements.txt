@@ -5,7 +5,6 @@ bitstring==3.1.6
 cachetools==4.0.0
 capstone==4.0.1
 certifi==2020.6.20
-cffi==1.14.0
 chardet==3.0.4
 claripy==8.20.7.27
 cle==8.20.7.27
@@ -16,7 +15,6 @@ dpkt==1.9.2
 future==0.18.2
 gitdb==4.0.2
 GitPython==3.1.0
-greenlet==0.4.13
 idna==2.10
 itanium-demangler==1.0
 minidump==0.0.10
@@ -34,7 +32,6 @@ PySMT==0.8.0
 python-utils==2.4.0
 pytz==2020.1
 pyvex==8.20.7.27
-readline==6.2.4.1
 requests==2.24.0
 rpyc==4.1.4
 six==1.14.0
