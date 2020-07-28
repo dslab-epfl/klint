@@ -37,9 +37,6 @@ class Path(SimStatePlugin):
         SimStatePlugin.__init__(self)
         self.segments = segments or []
 
-    def set_state(self, state):
-        SimStatePlugin.set_state(self, state)
-
     @SimStatePlugin.memo
     def copy(self, memo):
         return Path(segments=self.segments.copy())

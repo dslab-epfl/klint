@@ -33,10 +33,6 @@ class Metadata(SimStatePlugin):
         self.merge_across_results = merge_across_results or {}
 
 
-    def set_state(self, state):
-        SimStatePlugin.set_state(self, state)
-
-
     @SimStatePlugin.memo
     def copy(self, memo):
         return Metadata(items=copy.deepcopy(self.items), merge_across_results=copy.deepcopy(self.merge_across_results))

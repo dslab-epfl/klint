@@ -137,9 +137,6 @@ class GhostMaps(SimStatePlugin):
         SimStatePlugin.__init__(self)
         Metadata.set_merge_funcs(Map, maps_merge_across, maps_merge_one)
 
-    def set_state(self, state):
-        SimStatePlugin.set_state(self, state)
-
     @SimStatePlugin.memo
     def copy(self, memo):
         return GhostMaps()

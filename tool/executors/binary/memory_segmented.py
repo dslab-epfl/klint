@@ -15,11 +15,6 @@ class SegmentedMemory(SimMemory):
         self.id = memory_id # magic! needs to be set for SimMemory to work
         self.segments = [] if segments is None else segments
 
-
-    def set_state(self, state):
-        SimMemory.set_state(self, state)
-
-
     @SimStatePlugin.memo
     def copy(self, memo):
         return SegmentedMemory(memory_id=self.id, segments=self.segments.copy())
