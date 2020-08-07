@@ -208,10 +208,10 @@ class GhostMaps(SimStatePlugin):
             LOGEND(self.state)
             return (claripy.BVS(map.meta.name + "_bad_value", map.meta.value_size), claripy.false)
 
-        for item in map.known_items(from_present=from_present):
-            if utils.definitely_true(self.state.solver, key == item.key):
-                LOGEND(self.state)
-                return (item.value, item.present)
+        matching_item = utils.get_exact_match(self.state.solver, key, map.known_items(from_present=from_present), selector=lambda i: i.key)
+        if matching_item is not None:
+            LOGEND(self.state)
+            return (matching_item.value, matching_item.present)
 
         if value is None or not value.symbolic:
             value = claripy.BVS(map.meta.name + "_value", map.meta.value_size)

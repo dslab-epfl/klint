@@ -17,22 +17,13 @@ def read_str(state, ptr):
 
 
 def can_be_true(solver, cond):
-  sols = solver.eval_upto(cond, 2)
-  if len(sols) == 0:
-    raise ("Could not evaluate: " + str(cond))
-  return True in sols
+  return solver.satisfiable(extra_constraints=[cond])
 
 def can_be_false(solver, cond):
-  sols = solver.eval_upto(cond, 2)
-  if len(sols) == 0:
-    raise ("Could not evaluate: " + str(cond))
-  return False in sols
+  return solver.satisfiable(extra_constraints=[claripy.Not(cond)])
 
 def can_be_true_or_false(solver, cond):
-  sols = solver.eval_upto(cond, 2)
-  if len(sols) == 0:
-    raise ("Could not evaluate: " + str(cond))
-  return len(sols) == 2
+  return can_be_true(solver, cond) and can_be_false(solver, cond)
 
 def definitely_true(solver, cond):
   return not can_be_false(solver, cond)
@@ -48,6 +39,16 @@ def get_if_constant(solver, expr):
       return sols[0]
   return None
 
+def get_exact_match(solver, item, candidates, selector=lambda i: i):
+  for cand in candidates:
+    if item.structurally_match(selector(cand)):
+      return cand
+
+  for cand in candidates:
+    if definitely_true(solver, item == selector(cand)):
+      return cand
+
+  return None
 
 def fork_always(proc, case_true, case_false):
   false_was_unsat = False
