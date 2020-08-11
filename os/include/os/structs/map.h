@@ -5,7 +5,6 @@
 #include <stdint.h>
 
 //@ #include "proof/ghost_map.gh"
-// #include "proof/stdex.gh"
 
 struct os_map;
 
@@ -28,7 +27,7 @@ bool os_map_get(struct os_map* map, void* key_ptr, uint64_t* value_out);
               case some(v): return result == true &*& *value_out |-> v;
             }; @*/
 
-void os_map_put(struct os_map* map, void* key_ptr, uint64_t value);
+void os_map_set(struct os_map* map, void* key_ptr, uint64_t value);
 /*@ requires mapp(map, ?key_size, ?capacity, ?values, ?addrs) &*&
              [0.25]chars(key_ptr, key_size, ?key) &*&
              length(values) < capacity &*&
@@ -37,7 +36,7 @@ void os_map_put(struct os_map* map, void* key_ptr, uint64_t value);
             new_values == ghostmap_set(values, key, value) &*&
             new_addrs == ghostmap_set(addrs, key_ptr, key); @*/
 
-void os_map_erase(struct os_map* map, void* key_ptr);
+void os_map_remove(struct os_map* map, void* key_ptr);
 /*@ requires mapp(map, ?key_size, ?capacity, ?values, ?addrs) &*&
              [?frac]chars(key_ptr, key_size, ?key) &*&
              frac != 0.0 &*&
