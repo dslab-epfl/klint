@@ -1,0 +1,37 @@
+#ifndef GHOST_MAP_GH_INCLUDED
+#define GHOST_MAP_GH_INCLUDED
+
+fixpoint option<v> ghostmap_get<k, v>(list<pair<k, v> > map, k key) {
+  switch(map) {
+    case nil: return none;
+    case cons(h, t):
+      return switch(h) {
+        case pair(hk, hv):
+          return hk == key ? some(hv) : ghostmap_get(t, key);
+      };
+  }
+}
+
+fixpoint list<pair<k, v> > ghostmap_set<k, v>(list<pair<k, v> > map, k key, v value) {
+  switch(map) {
+    case nil: return cons(pair(key, value), nil);
+    case cons(h, t):
+      return switch(h) {
+        case pair(hk, hv):
+          return hk == key ? cons(pair(key, value), t) : cons(h, ghostmap_set(t, key, value));
+      };
+  }
+}
+
+fixpoint list<pair<k, v> > ghostmap_remove<k, v>(list<pair<k, v> > map, k key) {
+  switch(map) {
+    case nil: return nil;
+    case cons(h, t):
+      return switch(h) {
+        case pair(hk, hv):
+          return hk == key ? t : ghostmap_remove(t, key);
+      };
+  }
+}
+
+#endif

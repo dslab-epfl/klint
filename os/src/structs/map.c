@@ -5,13 +5,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 
-// TODO REMOVE ME
-void map_impl_erase/*@ <kt> @*/(int* busybits, void** keyps,
-                                unsigned* k_hashes, int* chns,
-                                 void* keyp,
-                                 unsigned hash, unsigned key_size, unsigned capacity);
-
-#include "generic_ops.h"
+#include "proof/generic_ops.h"
 
 //@ #include "proof/chain-buckets.gh"
 //@ #include "proof/listexex.gh"
@@ -1723,7 +1717,7 @@ lemma void put_updates_item_list(list<void*> kaddrs, list<option<list<char> > > 
           true == contains(new_items, map_item(ka, k, v));
 {
   assume(false); // TODO this is definitely doable
-  /
+  /*
   switch(kaddrs) {
     case nil:
       open item_list(kaddrs, key_opts, values, items);
@@ -1754,7 +1748,7 @@ lemma void put_updates_item_list(list<void*> kaddrs, list<option<list<char> > > 
                         sub_items);
       }
   }
-  /
+  */
 }
 
 // ---
@@ -2143,12 +2137,12 @@ ensures true == map_has_fp(m, fst(kv));
 // ====================================================
 
 
-//@ #include <list.gh>
-//@ #include <listex.gh>
-//@ #include <nat.gh>
-//@ #include "proof/stdex.gh"
-//@ #include "proof/map.gh"
-//@ #include "proof/natlist.gh"
+// #include <list.gh>
+// #include <listex.gh>
+// #include <nat.gh>
+// #include "proof/stdex.gh"
+// #include "proof/map.gh"
+// #include "proof/natlist.gh"
 
 /*@
   predicate hmapping<kt>(predicate (void*; kt) keyp,
@@ -2278,7 +2272,7 @@ unsigned find_key_remove_chain/*@ <kt> @*/(int* busybits, void** keyps,
              [?kfr]kpr(keyp, ?k) &*&
              hsh(k) == key_hash &*&
              [?f]is_map_keys_equality<kt>(eq, kpr) &*&
-             true == hmap_exists_key_fp(hm, k)
+             true == hmap_exists_key_fp(hm, k) &*&
              is_pow2(capacity, N31) != none; @*/
 /*@ ensures hmapping<kt>(kpr, hsh, capacity,
                          busybits, kps, k_hashes,
