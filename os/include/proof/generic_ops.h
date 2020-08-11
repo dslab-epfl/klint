@@ -8,7 +8,8 @@
 
 #include <nmmintrin.h>
 
-typedef uint32_t hash_t;
+
+//@ fixpoint uint32_t hash_fp(list<char> value);
 
 
 static inline bool generic_eq(char* a, char* b, size_t obj_size)
@@ -18,7 +19,7 @@ static inline bool generic_eq(char* a, char* b, size_t obj_size)
 	return 0 == memcmp(a, b, obj_size);
 }
 
-static inline hash_t generic_hash(char* obj, size_t obj_size)
+static inline uint32_t generic_hash(char* obj, size_t obj_size)
 //@ requires [?f]chars(obj, obj_size, ?value);
 /*@ ensures [f]chars(obj, obj_size, _); @*/
 {
@@ -29,7 +30,7 @@ static inline hash_t generic_hash(char* obj, size_t obj_size)
 	//@ size_t old_obj_size = obj_size;
 	
 	//@ size_t discarded_size = 0;
-	hash_t hash = 0;
+	uint32_t hash = 0;
 	while (obj_size >= 8)
 	/*@ invariant [f]chars(obj - discarded_size, discarded_size, _) &*&
 	              [f]chars(obj, obj_size, _) &*&

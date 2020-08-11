@@ -2,19 +2,20 @@
 #define MAP_H_INCLUDED
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 //@ #include "proof/ghost_map.gh"
 
 struct os_map;
 
-//@ predicate mapp(struct os_map* map, uint64_t key_size, uint64_t capacity, list<pair<list<char>, uint64_t> > values, list<pair<void*, list<char> > > addrs);
+//@ predicate mapp(struct os_map* map, size_t key_size, size_t capacity, list<pair<list<char>, uint64_t> > values, list<pair<void*, list<char> > > addrs);
 
 
-struct os_map* os_map_init(uint64_t key_size, uint64_t capacity);
-/*@ requires 0 < capacity &*&
-             0 < key_size; @*/
-/*@ ensures result == 0 ? true : mapp(result, key_size, capacity, nil, nil); @*/
+struct os_map* os_map_init(size_t key_size, size_t capacity);
+/*@ requires capacity < (SIZE_MAX / 8) &*&
+             key_size > 0; @*/
+/*@ ensures result == NULL ? true : mapp(result, key_size, capacity, nil, nil); @*/
 
 bool os_map_get(struct os_map* map, void* key_ptr, uint64_t* value_out);
 /*@ requires mapp(map, ?key_size, ?capacity, ?values, ?addrs) &*&
