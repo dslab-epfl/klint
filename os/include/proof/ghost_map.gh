@@ -63,4 +63,38 @@ ensures true == mem(key, map(fst, ghostmap));
   }
 }
 
+lemma_auto(ghostmap_set(ghostmap, key, value)) void ghostmap_set_preserves_distinct<k, v>(list<pair<k, v> > ghostmap, k key, v value)
+requires true == ghostmap_distinct(ghostmap);
+ensures true == ghostmap_distinct(ghostmap_set(ghostmap, key, value));
+{
+  switch(ghostmap) {
+    case nil:
+      assert true;
+    case cons(h, t):
+      switch(h) {
+        case pair(hk, hv):
+          if (hk == key) {
+            assert true == ghostmap_distinct(t);
+            assert true == ghostmap_distinct(cons(pair(key, value), t));
+          } else {
+            assert false == mem(hk, map(fst, t));
+            ghostmap_set_preserves_distinct(t, key, value);
+            assume(false); // TODO
+          }
+      }
+  }
+}
+
+lemma_auto(ghostmap_set(ghostmap, key, value)) void ghostmap_distinct_set_increases_length<k, v>(list<pair<k, v> > ghostmap, k key, v value)
+requires true == ghostmap_distinct(ghostmap);
+ensures length(ghostmap_set(ghostmap, key, value)) == length(ghostmap) + 1;
+{
+  switch(ghostmap) {
+    case nil:
+      assert true;
+    case cons(h, t):
+      assume(false); // TODO
+  }
+}
+
 #endif

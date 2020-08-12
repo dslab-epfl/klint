@@ -324,6 +324,20 @@ ensures repeat_n(len, x) == cons(_, repeat_n(lenmin1, x));
   }
 }
 
+lemma void repeat_n_contents<t>(nat len, t x)
+requires true;
+ensures true == forall(repeat_n(len, x), (eq)(x));
+{
+  switch(len) {
+    case zero:
+      assert repeat_n(len, x) == nil;
+    case succ(n):
+      repeat_n_is_n(len, x);
+      repeat_n_tail(len, x);
+      repeat_n_contents(n, x);
+  }
+}
+
 lemma void lower_limit_ge_than<kt>(list<pair<kt, nat> > l, int lim)
 requires true;
 ensures true == forall(map(snd, filter((sup)((nat_ge)(lim), snd), l)),
