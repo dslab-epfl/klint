@@ -1543,10 +1543,18 @@ lemma void put_preserves_hash_list(list<option<list<char> > > key_opts, list<uin
 // ---
 
 lemma void put_increases_key_opts_size(list<option<list<char> > > key_opts, size_t index, list<char> key)
-requires nth(index, key_opts) == none;
+requires 0 <= index &*& index < length(key_opts) &*&
+         nth(index, key_opts) == none;
 ensures opts_size(update(index, some(key), key_opts)) == opts_size(key_opts) + 1;
 {
-  assume(false);
+  switch(key_opts) {
+    case nil:
+      assert false;
+    case cons(h, t):
+      if (index != 0) {
+        put_increases_key_opts_size(t, index - 1, key);
+      }
+  }
 }
 @*/
 
