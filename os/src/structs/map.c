@@ -991,7 +991,7 @@ lemma void empty_buckets_insync(list<uint32_t> chains, unsigned capacity)
 
 // ---
 
-/*lemma void repeat_none_is_opt_no_dups<t>(nat n, list<option<t> > opts)
+lemma void repeat_none_is_opt_no_dups<t>(nat n, list<option<t> > opts)
   requires opts == repeat_n(n, none);
   ensures true == opt_no_dups(opts);
 {
@@ -1003,7 +1003,7 @@ lemma void empty_buckets_insync(list<uint32_t> chains, unsigned capacity)
       repeat_none_is_opt_no_dups(p, optst);
       assert optsh == none;
   }
-}*/
+}
 
 lemma void produce_empty_map_valuesaddrs(size_t capacity, list<void*> kaddrs, list<uint64_t> values)
   requires length(kaddrs) == length(values) &*& length(kaddrs) == capacity;
@@ -1025,8 +1025,6 @@ lemma void produce_empty_map_valuesaddrs(size_t capacity, list<void*> kaddrs, li
       repeat_n_tail(nat_of_int(capacity), none);
       assert not == repeat_n(nat_of_int(capacity-1), none);
       assert true == distinct(nil);
-      //repeat_none_is_opt_no_dups(nat_of_int(capacity), none_list_fp(nat_of_int(capacity)));
-      //assert true == opt_no_dups(none_list_fp(nat_of_int(capacity)));
       close map_valuesaddrs(kaddrs, repeat_n(nat_of_int(capacity), none), values, nil, nil);
   }
 }
@@ -1085,9 +1083,7 @@ struct os_map* os_map_init(size_t key_size, size_t capacity)
                   chars(busybits + i, capacity - i, drop(i, busybits_lst)) &*&
                   uints(chains, i, repeat_n(nat_of_int(i), 0)) &*&
                   uints(chains + i, capacity - i, drop(i, chains_lst)) &*&
-                  //0 < capacity &*& 2*capacity < INT_MAX &*&
-                  0 <= i &*& i <= capacity;
-      @*/
+                  0 <= i &*& i <= capacity; @*/
     //@ decreases capacity - i;
   {
     //@ move_bb(busybits, i, capacity);
@@ -1100,15 +1096,17 @@ struct os_map* os_map_init(size_t key_size, size_t capacity)
     //@ tail_drop(busybits_lst, i);
     //@ tail_drop(chains_lst, i);
   }
-  //@ assert(drop(i,busybits_lst) == nil);
+  // assert(drop(i,busybits_lst) == nil);
   //@ open chars(busybits + i, capacity - i, drop(i,busybits_lst));
   //@ produce_key_opt_list(key_size, hashes_lst, kaddrs_lst);
+  //@ assert key_opt_list(key_size, kaddrs_lst, _, ?kopts);
   //@ assert uints(chains, capacity, ?zeroed_chains_lst);
   //@ empty_buckets_insync(zeroed_chains_lst, capacity);
   //@ produce_empty_map_valuesaddrs(capacity, kaddrs_lst, values_lst);
   //@ confirm_hash_list_for_nones(hashes_lst);
-  //@ close mapping_core(key_size, capacity, kaddrs, busybits, hashes, values, _, _, _);
-  //@ close mapping(key_size, capacity, kaddrs, busybits, hashes, chains, values, _, _, nil, nil);
+  //@ repeat_none_is_opt_no_dups(nat_of_int(length(kaddrs_lst)), kopts);
+  //@ close mapping_core(key_size, capacity, kaddrs, busybits, hashes, values, kopts, nil, nil);
+  //@ close mapping(key_size, capacity, kaddrs, busybits, hashes, chains, values, _, kopts, nil, nil);
 
   map->kaddrs = kaddrs;
   map->busybits = busybits;
