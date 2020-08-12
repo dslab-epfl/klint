@@ -98,16 +98,20 @@ struct os_map {
                             list<pair<list<char>, uint64_t> > map_values, list<pair<void*, list<char> > > map_addrs) =
     switch(kaddrs) {
       case nil:
-        return key_opts == nil &*& values == nil &*& 
+        return key_opts == nil &*&
+               values == nil &*&
                map_values == nil &*&
                map_addrs == nil &*&
                length(map_values) == length(map_addrs);
       case cons(kaddrsh, kaddrst):
-        return key_opts == cons(?key_optsh, ?key_optst) &*& values == cons(?valuesh, ?valuest) &*&
+        return key_opts == cons(?key_optsh, ?key_optst) &*&
+               values == cons(?valuesh, ?valuest) &*&
                map_valuesaddrs(kaddrst, key_optst, valuest, ?map_valuest, ?map_addrst) &*&
                length(map_values) == length(map_addrs) &*&
-               (key_optsh == none ? (map_values == map_valuest &*& map_addrs == map_addrst) 
-                                  : (map_values == cons(pair(get_some(key_optsh), valuesh), map_valuest) &*& map_addrs == cons(pair(kaddrsh, get_some(key_optsh)), map_addrst)));
+               (key_optsh == none ? (map_values == map_valuest &*&
+                                     map_addrs == map_addrst)
+                                  : (map_values == cons(pair(get_some(key_optsh), valuesh), map_valuest) &*&
+                                     map_addrs == cons(pair(kaddrsh, get_some(key_optsh)), map_addrst)));
                
     };
 
@@ -1402,12 +1406,26 @@ lemma void put_keeps_key_opt_list(list<void*> kaddrs, list<char> busybits, list<
 // ---
 
 lemma void map_values_has_not_implies_key_opts_has_not(list<pair<list<char>, uint64_t> > map_values, list<option<list<char> > > key_opts, list<char> key)
-requires key_opt_list(?key_size, ?kaddrs, ?busybits, key_opts) &*&
+requires map_valuesaddrs(?kaddrs, key_opts, ?values, map_values, ?map_addrs) &*&
          ghostmap_get(map_values, key) == none;
-ensures key_opt_list(key_size, kaddrs, busybits, key_opts) &*&
+ensures map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs) &*&
         false == mem(some(key), key_opts);
 {
-  assume(false);
+  switch(key_opts) {
+    case nil:
+    case cons(key_optsh, key_optst):
+      switch(key_optsh) {
+        case none:
+          open map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs);
+          map_values_has_not_implies_key_opts_has_not(map_values, key_optst, key);
+          close map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs);
+        case some(kohv):
+          open map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs);
+          assert map_values == cons(?map_valuesh, ?map_valuest);
+          map_values_has_not_implies_key_opts_has_not(map_valuest, key_optst, key);
+          close map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs);
+      }
+  }
 }
 
 // ---
