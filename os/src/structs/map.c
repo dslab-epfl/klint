@@ -942,7 +942,11 @@ lemma void kopts_size_0_when_empty(list<option<list<char> > > kopts)
 requires true == forall(kopts, (eq)(none));
 ensures opts_size(kopts) == 0;
 {
-  assume(false);
+  switch(kopts) {
+    case nil:
+    case cons(h, t):
+      kopts_size_0_when_empty(t);
+  }
 }
 
 // ---
