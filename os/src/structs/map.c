@@ -1122,349 +1122,6 @@ struct os_map* os_map_init(size_t key_size, size_t capacity)
   return map;
 }
 
-
-/*
-lemma void map_remove_unrelated_key(list<map_item> items, map_item it1, map_item it2)
-  requires mapp_item(remove(it1, items), ?k2, some(it2)) &*&
-           true == map_no_dups(items) &*&
-           it1 == map_item(_, ?k1, _) &*&
-           it1 != it2 &*&
-           k2 != k1;
-  ensures mapp_item(items, k2, some(it2));
-{
-  switch(items) {
-    case nil:
-      assert remove(it1, items) == items;
-    case cons(h,t):
-      if (h == it1) {
-        assert remove(it1, items) == t;
-        assert mapp_item(t, k2, some(it2));
-        close mapp_item(cons(it1, t), k2, some(it2));
-      } else {
-        mapp_item_key_match(remove(it1, items), it2);
-        assert it2 == map_item(_, k2, _);
-        open mapp_item(remove(it1, items), k2, some(it2));
-        if (h == it2) {
-          mapp_item_from_head(it2, t);
-          mapp_item_key_match(cons(it2, t), it2);
-          assert mapp_item(cons(it2, t), k2, some(it2));
-        } else {
-          map_remove_unrelated_key(t, it1, it2);
-          assert map_item_key(h) != k2;
-          close mapp_item(items, k2, some(it2));
-        }
-      }
-  }
-}
-
-lemma void mapp_item_is_in_items(list<map_item> items, list<char> k, map_item it)
-  requires mapp_item(items, k, some(it));
-  ensures mapp_item(items, k, some(it)) &*&
-          true == mem(it, items);
-{
-  switch(items) {
-    case nil:
-      open mapp_item(items, k, some(it));
-      assert false;
-    case cons(h,t):
-      if (h == it) {
-        assert true == mem(it, cons(h,t));
-      } else {
-        open mapp_item(items, k, some(it));
-        mapp_item_is_in_items(t, k, it);
-        close mapp_item(items, k, some(it));
-      }
-  }
-}
-
-lemma void produce_mapp_item_when_key_opts_has(list<option<list<char> > > key_opts, list<char> k, list<map_item> items)
-  requires item_list(?kaddrs, key_opts, ?values, items) &*&
-           true == mem(some(k), key_opts) &*&
-           true == map_no_dups(items);
-  ensures item_list(kaddrs, key_opts, values, items) &*&
-          mapp_item(items, k, ?it) &*&
-          it != none;
-{
-  switch(key_opts) {
-    case nil:
-      assert false;
-    case cons(h,t):
-      open item_list(kaddrs, key_opts, values, items);
-      if (h == some(k)) {
-        map_item current = map_item(head(kaddrs), k, head(values));
-        assert head(items) == current;
-        close mapp_item(items, k, some(current));
-      } else if (h == none) {
-        produce_mapp_item_when_key_opts_has(t, k, items);
-      } else {
-        assert h == some(?notk);
-        map_item current = map_item(head(kaddrs), notk, head(values));
-        produce_mapp_item_when_key_opts_has(t, k, remove(current, items));
-        assert mapp_item(remove(current, items), k, ?maybeit);
-        switch(maybeit) {
-          case none:
-            assert some(current) != maybeit;
-          case some(it):
-            mapp_item_is_in_items(remove(current, items), k, it);
-            assert maybeit != some(current);
-            mapp_item_key_match(remove(current, items), it);
-            assert it == map_item(_, k, _);
-            assert k != notk;
-            map_remove_unrelated_key(items, current, it);
-        }
-      }
-      close item_list(kaddrs, key_opts, values, items);
-  }
-}
-
-lemma void mapp_item_not_in_extended_items(list<map_item> items, map_item it1)
-  requires mapp_item(items, ?k2, ?maybeit2) &*&
-           true == map_no_dups(items) &*&
-           it1 == map_item(_, ?k1, _) &*&
-           some(it1) != maybeit2 &*&
-           k1 != k2;
-  ensures mapp_item(cons(it1, items), k2, maybeit2);
-{
-  switch(items) {
-    case nil:
-      open mapp_item(nil, k2, maybeit2);
-      assert maybeit2 == none;
-      close mapp_item(cons(it1, items), k2, none);
-    case cons(h,t):
-      close mapp_item(cons(it1, items), k2, maybeit2);
-  }
-}
-
-lemma void produce_mapp_item_when_key_opts_has_not(list<option<list<char> > > key_opts, list<char> k, list<map_item> items)
-  requires item_list(?kaddrs, key_opts, ?values, items) &*&
-           false == mem(some(k), key_opts) &*&
-           true == map_no_dups(items);
-  ensures item_list(kaddrs, key_opts, values, items) &*&
-          mapp_item(items, k, none);
-{
-  switch(key_opts) {
-    case nil:
-      open item_list(kaddrs, key_opts, values, items);
-      assert length(key_opts) == 0;
-      assert length(items) == 0;
-      length_0_nil(items);
-      assert items == nil;
-      close mapp_item(items, k, none);
-      close item_list(kaddrs, key_opts, values, items);
-    case cons(maybeh,t):
-      open item_list(kaddrs, key_opts, values, items);
-      switch(maybeh) {
-        case none:
-          produce_mapp_item_when_key_opts_has_not(t, k, items);
-        case some(h):
-          produce_mapp_item_when_key_opts_has_not(t, k, tail(items));
-          assert h != k;
-          mapp_item_not_in_extended_items(tail(items), head(items));
-      }
-      close item_list(kaddrs, key_opts, values, items);
-  }
-}
-
-lemma void produce_mapp_item(list<option<list<char> > > key_opts, list<char> k, list<map_item> items)
-  requires item_list(?kaddrs, key_opts, ?values, items) &*&
-           true == map_no_dups(items);
-  ensures item_list(kaddrs, key_opts, values, items) &*&
-          mapp_item(items, k, ?it) &*&
-          mem(some(k), key_opts) == (it != none);
-{
-  if (mem(some(k), key_opts)) {
-    produce_mapp_item_when_key_opts_has(key_opts, k, items);
-  } else {
-    produce_mapp_item_when_key_opts_has_not(key_opts, k, items);
-  }
-}
-
-// ---
-
-
-lemma void opt_no_dups_means_index_of_plus_one<t>(option<t> head, list<option<t> > tail, t value)
-  requires true == opt_no_dups(cons(head, tail)) &*&
-           true == mem(some(value), tail) &*&
-           some(value) != head;
-  ensures index_of(some(value), tail) + 1 == index_of(some(value), cons(head, tail));
-{
-  switch(tail) {
-    case nil:
-      assert false;
-    case cons(th, tt):
-      if (th == some(value)) {
-        assert index_of(some(value), tail) == 0;
-        assert index_of(some(value), cons(head, tail)) == 1;
-      } else {
-      }
-  }
-}
-
-lemma void map_item_key_in_items_key_opts(map_item it, list<map_item> items)
-  requires item_list(?kaddrs, ?key_opts, ?values, items) &*&
-           true == map_no_dups(items) &*&
-           true == mem(it, items) &*&
-           it == map_item(?ka, ?k, ?v);
-  ensures item_list(kaddrs, key_opts, values, items) &*&
-          true == mem(some(k), key_opts);
-{
-  switch(kaddrs) {
-    case nil:
-      open item_list(kaddrs, key_opts, values, items);
-      assert false;
-    case cons(kaddrsh, kaddrst):
-      open item_list(kaddrs, key_opts, values, items);
-      assert key_opts == cons(?key_optsh, ?key_optst);
-      switch(key_optsh) {
-        case none:
-          map_item_key_in_items_key_opts(it, items);
-        case some(kh):
-          if (kh == k) {
-            assert true == mem(some(k), key_opts);
-          } else {
-            assert items == cons(?itemsh, ?itemst);
-            map_item_key_in_items_key_opts(it, itemst);
-          }
-      }
-      close item_list(kaddrs, key_opts, values, items);
-  }
-}
-
-lemma void map_item_key_not_in_items_key_opts(map_item it, list<map_item> items)
-  requires item_list(?kaddrs, ?key_opts, ?values, items) &*&
-           it == map_item(_, ?k, _) &*&
-           false == mem(some(k), key_opts);
-  ensures item_list(kaddrs, key_opts, values, items) &*&
-          false == mem(it, items);
-{
-  switch(kaddrs) {
-    case nil:
-      open item_list(kaddrs, key_opts, values, items);
-      assert items == nil;
-      close item_list(kaddrs, key_opts, values, items);
-    case cons(kaddrsh, kaddrst):
-      open item_list(kaddrs, key_opts, values, items);
-      assert key_opts == cons(?key_optsh, ?key_optst);
-      switch(key_optsh) {
-        case none:
-          map_item_key_not_in_items_key_opts(it, items);
-        case some(kh):
-          if (kh == k) {
-            assert false;
-          } else {
-            assert items == cons(?itemsh, ?itemst);
-            map_item_key_not_in_items_key_opts(it, itemst);
-          }
-      }
-      close item_list(kaddrs, key_opts, values, items);
-  }
-}
-
-lemma void item_list_same_index(list<void*> kaddrs, list<option<list<char> > > key_opts, list<int> values, map_item it)
-  requires item_list(kaddrs, key_opts, values, ?items) &*&
-           true == map_no_dups(items) &*&
-           true == mem(it, items) &*&
-           it == map_item(?ka, ?k, ?v);
-  ensures item_list(kaddrs, key_opts, values, items) &*&
-          it == map_item(nth(index_of(some(k), key_opts), kaddrs), get_some(nth(index_of(some(k), key_opts), key_opts)), nth(index_of(some(k), key_opts), values));
-{
-  // this is horrible; clearly the key_optsh == none and key_optsh != some(k) cases are the same and should be refactored...
-  switch(kaddrs) {
-    case nil:
-      open item_list(kaddrs, key_opts, values, items);
-      assert items != nil;
-      assert false;
-    case cons(kaddrsh, kaddrst):
-      open item_list(kaddrs, key_opts, values, items);
-      assert key_opts == cons(?key_optsh, ?key_optst);
-      assert values == cons(?valuesh, ?valuest);
-      switch(key_optsh) {
-        case none:
-          item_list_same_index(kaddrst, key_optst, valuest, it);
-          assert it == map_item(nth(index_of(some(k), key_optst), kaddrst), get_some(nth(index_of(some(k), key_optst), key_optst)), nth(index_of(some(k), key_optst), valuest));
-
-          map_item_key_in_items_key_opts(it, items);
-          assert true == mem(some(k), key_opts);
-          assert key_optsh != some(k);
-          assert true == mem(some(k), key_optst);
-
-          opt_no_dups_means_index_of_plus_one(key_optsh, key_optst, k);
-          assert index_of(some(k), key_optst) == index_of(some(k), key_opts) - 1;
-
-          map_item_key_in_items_key_opts(it, items);
-          assert true == mem(some(k), key_opts);
-          assert key_optsh != some(k);
-          assert true == mem(some(k), key_optst);
-
-          mem_index_of(some(k), key_optst);
-          assert index_of(some(k), key_optst) >= 0;
-
-          nth_cons(index_of(some(k), key_opts), kaddrst, kaddrsh);
-          assert nth(index_of(some(k), key_optst), kaddrst) == nth(index_of(some(k), key_opts), kaddrs);
-          close item_list(kaddrs, key_opts, values, items);
-        case some(kh):
-          if (kh == k) {
-            assert items == cons(?itemsh, ?itemst);
-            assert itemsh == map_item(kaddrsh, get_some(key_optsh), valuesh);
-            close item_list(kaddrs, key_opts, values, items);
-            map_item_key_in_items_key_opts(it, items);
-            assert index_of(some(k), key_opts) == 0;
-            assert false == mem(some(k), key_optst);
-            open item_list(kaddrs, key_opts, values, items);
-            map_item_key_not_in_items_key_opts(it, itemst);
-            assert it == itemsh;
-            close item_list(kaddrs, key_opts, values, items);
-          } else {
-            assert items == cons(?itemsh, ?itemst);
-            assert itemsh == map_item(_, ?kitemsh, _);
-            assert kitemsh == get_some(key_optsh);
-            assert kh != k;
-            assert kitemsh != k;
-            assert it != itemsh;
-            item_list_same_index(kaddrst, key_optst, valuest, it);
-            assert it == map_item(nth(index_of(some(k), key_optst), kaddrst), get_some(nth(index_of(some(k), key_optst), key_optst)), nth(index_of(some(k), key_optst), valuest));
-            map_item_key_in_items_key_opts(it, itemst);
-            assert true == mem(some(k), key_opts);
-            assert key_optsh != some(k);
-            assert true == mem(some(k), key_optst);
-            opt_no_dups_means_index_of_plus_one(key_optsh, key_optst, k);
-            assert index_of(some(k), key_optst) == index_of(some(k), key_opts) - 1;
-
-            close item_list(kaddrs, key_opts, values, items);
-            map_item_key_in_items_key_opts(it, items);
-            assert true == mem(some(k), key_opts);
-            assert key_optsh != some(k);
-            assert true == mem(some(k), key_optst);
-
-            mem_index_of(some(k), key_optst);
-            assert index_of(some(k), key_optst) >= 0;
-
-            nth_cons(index_of(some(k), key_opts), kaddrst, kaddrsh);
-            assert nth(index_of(some(k), key_optst), kaddrst) == nth(index_of(some(k), key_opts), kaddrs);
-          }
-      }
-  }
-}
-
-lemma void mapp_item_has_correct_values(list<map_item> items, list<char> k)
-  requires mapp_item(items, k, some(?it)) &*&
-           item_list(?kaddrs, ?key_opts, ?values, items) &*&
-           true == map_no_dups(items);
-  ensures mapp_item(items, k, some(it)) &*&
-          item_list(kaddrs, key_opts, values, items) &*&
-          it == map_item(nth(index_of(some(k), key_opts), kaddrs), k, nth(index_of(some(k), key_opts), values));
-{
-  mapp_item_key_match(items, it);
-  assert it == map_item(_, k, _);
-
-  mapp_item_is_in_items(items, k, it);
-  assert true == mem(it, items);
-
-  item_list_same_index(kaddrs, key_opts, values, it);
-  assert k == get_some(nth(index_of(some(k), key_opts), key_opts));
-}
-@*/
-
 /*@
 lemma void map_values_reflects_keyopts_mem<k,v>(list<char> key, int idx)
 requires map_valuesaddrs(?kaddrs, ?key_opts, ?values, ?map_values, ?map_addrs) &*&
@@ -1512,7 +1169,26 @@ requires map_valuesaddrs(?kaddrs, ?key_opts, ?values, ?map_values, ?map_addrs) &
 ensures map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs) &*&
         ghostmap_get(map_values, key) == none;
 {
-  assume(false);
+  switch(kaddrs) {
+    case nil:
+      open map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs);
+      assert key_opts == nil;
+      assert map_values == nil;
+      close map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs);
+    case cons(kaddrsh, kaddrst):
+      open map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs);
+      assert key_opts == cons(?key_optsh, ?key_optst);
+      map_values_has_none_when_key_opts_has_none(key);
+      switch (key_optsh) {
+        case none:
+          assert true;
+        case some(kohv):
+          assert map_values == cons(?map_valuesh, ?map_valuest);
+          assert ghostmap_get(map_valuest, key) == none;
+          assert kohv != key;
+      }
+      close map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs);
+  }
 }
 @*/
 
@@ -1529,28 +1205,22 @@ bool os_map_get(struct os_map* map, void* key_ptr, uint64_t* value_out)
 {
   //@ open mapp(map, key_size, capacity, map_values, map_addrs);
   size_t index;
-  if (find_key(map->kaddrs, map->busybits, map->hashes, map->chains, key_ptr, map->key_size, map->capacity, &index))
-  {
-    //@ open mapping(key_size, capacity, map->kaddrs, map->busybits, map->hashes, map->chains, map->values, ?buckets, ?key_opts, map_values, map_addrs);
-    //@ open mapping_core(key_size, capacity, map->kaddrs, map->busybits, map->hashes, map->values, key_opts, map_values, map_addrs);
-    // produce_mapp_item(key_opts, key, items);
-    //@ map_values_reflects_keyopts_mem(key, index);
-    //@ assert ghostmap_get(map_values, key) == some(map->values[index]);
-    *value_out = map->values[index];
-    // mapp_item_has_correct_values(items, key);
-    //@ close mapping_core(key_size, capacity, map->kaddrs, map->busybits, map->hashes, map->values, key_opts, map_values, map_addrs);
-    //@ close mapping(key_size, capacity, map->kaddrs, map->busybits, map->hashes, map->chains, map->values, buckets, key_opts, map_values, map_addrs);
-    //@ close mapp(map, key_size, capacity, map_values, map_addrs);
-    return true;
-  }
-
+  bool has = find_key(map->kaddrs, map->busybits, map->hashes, map->chains, key_ptr, map->key_size, map->capacity, &index);
   //@ open mapping(key_size, capacity, map->kaddrs, map->busybits, map->hashes, map->chains, map->values, ?buckets, ?key_opts, map_values, map_addrs);
   //@ open mapping_core(key_size, capacity, map->kaddrs, map->busybits, map->hashes, map->values, key_opts, map_values, map_addrs);
-  //@ map_values_has_none_when_key_opts_has_none(key);
+  if (has)
+  {
+    //@ map_values_reflects_keyopts_mem(key, index);
+    *value_out = map->values[index];
+  }
+  else
+  {
+    //@ map_values_has_none_when_key_opts_has_none(key);
+  }
   //@ close mapping_core(key_size, capacity, map->kaddrs, map->busybits, map->hashes, map->values, key_opts, map_values, map_addrs);
   //@ close mapping(key_size, capacity, map->kaddrs, map->busybits, map->hashes, map->chains, map->values, buckets, key_opts, map_values, map_addrs);
   //@ close mapp(map, key_size, capacity, map_values, map_addrs);
-  return false;
+  return has;
 }
 
 /*
