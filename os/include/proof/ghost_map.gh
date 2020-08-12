@@ -51,14 +51,10 @@ ensures ghostmap_get(ghostmap_set(ghostmap, key, value), absent_key) == none;
 {
   switch(ghostmap) {
     case nil:
-      assert true;
     case cons(h, t):
       switch(h) {
         case pair(hk, hv):
-          if (hk == key) {
-            assert true;
-          } else {
-            assert absent_key != hk;
+          if (hk != key) {
             ghostmap_set_preserves_absence(t, key, value, absent_key);
           }
       }
@@ -73,13 +69,10 @@ ensures true == mem(key, map(fst, ghostmap));
 {
   switch(ghostmap) {
     case nil:
-      assert false;
     case cons(h, t):
       switch(h) {
         case pair(hk, hv):
-          if (hk == key) {
-            assert true;
-          } else {
+          if (hk != key) {
             ghostmap_get_implies_mem1(t, key);
           }
       }
@@ -92,13 +85,10 @@ ensures false == mem(key, map(fst, ghostmap));
 {
   switch(ghostmap) {
     case nil:
-      assert true;
     case cons(h, t):
       switch(h) {
         case pair(hk, hv):
-          if (hk == key) {
-            assert true;
-          } else {
+          if (hk != key) {
             ghostmap_get_implies_mem2(t, key);
           }
       }
@@ -111,16 +101,11 @@ ensures true == ghostmap_distinct(ghostmap_set(ghostmap, key, value));
 {
   switch(ghostmap) {
     case nil:
-      assert true;
     case cons(h, t):
       switch(h) {
         case pair(hk, hv):
-          if (hk == key) {
-            assert true;
-          } else {
-            assert none == ghostmap_get(t, hk);
+          if (hk != key) {
             ghostmap_set_preserves_absence(t, key, value, hk);
-            assert none == ghostmap_get(ghostmap_set(t, key, value), hk);
             ghostmap_set_preserves_distinct(t, key, value);
           }
       }
