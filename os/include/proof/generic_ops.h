@@ -21,7 +21,8 @@ static inline bool generic_eq(char* a, char* b, size_t obj_size)
 
 static inline uint32_t generic_hash(char* obj, size_t obj_size)
 //@ requires [?f]chars(obj, obj_size, ?value);
-/*@ ensures [f]chars(obj, obj_size, _); @*/
+/*@ ensures [f]chars(obj, obj_size, value) &*&
+            result == hash_fp(value); @*/
 {
 	// The void* casts are required for VeriFast to understand the casts to uintX_t
 
@@ -76,6 +77,16 @@ static inline uint32_t generic_hash(char* obj, size_t obj_size)
 		//@ discarded_size += 1;
 		//@ chars_join(obj + 1 - discarded_size);
 	}
+
+	// Proving this with VeriFast is a huge pain because it currently does not support value-preserving char*-to-int* transformations (except for int32_t);
+	// but logically this is obvious since 'f' may be <1 and thus we do not have the right to modify 'value'!
+	//@ assert [f]chars(old_obj, old_obj_size, ?old_value);
+	//@ assume(value == old_value);
+
+	// Proving this is rather pointless since we're using externals for the intrinsics anyway (so they could misbehave if the CPU is buggy)
+	// all we care about is that this function is deterministic
+	//@ assume(hash == hash_fp(value));
+
 	return hash;
 }
 

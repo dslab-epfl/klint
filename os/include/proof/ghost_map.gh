@@ -1,8 +1,10 @@
 #ifndef GHOST_MAP_GH_INCLUDED
 #define GHOST_MAP_GH_INCLUDED
 
-fixpoint option<v> ghostmap_get<k, v>(list<pair<k, v> > map, k key) {
-  switch(map) {
+// -- Public API --
+
+fixpoint option<v> ghostmap_get<k, v>(list<pair<k, v> > ghostmap, k key) {
+  switch(ghostmap) {
     case nil: return none;
     case cons(h, t):
       return switch(h) {
@@ -12,8 +14,8 @@ fixpoint option<v> ghostmap_get<k, v>(list<pair<k, v> > map, k key) {
   }
 }
 
-fixpoint list<pair<k, v> > ghostmap_set<k, v>(list<pair<k, v> > map, k key, v value) {
-  switch(map) {
+fixpoint list<pair<k, v> > ghostmap_set<k, v>(list<pair<k, v> > ghostmap, k key, v value) {
+  switch(ghostmap) {
     case nil: return cons(pair(key, value), nil);
     case cons(h, t):
       return switch(h) {
@@ -23,14 +25,41 @@ fixpoint list<pair<k, v> > ghostmap_set<k, v>(list<pair<k, v> > map, k key, v va
   }
 }
 
-fixpoint list<pair<k, v> > ghostmap_remove<k, v>(list<pair<k, v> > map, k key) {
-  switch(map) {
+fixpoint list<pair<k, v> > ghostmap_remove<k, v>(list<pair<k, v> > ghostmap, k key) {
+  switch(ghostmap) {
     case nil: return nil;
     case cons(h, t):
       return switch(h) {
         case pair(hk, hv):
           return hk == key ? t : ghostmap_remove(t, key);
       };
+  }
+}
+
+// -- Private API --
+
+fixpoint bool ghostmap_distinct<k, v>(list<pair<k, v> > ghostmap) {
+  return distinct(map(fst, ghostmap));
+}
+
+// -- Lemmas --
+
+lemma_auto(ghostmap_get(ghostmap, key)) void ghostmap_get_implies_mem<k, v>(list<pair<k, v> > ghostmap, k key)
+requires ghostmap_get(ghostmap, key) != none;
+ensures true == mem(key, map(fst, ghostmap));
+{
+  switch(ghostmap) {
+    case nil:
+      assert false;
+    case cons(h, t):
+      switch(h) {
+        case pair(hk, hv):
+          if (hk == key) {
+            assert true;
+          } else {
+            ghostmap_get_implies_mem(t, key);
+          }
+      }
   }
 }
 
