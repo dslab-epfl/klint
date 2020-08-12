@@ -100,10 +100,12 @@ struct os_map {
       case nil:
         return key_opts == nil &*& values == nil &*& 
                map_values == nil &*&
-               map_addrs == nil;
+               map_addrs == nil &*&
+               length(map_values) == length(map_addrs);
       case cons(kaddrsh, kaddrst):
         return key_opts == cons(?key_optsh, ?key_optst) &*& values == cons(?valuesh, ?valuest) &*&
                map_valuesaddrs(kaddrst, key_optst, valuest, ?map_valuest, ?map_addrst) &*&
+               length(map_values) == length(map_addrs) &*&
                (key_optsh == none ? (map_values == map_valuest &*& map_addrs == map_addrst) 
                                   : (map_values == cons(pair(get_some(key_optsh), valuesh), map_valuest) &*& map_addrs == cons(pair(kaddrsh, get_some(key_optsh)), map_addrst)));
                
@@ -1553,9 +1555,9 @@ void os_map_set(struct os_map* map, void* key_ptr, uint64_t value)
              [0.25]chars(key_ptr, key_size, ?key) &*&
              length(map_values) < capacity &*&
              ghostmap_get(map_values, key) == none; @*/
-/*@ ensures mapp(map, key_size, capacity, ?new_values, ?new_addrs) &*&
-            new_values == ghostmap_set(map_values, key, value) &*&
-            new_addrs == ghostmap_set(map_addrs, key_ptr, key); @*/
+/*@ ensures mapp(map, key_size, capacity, ?new_map_values, ?new_map_addrs) &*&
+            new_map_values == ghostmap_set(map_values, key, value) &*&
+            new_map_addrs == ghostmap_set(map_addrs, key_ptr, key); @*/
 {
   //@ open mapp(map, key_size, capacity, map_values, map_addrs);
   uint32_t hash = generic_hash(key_ptr, map->key_size);
@@ -1596,10 +1598,14 @@ void os_map_set(struct os_map* map, void* key_ptr, uint64_t value)
   //@ put_preserves_hash_list(key_opts, hashes_lst, index, key, hash);
   //@ list<option<list<char> > > new_key_opts = update(index, some(key), key_opts);
   //@ put_increases_key_opts_size(key_opts, index, key);
-  //@ assert map_valuesaddrs(_, new_key_opts, _, ?new_values, ?new_addrs);
-  //@ close mapping_core(key_size, capacity, kaddrs, busybits, hashes, values, new_key_opts, new_values, new_addrs);
-  //@ close mapping(key_size, capacity, kaddrs, busybits, hashes, chains, values, _, new_key_opts, new_values, new_addrs);
-  //@ close mapp(map, key_size, capacity, new_values, new_addrs);
+
+  //@ open map_valuesaddrs(?new_kaddrs, new_key_opts, ?new_values, ?new_map_values, ?new_map_addrs);
+  //@ assert length(new_map_values) == length(new_map_addrs);
+  //@ close map_valuesaddrs(new_kaddrs, new_key_opts, new_values, new_map_values, new_map_addrs);
+
+  //@ close mapping_core(key_size, capacity, kaddrs, busybits, hashes, values, new_key_opts, new_map_values, new_map_addrs);
+  //@ close mapping(key_size, capacity, kaddrs, busybits, hashes, chains, values, _, new_key_opts, new_map_values, new_map_addrs);
+  //@ close mapp(map, key_size, capacity, new_map_values, new_map_addrs);
 }
 
 /*

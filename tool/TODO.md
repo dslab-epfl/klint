@@ -6,3 +6,6 @@ update pysmt to 0.9.0 to remove the deprecation warning about abc
 
 
 check if expire ever goes into "nope"
+
+
+grep -Fr assume os/
