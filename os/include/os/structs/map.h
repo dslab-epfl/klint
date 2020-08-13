@@ -32,7 +32,8 @@ void os_map_set(struct os_map* map, void* key_ptr, uint64_t value);
 /*@ requires mapp(map, ?key_size, ?capacity, ?values, ?addrs) &*&
              [0.25]chars(key_ptr, key_size, ?key) &*&
              length(values) < capacity &*&
-             ghostmap_get(values, key) == none; @*/
+             ghostmap_get(values, key) == none &*&
+             ghostmap_get(addrs, key_ptr) == none; @*/
 /*@ ensures mapp(map, key_size, capacity, ?new_values, ?new_addrs) &*&
             new_values == ghostmap_set(values, key, value) &*&
             new_addrs == ghostmap_set(addrs, key_ptr, key); @*/
