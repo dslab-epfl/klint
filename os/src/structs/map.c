@@ -852,8 +852,158 @@ static size_t find_empty(char* busybits, uint32_t* chains, size_t start, size_t 
   }
   //@ by_loop_for_all(key_opts, cell_busy, start, capacity, nat_of_int(capacity));
   //@ full_size(key_opts);
-  //@ close mapping_core(key_size, capacity, kaddrs, busybits, hashes, values, key_opts, map_values, map_addrs);
-  // Unreachable
+  //@ assert false;
+  return 0;
+}
+
+/*@
+lemma void buckets_remove_key_chains_still_start_on_hash_rec(list<bucket<list<char> > > buckets, size_t capacity, list<char> key, size_t start)
+requires true == key_chains_start_on_hash_fp(buckets, start, capacity);
+ensures true == key_chains_start_on_hash_fp(buckets_remove_key_fp(buckets, key), start, capacity);
+{
+  switch(buckets) {
+    case nil:
+    case cons(h,t):
+      switch(h) {
+        case bucket(chains):
+          forall_filter((has_given_hash)(start, capacity), (not_this_key_pair_fp)(key), chains);
+          buckets_remove_key_chains_still_start_on_hash_rec(t, capacity, key, start+1);
+      }
+  }
+}
+
+lemma void buckets_remove_key_chains_still_start_on_hash(list<bucket<list<char> > > buckets, size_t capacity, list<char> key)
+requires true == key_chains_start_on_hash_fp(buckets, 0, capacity);
+ensures true == key_chains_start_on_hash_fp(buckets_remove_key_fp(buckets, key), 0, capacity);
+{
+  buckets_remove_key_chains_still_start_on_hash_rec(buckets, capacity, key, 0);
+}
+@*/
+
+static size_t find_key_remove_chain(void** kaddrs, char* busybits, uint32_t* hashes, uint32_t* chains, void* key_ptr, size_t key_size, size_t capacity)
+/*@ requires mapping_core(key_size, capacity, kaddrs, busybits, hashes, ?values, ?key_opts, ?map_values, ?map_addrs) &*&
+             uints(chains, capacity, ?chains_lst) &*&
+             buckets_keys_insync(capacity, chains_lst, ?buckets, key_opts) &*&
+             [?kfr]chars(key_ptr, key_size, ?key) &*&
+             true == mem(some(key), key_opts) &*&
+             is_pow2(capacity, N63) != none; @*/
+/*@ ensures mapping_core(key_size, capacity, kaddrs, busybits, hashes, values, ?new_key_opts, ?new_map_values, ?new_map_addrs) &*&
+            false == mem(some(key), key_opts) &*&
+            new_map_values == ghostmap_remove(map_values, key) &*&
+            new_map_addrs == ghostmap_remove(map_addrs, key_ptr) &*&
+            uints(chains, capacity, ?new_chains_lst) &*&
+            buckets_keys_insync(capacity, new_chains_lst, buckets_remove_key_fp(buckets, key), new_key_opts) &*&
+            [kfr+0.25]chars(key_ptr, key_size, key) &*&
+            result == index_of(some(key), key_opts); @*/
+{
+  uint32_t key_hash = generic_hash(key_ptr, key_size);
+  //@ open mapping_core(key_size, capacity, kaddrs, busybits, hashes, values, key_opts, map_values, map_addrs);
+  //@ open buckets_keys_insync(capacity, chains_lst, buckets, key_opts);
+  //@ assert key_opt_list(key_size, ?kaddrs_lst, ?busybits_lst, key_opts);
+  size_t i = 0;
+  size_t start = loop(key_hash, capacity);
+  //@ buckets_keys_chns_same_len(buckets);
+  //@ assert start == loop_fp(hash_fp(key), capacity);
+  //@ key_is_contained_in_the_bucket(buckets, capacity, key);
+  //@ buckets_remove_add_one_chain(buckets, start, key);
+  //@ loop_bijection(start, capacity);
+  for (; i < capacity; ++i)
+    /*@ invariant pointers(kaddrs, capacity, kaddrs_lst) &*&
+                  chars(busybits, capacity, busybits_lst) &*&
+                  uints(hashes, capacity, ?hashes_lst) &*&
+                  ullongs(values, capacity, ?values_lst) &*&
+                  key_opt_list(key_size, kaddrs_lst, busybits_lst, key_opts) &*&
+                  map_valuesaddrs(kaddrs_lst, key_opts, values_lst, map_values, map_addrs) &*&
+                  true == hash_list(key_opts, hashes_lst) &*&
+                  //true == opt_no_dups(key_opts) &*&
+                  //true == ghostmap_distinct(map_values) &*&
+                  //true == ghostmap_distinct(map_addrs) &*&
+                  //length(key_opts) == capacity &*&
+                  //opts_size(key_opts) == length(map_values) &*&
+                  //length(map_values) == length(map_addrs) &*&
+                  uints(chains, capacity, chains_lst) &*&
+                  0 <= i &*& i <= capacity &*&
+                  [kfr]chars(key_ptr, key_size, key) &*&
+                  hash_fp(key) == key_hash &*&
+                  key_opts == buckets_get_keys_fp(buckets) &*&
+                  i <= buckets_get_chain_fp(buckets, key, start) &*&
+                  chains_lst == add_partial_chain_fp(loop_fp(start + i, capacity), 
+                                                     buckets_get_chain_fp(buckets, key, start) - i, 
+                                                     buckets_get_chns_fp(buckets_remove_key_fp(buckets, key))) &*&
+                  true == up_to(nat_of_int(i), (byLoopNthProp)(key_opts, (neq)(some(key)), capacity, start)); @*/
+    //@ decreases capacity - i;
+  {
+    // pred_mapping_same_len(busybits_lst, key_opts);
+    size_t index = loop(start + i, capacity);
+    char bb = busybits[index];
+    uint32_t kh = hashes[index];
+    uint32_t chn = chains[index];
+    void* kp = kaddrs[index];
+    if (bb != 0 && kh == key_hash) {
+      //@ close key_opt_list(key_size, nil, nil, nil);
+      //@ extract_key_at_index(nil, nil, nil, index, busybits_lst, key_opts);
+      //@ append_nil(reverse(take(index, kaddrs_lst)));
+      //@ append_nil(reverse(take(index, busybits_lst)));
+      //@ append_nil(reverse(take(index, key_opts)));
+      if (generic_eq(kp, key_ptr, key_size)) {
+        //@ recover_key_opt_list(kaddrs_lst, busybits_lst, key_opts, index);
+        //@ key_opt_list_find_key(key_opts, index, key);
+        busybits[index] = 0;
+        // hmap_rem_preserves_no_dups(ks, index);
+        // hmap_rem_preserves_hash_list(ks, khs, hsh, index);
+        // pred_mapping_drop_key(kps, bbs, ks, index);
+        // assert nth(index, key_opts) == some(key);
+        //@ close mapping_core(key_size, capacity, kaddrs, busybits, hashes, values, ?new_key_opts, ?new_map_values, ?new_map_addrs);
+        //@ chns_after_partial_chain_ended(buckets, key, start, i, capacity);
+        //@ buckets_remove_key_still_ok(buckets, key);
+        //@ buckets_rm_key_get_keys(buckets, key);
+        //@ buckets_remove_key_chains_still_start_on_hash(buckets, capacity, key);
+        //@ close buckets_keys_insync(capacity, chains_lst, buckets_remove_key_fp(buckets, key), update(index_of(some(key), key_opts), none, key_opts));
+        return index;
+      }
+      //@ recover_key_opt_list(kaddrs_lst, busybits_lst, key_opts, index);
+    } else {
+      //@ assert(length(ks) == capacity);
+      //@ if (bb != 0) no_hash_no_key(ks, khs, k, index, hsh);
+      //@ if (bb == 0) no_bb_no_key(ks, bbs, index);
+    }
+    //@ buckets_remove_key_same_len(buckets, k);
+    //@ buckets_keys_chns_same_len(buckets_remove_key_fp(buckets, k));
+    //@ assert nth(index, ks) != some(k);
+    //@ buckets_get_chain_longer(buckets, start, i, k, capacity);
+    //@ assert buckets_get_chain_fp(buckets, k, start) != i;
+    //@ buckets_get_chns_nonneg(buckets_remove_key_fp(buckets, k));
+    //@ add_part_chn_gt0(index, buckets_get_chain_fp(buckets, k, start) - i, buckets_get_chns_fp(buckets_remove_key_fp(buckets, k)));
+    //@ assert 0 < nth(index, chnlist);
+    //@ assert 0 < chn;
+    //@ integer_limits(&chn);
+    chains[index] = chn - 1;
+    //@ assert(nth(index, ks) != some(k));
+    //@ assert(true == neq(some(k), nth(index, ks)));
+    //@ assert(true == neq(some(k), nth(loop_fp(i+start,capacity), ks)));
+    //@ assert(nat_of_int(i+1) == succ(nat_of_int(i)));
+    //@ buckets_keys_chns_same_len(buckets);
+    //@ assert length(buckets) == capacity;
+    //@ assert length(chnlist) == length(buckets);
+    //@ buckets_remove_key_same_len(buckets, k);
+    //@ buckets_keys_chns_same_len(buckets_remove_key_fp(buckets, k));
+    //@ add_partial_chain_same_len(start + i, buckets_get_chain_fp(buckets, k, start) - i, buckets_get_chns_fp(buckets_remove_key_fp(buckets, k)));
+    //@ loop_fixp(start + i, capacity);
+    //@ buckets_ok_get_chain_bounded(buckets, k, start);
+    //@ remove_one_cell_from_partial_chain(chnlist, loop_fp(start + i, capacity), buckets_get_chain_fp(buckets, k, start) - i, buckets_get_chns_fp(buckets_remove_key_fp(buckets, k)), capacity);
+    //@ assert ints(chns, capacity, update(index, nth(index, chnlist) - 1, add_partial_chain_fp(loop_fp(start + i, capacity), buckets_get_chain_fp(buckets, k, start) - i, buckets_get_chns_fp(buckets_remove_key_fp(buckets, k)))));
+    //@ assert ints(chns, capacity, add_partial_chain_fp(loop_fp(loop_fp(start + i, capacity) + 1, capacity), buckets_get_chain_fp(buckets, k, start) - i - 1, buckets_get_chns_fp(buckets_remove_key_fp(buckets, k))));
+    //@ inc_modulo_loop(start + i, capacity);
+    //@ assert true == (loop_fp(loop_fp(start + i, capacity) + 1, capacity) == loop_fp(start + i + 1, capacity));
+    //@ chnlist = add_partial_chain_fp(loop_fp(start + i + 1, capacity), buckets_get_chain_fp(buckets, k, start) - i - 1, buckets_get_chns_fp(buckets_remove_key_fp(buckets, k)));
+    //@ assert ints(chns, capacity, add_partial_chain_fp(loop_fp(start + i + 1, capacity), buckets_get_chain_fp(buckets, k, start) - i - 1, buckets_get_chns_fp(buckets_remove_key_fp(buckets, k))));
+  }
+  //@ pred_mapping_same_len(bbs, ks);
+  //@ by_loop_for_all(ks, (neq)(some(k)), start, capacity, nat_of_int(capacity));
+  //@ no_key_found(ks, k);
+  //@ close hmapping<kt>(kpr, hsh, capacity, busybits, kps, k_hashes, hm);
+
+  //@ assert false;
   return 0;
 }
 
@@ -1908,180 +2058,6 @@ fixpoint bool hmap_exists_key_fp<kt>(hmap<kt> m, kt k) {
     }
     close pred_mapping(kps, update(index, 0, bbs), keyp, update(index, none, ks));
   }
-
-  lemma void
-  buckets_remove_key_chains_still_start_on_hash_rec<kt>
-    (list<bucket<kt> > buckets, unsigned capacity, kt k,
-     fixpoint (kt,unsigned) hash, int start)
-  requires true == key_chains_start_on_hash_fp(buckets, start, capacity, hash);
-  ensures true == key_chains_start_on_hash_fp
-                    (buckets_remove_key_fp(buckets, k), start, capacity, hash);
-  {
-    switch(buckets) {
-      case nil:
-      case cons(h,t):
-        switch(h) { case bucket(chains):
-          forall_filter((has_given_hash)(hash, start, capacity),
-                        (not_this_key_pair_fp)(k),
-                        chains);
-          buckets_remove_key_chains_still_start_on_hash_rec
-            (t, capacity, k, hash, start+1);
-        }
-    }
-  }
-
-  lemma void
-  buckets_remove_key_chains_still_start_on_hash<kt>
-    (list<bucket<kt> > buckets, unsigned capacity, kt k,
-     fixpoint (kt,unsigned) hash)
-  requires true == key_chains_start_on_hash_fp(buckets, 0, capacity, hash);
-  ensures true == key_chains_start_on_hash_fp
-                    (buckets_remove_key_fp(buckets, k), 0, capacity, hash);
-  {
-    buckets_remove_key_chains_still_start_on_hash_rec
-      (buckets, capacity, k, hash, 0);
-  }
-
-
-static
-unsigned find_key_remove_chain(int* busybits, void** keyps,
-                                           unsigned* k_hashes, int* chns,
-                                           void* keyp,
-                                           unsigned key_hash,
-                                           unsigned key_size, unsigned capacity)
-/@ requires hmapping<kt>(?kpr, ?hsh, capacity, busybits, ?kps, k_hashes, ?hm) &*&
-             buckets_ks_insync(chns, capacity, ?buckets, hsh, hmap_ks_fp(hm)) &*&
-             pointers(keyps, capacity, kps) &*&
-             [?kfr]kpr(keyp, ?k) &*&
-             hsh(k) == key_hash &*&
-             [?f]is_map_keys_equality<kt>(eq, kpr) &*&
-             true == hmap_exists_key_fp(hm, k) &*&
-             is_pow2(capacity, N63) != none; @/
-/@ ensures hmapping<kt>(kpr, hsh, capacity,
-                         busybits, kps, k_hashes,
-                         hmap_rem_key_fp(hm, hmap_find_key_fp(hm, k))) &*&
-            buckets_ks_insync(chns, capacity,
-                                buckets_remove_key_fp(buckets, k), hsh,
-                                hmap_ks_fp(hmap_rem_key_fp
-                                             (hm, hmap_find_key_fp(hm, k)))) &*&
-            pointers(keyps, capacity, kps) &*&
-            [kfr]kpr(keyp, k) &*&
-            [f]is_map_keys_equality<kt>(eq, kpr) &*&
-            result == hmap_find_key_fp(hm, k); @/
-{
-  //@ open hmapping(_, _, _, _, _, _, hm);
-  //@ open buckets_ks_insync(chns, capacity, buckets, hsh, hmap_ks_fp(hm));
-  //@ assert ints(chns, capacity, ?chnlist);
-  //@ assert pred_mapping(kps, ?bbs, kpr, ?ks);
-  //@ assert hm == hmap(ks, ?khs);
-  unsigned i = 0;
-  unsigned start = loop(key_hash, capacity);
-  //@ buckets_keys_chns_same_len(buckets);
-  //@ assert true == hmap_exists_key_fp(hm, k);
-  //@ assert start == loop_fp(hsh(k), capacity);
-  //@ key_is_contained_in_the_bucket(buckets, capacity, hsh, k);
-  //@ buckets_remove_add_one_chain(buckets, start, k);
-  //@ loop_bijection(start, capacity);
-  for (; i < capacity; ++i)
-    /@ invariant pred_mapping(kps, bbs, kpr, ks) &*&
-                  ints(busybits, capacity, bbs) &*&
-                  uints(k_hashes, capacity, khs) &*&
-                  ints(chns, capacity, chnlist) &*&
-                  pointers(keyps, capacity, kps) &*&
-                  0 <= i &*& i <= capacity &*&
-                  [f]is_map_keys_equality<kt>(eq, kpr) &*&
-                  [kfr]kpr(keyp, k) &*&
-                  hsh(k) == key_hash &*&
-                  true == hash_list(ks, khs, hsh) &*&
-                  *keyp_out |-> _ &*&
-                  ks == buckets_get_keys_fp(buckets) &*&
-                  i <= buckets_get_chain_fp(buckets, k, start) &*&
-                  chnlist ==
-                    add_partial_chain_fp
-                      (loop_fp(start + i, capacity),
-                       buckets_get_chain_fp(buckets, k, start) - i,
-                       buckets_get_chns_fp(buckets_remove_key_fp(buckets,
-                                                                 k))) &*&
-                  true == up_to(nat_of_int(i),
-                                (byLoopNthProp)(ks, (neq)(some(k)),
-                                                capacity, start));
-    @/
-    //@ decreases capacity - i;
-  {
-    //@ pred_mapping_same_len(bbs, ks);
-    unsigned index = loop(start + i, capacity);
-    int bb = busybits[index];
-    unsigned kh = k_hashes[index];
-    int chn = chns[index];
-    void* kp = keyps[index];
-    if (bb != 0 && kh == key_hash) {
-      //@ close pred_mapping(nil, nil, kpr, nil);
-      //@ extract_pred_for_key(nil, nil, nil, index, bbs, ks);
-      //@ append_nil(reverse(take(index, kps)));
-      //@ append_nil(reverse(take(index, bbs)));
-      //@ append_nil(reverse(take(index, ks)));
-      if (generic_eq(kp, keyp, key_size)) {
-        //@ recover_pred_mapping(kps, bbs, ks, index);
-        //@ hmap_find_this_key(hm, index, k);
-        busybits[index] = 0;
-        //@ hmap_rem_preserves_no_dups(ks, index);
-        //@ hmap_rem_preserves_hash_list(ks, khs, hsh, index);
-        //@ pred_mapping_drop_key(kps, bbs, ks, index);
-        //@ close hmapping<kt>(kpr, hsh, capacity, busybits, kps, k_hashes, hmap_rem_key_fp(hm, hmap_find_key_fp(hm, k)));
-        //@ assert nth(index, hmap_ks_fp(hm)) == some(k);
-        //@ chns_after_partial_chain_ended(buckets, k, start, i, capacity);
-        //@ buckets_remove_key_still_ok(buckets, k);
-        //@ buckets_rm_key_get_keys(buckets, k);
-        //@ buckets_remove_key_chains_still_start_on_hash(buckets, capacity, k, hsh);
-        //@ close buckets_ks_insync(chns, capacity, buckets_remove_key_fp(buckets, k), hsh, update(index_of(some(k), ks), none, ks));
-        return index;
-      }
-      //@ recover_pred_mapping(kps, bbs, ks, index);
-    } else {
-      //@ assert(length(ks) == capacity);
-      //@ if (bb != 0) no_hash_no_key(ks, khs, k, index, hsh);
-      //@ if (bb == 0) no_bb_no_key(ks, bbs, index);
-    }
-    //@ buckets_remove_key_same_len(buckets, k);
-    //@ buckets_keys_chns_same_len(buckets_remove_key_fp(buckets, k));
-    //@ assert nth(index, ks) != some(k);
-    //@ buckets_get_chain_longer(buckets, start, i, k, capacity);
-    //@ assert buckets_get_chain_fp(buckets, k, start) != i;
-    //@ buckets_get_chns_nonneg(buckets_remove_key_fp(buckets, k));
-    //@ add_part_chn_gt0(index, buckets_get_chain_fp(buckets, k, start) - i, buckets_get_chns_fp(buckets_remove_key_fp(buckets, k)));
-    //@ assert 0 < nth(index, chnlist);
-    //@ assert 0 < chn;
-    //@ integer_limits(&chn);
-    chns[index] = chn - 1;
-    //@ assert(nth(index, ks) != some(k));
-    //@ assert(true == neq(some(k), nth(index, ks)));
-    //@ assert(true == neq(some(k), nth(loop_fp(i+start,capacity), ks)));
-    //@ assert(nat_of_int(i+1) == succ(nat_of_int(i)));
-    //@ buckets_keys_chns_same_len(buckets);
-    //@ assert length(buckets) == capacity;
-    //@ assert length(chnlist) == length(buckets);
-    //@ buckets_remove_key_same_len(buckets, k);
-    //@ buckets_keys_chns_same_len(buckets_remove_key_fp(buckets, k));
-    //@ add_partial_chain_same_len(start + i, buckets_get_chain_fp(buckets, k, start) - i, buckets_get_chns_fp(buckets_remove_key_fp(buckets, k)));
-    //@ loop_fixp(start + i, capacity);
-    //@ buckets_ok_get_chain_bounded(buckets, k, start);
-    //@ remove_one_cell_from_partial_chain(chnlist, loop_fp(start + i, capacity), buckets_get_chain_fp(buckets, k, start) - i, buckets_get_chns_fp(buckets_remove_key_fp(buckets, k)), capacity);
-    //@ assert ints(chns, capacity, update(index, nth(index, chnlist) - 1, add_partial_chain_fp(loop_fp(start + i, capacity), buckets_get_chain_fp(buckets, k, start) - i, buckets_get_chns_fp(buckets_remove_key_fp(buckets, k)))));
-    //@ assert ints(chns, capacity, add_partial_chain_fp(loop_fp(loop_fp(start + i, capacity) + 1, capacity), buckets_get_chain_fp(buckets, k, start) - i - 1, buckets_get_chns_fp(buckets_remove_key_fp(buckets, k))));
-    //@ inc_modulo_loop(start + i, capacity);
-    //@ assert true == (loop_fp(loop_fp(start + i, capacity) + 1, capacity) == loop_fp(start + i + 1, capacity));
-    //@ chnlist = add_partial_chain_fp(loop_fp(start + i + 1, capacity), buckets_get_chain_fp(buckets, k, start) - i - 1, buckets_get_chns_fp(buckets_remove_key_fp(buckets, k)));
-    //@ assert ints(chns, capacity, add_partial_chain_fp(loop_fp(start + i + 1, capacity), buckets_get_chain_fp(buckets, k, start) - i - 1, buckets_get_chns_fp(buckets_remove_key_fp(buckets, k))));
-  }
-  //@ pred_mapping_same_len(bbs, ks);
-  //@ by_loop_for_all(ks, (neq)(some(k)), start, capacity, nat_of_int(capacity));
-  //@ no_key_found(ks, k);
-  //@ close hmapping<kt>(kpr, hsh, capacity, busybits, kps, k_hashes, hm);
-
-  //@ assert false;
-  return -1;
-}
-
 
   fixpoint hmap<kt> empty_hmap_fp<kt>(unsigned capacity, list<unsigned> hashes) {
     return hmap(none_list_fp<kt>(nat_of_int(capacity)),
