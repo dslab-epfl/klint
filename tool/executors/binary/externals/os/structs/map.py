@@ -122,6 +122,7 @@ class MapPut(angr.SimProcedure):
 # requires mapp(map, ?key_size, ?capacity, ?values, ?addrs) &*&
 #          [?frac]chars(key_ptr, key_size, ?key) &*&
 #          frac != 0.0 &*&
+#          map_item_keyed(key, values) != none &*&
 #          map_item_keyed(key_ptr, addrs) == some(?key2);
 # ensures mapp(map, key_size, capacity, ?new_values, ?new_addrs) &*&
 #         length(new_values) == length(values) - 1 &*&
@@ -142,6 +143,8 @@ class MapErase(angr.SimProcedure):
     mapp = self.state.metadata.get(Map, map)
     key = self.state.memory.load(key_ptr, mapp.key_size)
     frac = self.state.memory.take(None, key_ptr, mapp.key_size)
+    if utils.can_be_false(self.state.solver, self.state.maps.get(mapp.values, key)[1]):
+      raise "Precondition does not hold: map_item_keyed(key, values) != none"
     (key2, key2_present) = self.state.maps.get(mapp.addrs, key_ptr)
     if utils.can_be_false(self.state.solver, key2_present):
       raise "Precondition does not hold: map_item_keyed(key_ptr, addrs) == some(?key2)"
