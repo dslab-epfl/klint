@@ -106,12 +106,14 @@ struct os_map {
       case cons(kaddrsh, kaddrst):
         return key_opts == cons(?key_optsh, ?key_optst) &*&
                values == cons(?valuesh, ?valuest) &*&
-               map_valuesaddrs(kaddrst, key_optst, valuest, ?map_valuest, ?map_addrst) &*&
+               map_valuesaddrs(kaddrst, key_optst, valuest, ?map_values_rest, ?map_addrs_rest) &*&
                length(map_values) == length(map_addrs) &*&
-               (key_optsh == none ? (map_values == map_valuest &*&
-                                     map_addrs == map_addrst)
-                                  : (map_values == cons(pair(get_some(key_optsh), valuesh), map_valuest) &*&
-                                     map_addrs == cons(pair(kaddrsh, get_some(key_optsh)), map_addrst)));
+               true == ghostmap_distinct(map_values_rest) &*&
+               true == ghostmap_distinct(map_addrs_rest) &*&
+               (key_optsh == none ? (map_values == map_values_rest &*&
+                                     map_addrs == map_addrs_rest)
+                                  : (map_values == ghostmap_set(map_values_rest, get_some(key_optsh), valuesh) &*&
+                                     map_addrs == ghostmap_set(map_addrs_rest, kaddrsh, get_some(key_optsh))));
                
     };
 
@@ -1121,11 +1123,8 @@ struct os_map* os_map_init(size_t key_size, size_t capacity)
   //@ open chars(busybits + i, capacity - i, drop(i,busybits_lst));
   //@ produce_key_opt_list(key_size, hashes_lst, kaddrs_lst);
   //@ assert key_opt_list(key_size, kaddrs_lst, _, ?kopts);
-  // assert kopts == repeat_n(nat_of_int(length(kaddrs_lst)), none);
   //@ repeat_n_contents(nat_of_int(length(kaddrs_lst)), none);
-  // assert true == forall(kopts, (eq)(none));
   //@ kopts_size_0_when_empty(kopts);
-  // assert opts_size(kopts) == 0;
   //@ assert uints(chains, capacity, ?zeroed_chains_lst);
   //@ empty_buckets_insync(zeroed_chains_lst, capacity);
   //@ produce_empty_map_valuesaddrs(capacity, kaddrs_lst, values_lst);
@@ -1163,22 +1162,20 @@ ensures map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs) &*&
     case cons(kaddrsh, kaddrst):
       open map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs);
       assert key_opts == cons(?key_optsh, ?key_optst);
+      assert values == cons(?valuesh, ?valuest);
+      assert map_valuesaddrs(kaddrst, key_optst, valuest, ?map_values_rest, ?map_addrs_rest);
       if (idx == 0) {
         assert key_optsh == some(key);
-        assert map_values == cons(?map_valuesh, ?map_valuest);
-        assert map_valuesh == pair(key, nth(0, values));
+        assert map_values == ghostmap_set(map_values_rest, key, valuesh);
+        assert ghostmap_get(map_values, key) == some(valuesh);
       } else {
         map_values_reflects_keyopts_mem(key, idx - 1);
-        if (key_optsh == none) {
-          assert ghostmap_get(map_values, key) != none;   
-        } else {
-          assert map_values == cons(?map_valuesh, ?map_valuest);
-          switch(map_valuesh) {
-            case pair(mvhf, mvhs):
-              assert ghostmap_get(map_valuest, key) != none;
-              assert true == mem(key, map(fst, map_valuest));
-              assert mvhf != key;
-          }
+        switch(key_optsh) {
+          case none:
+            assert ghostmap_get(map_values, key) != none;
+          case some(kohv):
+            assert ghostmap_get(map_values_rest, key) == some(nth(idx - 1, valuest));
+            ghostmap_set_preserves_other(map_values_rest, kohv, valuesh, key);
         }
       }
       close map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs);
@@ -1187,7 +1184,7 @@ ensures map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs) &*&
 
 // ---
 
-lemma void map_values_has_none_when_key_opts_has_none(list<char> key)
+lemma void key_opts_has_not_implies_map_values_has_not(list<char> key)
 requires map_valuesaddrs(?kaddrs, ?key_opts, ?values, ?map_values, ?map_addrs) &*&
          false == mem(some(key), key_opts);
 ensures map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs) &*&
@@ -1202,14 +1199,13 @@ ensures map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs) &*&
     case cons(kaddrsh, kaddrst):
       open map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs);
       assert key_opts == cons(?key_optsh, ?key_optst);
-      map_values_has_none_when_key_opts_has_none(key);
+      key_opts_has_not_implies_map_values_has_not(key);
       switch (key_optsh) {
         case none:
-          assert true;
         case some(kohv):
-          assert map_values == cons(?map_valuesh, ?map_valuest);
-          assert ghostmap_get(map_valuest, key) == none;
-          assert kohv != key;
+          assert values == cons(?valuesh, ?valuest);
+          assert map_valuesaddrs(kaddrst, key_optst, valuest, ?map_values_rest, ?map_addrs_rest);
+          ghostmap_set_preserves_other(map_values_rest, kohv, valuesh, key);
       }
       close map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs);
   }
@@ -1241,7 +1237,7 @@ bool os_map_get(struct os_map* map, void* key_ptr, uint64_t* value_out)
   }
   else
   {
-    //@ map_values_has_none_when_key_opts_has_none(key);
+    //@ key_opts_has_not_implies_map_values_has_not(key);
   }
   //@ close mapping_core(key_size, capacity, map->kaddrs, map->busybits, map->hashes, map->values, key_opts, map_values, map_addrs);
   //@ close mapping(key_size, capacity, map->kaddrs, map->busybits, map->hashes, map->chains, map->values, buckets, key_opts, map_values, map_addrs);
@@ -1249,128 +1245,6 @@ bool os_map_get(struct os_map* map, void* key_ptr, uint64_t* value_out)
   //@ close mapp(map, key_size, capacity, map_values, map_addrs);
   return has;
 }
-
-/*
-
-
-// ---
-
-lemma void items_length_is_opts_size(list<map_item> items, list<option<list<char> > > key_opts)
-  requires item_list(?kaddrs, key_opts, ?values, items);
-  ensures item_list(kaddrs, key_opts, values, items) &*&
-          length(items) == opts_size(key_opts);
-{
-  open item_list(kaddrs, key_opts, values, items);
-  switch(kaddrs) {
-    case nil:
-      break;
-    case cons(kaddrsh, kaddrst):
-      assert key_opts == cons(?key_optsh, ?key_optst);
-      switch(key_optsh) {
-        case none:
-          items_length_is_opts_size(items, key_optst);
-          assert opts_size(key_opts) == opts_size(key_optst);
-        case some(kh):
-          assert items == cons(?itemsh, ?itemst);
-          items_length_is_opts_size(itemst, key_optst);
-          assert length(items) == length(itemst) + 1;
-          assert opts_size(key_opts) == opts_size(key_optst) + 1;
-      }
-  }
-  close item_list(kaddrs, key_opts, values, items);
-}
-
-// ---
-
-
-
-// ---
-
-lemma void mapp_item_none_key_is_absent(list<option<list<char> > > key_opts, list<map_item> items, list<char> k)
-  requires item_list(?kaddrs, key_opts, ?values, items) &*&
-           mapp_item(items, k, none);
-  ensures item_list(kaddrs, key_opts, values, items) &*&
-          mapp_item(items, k, none) &*&
-          false == mem(some(k), key_opts);
-{
-  open item_list(kaddrs, key_opts, values, items);
-  switch(kaddrs) {
-    case nil:
-      assert key_opts == nil;
-    case cons(kaddrsh, kaddrst):
-      assert key_opts == cons(?key_optsh, ?key_optst);
-      switch (key_optsh) {
-        case none:
-          mapp_item_none_key_is_absent(key_optst, items, k);
-        case some(kh):
-          assert items == cons(?itemsh, ?itemst);
-          assert itemsh == map_item(?ihka, ?ihk, ?ihv);
-          open mapp_item(items, k, none);
-          assert ihk != k;
-          mapp_item_none_key_is_absent(key_optst, itemst, k);
-          close mapp_item(items, k, none);
-      }
-  }
-  close item_list(kaddrs, key_opts, values, items);
-}
-
-// ---
-
-
-// ---
-
-lemma void items_contains_item_key(list<map_item> items, map_item it)
-  requires true == mem(it, items) &*&
-           it == map_item(_, ?k, _);
-  ensures true == mem(k, map(map_item_key, items));
-{
-  switch(items) {
-    case nil:
-      assert false;
-    case cons(h, t):
-      if (h == it) {
-        assert k == map_item_key(h);
-      } else {
-        items_contains_item_key(t, it);
-      }
-  }
-}
-
-lemma void items_contain_mapp_item(list<map_item> items, map_item it)
-  requires true == mem(it, items) &*&
-           true == map_no_dups(items) &*&
-           it == map_item(_, ?k, _);
-  ensures mapp_item(items, k, some(it));
-{
-  switch(items) {
-    case nil:
-      assert false;
-    case cons(h,t):
-      if(h == it) {
-        close mapp_item(items, k, some(h));
-      } else {
-        items_contain_mapp_item(t, it);
-        items_contains_item_key(t, it);
-        close mapp_item(cons(h,t), k, some(it));
-      }
-  }
-}
-
-// ---
-
-lemma void destroy_empty_mapp_item()
-  requires mapp_item(?items, ?k, none);
-  ensures true;
-{
-  open mapp_item(items, k, none);
-  switch(items) {
-    case nil:
-      break;
-    case cons(h, t):
-      destroy_empty_mapp_item();
-  }
-}
-@*/
 
 /*@
 lemma void put_keeps_key_opt_list(list<void*> kaddrs, list<char> busybits, list<option<list<char> > > key_opts, int index, void* key, list<char> k)
@@ -1421,8 +1295,10 @@ ensures map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs) &*&
           close map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs);
         case some(kohv):
           open map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs);
-          assert map_values == cons(?map_valuesh, ?map_valuest);
-          map_values_has_not_implies_key_opts_has_not(map_valuest, key_optst, key);
+          assert values == cons(?valuesh, ?valuest);
+          assert map_valuesaddrs(?kaddrst, key_optst, valuest, ?map_values_rest, ?map_addrs_rest);
+          ghostmap_set_preserves_other(map_values_rest, get_some(key_optsh), valuesh, key);
+          map_values_has_not_implies_key_opts_has_not(map_values_rest, key_optst, key);
           close map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs);
       }
   }
@@ -1528,7 +1404,9 @@ lemma void put_updates_valuesaddrs(size_t index, void* key_ptr, list<char> key, 
            nth(index, key_opts) == none &*&
            false == mem(some(key), key_opts) &*&
            ghostmap_get(map_values, key) == none &*&
-           ghostmap_get(map_addrs, key_ptr) == none;
+           ghostmap_get(map_addrs, key_ptr) == none &*&
+           true == ghostmap_distinct(map_values) &*&
+           true == ghostmap_distinct(map_addrs);
   ensures map_valuesaddrs(update(index, key_ptr, kaddrs), update(index, some(key), key_opts), update(index, value, values), ?new_values, ?new_addrs) &*&
           new_values == ghostmap_set(map_values, key, value) &*&
           new_addrs == ghostmap_set(map_addrs, key_ptr, key);
@@ -1541,6 +1419,9 @@ lemma void put_updates_valuesaddrs(size_t index, void* key_ptr, list<char> key, 
           open map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs);
           assert map_valuesaddrs(?kaddrst, key_optst, ?valuest, map_values, map_addrs);
           if (index == 0) {
+            assert length(map_values) == length(map_addrs);
+            assert length(ghostmap_set(map_values, key, value)) == length(map_values) + 1;
+            assert length(ghostmap_set(map_addrs, key_ptr, key)) == length(map_addrs) + 1;
             close map_valuesaddrs(cons(key_ptr, kaddrst), cons(some(key), key_optst), cons(value, valuest), ghostmap_set(map_values, key, value), ghostmap_set(map_addrs, key_ptr, key));
           } else {
             put_updates_valuesaddrs(index - 1, key_ptr, key, value);
