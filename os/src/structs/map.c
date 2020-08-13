@@ -113,7 +113,9 @@ struct os_map {
                (key_optsh == none ? (map_values == map_values_rest &*&
                                      map_addrs == map_addrs_rest)
                                   : (map_values == ghostmap_set(map_values_rest, get_some(key_optsh), valuesh) &*&
-                                     map_addrs == ghostmap_set(map_addrs_rest, kaddrsh, get_some(key_optsh))));
+                                     map_addrs == ghostmap_set(map_addrs_rest, kaddrsh, get_some(key_optsh)) &*&
+                                     none == ghostmap_get(map_values_rest, get_some(key_optsh)) &*&
+                                     none == ghostmap_get(map_addrs_rest, kaddrsh) ));
                
     };
 
@@ -1398,8 +1400,10 @@ lemma void put_preserves_no_dups(list<option<list<char> > > key_opts, int i, lis
 
 // ---
 
-lemma void put_updates_valuesaddrs(size_t index, void* key_ptr, list<char> key, uint64_t value)
-  requires map_valuesaddrs(?kaddrs, ?key_opts, ?values, ?map_values, ?map_addrs) &*&
+lemma void put_updates_valuesaddrs(list<void*> kaddrs, list<option<list<char> > > key_opts, list<uint64_t> values,
+                                   list<pair<list<char>, uint64_t> > map_values, list<pair<void*, list<char> > > map_addrs,
+                                   size_t index, void* key_ptr, list<char> key, uint64_t value)
+  requires map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs) &*&
            0 <= index &*& index < length(key_opts) &*&
            nth(index, key_opts) == none &*&
            false == mem(some(key), key_opts) &*&
@@ -1413,63 +1417,39 @@ lemma void put_updates_valuesaddrs(size_t index, void* key_ptr, list<char> key, 
                           ghostmap_set(map_values, key, value),
                           ghostmap_set(map_addrs, key_ptr, key));
 {
+  open map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs);
   switch(key_opts) {
     case nil:
     case cons(key_optsh, key_optst):
-      switch(key_optsh) {
-        case none:
-          open map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs);
-          assert map_valuesaddrs(?kaddrst, key_optst, ?valuest, map_values, map_addrs);
-          if (index == 0) {
-            assert length(map_values) == length(map_addrs);
-            assert length(ghostmap_set(map_values, key, value)) == length(map_values) + 1;
-            assert length(ghostmap_set(map_addrs, key_ptr, key)) == length(map_addrs) + 1;
-            close map_valuesaddrs(cons(key_ptr, kaddrst), cons(some(key), key_optst), cons(value, valuest), ghostmap_set(map_values, key, value), ghostmap_set(map_addrs, key_ptr, key));
-          } else {
-            put_updates_valuesaddrs(index - 1, key_ptr, key, value);
-            close map_valuesaddrs(update(index, key_ptr, kaddrs), update(index, some(key), key_opts), update(index, value, values), ghostmap_set(map_values, key, value), ghostmap_set(map_addrs, key_ptr, key));
-          }
-        case some(kohv):
-          assert index != 0;
-          open map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs);
-          assert kaddrs == cons(?kaddrsh, ?kaddrst);
-          assert values == cons(?valuesh, ?valuest);
-          assert map_valuesaddrs(kaddrst, key_optst, valuest, ?map_values_rest, ?map_addrs_rest);
-
-          assert map_values == ghostmap_set(map_values_rest, kohv, valuesh);
-          assert map_addrs == ghostmap_set(map_addrs_rest, kaddrsh, kohv);
-
-          ghostmap_set_preserves_other(map_values_rest, get_some(key_optsh), valuesh, key); 
-          ghostmap_set_preserves_other(map_addrs_rest, kaddrsh, get_some(key_optsh), key_ptr); 
-          put_updates_valuesaddrs(index - 1, key_ptr, key, value);
-          assert map_valuesaddrs(update(index - 1, key_ptr, kaddrst),
-                                 update(index - 1, some(key), key_optst),
-                                 update(index - 1, value, valuest),
-                                 ghostmap_set(map_values_rest, key, value),
-                                 ghostmap_set(map_addrs_rest, key_ptr, key));
-
-          assert cons(kaddrsh, update(index - 1, key_ptr, kaddrst)) == update(index, key_ptr, kaddrs);
-          assert cons(key_optsh, update(index - 1, some(key), key_optst)) == update(index, some(key), key_opts);
-          assert cons(valuesh, update(index - 1, value, valuest)) == update(index, value, values);
-
-          assert map_values == ghostmap_set(map_values_rest, kohv, valuesh);
-          assert ghostmap_set(map_values, key, value) == ghostmap_set(ghostmap_set(map_values_rest, kohv, valuesh), key, value);
-
-          // Problem!
-          assert ghostmap_set(ghostmap_set(map_values_rest, key, value), kohv, valuesh)
-              == ghostmap_set(ghostmap_set(map_values_rest, kohv, valuesh), key, value);
-
-          assert ghostmap_set(ghostmap_set(map_values_rest, key, value), kohv, valuesh) == ghostmap_set(map_values, key, value);
-
-          assert ghostmap_set(ghostmap_set(map_addrs_rest, key_ptr, value), kaddrsh, kohv) == ghostmap_set(map_addrs, key_ptr, value);
-
-          close map_valuesaddrs(update(index, key_ptr, kaddrs),
-                                update(index, some(key), key_opts),
-                                update(index, value, values),
-                                ghostmap_set(map_values, key, value),
-                                ghostmap_set(map_addrs, key_ptr, value));
+      if (index != 0) {
+        assert kaddrs == cons(?kaddrsh, ?kaddrst);
+        assert values == cons(?valuesh, ?valuest);
+        switch(key_optsh) {
+          case none:
+            put_updates_valuesaddrs(kaddrst, key_optst, valuest, 
+                                    map_values, map_addrs,
+                                    index - 1, key_ptr, key, value);
+          case some(kohv):
+            assert map_valuesaddrs(kaddrst, key_optst, valuest, ?map_values_rest, ?map_addrs_rest);
+            ghostmap_remove_cancels_set(map_values_rest, kohv, valuesh);
+            ghostmap_remove_preserves_absence(map_values, kohv, key);
+            ghostmap_remove_cancels_set(map_addrs_rest, kaddrsh, kohv);
+            ghostmap_remove_preserves_absence(map_addrs, kaddrsh, key_ptr);
+            put_updates_valuesaddrs(kaddrst, key_optst, valuest, 
+                                    ghostmap_remove(map_values, kohv), ghostmap_remove(map_addrs, kaddrsh),
+                                    index - 1, key_ptr, key, value);
+            assert ghostmap_set(ghostmap_remove(map_values, kohv), kohv, valuesh) == map_values;
+            assert ghostmap_set(ghostmap_set(ghostmap_remove(map_values, kohv), key, value), kohv, valuesh) == ghostmap_set(map_values, key, value);
+            assert ghostmap_set(ghostmap_remove(map_addrs, kaddrsh), kaddrsh, kohv) == map_addrs;
+            assert ghostmap_set(ghostmap_set(ghostmap_remove(map_addrs, kaddrsh), key_ptr, key), kaddrsh, kohv) == ghostmap_set(map_addrs, key_ptr, key);
+        }
       }
   }
+  close map_valuesaddrs(update(index, key_ptr, kaddrs),
+                        update(index, some(key), key_opts),
+                        update(index, value, values),
+                        ghostmap_set(map_values, key, value),
+                        ghostmap_set(map_addrs, key_ptr, key));
 }
 
 // ---
@@ -1518,6 +1498,62 @@ ensures opts_size(update(index, some(key), key_opts)) == opts_size(key_opts) + 1
 }
 @*/
 
+/*
+      switch(key_optsh) {
+        case none:
+          open map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs);
+          assert map_valuesaddrs(?kaddrst, key_optst, ?valuest, map_values, map_addrs);
+          if (index == 0) {
+            assert length(map_values) == length(map_addrs);
+            assert length(ghostmap_set(map_values, key, value)) == length(map_values) + 1;
+            assert length(ghostmap_set(map_addrs, key_ptr, key)) == length(map_addrs) + 1;
+            close map_valuesaddrs(cons(key_ptr, kaddrst), cons(some(key), key_optst), cons(value, valuest), ghostmap_set(map_values, key, value), ghostmap_set(map_addrs, key_ptr, key));
+          } else {
+            put_updates_valuesaddrs(kaddrst, key_optst, valuest, map_values, map_addrs, index - 1, key_ptr, key, value);
+            close map_valuesaddrs(update(index, key_ptr, kaddrs), update(index, some(key), key_opts), update(index, value, values), ghostmap_set(map_values, key, value), ghostmap_set(map_addrs, key_ptr, key));
+          }
+        case some(kohv):
+          assert index != 0;
+          open map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs);
+          assert kaddrs == cons(?kaddrsh, ?kaddrst);
+          assert values == cons(?valuesh, ?valuest);
+          assert map_valuesaddrs(kaddrst, key_optst, valuest, ?map_values_rest, ?map_addrs_rest);
+
+          assert map_values == ghostmap_set(map_values_rest, kohv, valuesh);
+          assert map_addrs == ghostmap_set(map_addrs_rest, kaddrsh, kohv);
+
+          ghostmap_set_preserves_other(map_values_rest, get_some(key_optsh), valuesh, key); 
+          ghostmap_set_preserves_other(map_addrs_rest, kaddrsh, get_some(key_optsh), key_ptr); 
+          put_updates_valuesaddrs(kaddrst, key_optst, valuest, map_values_rest, map_addrs_rest, index - 1, key_ptr, key, value);
+          assert map_valuesaddrs(update(index - 1, key_ptr, kaddrst),
+                                 update(index - 1, some(key), key_optst),
+                                 update(index - 1, value, valuest),
+                                 ghostmap_set(map_values_rest, key, value),
+                                 ghostmap_set(map_addrs_rest, key_ptr, key));
+
+          assert cons(kaddrsh, update(index - 1, key_ptr, kaddrst)) == update(index, key_ptr, kaddrs);
+          assert cons(key_optsh, update(index - 1, some(key), key_optst)) == update(index, some(key), key_opts);
+          assert cons(valuesh, update(index - 1, value, valuest)) == update(index, value, values);
+
+          assert map_values == ghostmap_set(map_values_rest, kohv, valuesh);
+          assert ghostmap_set(map_values, key, value) == ghostmap_set(ghostmap_set(map_values_rest, kohv, valuesh), key, value);
+
+          // Problem!
+          assert ghostmap_set(ghostmap_set(map_values_rest, key, value), kohv, valuesh)
+              == ghostmap_set(ghostmap_set(map_values_rest, kohv, valuesh), key, value);
+
+          assert ghostmap_set(ghostmap_set(map_values_rest, key, value), kohv, valuesh) == ghostmap_set(map_values, key, value);
+
+          assert ghostmap_set(ghostmap_set(map_addrs_rest, key_ptr, value), kaddrsh, kohv) == ghostmap_set(map_addrs, key_ptr, value);
+
+          close map_valuesaddrs(update(index, key_ptr, kaddrs),
+                                update(index, some(key), key_opts),
+                                update(index, value, values),
+                                ghostmap_set(map_values, key, value),
+                                ghostmap_set(map_addrs, key_ptr, value));
+      }
+*/
+
 void os_map_set(struct os_map* map, void* key_ptr, uint64_t value)
 /*@ requires mapp(map, ?key_size, ?capacity, ?map_values, ?map_addrs) &*&
              [0.25]chars(key_ptr, key_size, ?key) &*&
@@ -1562,7 +1598,7 @@ void os_map_set(struct os_map* map, void* key_ptr, uint64_t value)
   //@ no_key_in_ks_no_key_in_buckets(buckets, key);
   //@ buckets_keys_put_key_insync(capacity, chains_lst, start, index, key, key_opts);
   //@ put_keeps_key_opt_list(kaddrs_lst, busybits_lst, key_opts, index, key_ptr, key);
-  //@ put_updates_valuesaddrs(index, key_ptr, key, value);
+  //@ put_updates_valuesaddrs(kaddrs_lst, key_opts, values_lst, map_values, map_addrs, index, key_ptr, key, value);
   //@ put_preserves_no_dups(key_opts, index, key);
   //@ put_preserves_hash_list(key_opts, hashes_lst, index, key, hash);
   //@ list<option<list<char> > > new_key_opts = update(index, some(key), key_opts);
