@@ -85,7 +85,8 @@ class MapGet(angr.SimProcedure):
 # requires mapp(map, ?key_size, ?capacity, ?values, ?addrs) &*&
 #          [0.25]chars(key_ptr, key_size, ?key) &*&
 #          length(values) < capacity &*&
-#          map_item_keyed(key, values) == none;
+#          map_item_keyed(key, values) == none &*&
+#          map_item_keyed(key_ptr, addrs) == none;
 # ensures mapp(map, key_size, capacity, ?new_values, ?new_addrs) &*&
 #         length(new_values) == length(values) + 1 &*&
 #         true == subset(values, new_values) &*&
@@ -110,6 +111,8 @@ class MapPut(angr.SimProcedure):
       raise "Precondition does not hold: length(values) < capacity"
     if utils.can_be_false(self.state.solver, claripy.Not(self.state.maps.get(mapp.values, key)[1])):
       raise "Precondition does not hold: map_item_keyed(key, values) == none"
+    if utils.can_be_false(self.state.solver, claripy.Not(self.state.maps.get(mapp.addrs, key_ptr)[1])):
+      raise "Precondition does not hold: map_item_keyed(key_ptr, addrs) == none"
 
     # Postconditions
     self.state.maps.set(mapp.values, key, value)
