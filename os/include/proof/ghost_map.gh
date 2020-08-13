@@ -173,6 +173,13 @@ ensures ghostmap_get(ghostmap_set(ghostmap, key, value), key) == some(value);
   }
 }
 
+lemma_auto(ghostmap_remove(ghostmap, key)) void ghostmap_remove_when_present_decreases_length<k, v>(list<pair<k, v> > ghostmap, k key)
+requires none != ghostmap_get(ghostmap, key);
+ensures length(ghostmap_remove(ghostmap, key)) == length(ghostmap) - 1;
+{
+  assume(false);
+}
+
 lemma_auto(ghostmap_remove(ghostmap, key)) void ghostmap_remove_preserves_distinct<k, v>(list<pair<k, v> > ghostmap, k key)
 requires true == ghostmap_distinct(ghostmap);
 ensures true == ghostmap_distinct(ghostmap_remove(ghostmap, key));

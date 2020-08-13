@@ -42,7 +42,8 @@ void os_map_remove(struct os_map* map, void* key_ptr);
 /*@ requires mapp(map, ?key_size, ?capacity, ?values, ?addrs) &*&
              [?frac]chars(key_ptr, key_size, ?key) &*&
              frac != 0.0 &*&
-             ghostmap_get(addrs, key_ptr) == some(?key2); @*/
+             ghostmap_get(values, key) != none &*&
+             ghostmap_get(addrs, key_ptr) != none; @*/
 /*@ ensures mapp(map, key_size, capacity, ?new_values, ?new_addrs) &*&
             new_values == ghostmap_remove(values, key) &*&
             new_addrs == ghostmap_remove(addrs, key_ptr) &*&
