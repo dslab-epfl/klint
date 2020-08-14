@@ -896,27 +896,57 @@ ensures true == hash_list(update(index, none, key_opts), hashes);
 
 // ---
 
-lemma void map_drop_key(list<void*> kaddrs, list<char> busybits, list<option<list<char> > > key_opts, int index)
-requires key_opt_list(?key_size, kaddrs, busybits, key_opts) &*&
+lemma void map_drop_key(int index)
+requires key_opt_list(?key_size, ?kaddrs, ?busybits, ?key_opts) &*&
          map_valuesaddrs(kaddrs, key_opts, ?values, ?map_values, ?map_addrs) &*&
-         0 <= index &*& index < length(busybits) &*&
-         nth(index, key_opts) == some(?key);
+         0 <= index &*& index < length(key_opts) &*&
+         nth(index, key_opts) == some(?key) &*&
+         ghostmap_get(map_values, key) != none &*&
+         ghostmap_get(map_addrs, nth(index, kaddrs)) == some(key) &*&
+         true == opt_no_dups(key_opts) &*&
+         true == ghostmap_distinct(map_values) &*&
+         true == ghostmap_distinct(map_addrs);
 ensures key_opt_list(key_size, kaddrs, update(index, 0, busybits), update(index, none, key_opts)) &*&
         map_valuesaddrs(kaddrs, update(index, none, key_opts), values, ghostmap_remove(map_values, key), ghostmap_remove(map_addrs, nth(index, kaddrs))) &*&
         [0.25]chars(nth(index, kaddrs), key_size, key);
 {
   open key_opt_list(key_size, kaddrs, busybits, key_opts);
   open map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs);
-  switch(busybits) {
+  switch(kaddrs) {
     case nil:
-    case cons(h, t):
-      if (index != 0) {
-        map_drop_key(tail(kaddrs), t, tail(key_opts), index - 1);
+    case cons(kaddrsh, kaddrst):
+      assert key_opts == cons(?key_optsh, ?key_optst);
+      assert values == cons(?valuesh, ?valuest);
+      assert map_valuesaddrs(kaddrst, key_optst, valuest, ?map_values_rest, ?map_addrs_rest);
+      if (index == 0) {
+        assert busybits == cons(?busybitsh, ?busybitst);
+        ghostmap_remove_when_present_decreases_length(map_values, key);
+        ghostmap_remove_when_present_decreases_length(map_addrs, kaddrsh);
+        close map_valuesaddrs(kaddrs, cons(none, key_optst), values, map_values_rest, map_addrs_rest);
+        close key_opt_list(key_size, kaddrs, cons(0, busybitst), cons(none, key_optst));
+      } else {
+        switch(key_optsh) {
+          case none:
+            map_drop_key(index - 1);
+            assert map_valuesaddrs(kaddrst, update(index - 1, none, key_optst), valuest, ?new_map_values, ?new_map_addrs);
+            close map_valuesaddrs(kaddrs, update(index, none, key_opts), values, new_map_values, new_map_addrs);
+            close key_opt_list(key_size, kaddrs, update(index, 0, busybits), update(index, none, key_opts));
+          case some(kohv):
+            if (kohv == key) {
+              no_dups_same(key_opts, key, index, 0);
+            }
+            ghostmap_remove_preserves_other(map_values, kohv, key);
+            ghostmap_remove_preserves_other(map_addrs, kaddrsh, nth(index, kaddrs));
+            map_drop_key(index - 1);
+            ghostmap_remove_order_is_irrelevant(map_values, key, kohv);
+            ghostmap_remove_order_is_irrelevant(map_addrs, kaddrsh, nth(index, kaddrs));
+            ghostmap_remove_preserves_other(map_values, key, kohv);
+            ghostmap_remove_preserves_other(map_addrs, nth(index, kaddrs), kaddrsh);
+            close map_valuesaddrs(kaddrs, update(index, none, key_opts), values, ghostmap_remove(map_values, key), ghostmap_remove(map_addrs, nth(index, kaddrs)));
+            close key_opt_list(key_size, kaddrs, update(index, 0, busybits), update(index, none, key_opts));
+        }
       }
   }
-  assume(false);
-  close key_opt_list(key_size, kaddrs, update(index, 0, busybits), update(index, none, key_opts));
-  close map_valuesaddrs(kaddrs, update(index, none, key_opts), values, ghostmap_remove(map_values, key), ghostmap_remove(map_addrs, nth(index, kaddrs)));
 }
 
 // ---

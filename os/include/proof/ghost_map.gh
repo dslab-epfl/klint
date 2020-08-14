@@ -301,4 +301,20 @@ ensures ghostmap_remove(ghostmap, key) == ghostmap;
   }
 }
 
+lemma void ghostmap_remove_order_is_irrelevant<k, v>(list<pair<k, v> > ghostmap, k key, k other_key)
+requires true;
+ensures ghostmap_remove(ghostmap_remove(ghostmap, key), other_key) == ghostmap_remove(ghostmap_remove(ghostmap, other_key), key);
+{
+  switch(ghostmap) {
+    case nil:
+    case cons(h, t):
+      switch(h) {
+        case pair(hk, hv):
+          if (hk != key) {
+            ghostmap_remove_order_is_irrelevant(t, key, other_key);
+          }
+      }
+  }
+}
+
 #endif
