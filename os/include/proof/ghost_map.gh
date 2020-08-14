@@ -37,10 +37,16 @@ fixpoint bool ghostmap_distinct<k, v>(list<pair<k, v> > ghostmap) {
   return distinct(map(fst, ghostmap));
 }
 
+fixpoint bool ghostmap_distinct_values<k, v>(list<pair<k, v> > ghostmap) {
+  return distinct(map(snd, ghostmap));
+}
+
 // -- Lemmas --
 
+// Some of these should be autolemmas but VeriFast either errors or crashes if that's the case
+
 // See Verifast issue #19: this is required so Redux, VeriFast's default solver, doesn't accidentally forget things
-lemma void __hack_note(bool b) requires b; ensures b; { }
+lemma void __ghostmap_hack_note(bool b) requires b; ensures b; { }
 
 lemma void ghostmap_set_preserves_other<k, v>(list<pair<k, v> > ghostmap, k key, v value, k other_key)
 requires other_key != key;
@@ -105,6 +111,45 @@ ensures ghostmap_remove(ghostmap_set(ghostmap, key, value), key) == ghostmap;
       switch(h) {
         case pair(hk, hv):
           ghostmap_remove_cancels_set(t, key, value);
+      }
+  }
+}
+
+lemma void ghostmap_value_notmem_implies_notget<k, v>(list<pair<k, v> > ghostmap, k key, v value)
+requires false == mem(value, map(snd, ghostmap));
+ensures ghostmap_get(ghostmap, key) != some(value);
+{
+  switch(ghostmap) {
+    case nil:
+    case cons(h, t):
+      switch(h) {
+        case pair(hk, hv):
+          if (hk != key) {
+            ghostmap_value_notmem_implies_notget(t, key, value);
+          }
+      }
+  }
+}
+
+lemma void ghostmap_doubly_distinct_get_different_keys<k, v>(list<pair<k, v> > ghostmap, k key, k other_key)
+requires key != other_key &*&
+         ghostmap_get(ghostmap, key) != none &*&
+         true == ghostmap_distinct(ghostmap) &*&
+         true == ghostmap_distinct_values(ghostmap);
+ensures ghostmap_get(ghostmap, key) != ghostmap_get(ghostmap, other_key);
+{
+  switch(ghostmap) {
+    case nil:
+    case cons(h, t):
+      switch(h) {
+        case pair(hk, hv):
+          if (hk == key) {
+            ghostmap_value_notmem_implies_notget(t, other_key, hv);
+          } else if (hk == other_key) {
+            ghostmap_value_notmem_implies_notget(t, key, hv);
+          } else {
+            ghostmap_doubly_distinct_get_different_keys(t, key, other_key);
+          }
       }
   }
 }
@@ -177,7 +222,16 @@ lemma_auto(ghostmap_remove(ghostmap, key)) void ghostmap_remove_when_present_dec
 requires none != ghostmap_get(ghostmap, key);
 ensures length(ghostmap_remove(ghostmap, key)) == length(ghostmap) - 1;
 {
-  assume(false);
+  switch(ghostmap) {
+    case nil:
+    case cons(h, t):
+      switch(h) {
+        case pair(hk, hv):
+          if (hk != key) {
+            ghostmap_remove_when_present_decreases_length(t, key);
+          }
+      }
+  }
 }
 
 lemma_auto(ghostmap_remove(ghostmap, key)) void ghostmap_remove_preserves_distinct<k, v>(list<pair<k, v> > ghostmap, k key)
@@ -191,8 +245,27 @@ ensures true == ghostmap_distinct(ghostmap_remove(ghostmap, key));
         case pair(hk, hv):
           ghostmap_remove_preserves_distinct(t, key);
           if (hk != key) {
-            __hack_note(ghostmap_get(t, hk) == none);
+            __ghostmap_hack_note(ghostmap_get(t, hk) == none);
             ghostmap_remove_preserves_other(t, key, hk);
+          }
+      }
+  }
+}
+
+lemma_auto(ghostmap_remove(ghostmap, key)) void ghostmap_remove_preserves_distinct_values<k, v>(list<pair<k, v> > ghostmap, k key)
+requires true == ghostmap_distinct_values(ghostmap);
+ensures true == ghostmap_distinct_values(ghostmap_remove(ghostmap, key));
+{
+  switch(ghostmap) {
+    case nil:
+    case cons(h, t):
+      switch(h) {
+        case pair(hk, hv):
+          ghostmap_remove_preserves_distinct_values(t, key);
+          if (hk != key) {
+            assert false == mem(hv, map(snd, t));
+            // FAILS :(
+            assert false == mem(hv, map(snd, ghostmap_remove(t, key)));
           }
       }
   }
