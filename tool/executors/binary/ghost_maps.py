@@ -391,10 +391,10 @@ def maps_merge_across(states_to_merge, objs, ancestor_state, _cache={}):
                         # note that orig_size is in bytes, but x2.size() is in bits!
                         orig_o1, orig_size = state.memory.get_obj_and_size_from_fracs_obj(o1)
                         if orig_o1 is not None and orig_o1 is not o2 and utils.definitely_true(state.solver, orig_size * 8 == x2.size()):
-                            orig_x1 = state.memory.try_load(orig_o1 + it1.key * orig_size, orig_size, fraction=it1.value)
+                            orig_x1 = state.memory.try_load(orig_o1 + it1.key * orig_size, fraction=it1.value)
                             if utils.definitely_true(state.solver, orig_x1 == x2.reversed):
                                 candidate_func = lambda st, it, from_present, orig_o1=orig_o1, orig_size=orig_size: \
-                                                 st.memory.try_load(orig_o1 + it.key * orig_size, orig_size, fraction=it.value, from_present=from_present).reversed
+                                                 st.memory.try_load(orig_o1 + it.key * orig_size, fraction=it.value, from_present=from_present).reversed
                                 found = True
                                 items2.remove(it2)
                                 break

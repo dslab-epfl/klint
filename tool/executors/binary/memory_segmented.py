@@ -162,11 +162,11 @@ class SegmentedMemory(SimMemory):
 
         raise ("B_I_O doesn't know what to do with: " + str(addr) + " of type " + str(type(addr)) + " ; op is " + str(addr.op) + " ; args is " + str(addr.args) + " ; constrs are " + str(self.state.solver.constraints))
 
+    # as long as this is only called from FractionalMemory.try_load it doesn't need caching; see that method
     def try_load(self, addr, size, from_present=True):
         (base, index, offset) = self.base_index_offset(addr)
         (value, present) = self.state.maps.get(base, index, from_present=from_present)
         size = self._concrete_size(size)
         if offset != 0 or size != self.state.maps.value_size(base):
             value = value[(offset+size-1):offset]
-
         return claripy.If(present, value, claripy.BVS("memory_segmented_bad_value", size))
