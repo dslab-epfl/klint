@@ -127,7 +127,7 @@ def LOG(state, text):
     else:
         level = 1
     LOG_levels[id(state)] = level + 1
-    #print(level, "  " * level, text)
+    print(level, "  " * level, text)
 
 def LOGEND(state):
     LOG_levels[id(state)] = LOG_levels[id(state)] - 1
@@ -352,7 +352,12 @@ def maps_merge_across(states_to_merge, objs, ancestor_state, _cache={}):
 
     # helper function to find FK or FV
     ancestor_variables = ancestor_state.solver.variables(claripy.And(*ancestor_state.solver.constraints))
-    def find_f(o1, o2, sel1, sel2, allow_constant=False):
+    def find_f(o1, o2, kind1, kind2):
+        def get_sel(kind):
+            return (lambda i: i.key) if kind == "key" else (lambda i: i.value)
+        sel1 = get_sel(kind1)
+        sel2 = get_sel(kind2)
+
         candidate_func = None
         for state in states:
             items1 = filter_present(state, o1)
@@ -366,28 +371,44 @@ def maps_merge_across(states_to_merge, objs, ancestor_state, _cache={}):
             if len(items1) != len(items2):
                 # Lazyness: implementing backtracking in case a guess fails is hard :p
                 raise "backtracking not implemented yet"
-            for x1 in map(sel1, items1):
+            # TODO: This loop could use some refactoring to avoid the over-repeated "found = True, items2.remove(it2), break"...
+            for it1 in items1:
                 found = False
                 for it2 in items2:
                     x2 = sel2(it2)
                     if candidate_func is not None:
-                        if utils.definitely_true(state.solver, x2 == candidate_func(x1)):
+                        if utils.definitely_true(state.solver, x2 == candidate_func(state, x1, True)):
                             # All good, our candidate worked
                             found = True
                             items2.remove(it2)
                         # else: maybe next item?
                         break
+                    # The ugliest one first: if o1 is a "fractions" obj, check if the corresponding index in the corresponding obj
+                    # is actually a pointer to a value equal to x2.reversed
+                    # but we must pass the fraction as well to avoid infinite recursion
+                    if kind1 == "key":
+                        # note that orig_size is in bytes, but x2.size() is in bits!
+                        orig_o1, orig_size = state.memory.get_obj_and_size_from_fracs_obj(o1)
+                        if orig_o1 is not None and orig_o1 is not o2 and utils.definitely_true(state.solver, orig_size * 8 == x2.size()):
+                            orig_x1 = state.memory.try_load(orig_o1 + it1.key * orig_size, orig_size, fraction=it1.value)
+                            if utils.definitely_true(state.solver, orig_x1 == x2.reversed):
+                                candidate_func = lambda st, it, from_present, orig_o1=orig_o1, orig_size=orig_size: \
+                                                 st.memory.try_load(orig_o1 + it.key * orig_size, orig_size, fraction=it.value, from_present=from_present).reversed
+                                found = True
+                                items2.remove(it2)
+                                break
+                    x1 = sel1(it1)
                     if x1.size() == x2.size():
                         if utils.definitely_true(state.solver, x1 == x2):
                             # Identity is a possible function
-                            candidate_func = lambda x: x
+                            candidate_func = lambda st, it, _: sel1(it)
                             found = True
                             items2.remove(it2)
                             break
                         fake = claripy.BVS("fake", x1.size())
                         if not x2.replace(x1, fake).structurally_match(x2):
                             # Replacement is a possible function
-                            candidate_func = lambda x, x1=x1, x2=x2: x2.replace(x1, x)
+                            candidate_func = lambda st, it, _, x1=x1, x2=x2: x2.replace(x1, sel1(it))
                             found = True
                             items2.remove(it2)
                             break
@@ -398,7 +419,7 @@ def maps_merge_across(states_to_merge, objs, ancestor_state, _cache={}):
                            x1.args[0].structurally_match(claripy.BVV(0, x1.args[0].size())):
                             fake = claripy.BVS("fake", x1.args[1].size())
                             if not x2.replace(x1.args[1], fake).structurally_match(x2):
-                                candidate_func = lambda x, x1=x1, x2=x2: x2.replace(x1.args[1], claripy.Extract(x1.args[1].size() - 1, 0, x))
+                                candidate_func = lambda st, it, _, x1=x1, x2=x2: x2.replace(x1.args[1], claripy.Extract(x1.args[1].size() - 1, 0, sel1(it)))
                                 found = True
                                 items2.remove(it2)
                                 break
@@ -411,20 +432,20 @@ def maps_merge_across(states_to_merge, objs, ancestor_state, _cache={}):
                            x1.args[0].args[1].structurally_match(claripy.BVV(0, x1.args[0].args[1].size())):
                             fake = claripy.BVS("fake", x1.args[0].args[0].size())
                             if not x2.replace(x1.args[0].args[0], fake).structurally_match(x2):
-                                candidate_func = lambda x, x1=x1, x2=x2: x2.replace(x1.args[0].args[0], claripy.Extract(x1.size() - 1, x1.args[0].args[1].size(), x - x1.args[1]))
+                                candidate_func = lambda st, it, _, x1=x1, x2=x2: x2.replace(x1.args[0].args[0], claripy.Extract(x1.size() - 1, x1.args[0].args[1].size(), sel1(it) - x1.args[1]))
                                 found = True
                                 items2.remove(it2)
                                 break
                             if utils.definitely_true(state.solver, x2 == x1.args[0].args[0].zero_extend(x1.size() - x1.args[0].args[0].size())):
-                                candidate_func = lambda x, x1=x1: claripy.Extract(x1.size() - 1, x1.args[0].args[1].size(), x - x1.args[1]).zero_extend(x1.args[0].args[1].size())
+                                candidate_func = lambda st, it, _, x1=x1: claripy.Extract(x1.size() - 1, x1.args[0].args[1].size(), sel1(it) - x1.args[1]).zero_extend(x1.args[0].args[1].size())
                                 found = True
                                 items2.remove(it2)
                                 break
-                    if allow_constant:
+                    if kind2 == "value":
                         const = utils.get_if_constant(state.solver, x2)
                         if const is not None:
                             # A constant is a possible function
-                            candidate_func = lambda x, const=const, sz=x2.size(): claripy.BVV(const, sz)
+                            candidate_func = lambda st, it, _, const=const, sz=x2.size(): claripy.BVV(const, sz)
                             found = True
                             items2.remove(it2)
                             break
@@ -432,8 +453,7 @@ def maps_merge_across(states_to_merge, objs, ancestor_state, _cache={}):
                     # Found nothing in this state, give up
                     return None
         # Our candidate has survived all states!
-        # Use sel1 here since we want the returned functions to take an item
-        return lambda i: candidate_func(sel1(i))
+        return candidate_func
 
     # Helper function to find FP
     def find_f_constants(o, sel):
@@ -480,8 +500,8 @@ def maps_merge_across(states_to_merge, objs, ancestor_state, _cache={}):
             # otherwise, get(M1, k) after remove(M2, k) might add has(M2, k) to the constraints, which is obviously false
             (fk_is_cached, fk) = get_cached(o1, o2, "k")
             if not fk_is_cached:
-                fk = find_f(o1, o2, lambda i: i.key, lambda i: i.key) \
-                  or find_f(o1, o2, lambda i: i.value, lambda i: i.key)
+                fk = find_f(o1, o2, "key", "key") \
+                  or find_f(o1, o2, "value", "key")
                 set_cached(o1, o2, "k", fk)
             (fps_is_cached, fps) = get_cached(o1, o2, "p")
             if not fps_is_cached:
@@ -489,21 +509,21 @@ def maps_merge_across(states_to_merge, objs, ancestor_state, _cache={}):
                 set_cached(o1, o2, "p", fps)
             for fp in fps:
                 states = [s.copy() for s in orig_states]
-                if fk and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk: Implies(fp(MapItem(k, v, None)), st.maps.get(o2, fk(MapItem(k, v, None)))[1]), _known_only=not first_time)) for st in states):
+                if fk and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk: Implies(fp(MapItem(k, v, None)), st.maps.get(o2, fk(st, MapItem(k, v, None), True))[1]), _known_only=not first_time)) for st in states):
                     log_item = MapItem(claripy.BVS("K", ancestor_state.maps.key_size(o1)), claripy.BVS("V", ancestor_state.maps.value_size(o1)), None)
-                    print("Inferred: when", o1, "contains (K,V), if", fp(log_item), "then", o2, "contains", fk(log_item))
+                    print("Inferred: when", o1, "contains (K,V), if", fp(log_item), "then", o2, "contains", fk(ancestor_state, log_item, True))
                     (fv_is_cached, fv) = get_cached(o1, o2, "v")
                     if not fv_is_cached:
-                        fv = find_f(o1, o2, lambda i: i.key, lambda i: i.value, allow_constant=True) \
-                          or find_f(o1, o2, lambda i: i.value, lambda i: i.value, allow_constant=True)
+                        fv = find_f(o1, o2, "key", "value") \
+                          or find_f(o1, o2, "value", "value")
                         set_cached(o1, o2, "v", fv)
                     states = [s.copy() for s in orig_states]
-                    if fv and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk, fv=fv: Implies(fp(MapItem(k, v, None)), st.maps.get(o2, fk(MapItem(k, v, None)))[0] == fv(MapItem(k, v, None))), _known_only=not first_time)) for st in states):
-                        print("          in addition, the value is", fv(log_item))
-                        results.append(("cross-key", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk, fv=fv: [maps[0].with_added_invariant(lambda st, i: Implies(i.present, Implies(fp(i), st.maps.get(o2, fk(i), value=fv(i), from_present=False)[1]))), maps[1]]))
-                        results.append(("cross-val", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk, fv=fv: [maps[0].with_added_invariant(lambda st, i: Implies(i.present, Implies(fp(i), st.maps.get(o2, fk(i), value=fv(i), from_present=False)[0] == fv(i)))), maps[1]]))
+                    if fv and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk, fv=fv: Implies(fp(MapItem(k, v, None)), st.maps.get(o2, fk(st, MapItem(k, v, None), True))[0] == fv(st, MapItem(k, v, None), True)), _known_only=not first_time)) for st in states):
+                        print("          in addition, the value is", fv(ancestor_state, log_item, True))
+                        results.append(("cross-key", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk, fv=fv: [maps[0].with_added_invariant(lambda st, i: Implies(i.present, Implies(fp(i), st.maps.get(o2, fk(st, i, False), value=fv(st, i, False), from_present=False)[1]))), maps[1]]))
+                        results.append(("cross-val", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk, fv=fv: [maps[0].with_added_invariant(lambda st, i: Implies(i.present, Implies(fp(i), st.maps.get(o2, fk(st, i, False), value=fv(st, i, False), from_present=False)[0] == fv(st, i, False)))), maps[1]]))
                     else:
-                        results.append(("cross-key", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk: [maps[0].with_added_invariant(lambda st, i: Implies(i.present, Implies(fp(i), st.maps.get(o2, fk(i), from_present=False)[1]))), maps[1]]))
+                        results.append(("cross-key", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk: [maps[0].with_added_invariant(lambda st, i: Implies(i.present, Implies(fp(i), st.maps.get(o2, fk(st, i, False), from_present=False)[1]))), maps[1]]))
                     break # this might make us miss some stuff in theory? but that's sound; and in practice it doesn't
     return results
 

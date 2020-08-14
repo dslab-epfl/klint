@@ -10,27 +10,18 @@ class ExternalWrapper(SimProcedure):
         # fix args count (code copied from angr SimProcedure)
         run_spec = inspect.getfullargspec(self.wrapped.run)
         self.num_args = len(run_spec.args) - (len(run_spec.defaults) if run_spec.defaults is not None else 0) - 1
+        self.true_display_name = self.wrapped.display_name
 
     def run(self, *args, **kwargs):
-        fixed_args = [a.ast if isinstance(a, SimActionObject) else a for a in args]
-        self.state.path.begin_record(self.wrapped.display_name, fixed_args)
+        self.wrapped.__dict__ = self.__dict__
+
+        self.state.path.begin_record(self.true_display_name, [a.ast if isinstance(a, SimActionObject) else a for a in args])
         ret = self.wrapped.run(*args, **kwargs)
         # This will execute for the current state in case the procedure forked, not the other one;
         # to handle the other one, we explicitly deal with it in utils.fork_always
         self.state.path.end_record(ret)
         return ret
 
-    def __getattr__(self, attr):
-        if attr in ["wrapped"]:
-            return super(ExternalWrapper, self).__getattr___(attr)
-        return getattr(self.wrapped, attr)
-
-    def __setattr__(self, attr, value):
-        # If we don't take care of display_name we end up stuck with "ExternalWrapper" as a name for everything
-        if attr in ["wrapped", "display_name"]:
-            super(ExternalWrapper, self).__setattr__(attr, value)
-        else:
-            setattr(self.wrapped, attr, value)
 
 class Path(SimStatePlugin):
     def __init__(self, segments=None):

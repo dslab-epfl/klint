@@ -16,6 +16,8 @@ Facts = namedtuple('Facts', ['fractions', 'size'])
 # Handles endness, but stores data as LE instead of BE for x86 convenience;
 # to do this, we reverse on store if BE is requested, and always reverse on load since SimMemory will reverse again if LE is requested
 class FractionalMemory(SimMemory):
+    FRACS_NAME = "fracs"
+
     def __init__(self, memory_id='', memory=None, fractions_memory=None, endness=None):
         SimMemory.__init__(self, endness=endness, abstract_backer=None, stack_region_map=None, generic_region_map=None)
         self.id = memory_id # magic! needs to be set for SimMemory to work
@@ -54,7 +56,7 @@ class FractionalMemory(SimMemory):
         request.endness = archinfo.Endness.BE
         self.memory._store(request)
 
-    # This method only partly handles endness; SimMemory will reverse of (endness or self.endness) is LE
+    # This method only partly handles endness; SimMemory will reverse if (endness or self.endness) is LE
     def _load(self, addr, size, condition=None, fallback=None, inspect=True, events=True, ret_on_segv=False):
         (base, index, _) = self.memory.base_index_offset(addr)
         facts = self.state.metadata.get(Facts, base)
@@ -72,7 +74,7 @@ class FractionalMemory(SimMemory):
 
     def allocate(self, count, size, default=None, name=None):
         result = self.memory.allocate(count, size, default=default, name=name)
-        fractions = self.fractions_memory.allocate(count, 1, claripy.BVV(100, 8), name=("fracs" if name is None else (name + "_fracs")))
+        fractions = self.fractions_memory.allocate(count, 1, claripy.BVV(100, 8), name=((name or "") + FractionalMemory.FRACS_NAME))
         self.state.metadata.set(result, Facts(fractions, size))
         return result
 
@@ -114,3 +116,21 @@ class FractionalMemory(SimMemory):
             raise ("Cannot give " + str(fraction) + " ; there is already " + str(current_fraction))
 
         self.fractions_memory.store(facts.fractions + index, (current_fraction + fraction), size=1)
+
+    # here we don't handle endness
+    # TODO handle it for non-x86 targets (we currently store as LE)
+    def try_load(self, addr, size, fraction=None, from_present=True):
+        (base, index, _) = self.memory.base_index_offset(addr)
+        facts = self.state.metadata.get(Facts, base)
+        if fraction is None:
+            fraction = self.fractions_memory.try_load(facts.fractions + index, 1, from_present=from_present)
+        value = self.memory.try_load(addr, size, from_present=from_present)
+        return claripy.If(fraction > 0, value, claripy.BVS("memory_fractional_bad_value", value.size()))
+
+    def get_obj_and_size_from_fracs_obj(self, fracs_obj):
+        if FractionalMemory.FRACS_NAME not in str(fracs_obj):
+            return (None, None)
+        for (o, facts) in self.state.metadata.get_all(Facts):
+            if facts.fractions is fracs_obj:
+                return (o, facts.size)
+        raise "What are you doing?"
