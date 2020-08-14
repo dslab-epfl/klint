@@ -40,15 +40,29 @@ def get_if_constant(solver, expr):
   return None
 
 def get_exact_match(solver, item, candidates, selector=lambda i: i):
-  for cand in candidates:
-    if item.structurally_match(selector(cand)):
-      return cand
+    # at one point this exact pattern, even after calling solver.simplify, caused the solver to hang...
+    # but simplifying this way (which is correct; (0#4 .. x) * 0x10 / 0x10 == (0#4 .. x)) made it go through
+    # the structurally_match path, which is all good
+    # TODO check if this is still needed?
+    if item.op == "__floordiv__" and \
+       str(item.args[1]) == "<BV64 0x10>" and \
+       item.args[0].op == "__add__" and \
+       len(item.args[0].args) == 1 and \
+       item.args[0].args[0].op == "__mul__" and \
+       item.args[0].args[0].args[1] is item.args[1] and \
+       item.args[0].args[0].args[0].op == "ZeroExt" and \
+       item.args[0].args[0].args[0].args[0] == 4:
+        item = item.args[0].args[0].args[0]
 
-  for cand in candidates:
-    if definitely_true(solver, item == selector(cand)):
-      return cand
+    for cand in candidates:
+        if item.structurally_match(selector(cand)):
+            return cand
 
-  return None
+    for cand in candidates:
+        if definitely_true(solver, item == selector(cand)):
+            return cand
+
+    return None
 
 def fork_always(proc, case_true, case_false):
   false_was_unsat = False

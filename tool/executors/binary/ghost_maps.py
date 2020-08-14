@@ -202,6 +202,7 @@ class GhostMaps(SimStatePlugin):
 
         map = self[obj]
         LOG(self.state, "GET " + map.meta.name + " " + ("present" if from_present else "past") + (" key: " + str(key)) + ((" value: " + str(value)) if value is not None else "") + " (" + str(len(list(map.known_items(from_present=from_present)))) + " items, " + str(len(self.state.solver.constraints)) + " constraints)")
+        #LOG(self.state, "GET " + map.meta.name + " (" + str(len(list(map.known_items(from_present=from_present)))) + " items, " + str(len(self.state.solver.constraints)) + " constraints)")
 
         # Optimization: If the map is empty, the answer is always false
         if map.is_empty(from_present=from_present):
@@ -520,8 +521,12 @@ def maps_merge_across(states_to_merge, objs, ancestor_state, _cache={}):
                     states = [s.copy() for s in orig_states]
                     if fv and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk, fv=fv: Implies(fp(MapItem(k, v, None)), st.maps.get(o2, fk(st, MapItem(k, v, None), True))[0] == fv(st, MapItem(k, v, None), True)), _known_only=not first_time)) for st in states):
                         print("          in addition, the value is", fv(ancestor_state, log_item, True))
-                        results.append(("cross-key", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk, fv=fv: [maps[0].with_added_invariant(lambda st, i: Implies(i.present, Implies(fp(i), st.maps.get(o2, fk(st, i, False), value=fv(st, i, False), from_present=False)[1]))), maps[1]]))
-                        results.append(("cross-val", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk, fv=fv: [maps[0].with_added_invariant(lambda st, i: Implies(i.present, Implies(fp(i), st.maps.get(o2, fk(st, i, False), value=fv(st, i, False), from_present=False)[0] == fv(st, i, False)))), maps[1]]))
+                        # Python doesn't have multiline lambdas :/
+                        def cross_val_inv(st, i, o2, fp, fk, fv):
+                            fvres = fv(st, i, False)
+                            (o2val, o2pres) = st.maps.get(o2, fk(st, i, False), value=fvres, from_present=False)
+                            return Implies(i.present, Implies(fp(i), claripy.And(o2pres, o2val == fvres)))
+                        results.append(("cross-val", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk, fv=fv: [maps[0].with_added_invariant(lambda st, i: cross_val_inv(st, i, o2, fp, fk, fv)), maps[1]]))
                     else:
                         results.append(("cross-key", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk: [maps[0].with_added_invariant(lambda st, i: Implies(i.present, Implies(fp(i), st.maps.get(o2, fk(st, i, False), from_present=False)[1]))), maps[1]]))
                     break # this might make us miss some stuff in theory? but that's sound; and in practice it doesn't
