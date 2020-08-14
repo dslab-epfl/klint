@@ -532,7 +532,7 @@ def maps_merge_across(states_to_merge, objs, ancestor_state, _cache={}):
 
     # Optimization: Remove redundant inferences.
     # That is, for pairs (M1, M2) of maps whose keys are the same in all states and which lead to the same number of inferences,
-    # remove all map relationships of the form (M2, M3) if (M1, M3) exists.
+    # remove all map relationships of the form (M2, M3) if (M1, M3) exists, as well as those of the form (M3, M2) if (M3, M1) exists.
     # This is a conservative algorithm; a better version eliminating more things would need to keep track of whether relationships are lossy,
     # to avoid eliminating a lossless relationship in favor of a lossy one, and create a proper graph instead of relying on pairs.
     for (o1, o2) in itertools.combinations(objs, 2):
@@ -540,13 +540,22 @@ def maps_merge_across(states_to_merge, objs, ancestor_state, _cache={}):
             states = [s.copy() for s in orig_states]
             if all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v: st.maps.get(o2, k)[1])) for st in states) and \
                len([r for r in results if "cross-" in r[0] and r[1][0] is o1]) == len([r for r in results if "cross-" in r[0] and r[1][0] is o2]):
-                to_remove = [r for r in results
-                               if "cross-" in r[0]
-                               and r[1][0] is o2
-                               and any(True for r2 in results
-                                            if "cross-" in r2[0]
-                                            and r2[1][0] is o1
-                                            and r2[1][1] is r[1][1])]
+                to_remove  = [r for r in results
+                                if "cross-" in r[0]
+                                and r[1][1] is o2
+                                and any(True for r2 in results
+                                             if "cross-" in r2[0]
+                                             and r2[1][1] is o1
+                                             and r2[1][0] is r[1][0])]
+
+                to_remove += [r for r in results
+                                if "cross-" in r[0]
+                                and r[1][0] is o2
+                                and any(True for r2 in results
+                                             if "cross-" in r2[0]
+                                             and r2[1][0] is o1
+                                             and r2[1][1] is r[1][1])]
+
                 for r in to_remove:
                     print("Discarding redundant inference", r[0], "between", r[1])
                 # can't just use "not in" due to claripy's ==
