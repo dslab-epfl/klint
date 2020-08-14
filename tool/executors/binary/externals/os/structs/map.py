@@ -148,6 +148,8 @@ class MapErase(angr.SimProcedure):
     (key2, key2_present) = self.state.maps.get(mapp.addrs, key_ptr)
     if utils.can_be_false(self.state.solver, key2_present):
       raise "Precondition does not hold: map_item_keyed(key_ptr, addrs) == some(?key2)"
+    if utils.can_be_false(self.state.solver, key == key2):
+      raise "oh no"
 
     # Postconditions
     self.state.maps.remove(mapp.values, key2)
