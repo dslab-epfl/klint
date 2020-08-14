@@ -154,6 +154,22 @@ ensures ghostmap_get(ghostmap, key) != ghostmap_get(ghostmap, other_key);
   }
 }
 
+lemma void ghostmap_remove_preserves_notmem<k, v>(list<pair<k, v> > ghostmap, k key, v value)
+requires false == mem(value, map(snd, ghostmap));
+ensures false == mem(value, map(snd, ghostmap_remove(ghostmap, key)));
+{  switch(ghostmap) {
+    case nil:
+    case cons(h, t):
+      switch(h) {
+        case pair(hk, hv):
+          if (hk != key) {
+            ghostmap_remove_preserves_notmem(t, key, value);
+          }
+      }
+  }
+}
+
+
 // -- Auto lemmas --
 
 lemma_auto(ghostmap_get(ghostmap, key)) void ghostmap_get_implies_mem1<k, v>(list<pair<k, v> > ghostmap, k key)
@@ -263,9 +279,7 @@ ensures true == ghostmap_distinct_values(ghostmap_remove(ghostmap, key));
         case pair(hk, hv):
           ghostmap_remove_preserves_distinct_values(t, key);
           if (hk != key) {
-            assert false == mem(hv, map(snd, t));
-            // FAILS :(
-            assert false == mem(hv, map(snd, ghostmap_remove(t, key)));
+            ghostmap_remove_preserves_notmem(t, key, hv);
           }
       }
   }
