@@ -81,7 +81,7 @@ class MapGet(angr.SimProcedure):
       return claripy.BVV(0, bitsizes.BOOL)
     return utils.fork_guarded_has(self, mapp.values, key, case_has, case_not)
 
-# void os_map_put(struct os_map* map, void* key_ptr, uint64_t value);
+# void os_map_set(struct os_map* map, void* key_ptr, uint64_t value);
 # requires mapp(map, ?key_size, ?capacity, ?values, ?addrs) &*&
 #          [0.25]chars(key_ptr, key_size, ?key) &*&
 #          length(values) < capacity &*&
@@ -94,7 +94,7 @@ class MapGet(angr.SimProcedure):
 #         length(new_addrs) == length(addrs) + 1 &*&
 #         true == subset(addrs, new_addrs) &*&
 #         map_item_keyed(key, new_addrs) == some(key_ptr);
-class MapPut(angr.SimProcedure):
+class MapSet(angr.SimProcedure):
   def run(self, map, key_ptr, value):
     # Casts
     map = cast.ptr(map)
@@ -118,7 +118,7 @@ class MapPut(angr.SimProcedure):
     self.state.maps.set(mapp.values, key, value)
     self.state.maps.set(mapp.addrs, key, key_ptr)
 
-# void os_map_erase(struct os_map* map, void* key_ptr);
+# void os_map_remove(struct os_map* map, void* key_ptr);
 # requires mapp(map, ?key_size, ?capacity, ?values, ?addrs) &*&
 #          [?frac]chars(key_ptr, key_size, ?key) &*&
 #          frac != 0.0 &*&
@@ -132,7 +132,7 @@ class MapPut(angr.SimProcedure):
 #         true == subset(new_addrs, addrs) &*&
 #         map_item_keyed(key, new_addrs) == none &*&
 #         [frac + 0.25]chars(key_ptr, key_size, key);
-class MapErase(angr.SimProcedure):
+class MapRemove(angr.SimProcedure):
   def run(self, map, key_ptr):
     # Casts
     map = cast.ptr(map)

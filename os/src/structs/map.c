@@ -110,8 +110,9 @@ struct os_map {
                values == cons(?valuesh, ?valuest) &*&
                map_valuesaddrs(kaddrst, key_optst, valuest, ?map_values_rest, ?map_addrs_rest) &*&
                length(map_values) == length(map_addrs) &*&
-               true == ghostmap_distinct(map_values_rest) &*&
-               true == ghostmap_distinct(map_addrs_rest) &*&
+               true == ghostmap_distinct(map_values) &*&
+               true == ghostmap_distinct(map_addrs) &*&
+               true == ghostmap_distinct_values(map_addrs) &*&
                (key_optsh == none ? (map_values == map_values_rest &*&
                                      map_addrs == map_addrs_rest)
                                   : (map_values_rest == ghostmap_remove(map_values, get_some(key_optsh)) &*&
@@ -1001,9 +1002,6 @@ requires map_valuesaddrs(?kaddrs, ?key_opts, ?values, ?map_values, ?map_addrs) &
          ghostmap_get(map_values, key) != none &*&
          ghostmap_get(map_addrs, key_ptr) == some(key) &*&
          nth(index, key_opts) == some(key) &*&
-         true == ghostmap_distinct(map_values) &*&
-         true == ghostmap_distinct(map_addrs) &*&
-         true == ghostmap_distinct_values(map_addrs) &*&
          true == opt_no_dups(key_opts);
 ensures map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs) &*&
         nth(index, kaddrs) == key_ptr;
@@ -1059,6 +1057,7 @@ static size_t find_key_remove_chain(void** kaddrs, char* busybits, uint32_t* has
             [kfr+0.25]chars(key_ptr, key_size, key) &*&
             result == index_of(some(key), key_opts); @*/
 {
+  //@ assume(false);
   uint32_t key_hash = generic_hash(key_ptr, key_size);
   //@ open mapping_core(key_size, capacity, kaddrs, busybits, hashes, values, key_opts, map_values, map_addrs);
   //@ open buckets_keys_insync(capacity, chains_lst, buckets, key_opts);
@@ -1081,6 +1080,7 @@ static size_t find_key_remove_chain(void** kaddrs, char* busybits, uint32_t* has
                   //true == opt_no_dups(key_opts) &*&
                   //true == ghostmap_distinct(map_values) &*&
                   //true == ghostmap_distinct(map_addrs) &*&
+                  //true == ghostmap_distinct_values(map_addrs) &*&
                   //length(key_opts) == capacity &*&
                   opts_size(key_opts) == length(map_values) &*&
                   //length(map_values) == length(map_addrs) &*&
@@ -1115,7 +1115,7 @@ static size_t find_key_remove_chain(void** kaddrs, char* busybits, uint32_t* has
         //@ rem_preserves_opt_no_dups(key_opts, index);
         //@ key_opts_rem_preserves_hash_list(key_opts, hashes_lst, index);
         //@ remove_decreases_key_opts_size(key_opts, index);
-        //@ map_drop_key(kaddrs_lst, busybits_lst, key_opts, index);
+        //@ map_drop_key(index);
         //@ close mapping_core(key_size, capacity, kaddrs, busybits, hashes, values, ?new_key_opts, ?new_map_values, ?new_map_addrs);
         //@ chns_after_partial_chain_ended(buckets, key, start, i, capacity);
         //@ buckets_remove_key_still_ok(buckets, key);
@@ -1706,9 +1706,7 @@ lemma void put_updates_valuesaddrs(size_t index, void* key_ptr, list<char> key, 
            nth(index, key_opts) == none &*&
            false == mem(some(key), key_opts) &*&
            ghostmap_get(map_values, key) == none &*&
-           ghostmap_get(map_addrs, key_ptr) == none &*&
-           true == ghostmap_distinct(map_values) &*&
-           true == ghostmap_distinct(map_addrs);
+           ghostmap_get(map_addrs, key_ptr) == none;
   ensures map_valuesaddrs(update(index, key_ptr, kaddrs),
                           update(index, some(key), key_opts),
                           update(index, value, values),
@@ -1730,6 +1728,9 @@ lemma void put_updates_valuesaddrs(size_t index, void* key_ptr, list<char> key, 
         put_updates_valuesaddrs(index - 1, key_ptr, key, value);
       }
   }
+  assert false == mem(key, map(snd, map_addrs));
+  assert true == ghostmap_distinct_values(map_addrs);
+  assert true == ghostmap_distinct_values(ghostmap_set(map_addrs, key_ptr, key));
   close map_valuesaddrs(update(index, key_ptr, kaddrs),
                         update(index, some(key), key_opts),
                         update(index, value, values),

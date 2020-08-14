@@ -44,7 +44,7 @@ bool flowtable_get_internal(struct flowtable* table, int64_t time, struct flow* 
 		os_dchain_refresh(table->port_allocator, time, index);
 	} else {
 		if (os_dchain_expire(table->port_allocator, time - table->expiration_time, &index)) {
-			os_map_erase(table->flow_indexes, &(table->flows[index]));
+			os_map_remove(table->flow_indexes, &(table->flows[index]));
 		}
 
 		if (!os_dchain_add(table->port_allocator, time, &index)) {
@@ -52,7 +52,7 @@ bool flowtable_get_internal(struct flowtable* table, int64_t time, struct flow* 
 		}
 
 		table->flows[index] = *flow;
-		os_map_put(table->flow_indexes, &(table->flows[index]), index);
+		os_map_set(table->flow_indexes, &(table->flows[index]), index);
 	}
 
 	*out_port = table->start_port + index;

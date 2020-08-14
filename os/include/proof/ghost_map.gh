@@ -234,6 +234,8 @@ ensures ghostmap_get(ghostmap_set(ghostmap, key, value), key) == some(value);
   }
 }
 
+//lemma_auto(ghostmap_set(ghostmap, key, value)) void ghostmap_set_may_preserve_distinct_values
+
 lemma_auto(ghostmap_remove(ghostmap, key)) void ghostmap_remove_when_present_decreases_length<k, v>(list<pair<k, v> > ghostmap, k key)
 requires none != ghostmap_get(ghostmap, key);
 ensures length(ghostmap_remove(ghostmap, key)) == length(ghostmap) - 1;
