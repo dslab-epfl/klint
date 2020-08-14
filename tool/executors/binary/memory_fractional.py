@@ -119,17 +119,19 @@ class FractionalMemory(SimMemory):
 
     # here we don't handle endness
     # TODO handle it for non-x86 targets (we currently store as LE)
-    def try_load(self, addr, fraction=None, from_present=True, _cache={}):
+    def try_load(self, addr, fraction=None, from_present=True):
         # Caching is a requirement, not an optimization;
         # without it, the "bad_value" is different every time, so try_load(addr) != try_load(addr)
-        if id(addr) not in _cache:
+        if not hasattr(self, '_try_load_cache'):
+            self._try_load_cache = {}
+        if id(addr) not in self._try_load_cache:
             (base, index, _) = self.memory.base_index_offset(addr)
             facts = self.state.metadata.get(Facts, base)
             if fraction is None:
                 fraction = self.fractions_memory.try_load(facts.fractions + index, 1, from_present=from_present)
             value = self.memory.try_load(addr, facts.size, from_present=from_present)
-            _cache[id(addr)] = claripy.If(fraction > 0, value, claripy.BVS("memory_fractional_bad_value", value.size()))
-        return _cache[id(addr)]
+            self._try_load_cache[id(addr)] = claripy.If(fraction > 0, value, claripy.BVS("memory_fractional_bad_value", value.size()))
+        return self._try_load_cache[id(addr)]
 
     def get_obj_and_size_from_fracs_obj(self, fracs_obj):
         if FractionalMemory.FRACS_NAME not in str(fracs_obj):

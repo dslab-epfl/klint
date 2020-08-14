@@ -6,6 +6,9 @@ import executors.binary.utils as utils
 from collections import namedtuple
 import copy
 import itertools
+import os
+import threading
+import queue
 
 # "length" is symbolic, and may be larger than len(items) if there are items that are not exactly known
 # "invariants" is a list of conjunctions that represents unknown items: each is a lambda that takes (state, item) and returns a Boolean expression
@@ -328,7 +331,6 @@ class GhostMaps(SimStatePlugin):
 def maps_merge_across(states_to_merge, objs, ancestor_state, _cache={}):
     print("Cross-merge of maps starting. State count:", len(states_to_merge))
 
-    results = [] # pairs: (ID, maps, lambda states, maps: returns None for no changes or maps to overwrite them)
     states = states_to_merge + [ancestor_state]
 
     first_time = len(_cache) == 0
@@ -465,8 +467,8 @@ def maps_merge_across(states_to_merge, objs, ancestor_state, _cache={}):
     # Optimization: Ignore maps that have not changed at all, e.g. those that are de facto readonly after initialization
     objs = [o for o in objs if any(not utils.structural_eq(ancestor_state.maps[o], st.maps[o]) for st in states)]
 
-    # Copy the states to avoid polluting the real ones for the next steps of inference
-    orig_states = [s.copy() for s in states]
+    results = queue.SimpleQueue() # pairs: (ID, maps, lambda states, maps: returns None for no changes or maps to overwrite them)
+    to_cache = queue.SimpleQueue() # set_cached(...) will be called with all elements in there
 
     # Invariant inference algorithm: if some property P holds in all states to merge and the ancestor state, optimistically assume it is part of the invariant
     for o in objs:
@@ -477,58 +479,88 @@ def maps_merge_across(states_to_merge, objs, ancestor_state, _cache={}):
         for state in states_to_merge:
             if utils.can_be_false(state.solver, state.maps.length(o) == ancestor_length):
                 print("Length of map", o, " was changed; making it symbolic")
-                results.append(("length-var", [o], lambda st, ms: [ms[0].with_length(claripy.BVS("map_length", ms[0].length().size()))]))
+                results.put(("length-var", [o], lambda st, ms: [ms[0].with_length(claripy.BVS("map_length", ms[0].length().size()))]))
                 break
 
+    remaining_work = queue.SimpleQueue()
     for (o1, o2) in itertools.permutations(objs, 2):
-        # Step 2: Length relationships.
-        # For each pair of maps (M1, M2),
-        #   if length(M1) <= length(M2) across all states,
-        #   then assume this holds the merged state
-        if all(utils.definitely_true(st.solver, st.maps.length(o1) <= st.maps.length(o2)) for st in states):
-            results.append(("length-lte", [o1, o2], lambda st, ms: st.add_constraints(ms[0].length() <= ms[1].length())))
+        remaining_work.put((o1, o2))
 
-        # Step 2: Map relationships.
-        # For each pair of maps (M1, M2),
-        #  if there exist functions FP, FK such that in all states, forall(M1, (K,V): FP(K,V) => get(M2, FK(K, V)) == (_, true)),
-        #  then assume this is an invariant of M1 in the merged state.
-        #  Additionally,
-        #   if there exists a function FV such that in all states, forall(M1, (K,V): FP(K,V) => get(M2, FK(K, V)) == (FV(K, V), true)),
-        #   then assume this is an invariant of M1 in the merged state.
-        # TODO: a string ID is not really enough to guarantee the constraints are the same here...
-        # We use maps directly to refer to the map state as it was in the ancestor, not during execution;
-        # otherwise, get(M1, k) after remove(M2, k) might add has(M2, k) to the constraints, which is obviously false
-        (fk_is_cached, fk) = get_cached(o1, o2, "k")
-        if not fk_is_cached:
-            fk = find_f(o1, o2, "key", "key") \
-              or find_f(o1, o2, "value", "key")
-            set_cached(o1, o2, "k", fk)
-        (fps_is_cached, fps) = get_cached(o1, o2, "p")
-        if not fps_is_cached:
-            fps = find_f_constants(o1, lambda i: i.value)
-            set_cached(o1, o2, "p", fps)
-        for fp in fps:
-            states = [s.copy() for s in orig_states]
-            if fk and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk: Implies(fp(MapItem(k, v, None)), st.maps.get(o2, fk(st, MapItem(k, v, None), True))[1]), _known_only=not first_time)) for st in states):
-                log_item = MapItem(claripy.BVS("K", ancestor_state.maps.key_size(o1)), claripy.BVS("V", ancestor_state.maps.value_size(o1)), None)
-                print("Inferred: when", o1, "contains (K,V), if", fp(log_item), "then", o2, "contains", fk(ancestor_state, log_item, True))
-                (fv_is_cached, fv) = get_cached(o1, o2, "v")
-                if not fv_is_cached:
-                    fv = find_f(o1, o2, "key", "value") \
-                      or find_f(o1, o2, "value", "value")
-                    set_cached(o1, o2, "v", fv)
+    def thread_main(ancestor_state, orig_states):
+        while True:
+            try:
+                (o1, o2) = remaining_work.get(block=False)
+            except queue.Empty:
+                return
+            # Step 2: Length relationships.
+            # For each pair of maps (M1, M2),
+            #   if length(M1) <= length(M2) across all states,
+            #   then assume this holds the merged state
+            if all(utils.definitely_true(st.solver, st.maps.length(o1) <= st.maps.length(o2)) for st in orig_states):
+                results.put(("length-lte", [o1, o2], lambda st, ms: st.add_constraints(ms[0].length() <= ms[1].length())))
+            
+            # Step 2: Map relationships.
+            # For each pair of maps (M1, M2),
+            #  if there exist functions FP, FK such that in all states, forall(M1, (K,V): FP(K,V) => get(M2, FK(K, V)) == (_, true)),
+            #  then assume this is an invariant of M1 in the merged state.
+            #  Additionally,
+            #   if there exists a function FV such that in all states, forall(M1, (K,V): FP(K,V) => get(M2, FK(K, V)) == (FV(K, V), true)),
+            #   then assume this is an invariant of M1 in the merged state.
+            # TODO: a string ID is not really enough to guarantee the constraints are the same here...
+            # We use maps directly to refer to the map state as it was in the ancestor, not during execution;
+            # otherwise, get(M1, k) after remove(M2, k) might add has(M2, k) to the constraints, which is obviously false
+            (fk_is_cached, fk) = get_cached(o1, o2, "k")
+            if not fk_is_cached:
+                fk = find_f(o1, o2, "key", "key") \
+                  or find_f(o1, o2, "value", "key")
+                to_cache.put([o1, o2, "k", fk])
+            (fps_is_cached, fps) = get_cached(o1, o2, "p")
+            if not fps_is_cached:
+                fps = find_f_constants(o1, lambda i: i.value)
+                to_cache.put([o1, o2, "p", fps])
+            for fp in fps:
                 states = [s.copy() for s in orig_states]
-                if fv and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk, fv=fv: Implies(fp(MapItem(k, v, None)), st.maps.get(o2, fk(st, MapItem(k, v, None), True))[0] == fv(st, MapItem(k, v, None), True)), _known_only=not first_time)) for st in states):
-                    print("          in addition, the value is", fv(ancestor_state, log_item, True))
-                    # Python doesn't have multiline lambdas :/
-                    def cross_val_inv(st, i, o2, fp, fk, fv):
-                        fvres = fv(st, i, False)
-                        (o2val, o2pres) = st.maps.get(o2, fk(st, i, False), value=fvres, from_present=False)
-                        return Implies(i.present, Implies(fp(i), claripy.And(o2pres, o2val == fvres)))
-                    results.append(("cross-val", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk, fv=fv: [maps[0].with_added_invariant(lambda st, i: cross_val_inv(st, i, o2, fp, fk, fv)), maps[1]]))
-                else:
-                    results.append(("cross-key", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk: [maps[0].with_added_invariant(lambda st, i: Implies(i.present, Implies(fp(i), st.maps.get(o2, fk(st, i, False), from_present=False)[1]))), maps[1]]))
-                break # this might make us miss some stuff in theory? but that's sound; and in practice it doesn't
+                if fk and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk: Implies(fp(MapItem(k, v, None)), st.maps.get(o2, fk(st, MapItem(k, v, None), True))[1]), _known_only=not first_time)) for st in states):
+                    log_item = MapItem(claripy.BVS("K", ancestor_state.maps.key_size(o1)), claripy.BVS("V", ancestor_state.maps.value_size(o1)), None)
+                    log_text = "Inferred: when " + str(o1) + " contains (K,V), if " + str(fp(log_item)) + " then " + str(o2) + " contains " + str(fk(ancestor_state, log_item, True))
+                    (fv_is_cached, fv) = get_cached(o1, o2, "v")
+                    if not fv_is_cached:
+                        fv = find_f(o1, o2, "key", "value") \
+                          or find_f(o1, o2, "value", "value")
+                        to_cache.put([o1, o2, "v", fv])
+                    states = [s.copy() for s in orig_states]
+                    if fv and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk, fv=fv: Implies(fp(MapItem(k, v, None)), st.maps.get(o2, fk(st, MapItem(k, v, None), True))[0] == fv(st, MapItem(k, v, None), True)), _known_only=not first_time)) for st in states):
+                        log_text += os.linesep + "          in addition, the value is " + str(fv(ancestor_state, log_item, True))
+                        # Python doesn't have multiline lambdas :/
+                        def cross_val_inv(st, i, o2, fp, fk, fv):
+                            fvres = fv(st, i, False)
+                            (o2val, o2pres) = st.maps.get(o2, fk(st, i, False), value=fvres, from_present=False)
+                            return Implies(i.present, Implies(fp(i), claripy.And(o2pres, o2val == fvres)))
+                        results.put(("cross-val", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk, fv=fv: [maps[0].with_added_invariant(lambda st, i: cross_val_inv(st, i, o2, fp, fk, fv)), maps[1]]))
+                    else:
+                        results.put(("cross-key", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk: [maps[0].with_added_invariant(lambda st, i: Implies(i.present, Implies(fp(i), st.maps.get(o2, fk(st, i, False), from_present=False)[1]))), maps[1]]))
+                    print(log_text) # print it at once to avoid interleavings from threads
+                    break # this might make us miss some stuff in theory? but that's sound; and in practice it doesn't
+
+    # Copy the states to avoid step N polluting the states used in step N+1
+    orig_states = [s.copy() for s in states]
+    
+    threads = []
+    for n in range(os.cpu_count()): # os.sched_getaffinity(0) would be better (get the CPUs we might be restricted to) but is not available on Win and OSX
+        t = threading.Thread(group=None,target=thread_main,name=None,args=[ancestor_state.copy(), orig_states],kwargs=None,daemon=False)
+        t.start()
+        threads.append(t)
+    for thread in threads:
+        thread.join()
+
+    while not to_cache.empty():
+        set_cached(*(to_cache.get()))
+
+    # turn it to a list for the next stage (and the return value)
+    results_dump = []
+    while not results.empty():
+        results_dump.append(results.get())
+    results = results_dump
 
     # Optimization: Remove redundant inferences.
     # That is, for pairs (M1, M2) of maps whose keys are the same in all states and which lead to the same number of inferences,
