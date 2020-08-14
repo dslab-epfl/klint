@@ -328,10 +328,11 @@ class GhostMaps(SimStatePlugin):
         return result
 
 
-def maps_merge_across(states_to_merge, objs, ancestor_state, _cache={}):
-    print("Cross-merge of maps starting. State count:", len(states_to_merge))
+# state args have a leading _ to ensure toe functions run concurrently don't accidentally touch them
+def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
+    print("Cross-merge of maps starting. State count:", len(_states_to_merge))
 
-    states = states_to_merge + [ancestor_state]
+    _states = _states_to_merge + [_ancestor_state]
 
     first_time = len(_cache) == 0
 
@@ -355,8 +356,8 @@ def maps_merge_across(states_to_merge, objs, ancestor_state, _cache={}):
         return present_items
 
     # helper function to find FK or FV
-    ancestor_variables = ancestor_state.solver.variables(claripy.And(*ancestor_state.solver.constraints))
-    def find_f(o1, o2, kind1, kind2):
+    ancestor_variables = _ancestor_state.solver.variables(claripy.And(*_ancestor_state.solver.constraints))
+    def find_f(states, o1, o2, kind1, kind2):
         def get_sel(kind):
             return (lambda i: i.key) if kind == "key" else (lambda i: i.value)
         sel1 = get_sel(kind1)
@@ -460,29 +461,29 @@ def maps_merge_across(states_to_merge, objs, ancestor_state, _cache={}):
         return candidate_func
 
     # Helper function to find FP
-    def find_f_constants(o, sel):
+    def find_f_constants(states, o, sel):
         constants = set([utils.get_if_constant(state.solver, sel(i)) for state in states for i in filter_present(state, o)])
         return [lambda i: claripy.true] + [lambda i, c=c: sel(i) == claripy.BVV(c, sel(i).size()) for c in constants if c is not None]
 
     # Optimization: Ignore maps that have not changed at all, e.g. those that are de facto readonly after initialization
-    objs = [o for o in objs if any(not utils.structural_eq(ancestor_state.maps[o], st.maps[o]) for st in states)]
+    objs = [o for o in objs if any(not utils.structural_eq(_ancestor_state.maps[o], st.maps[o]) for st in _states)]
 
-    results = queue.SimpleQueue() # pairs: (ID, maps, lambda states, maps: returns None for no changes or maps to overwrite them)
-    to_cache = queue.SimpleQueue() # set_cached(...) will be called with all elements in there
+    results = queue.Queue() # pairs: (ID, maps, lambda states, maps: returns None for no changes or maps to overwrite them)
+    to_cache = queue.Queue() # set_cached(...) will be called with all elements in there
 
     # Invariant inference algorithm: if some property P holds in all states to merge and the ancestor state, optimistically assume it is part of the invariant
     for o in objs:
         # Step 1: Length variation.
         # If the length may have changed in any state from the one in the ancestor state,
         # replace the length with a fresh symbol
-        ancestor_length = ancestor_state.maps.length(o)
-        for state in states_to_merge:
+        ancestor_length = _ancestor_state.maps.length(o)
+        for state in _states_to_merge:
             if utils.can_be_false(state.solver, state.maps.length(o) == ancestor_length):
                 print("Length of map", o, " was changed; making it symbolic")
                 results.put(("length-var", [o], lambda st, ms: [ms[0].with_length(claripy.BVS("map_length", ms[0].length().size()))]))
                 break
 
-    remaining_work = queue.SimpleQueue()
+    remaining_work = queue.Queue()
     for (o1, o2) in itertools.permutations(objs, 2):
         remaining_work.put((o1, o2))
 
@@ -498,7 +499,7 @@ def maps_merge_across(states_to_merge, objs, ancestor_state, _cache={}):
             #   then assume this holds the merged state
             if all(utils.definitely_true(st.solver, st.maps.length(o1) <= st.maps.length(o2)) for st in orig_states):
                 results.put(("length-lte", [o1, o2], lambda st, ms: st.add_constraints(ms[0].length() <= ms[1].length())))
-            
+
             # Step 2: Map relationships.
             # For each pair of maps (M1, M2),
             #  if there exist functions FP, FK such that in all states, forall(M1, (K,V): FP(K,V) => get(M2, FK(K, V)) == (_, true)),
@@ -511,12 +512,12 @@ def maps_merge_across(states_to_merge, objs, ancestor_state, _cache={}):
             # otherwise, get(M1, k) after remove(M2, k) might add has(M2, k) to the constraints, which is obviously false
             (fk_is_cached, fk) = get_cached(o1, o2, "k")
             if not fk_is_cached:
-                fk = find_f(o1, o2, "key", "key") \
-                  or find_f(o1, o2, "value", "key")
+                fk = find_f(orig_states, o1, o2, "key", "key") \
+                  or find_f(orig_states, o1, o2, "value", "key")
                 to_cache.put([o1, o2, "k", fk])
             (fps_is_cached, fps) = get_cached(o1, o2, "p")
             if not fps_is_cached:
-                fps = find_f_constants(o1, lambda i: i.value)
+                fps = find_f_constants(orig_states, o1, lambda i: i.value)
                 to_cache.put([o1, o2, "p", fps])
             for fp in fps:
                 states = [s.copy() for s in orig_states]
@@ -525,8 +526,8 @@ def maps_merge_across(states_to_merge, objs, ancestor_state, _cache={}):
                     log_text = "Inferred: when " + str(o1) + " contains (K,V), if " + str(fp(log_item)) + " then " + str(o2) + " contains " + str(fk(ancestor_state, log_item, True))
                     (fv_is_cached, fv) = get_cached(o1, o2, "v")
                     if not fv_is_cached:
-                        fv = find_f(o1, o2, "key", "value") \
-                          or find_f(o1, o2, "value", "value")
+                        fv = find_f(orig_states, o1, o2, "key", "value") \
+                          or find_f(orig_states, o1, o2, "value", "value")
                         to_cache.put([o1, o2, "v", fv])
                     states = [s.copy() for s in orig_states]
                     if fv and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk, fv=fv: Implies(fp(MapItem(k, v, None)), st.maps.get(o2, fk(st, MapItem(k, v, None), True))[0] == fv(st, MapItem(k, v, None), True)), _known_only=not first_time)) for st in states):
@@ -542,16 +543,16 @@ def maps_merge_across(states_to_merge, objs, ancestor_state, _cache={}):
                     print(log_text) # print it at once to avoid interleavings from threads
                     break # this might make us miss some stuff in theory? but that's sound; and in practice it doesn't
 
-    # Copy the states to avoid step N polluting the states used in step N+1
-    orig_states = [s.copy() for s in states]
-    
-    threads = []
+    # Multithreading disabled because it causes weird errors (maybe we're configuring angr wrong; we end up with a claripy mixin shared between threads)
+    # and even segfaults (which look like z3 is accessed concurrently when it shouldn't be)
+    thread_main(_ancestor_state.copy(), [s.copy() for s in _states])
+    """threads = []
     for n in range(os.cpu_count()): # os.sched_getaffinity(0) would be better (get the CPUs we might be restricted to) but is not available on Win and OSX
-        t = threading.Thread(group=None,target=thread_main,name=None,args=[ancestor_state.copy(), orig_states],kwargs=None,daemon=False)
+        t = threading.Thread(group=None, target=thread_main, name=None, args=[_ancestor_state.copy(), [s.copy() for s in _states]], kwargs=None, daemon=False)
         t.start()
         threads.append(t)
     for thread in threads:
-        thread.join()
+        thread.join()"""
 
     while not to_cache.empty():
         set_cached(*(to_cache.get()))
@@ -562,14 +563,17 @@ def maps_merge_across(states_to_merge, objs, ancestor_state, _cache={}):
         results_dump.append(results.get())
     results = results_dump
 
+    # ensure we don't pollute states through the next check
+    _orig_states = [s.copy() for s in _states]
+
     # Optimization: Remove redundant inferences.
     # That is, for pairs (M1, M2) of maps whose keys are the same in all states and which lead to the same number of inferences,
     # remove all map relationships of the form (M2, M3) if (M1, M3) exists, as well as those of the form (M3, M2) if (M3, M1) exists.
     # This is a conservative algorithm; a better version eliminating more things would need to keep track of whether relationships are lossy,
     # to avoid eliminating a lossless relationship in favor of a lossy one, and create a proper graph instead of relying on pairs.
     for (o1, o2) in itertools.combinations(objs, 2):
-        if ancestor_state.maps.key_size(o1) == ancestor_state.maps.key_size(o2):
-            states = [s.copy() for s in orig_states]
+        if _ancestor_state.maps.key_size(o1) == _ancestor_state.maps.key_size(o2):
+            states = [s.copy() for s in _orig_states]
             if all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v: st.maps.get(o2, k)[1])) for st in states) and \
                len([r for r in results if "cross-" in r[0] and r[1][0] is o1]) == len([r for r in results if "cross-" in r[0] and r[1][0] is o2]):
                 to_remove  = [r for r in results

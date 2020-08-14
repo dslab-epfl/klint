@@ -5,6 +5,7 @@ from executors.binary.ghost_maps import GhostMaps
 from executors.binary.memory_split import SplitMemory
 from executors.binary.metadata import Metadata
 from executors.binary.path import Path
+import faulthandler
 import random
 
 # Disable logs we don't care about
@@ -93,10 +94,9 @@ class CustomSolver(
     cfms.CompositedCacheMixin, # sounds useful
     CompositeFrontend # the actual frontend
 ):
-    def __init__(self, **kwargs):
-        track = False
-        template_solver = SolverCompositeChild(track=track)
-        template_solver_string = SolverCompositeChild(track=track, backend=backends.z3)
+    def __init__(self, template_solver=None, track=False, template_solver_string=None, **kwargs):
+        template_solver = template_solver or SolverCompositeChild(track=track)
+        template_solver_string = template_solver_string or SolverCompositeChild(track=track, backend=backends.z3)
         super(CustomSolver, self).__init__(template_solver, template_solver_string, track=track, **kwargs)
 
 bin_exec_initialized = False
@@ -106,6 +106,7 @@ def create_sim_manager(binary, ext_funcs, main_func_name, *main_func_args, base_
   if not bin_exec_initialized:
     EmptyLibrary().install()
     random.seed(10) # not sure if this is useful, but just in case...
+    faulthandler.enable()
     bin_exec_initialized = True
 
   # No explicit globals (we use metadata instead)
