@@ -146,7 +146,9 @@ class Metadata(SimStatePlugin):
         has_already = len(results) == 1
         if has_already:
             if override:
-                self.items[cls] = [(k, v) for (k, v) in self.items[cls] if k is not results[0][0]] # using remove() tests by value, which ends up converting claripy ASTs to bool, which they don't like
+                # Keep them in the same order! This makes the rest of the code easier to reason about
+                self.items[cls] = [((key, value) if k is results[0][0] else (k, v)) for (k, v) in self.items[cls]]
+                return
             else:
                 raise ("There is already metadata of type " + str(cls) + " for key: " + str(key) + ", namely " + str(results))
 
