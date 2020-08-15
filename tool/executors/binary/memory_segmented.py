@@ -76,7 +76,12 @@ class SegmentedMemory(SimMemory):
         (value, present) = self.state.maps.get(base, index)
         if utils.can_be_false(self.state.solver, present):
             raise "Memory value may not be present!?"
-        size = self._concrete_size(size)
+
+        size = self._to_bv64(size) * 8 # we get the size in bytes
+        if size.symbolic:
+            raise "Can't handle symbolic sizes"
+        size = self.state.solver.eval_one(size, cast_to=int)
+
         if offset == 0 and size == self.state.maps.value_size(base):
             return [addr], value, []
         else:
@@ -107,12 +112,6 @@ class SegmentedMemory(SimMemory):
         self.state.add_constraints(addr != 0, addr.ULE(claripy.BVV(2**bitsizes.PTR-1, bitsizes.PTR) - max_size - 1))
         self.segments.append((addr, count, size))
         return addr
-
-    def _concrete_size(self, size):
-        size = self._to_bv64(size) * 8 # we get the size in bytes
-        if size.symbolic:
-            raise "Can't handle symbolic sizes"
-        return self.state.solver.eval_one(size, cast_to=int)
 
     def _count_size(self, addr):
         # Optimization: Try structurally matching first before invoking the solver
@@ -161,12 +160,3 @@ class SegmentedMemory(SimMemory):
             return (base, index, offset * 8)
 
         raise ("B_I_O doesn't know what to do with: " + str(addr) + " of type " + str(type(addr)) + " ; op is " + str(addr.op) + " ; args is " + str(addr.args) + " ; constrs are " + str(self.state.solver.constraints))
-
-    # as long as this is only called from FractionalMemory.try_load it doesn't need caching; see that method
-    def try_load(self, addr, size, from_present=True):
-        (base, index, offset) = self.base_index_offset(addr)
-        (value, present) = self.state.maps.get(base, index, from_present=from_present)
-        size = self._concrete_size(size)
-        if offset != 0 or size != self.state.maps.value_size(base):
-            value = value[(offset+size-1):offset]
-        return claripy.If(present, value, claripy.BVS("memory_segmented_bad_value", size))
