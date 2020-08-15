@@ -516,10 +516,12 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
             (fps_is_cached, fps) = get_cached(o1, o2, "p")
             if not fps_is_cached:
                 fps = find_f_constants(orig_states, o1, lambda i: i.value)
-                to_cache.put([o1, o2, "p", fps])
+            found_fp = False
             for fp in fps:
                 states = [s.copy() for s in orig_states]
                 if fk and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk: Implies(fp(MapItem(k, v, None)), st.maps.get(o2, fk(st, MapItem(k, v, None), True))[1]), _known_only=not first_time)) for st in states):
+                    found_fp = True
+                    to_cache.put([o1, o2, "p", [fp]]) # only put the working one, don't have us try a pointless one next time
                     log_item = MapItem(claripy.BVS("K", ancestor_state.maps.key_size(o1)), claripy.BVS("V", ancestor_state.maps.value_size(o1)), None)
                     log_text = "Inferred: when " + str(o1) + " contains (K,V), if " + str(fp(log_item)) + " then " + str(o2) + " contains " + str(fk(ancestor_state, log_item, True))
                     (fv_is_cached, fv) = get_cached(o1, o2, "v")
@@ -540,6 +542,8 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                         results.put(("cross-key", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk: [maps[0].with_added_invariant(lambda st, i: Implies(i.present, Implies(fp(i), st.maps.get(o2, fk(st, i, False), from_present=False)[1]))), maps[1]]))
                     print(log_text) # print it at once to avoid interleavings from threads
                     break # this might make us miss some stuff in theory? but that's sound; and in practice it doesn't
+            if not found_fp:
+                to_cache.put([o1, o2, "p", []])
 
     # Multithreading disabled because it causes weird errors (maybe we're configuring angr wrong; we end up with a claripy mixin shared between threads)
     # and even segfaults (which look like z3 is accessed concurrently when it shouldn't be)
