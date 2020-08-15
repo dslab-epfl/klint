@@ -1,6 +1,8 @@
 # tested on Ubuntu 18.04
 # THIS SCRIPT SHOULD BE SOURCED NOT RAN
 
+# TODO: consider using normal python, most of the time is spent in z3 anyway... benchmark on the server?
+
 if [ ! -d "$HOME/.virtualenvs/angr" ]; then
   # Virtual env for angr using pypy for python3
   sudo snap install --classic pypy3
