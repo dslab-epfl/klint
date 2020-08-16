@@ -4,8 +4,7 @@
 // - To verify, 'default_value_eq_zero' needs to be turned from a lemma_auto to a lemma in prelude_core.gh, see verifast issue 68
 // - If using vfide, hardcode malloc_block_sizes and friends below, since it does not like using UINTPTR_MAX in an #if, see verifast issue 213
 
-#include <stdbool.h>
-#include <stddef.h>
+#include <limits.h>
 #include <stdlib.h>
 
 #include "proof/generic_ops.h"
