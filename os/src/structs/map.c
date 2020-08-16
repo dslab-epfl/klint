@@ -16,7 +16,7 @@
 //@ #include "proof/stdex.gh"
 
 struct os_map {
-  void** kaddrs;
+  char** kaddrs;
   char* busybits; // TODO: change to bool once VeriFast handles sizeof(bool), malloc/free with bools, etc.
   uint32_t* hashes;
   uint32_t* chains;
@@ -34,7 +34,7 @@ struct os_map {
   }
 
   // Addresses + busybits => key options
-  predicate key_opt_list(size_t key_size, list<void*> kaddrs, list<char> busybits;
+  predicate key_opt_list(size_t key_size, list<char*> kaddrs, list<char> busybits;
                          list<option<list<char> > > key_opts) =
     switch(busybits) {
       case nil:
@@ -96,8 +96,8 @@ struct os_map {
   // Addresses + key options + values => Map values + Map addresses
   // NOTE: It is crucial that this predicate be expressed without using ghostmap_set!
   //       Using set would impose an order, which makes the rest of the proof (probably?) infeasible.
-  predicate map_valuesaddrs(list<void*> kaddrs, list<option<list<char> > > key_opts, list<uint64_t> values,
-                            list<pair<list<char>, uint64_t> > map_values, list<pair<list<char>, void*> > map_addrs) =
+  predicate map_valuesaddrs(list<char*> kaddrs, list<option<list<char> > > key_opts, list<uint64_t> values,
+                            list<pair<list<char>, uint64_t> > map_values, list<pair<list<char>, char*> > map_addrs) =
     switch(kaddrs) {
       case nil:
         return key_opts == nil &*&
@@ -122,12 +122,12 @@ struct os_map {
 
   // Keys + busybits + hashes + values => key options + map values + map addresses
   predicate mapping_core(size_t key_size, size_t capacity,
-                         void** kaddrs_ptr, char* busybits_ptr, uint32_t* hashes_ptr, uint64_t* values_ptr,
-                         list<option<list<char> > > key_opts, list<pair<list<char>, uint64_t> > map_values, list<pair<list<char>, void*> > map_addrs) =
-     pointers(kaddrs_ptr, capacity, ?kaddrs) &*&
-     chars(busybits_ptr, capacity, ?busybits) &*&
-     uints(hashes_ptr, capacity, ?hashes) &*&
-     ullongs(values_ptr, capacity, ?values) &*&
+                         char** kaddrs_ptr, char* busybits_ptr, uint32_t* hashes_ptr, uint64_t* values_ptr,
+                         list<option<list<char> > > key_opts, list<pair<list<char>, uint64_t> > map_values, list<pair<list<char>, char*> > map_addrs) =
+     kaddrs_ptr[0..capacity] |-> ?kaddrs &*&
+     busybits_ptr[0..capacity] |-> ?busybits &*&
+     hashes_ptr[0..capacity] |-> ?hashes &*&
+     values_ptr[0..capacity] |-> ?values &*&
      key_opt_list(key_size, kaddrs, busybits, key_opts) &*&
      map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs) &*&
      true == hash_list(key_opts, hashes) &*&
@@ -140,13 +140,13 @@ struct os_map {
   
   // Core + "chains" performance optimization
   predicate mapping(size_t key_size, size_t capacity,
-                    void** kaddrs_ptr, char* busybits_ptr, uint32_t* hashes_ptr, uint32_t* chains_ptr, uint64_t* values_ptr, list<bucket<list<char> > > buckets,
-                    list<option<list<char> > > key_opts, list<pair<list<char>, uint64_t> > map_values, list<pair<list<char>, void*> > map_addrs) =
+                    char** kaddrs_ptr, char* busybits_ptr, uint32_t* hashes_ptr, uint32_t* chains_ptr, uint64_t* values_ptr, list<bucket<list<char> > > buckets,
+                    list<option<list<char> > > key_opts, list<pair<list<char>, uint64_t> > map_values, list<pair<list<char>, char*> > map_addrs) =
      mapping_core(key_size, capacity, kaddrs_ptr, busybits_ptr, hashes_ptr, values_ptr, key_opts, map_values, map_addrs) &*&
-     uints(chains_ptr, capacity, ?chains) &*&
+     chains_ptr[0..capacity] |-> ?chains &*&
      buckets_keys_insync(capacity, chains, buckets, key_opts);
 
-  predicate mapp(struct os_map* map, size_t key_size, size_t capacity, list<pair<list<char>, uint64_t> > map_values, list<pair<list<char>, void*> > map_addrs) =
+  predicate mapp(struct os_map* map, size_t key_size, size_t capacity, list<pair<list<char>, uint64_t> > map_values, list<pair<list<char>, char*> > map_addrs) =
     malloc_block_os_map(map) &*&
     map->kaddrs |-> ?kaddrs_ptr &*&
     map->busybits |-> ?busybits_ptr &*&
@@ -175,7 +175,7 @@ static size_t loop(size_t pos, size_t capacity)
 }
 
 /*@
-lemma list<char> extract_key_at_index(list<void*> kaddrs_b, list<char> busybits_b, list<option<list<char> > > key_opts_b, int n, 
+lemma list<char> extract_key_at_index(list<char*> kaddrs_b, list<char> busybits_b, list<option<list<char> > > key_opts_b, int n, 
                                       list<char> busybits, list<option<list<char> > > key_opts)
   requires key_opt_list(?key_size, ?kaddrs, busybits, key_opts) &*&
            key_opt_list(key_size, kaddrs_b, busybits_b, key_opts_b) &*&
@@ -222,8 +222,8 @@ lemma list<char> extract_key_at_index(list<void*> kaddrs_b, list<char> busybits_
 
 // ---
 
-lemma void reconstruct_key_opt_list(list<void*> kaddrs1, list<char> busybits1, 
-                                    list<void*> kaddrs2, list<char> busybits2)
+lemma void reconstruct_key_opt_list(list<char*> kaddrs1, list<char> busybits1, 
+                                    list<char*> kaddrs2, list<char> busybits2)
   requires key_opt_list(?key_size, kaddrs1, busybits1, ?key_opts1) &*&
            key_opt_list(key_size, kaddrs2, busybits2, ?key_opts2);
   ensures key_opt_list(key_size,
@@ -247,7 +247,7 @@ lemma void reconstruct_key_opt_list(list<void*> kaddrs1, list<char> busybits1,
   }
 }
 
-lemma void recover_key_opt_list(list<void*> kaddrs, list<char> busybits, list<option<list<char> > > key_opts, int n)
+lemma void recover_key_opt_list(list<char*> kaddrs, list<char> busybits, list<option<list<char> > > key_opts, int n)
   requires key_opt_list(?key_size, reverse(take(n, kaddrs)), reverse(take(n, busybits)), reverse(take(n, key_opts))) &*&
            0 != nth(n, busybits) &*&
            [0.25]chars(nth(n, kaddrs), key_size, ?k) &*&
@@ -571,13 +571,13 @@ lemma void chains_depleted_no_hope(list<bucket<list<char> > > buckets, int i,
 }
 @*/
 
-static bool find_key(void** kaddrs, char* busybits, uint32_t* hashes, uint32_t* chains, void* key_ptr, size_t key_size, size_t capacity, size_t* out_loc)
+static bool find_key(char** kaddrs, char* busybits, uint32_t* hashes, uint32_t* chains, char* key_ptr, size_t key_size, size_t capacity, size_t* out_loc)
 /*@ requires mapping(key_size, capacity, kaddrs, busybits, hashes, chains, ?values, ?buckets, ?key_opts, ?map_values, ?map_addrs) &*&
-             [?kfr]chars(key_ptr, key_size, ?key) &*&
+             [?kfr]key_ptr[0..key_size] |-> ?key &*&
              is_pow2(capacity, N63) != none &*&
              *out_loc |-> _; @*/
 /*@ ensures mapping(key_size, capacity, kaddrs, busybits, hashes, chains, values, buckets, key_opts, map_values, map_addrs) &*&
-            [kfr]chars(key_ptr, key_size, key) &*&
+            [kfr]key_ptr[0..key_size] |-> key &*&
             *out_loc |-> ?out_n &*&
             mem(some(key), key_opts) ? (true == result &*& out_n == index_of(some(key), key_opts)) :
                                        false == result; @*/
@@ -585,25 +585,25 @@ static bool find_key(void** kaddrs, char* busybits, uint32_t* hashes, uint32_t* 
   uint32_t key_hash = generic_hash(key_ptr, key_size);
   //@ open mapping(key_size, capacity, kaddrs, busybits, hashes, chains, values, buckets, key_opts, map_values, map_addrs);
   //@ open mapping_core(key_size, capacity, kaddrs, busybits, hashes, values, key_opts, map_values, map_addrs);
-  //@ assert pointers(kaddrs, capacity, ?kaddrs_lst);
-  //@ assert chars(busybits, capacity, ?busybits_lst);
-  //@ assert uints(hashes, capacity, ?hashes_lst);
-  //@ assert uints(chains, capacity, ?chains_lst);
-  //@ assert ullongs(values, capacity, ?values_lst);
+  //@ assert kaddrs[0..capacity] |-> ?kaddrs_lst;
+  //@ assert busybits[0..capacity] |-> ?busybits_lst;
+  //@ assert hashes[0..capacity] |-> ?hashes_lst;
+  //@ assert chains[0..capacity] |-> ?chains_lst;
+  //@ assert values[0..capacity] |-> ?values_lst;
   //@ open buckets_keys_insync(capacity, chains_lst, buckets, key_opts);
   //@ assert key_opt_list(key_size, kaddrs_lst, busybits_lst, key_opts);
   size_t start = loop(key_hash, capacity);
   size_t i = 0;
   for (; i < capacity; ++i)
     /*@ invariant key_opt_list(key_size, kaddrs_lst, busybits_lst, key_opts) &*&
-                  pointers(kaddrs, capacity, kaddrs_lst) &*&
-                  chars(busybits, capacity, busybits_lst) &*&
-                  uints(hashes, capacity, hashes_lst) &*&
-                  uints(chains, capacity, chains_lst) &*&
-                  ullongs(values, capacity, values_lst) &*&
+                  kaddrs[0..capacity] |-> kaddrs_lst &*&
+                  busybits[0..capacity] |-> busybits_lst &*&
+                  hashes[0..capacity] |-> hashes_lst &*&
+                  chains[0..capacity] |-> chains_lst &*&
+                  values[0..capacity] |-> values_lst &*&
                   map_valuesaddrs(kaddrs_lst, key_opts, values_lst, map_values, map_addrs) &*&
                   0 <= i &*& i <= capacity &*&
-                  [kfr]chars(key_ptr, key_size, key) &*&
+                  [kfr]key_ptr[0..key_size] |-> key &*&
                   hash_fp(key) == key_hash &*&
                   true == hash_list(key_opts, hashes_lst) &*&
                   start == loop_fp(hash_fp(key), capacity) &*&
@@ -615,7 +615,7 @@ static bool find_key(void** kaddrs, char* busybits, uint32_t* hashes, uint32_t* 
     //@ decreases capacity - i;
   {
     size_t index = loop(start + i, capacity);
-    void* kp = kaddrs[index];
+    char* kp = kaddrs[index];
     char bb = busybits[index];
     uint32_t kh = hashes[index];
     uint32_t chn = chains[index];
@@ -769,13 +769,13 @@ lemma void bb_nonzero_cell_busy(list<char> busybits, list<option<list<char> > > 
 
 static size_t find_empty(char* busybits, uint32_t* chains, size_t start, size_t capacity)
 /*@ requires mapping_core(?key_size, capacity, ?kaddrs, busybits, ?hashes, ?values, ?key_opts, ?map_values, ?map_addrs) &*&
-             uints(chains, capacity, ?old_chains_lst) &*&
+             chains[0..capacity] |-> ?old_chains_lst &*&
              buckets_keys_insync(capacity, old_chains_lst, ?buckets, key_opts) &*&
              0 <= start &*& start < capacity &*&
              opts_size(key_opts) < capacity &*&
              is_pow2(capacity, N63) != none; @*/
 /*@ ensures mapping_core(key_size, capacity, kaddrs, busybits, hashes, values, key_opts, map_values, map_addrs) &*&
-            uints(chains, capacity, ?new_chains_lst) &*&
+            chains[0..capacity] |-> ?new_chains_lst &*&
             buckets_keys_insync_Xchain(capacity, new_chains_lst, buckets, start, result, key_opts) &*&
             nth(result, key_opts) == none &*&
             result < capacity; @*/
@@ -786,11 +786,11 @@ static size_t find_empty(char* busybits, uint32_t* chains, size_t start, size_t 
   size_t i = 0;
   for (; i < capacity; ++i)
     /*@ invariant key_opt_list(key_size, ?kaddrs_lst, ?busybits_lst, key_opts) &*&
-                  chars(busybits, capacity, busybits_lst) &*&
-                  uints(hashes, capacity, ?hashes_lst) &*&
-                  pointers(kaddrs, capacity, kaddrs_lst) &*&
-                  ullongs(values, capacity, ?values_lst) &*&
-                  uints(chains, capacity, ?invariant_chains_lst) &*&
+                  busybits[0..capacity] |-> busybits_lst &*&
+                  hashes[0..capacity] |-> ?hashes_lst &*&
+                  kaddrs[0..capacity] |-> kaddrs_lst &*&
+                  values[0..capacity] |-> ?values_lst &*&
+                  chains[0..capacity] |-> ?invariant_chains_lst &*&
                   length(key_opts) == capacity &*&
                   true == hash_list(key_opts, hashes_lst) &*&
                   map_valuesaddrs(kaddrs_lst, key_opts, values_lst, map_values, map_addrs) &*&
@@ -801,7 +801,7 @@ static size_t find_empty(char* busybits, uint32_t* chains, size_t start, size_t 
     //@ decreases capacity - i;
   {
     size_t index = loop(start + i, capacity);
-    //@ assert uints(chains, capacity, ?chains_lst);
+    //@ assert chains[0..capacity] |-> ?chains_lst;
     //@ open buckets_keys_insync_Xchain(capacity, chains_lst, buckets, start, index, key_opts);
     char bb = busybits[index];
     if (bb == 0) {
@@ -995,11 +995,11 @@ ensures map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs) &*&
 }
 @*/
 
-static size_t find_key_remove_chain(void** kaddrs, char* busybits, uint32_t* hashes, uint32_t* chains, void* key_ptr, size_t key_size, size_t capacity)
+static size_t find_key_remove_chain(char** kaddrs, char* busybits, uint32_t* hashes, uint32_t* chains, char* key_ptr, size_t key_size, size_t capacity)
 /*@ requires mapping_core(key_size, capacity, kaddrs, busybits, hashes, ?values, ?key_opts, ?map_values, ?map_addrs) &*&
-             uints(chains, capacity, ?chains_lst) &*&
+             chains[0..capacity] |-> ?chains_lst &*&
              buckets_keys_insync(capacity, chains_lst, ?buckets, key_opts) &*&
-             [?kfr]chars(key_ptr, key_size, ?key) &*&
+             [?kfr]key_ptr[0..key_size] |-> ?key &*&
              ghostmap_get(map_values, key) != none &*&
              ghostmap_get(map_addrs, key) == some(key_ptr) &*&
              is_pow2(capacity, N63) != none; @*/
@@ -1007,9 +1007,9 @@ static size_t find_key_remove_chain(void** kaddrs, char* busybits, uint32_t* has
             false == mem(some(key), new_key_opts) &*&
             new_map_values == ghostmap_remove(map_values, key) &*&
             new_map_addrs == ghostmap_remove(map_addrs, key) &*&
-            uints(chains, capacity, ?new_chains_lst) &*&
+            chains[0..capacity] |-> ?new_chains_lst &*&
             buckets_keys_insync(capacity, new_chains_lst, buckets_remove_key_fp(buckets, key), new_key_opts) &*&
-            [kfr+0.25]chars(key_ptr, key_size, key) &*&
+            [kfr+0.25]key_ptr[0..key_size] |-> key &*&
             result == index_of(some(key), key_opts); @*/
 {
   uint32_t key_hash = generic_hash(key_ptr, key_size);
@@ -1024,17 +1024,17 @@ static size_t find_key_remove_chain(void** kaddrs, char* busybits, uint32_t* has
   //@ buckets_remove_add_one_chain(buckets, start, key);
   //@ loop_bijection(start, capacity);
   for (; i < capacity; ++i)
-    /*@ invariant pointers(kaddrs, capacity, kaddrs_lst) &*&
-                  chars(busybits, capacity, busybits_lst) &*&
-                  uints(hashes, capacity, ?hashes_lst) &*&
-                  ullongs(values, capacity, ?values_lst) &*&
+    /*@ invariant kaddrs[0..capacity] |-> kaddrs_lst &*&
+                  busybits[0..capacity] |-> busybits_lst &*&
+                  hashes[0..capacity] |-> ?hashes_lst &*&
+                  values[0..capacity] |-> ?values_lst &*&
                   key_opt_list(key_size, kaddrs_lst, busybits_lst, key_opts) &*&
                   map_valuesaddrs(kaddrs_lst, key_opts, values_lst, map_values, map_addrs) &*&
                   true == hash_list(key_opts, hashes_lst) &*&
                   opts_size(key_opts) == length(map_values) &*&
-                  uints(chains, capacity, chains_lst) &*&
+                  chains[0..capacity] |-> chains_lst &*&
                   0 <= i &*& i <= capacity &*&
-                  [kfr]chars(key_ptr, key_size, key) &*&
+                  [kfr]key_ptr[0..key_size] |-> key &*&
                   hash_fp(key) == key_hash &*&
                   key_opts == buckets_get_keys_fp(buckets) &*&
                   i <= buckets_get_chain_fp(buckets, key, start) &*&
@@ -1048,7 +1048,7 @@ static size_t find_key_remove_chain(void** kaddrs, char* busybits, uint32_t* has
     char bb = busybits[index];
     uint32_t kh = hashes[index];
     uint32_t chn = chains[index];
-    void* kp = kaddrs[index];
+    char* kp = kaddrs[index];
     if (bb != 0 && kh == key_hash) {
       //@ close key_opt_list(key_size, nil, nil, nil);
       //@ extract_key_at_index(nil, nil, nil, index, busybits_lst, key_opts);
@@ -1102,12 +1102,12 @@ static size_t find_key_remove_chain(void** kaddrs, char* busybits, uint32_t* has
     //@ loop_fixp(start + i, capacity);
     //@ buckets_ok_get_chain_bounded(buckets, key, start);
     //@ remove_one_cell_from_partial_chain(chains_lst, loop_fp(start + i, capacity), buckets_get_chain_fp(buckets, key, start) - i, buckets_get_chns_fp(buckets_remove_key_fp(buckets, key)), capacity);
-    //@ assert uints(chains, capacity, update(index, nth(index, chains_lst) - 1, add_partial_chain_fp(loop_fp(start + i, capacity), buckets_get_chain_fp(buckets, key, start) - i, buckets_get_chns_fp(buckets_remove_key_fp(buckets, key)))));
-    //@ assert uints(chains, capacity, add_partial_chain_fp(loop_fp(loop_fp(start + i, capacity) + 1, capacity), buckets_get_chain_fp(buckets, key, start) - i - 1, buckets_get_chns_fp(buckets_remove_key_fp(buckets, key))));
+    //@ assert chains[0..capacity] |-> update(index, nth(index, chains_lst) - 1, add_partial_chain_fp(loop_fp(start + i, capacity), buckets_get_chain_fp(buckets, key, start) - i, buckets_get_chns_fp(buckets_remove_key_fp(buckets, key))));
+    //@ assert chains[0..capacity] |-> add_partial_chain_fp(loop_fp(loop_fp(start + i, capacity) + 1, capacity), buckets_get_chain_fp(buckets, key, start) - i - 1, buckets_get_chns_fp(buckets_remove_key_fp(buckets, key)));
     //@ inc_modulo_loop(start + i, capacity);
     //@ assert loop_fp(loop_fp(start + i, capacity) + 1, capacity) == loop_fp(start + i + 1, capacity);
     //@ chains_lst = add_partial_chain_fp(loop_fp(start + i + 1, capacity), buckets_get_chain_fp(buckets, key, start) - i - 1, buckets_get_chns_fp(buckets_remove_key_fp(buckets, key)));
-    //@ assert uints(chains, capacity, add_partial_chain_fp(loop_fp(start + i + 1, capacity), buckets_get_chain_fp(buckets, key, start) - i - 1, buckets_get_chns_fp(buckets_remove_key_fp(buckets, key))));
+    //@ assert chains[0..capacity] |-> add_partial_chain_fp(loop_fp(start + i + 1, capacity), buckets_get_chain_fp(buckets, key, start) - i - 1, buckets_get_chns_fp(buckets_remove_key_fp(buckets, key)));
   }
   //@ by_loop_for_all(key_opts, (neq)(some(key)), start, capacity, nat_of_int(capacity));
   //@ no_key_found(key_opts, key);
@@ -1182,7 +1182,7 @@ lemma void nat_len_of_non_nil<t>(t h, list<t> t)
   }
 }
 
-lemma void produce_key_opt_list(size_t key_size, list<uint32_t> hashes, list<void*> kaddrs)
+lemma void produce_key_opt_list(size_t key_size, list<uint32_t> hashes, list<char*> kaddrs)
   requires length(hashes) == length(kaddrs);
   ensures key_opt_list(key_size, kaddrs, repeat_n(nat_of_int(length(kaddrs)), 0), repeat_n(nat_of_int(length(kaddrs)), none)) &*&
           length(kaddrs) == length(repeat_n(nat_of_int(length(kaddrs)), none));
@@ -1291,7 +1291,7 @@ lemma void repeat_none_is_opt_no_dups<t>(nat n, list<option<t> > opts)
   }
 }
 
-lemma void produce_empty_map_valuesaddrs(size_t capacity, list<void*> kaddrs, list<uint64_t> values)
+lemma void produce_empty_map_valuesaddrs(size_t capacity, list<char*> kaddrs, list<uint64_t> values)
   requires length(kaddrs) == length(values) &*& length(kaddrs) == capacity;
   ensures map_valuesaddrs(kaddrs, repeat_n(nat_of_int(capacity), none), values, nil, nil);
 {
@@ -1329,8 +1329,8 @@ struct os_map* os_map_init(size_t key_size, size_t capacity)
   //@ check_pow2_valid(capacity);
 
   struct os_map* map = (struct os_map*) malloc(sizeof(struct os_map));
-  //@ mul_bounds(capacity, SIZE_MAX / 8, sizeof(void*), 8);
-  void** kaddrs = (void**) malloc(capacity * sizeof(void*));
+  //@ mul_bounds(capacity, SIZE_MAX / 8, sizeof(char*), 8);
+  char** kaddrs = (char**) malloc(capacity * sizeof(char*));
   char* busybits = (char*) malloc(capacity * sizeof(char));
   uint32_t* hashes = (uint32_t*) malloc(capacity * sizeof(uint32_t));
   uint32_t* chains = (uint32_t*) malloc(capacity * sizeof(uint32_t));
@@ -1358,17 +1358,17 @@ struct os_map* os_map_init(size_t key_size, size_t capacity)
     return NULL;
   }
 
-  //@ assert pointers(kaddrs, capacity, ?kaddrs_lst);
-  //@ assert chars(busybits, capacity, ?busybits_lst);
-  //@ assert uints(hashes, capacity, ?hashes_lst);
-  //@ assert uints(chains, capacity, ?chains_lst);
-  //@ assert ullongs(values, capacity, ?values_lst);
+  //@ assert kaddrs[0..capacity] |-> ?kaddrs_lst;
+  //@ assert busybits[0..capacity] |-> ?busybits_lst;
+  //@ assert hashes[0..capacity] |-> ?hashes_lst;
+  //@ assert chains[0..capacity] |-> ?chains_lst;
+  //@ assert values[0..capacity] |-> ?values_lst;
   size_t i = 0;
   for (; i < capacity; ++i)
-    /*@ invariant chars(busybits, i, repeat_n(nat_of_int(i), 0)) &*&
-                  chars(busybits + i, capacity - i, drop(i, busybits_lst)) &*&
-                  uints(chains, i, repeat_n(nat_of_int(i), 0)) &*&
-                  uints(chains + i, capacity - i, drop(i, chains_lst)) &*&
+    /*@ invariant busybits[0..i] |-> repeat_n(nat_of_int(i), 0) &*&
+                  busybits[i..capacity] |-> drop(i, busybits_lst) &*&
+                  chains[0..i] |-> repeat_n(nat_of_int(i), 0) &*&
+                  chains[i..capacity] |-> drop(i, chains_lst) &*&
                   0 <= i &*& i <= capacity; @*/
     //@ decreases capacity - i;
   {
@@ -1387,7 +1387,7 @@ struct os_map* os_map_init(size_t key_size, size_t capacity)
   //@ assert key_opt_list(key_size, kaddrs_lst, _, ?kopts);
   //@ repeat_n_contents(nat_of_int(length(kaddrs_lst)), none);
   //@ kopts_size_0_when_empty(kopts);
-  //@ assert uints(chains, capacity, ?zeroed_chains_lst);
+  //@ assert chains[0..capacity] |-> ?zeroed_chains_lst;
   //@ empty_buckets_insync(zeroed_chains_lst, capacity);
   //@ produce_empty_map_valuesaddrs(capacity, kaddrs_lst, values_lst);
   //@ confirm_hash_list_for_nones(hashes_lst);
@@ -1458,7 +1458,7 @@ ensures map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs) &*&
 }
 @*/
 
-bool os_map_get(struct os_map* map, void* key_ptr, uint64_t* value_out)
+bool os_map_get(struct os_map* map, char* key_ptr, uint64_t* value_out)
 /*@ requires mapp(map, ?key_size, ?capacity, ?map_values, ?map_addrs) &*&
              chars(key_ptr, key_size, ?key) &*&
              *value_out |-> _; @*/
@@ -1493,7 +1493,7 @@ bool os_map_get(struct os_map* map, void* key_ptr, uint64_t* value_out)
 }
 
 /*@
-lemma void put_keeps_key_opt_list(list<void*> kaddrs, list<char> busybits, list<option<list<char> > > key_opts, int index, void* key, list<char> k)
+lemma void put_keeps_key_opt_list(list<char*> kaddrs, list<char> busybits, list<option<list<char> > > key_opts, int index, char* key, list<char> k)
   requires key_opt_list(?key_size, kaddrs, busybits, key_opts) &*&
            [0.25]chars(key, key_size, k) &*&
            0 <= index &*& index < length(busybits) &*&
@@ -1644,7 +1644,7 @@ lemma void put_preserves_no_dups(list<option<list<char> > > key_opts, int i, lis
 
 // ---
 
-lemma void put_updates_valuesaddrs(size_t index, void* key_ptr, list<char> key, uint64_t value)
+lemma void put_updates_valuesaddrs(size_t index, char* key_ptr, list<char> key, uint64_t value)
   requires map_valuesaddrs(?kaddrs, ?key_opts, ?values, ?map_values, ?map_addrs) &*&
            0 <= index &*& index < length(key_opts) &*&
            nth(index, key_opts) == none &*&
@@ -1725,7 +1725,7 @@ ensures opts_size(update(index, some(key), key_opts)) == opts_size(key_opts) + 1
 }
 @*/
 
-void os_map_set(struct os_map* map, void* key_ptr, uint64_t value)
+void os_map_set(struct os_map* map, char* key_ptr, uint64_t value)
 /*@ requires mapp(map, ?key_size, ?capacity, ?map_values, ?map_addrs) &*&
              [0.25]chars(key_ptr, key_size, ?key) &*&
              length(map_values) < capacity &*&
@@ -1748,11 +1748,11 @@ void os_map_set(struct os_map* map, void* key_ptr, uint64_t value)
   size_t index = find_empty(map->busybits, map->chains, start, map->capacity);
   
   //@ open mapping_core(key_size, capacity, kaddrs, busybits, map->hashes, values, key_opts, map_values, map_addrs);
-  //@ assert pointers(kaddrs, capacity, ?kaddrs_lst);
-  //@ assert chars(busybits, capacity, ?busybits_lst);
-  //@ assert ullongs(values, capacity, ?values_lst);
-  //@ assert uints(hashes, capacity, ?hashes_lst);
-  //@ assert uints(chains, capacity, ?chains_lst);
+  //@ assert kaddrs[0..capacity] |-> ?kaddrs_lst;
+  //@ assert busybits[0..capacity] |-> ?busybits_lst;
+  //@ assert values[0..capacity] |-> ?values_lst;
+  //@ assert hashes[0..capacity] |-> ?hashes_lst;
+  //@ assert chains[0..capacity] |-> ?chains_lst;
   
   //@ map_values_has_not_implies_key_opts_has_not(map_values, key_opts, key);
 
@@ -1782,7 +1782,7 @@ void os_map_set(struct os_map* map, void* key_ptr, uint64_t value)
   //@ close mapp(map, key_size, capacity, new_map_values, new_map_addrs);
 }
 
-void os_map_remove(struct os_map* map, void* key_ptr)
+void os_map_remove(struct os_map* map, char* key_ptr)
 /*@ requires mapp(map, ?key_size, ?capacity, ?map_values, ?map_addrs) &*&
              [?frac]chars(key_ptr, key_size, ?key) &*&
              frac != 0.0 &*&
