@@ -2,6 +2,8 @@
 
 // !!! IMPORTANT !!! to verify, 'default_value_eq_zero' needs to be turned from a lemma_auto to a lemma in prelude_core.gh, see verifast issue 68
 
+// !!! IMPORTANT !!! if using vfide, hardcode malloc_block_sizes and friends below, since it does not like using UINTPTR_MAX in an #if...
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -15,11 +17,19 @@
 //@ #include "proof/nth-prop.gh"
 //@ #include "proof/stdex.gh"
 
+#if UINTPTR_MAX == UINT_MAX
+#  define malloc_block_sizes malloc_block_uints
+#  define PRED_sizes uints
+#else
+#  define malloc_block_sizes malloc_block_ullongs
+#  define PRED_sizes ullongs
+#endif
+
 struct os_map {
   char** kaddrs;
   char* busybits; // TODO: change to bool once VeriFast handles sizeof(bool), malloc/free with bools, etc.
   uint32_t* hashes;
-  uint32_t* chains;
+  size_t* chains;
   uint64_t* values;
   size_t capacity;
   size_t key_size;
@@ -140,7 +150,7 @@ struct os_map {
   
   // Core + "chains" performance optimization
   predicate mapping(size_t key_size, size_t capacity,
-                    char** kaddrs_ptr, char* busybits_ptr, uint32_t* hashes_ptr, uint32_t* chains_ptr, uint64_t* values_ptr, list<bucket<list<char> > > buckets,
+                    char** kaddrs_ptr, char* busybits_ptr, uint32_t* hashes_ptr, size_t* chains_ptr, uint64_t* values_ptr, list<bucket<list<char> > > buckets,
                     list<option<list<char> > > key_opts, list<pair<list<char>, uint64_t> > map_values, list<pair<list<char>, char*> > map_addrs) =
      mapping_core(key_size, capacity, kaddrs_ptr, busybits_ptr, hashes_ptr, values_ptr, key_opts, map_values, map_addrs) &*&
      chains_ptr[0..capacity] |-> ?chains &*&
@@ -158,7 +168,7 @@ struct os_map {
     malloc_block_pointers(kaddrs_ptr, capacity) &*&
     malloc_block_chars(busybits_ptr, capacity) &*&
     malloc_block_uints(hashes_ptr, capacity) &*&
-    malloc_block_uints(chains_ptr, capacity) &*&
+    malloc_block_sizes(chains_ptr, capacity) &*&
     malloc_block_ullongs(values_ptr, capacity) &*&
     mapping(key_size, capacity, kaddrs_ptr, busybits_ptr, hashes_ptr, chains_ptr, values_ptr, _, _, map_values, map_addrs) &*&
     is_pow2(capacity, N63) != none;
@@ -571,7 +581,7 @@ lemma void chains_depleted_no_hope(list<bucket<list<char> > > buckets, int i,
 }
 @*/
 
-static bool find_key(char** kaddrs, char* busybits, uint32_t* hashes, uint32_t* chains, char* key_ptr, size_t key_size, size_t capacity, size_t* out_loc)
+static bool find_key(char** kaddrs, char* busybits, uint32_t* hashes, size_t* chains, char* key_ptr, size_t key_size, size_t capacity, size_t* out_loc)
 /*@ requires mapping(key_size, capacity, kaddrs, busybits, hashes, chains, ?values, ?buckets, ?key_opts, ?map_values, ?map_addrs) &*&
              [?kfr]key_ptr[0..key_size] |-> ?key &*&
              is_pow2(capacity, N63) != none &*&
@@ -618,7 +628,7 @@ static bool find_key(char** kaddrs, char* busybits, uint32_t* hashes, uint32_t* 
     char* kp = kaddrs[index];
     char bb = busybits[index];
     uint32_t kh = hashes[index];
-    uint32_t chn = chains[index];
+    size_t chn = chains[index];
     if (bb != 0 && kh == key_hash) {
       //@ close key_opt_list(key_size, nil, nil, nil);
       //@ extract_key_at_index(nil, nil, nil, index, busybits_lst, key_opts);
@@ -767,7 +777,7 @@ lemma void bb_nonzero_cell_busy(list<char> busybits, list<option<list<char> > > 
 @*/
 
 
-static size_t find_empty(char* busybits, uint32_t* chains, size_t start, size_t capacity)
+static size_t find_empty(char* busybits, size_t* chains, size_t start, size_t capacity)
 /*@ requires mapping_core(?key_size, capacity, ?kaddrs, busybits, ?hashes, ?values, ?key_opts, ?map_values, ?map_addrs) &*&
              chains[0..capacity] |-> ?old_chains_lst &*&
              buckets_keys_insync(capacity, old_chains_lst, ?buckets, key_opts) &*&
@@ -810,7 +820,7 @@ static size_t find_empty(char* busybits, uint32_t* chains, size_t start, size_t 
       //@ close buckets_keys_insync_Xchain(capacity, chains_lst, buckets, start, index, key_opts);
       return index;
     }
-    uint32_t chn = chains[index];
+    size_t chn = chains[index];
     //@ buckets_keys_chns_same_len(buckets);
     //@ buckets_ok_chn_bound(buckets, index);
     //@ outside_part_chn_no_effect(buckets_get_chns_fp(buckets), start, index, capacity);
@@ -995,7 +1005,7 @@ ensures map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs) &*&
 }
 @*/
 
-static size_t find_key_remove_chain(char** kaddrs, char* busybits, uint32_t* hashes, uint32_t* chains, char* key_ptr, size_t key_size, size_t capacity)
+static size_t find_key_remove_chain(char** kaddrs, char* busybits, uint32_t* hashes, size_t* chains, char* key_ptr, size_t key_size, size_t capacity)
 /*@ requires mapping_core(key_size, capacity, kaddrs, busybits, hashes, ?values, ?key_opts, ?map_values, ?map_addrs) &*&
              chains[0..capacity] |-> ?chains_lst &*&
              buckets_keys_insync(capacity, chains_lst, ?buckets, key_opts) &*&
@@ -1047,7 +1057,7 @@ static size_t find_key_remove_chain(char** kaddrs, char* busybits, uint32_t* has
     size_t index = loop(start + i, capacity);
     char bb = busybits[index];
     uint32_t kh = hashes[index];
-    uint32_t chn = chains[index];
+    size_t chn = chains[index];
     char* kp = kaddrs[index];
     if (bb != 0 && kh == key_hash) {
       //@ close key_opt_list(key_size, nil, nil, nil);
@@ -1086,8 +1096,8 @@ static size_t find_key_remove_chain(char** kaddrs, char* busybits, uint32_t* has
     //@ buckets_get_chns_nonneg(buckets_remove_key_fp(buckets, key));
     //@ add_part_chn_gt0(index, buckets_get_chain_fp(buckets, key, start) - i, buckets_get_chns_fp(buckets_remove_key_fp(buckets, key)));
     //@ assert 0 < nth(index, chains_lst);
-    //@ assert 0 < chn;
-    //@ u_integer_limits(&chn);
+    //@ assert chn > 0;
+    //@ produce_limits(chn);
     chains[index] = chn - 1;
     //@ assert nth(index, key_opts) != some(key);
     //@ assert true == neq(some(key), nth(index, key_opts));
@@ -1116,38 +1126,42 @@ static size_t find_key_remove_chain(char** kaddrs, char* busybits, uint32_t* has
 }
 
 /*@
-lemma void move_uint(uint32_t* data, uint32_t i, int len)
-  requires uints(data, i, ?l1) &*& uints(data + i, len - i, ?l2) &*&
-           i < len;
-  ensures uints(data, i + 1, append(l1,cons(head(l2),nil))) &*&
-          uints(data + i + 1, len - i - 1, tail(l2));
+lemma void move_chain(size_t* data, uint32_t i, int len)
+  requires data[0..i] |-> ?l1 &*& 
+           data[i..len] |-> ?l2 &*&
+          i < len;
+  ensures data[0..(i + 1)] |-> append(l1, cons(head(l2), nil)) &*&
+          data[(i + 1)..len] |-> tail(l2);
 {
-  open(uints(data, i, l1));
+  open PRED_sizes(data, i, l1);
   switch(l1) {
     case nil:
-      open(uints(data, len-i, l2));
-      close(uints(data, 1, cons(head(l2),nil)));
-    case cons(h,t):
-      move_uint(data+1, i-1, len-1);
+      open PRED_sizes(data, len-i, l2);
+      close PRED_sizes(data, 1, cons(head(l2), nil));
+    case cons(h, t):
+      move_chain(data+1, i-1, len-1);
   }
-  close(uints(data, i+1, append(l1, cons(head(l2),nil))));
+  close PRED_sizes(data, i+1, append(l1, cons(head(l2), nil)));
 }
 
-lemma void move_bb(char* data, char i, int len)
-  requires chars(data, i, ?l1) &*& chars(data + i, len - i, ?l2) &*&
-           i < len;
-  ensures chars(data, i + 1, append(l1,cons(head(l2),nil))) &*&
-          chars(data + i + 1, len - i - 1, tail(l2));
+// ---
+
+lemma void move_busybit(char* data, uint32_t i, int len)
+  requires data[0..i] |-> ?l1 &*& 
+           data[i..len] |-> ?l2 &*&
+          i < len;
+  ensures data[0..(i + 1)] |-> append(l1, cons(head(l2), nil)) &*&
+          data[(i + 1)..len] |-> tail(l2);
 {
-  open(chars(data, i, l1));
+  open chars(data, i, l1);
   switch(l1) {
     case nil:
-      open(chars(data, len-i, l2));
-      close(chars(data, 1, cons(head(l2),nil)));
-    case cons(h,t):
-      move_bb(data+1, i-1, len-1);
+      open chars(data, len-i, l2);
+      close chars(data, 1, cons(head(l2), nil));
+    case cons(h, t):
+      move_busybit(data+1, i-1, len-1);
   }
-  close(chars(data, i+1, append(l1, cons(head(l2),nil))));
+  close chars(data, i+1, append(l1, cons(head(l2), nil)));
 }
 
 // ---
@@ -1157,7 +1171,7 @@ lemma void extend_repeat_n<t>(nat len, t extra, t z)
   ensures update(int_of_nat(len), z, append(repeat_n(len, z), cons(extra, nil))) == repeat_n(succ(len), z);
 {
   switch(len) {
-    case zero: return;
+    case zero:
     case succ(l):
       extend_repeat_n(l, extra, z);
   }
@@ -1333,7 +1347,7 @@ struct os_map* os_map_init(size_t key_size, size_t capacity)
   char** kaddrs = (char**) malloc(capacity * sizeof(char*));
   char* busybits = (char*) malloc(capacity * sizeof(char));
   uint32_t* hashes = (uint32_t*) malloc(capacity * sizeof(uint32_t));
-  uint32_t* chains = (uint32_t*) malloc(capacity * sizeof(uint32_t));
+  size_t* chains = (size_t*) malloc(capacity * sizeof(size_t));
   uint64_t* values = (uint64_t*) malloc(capacity * sizeof(uint64_t));
 
   if(map == NULL || kaddrs == NULL || busybits == NULL || hashes == NULL || chains == NULL || values == NULL) {
@@ -1359,10 +1373,10 @@ struct os_map* os_map_init(size_t key_size, size_t capacity)
   }
 
   //@ assert kaddrs[0..capacity] |-> ?kaddrs_lst;
-  //@ assert busybits[0..capacity] |-> ?busybits_lst;
   //@ assert hashes[0..capacity] |-> ?hashes_lst;
-  //@ assert chains[0..capacity] |-> ?chains_lst;
   //@ assert values[0..capacity] |-> ?values_lst;
+  //@ assert chains[0..capacity] |-> ?chains_lst;
+  //@ assert busybits[0..capacity] |-> ?busybits_lst;
   size_t i = 0;
   for (; i < capacity; ++i)
     /*@ invariant busybits[0..i] |-> repeat_n(nat_of_int(i), 0) &*&
@@ -1372,8 +1386,8 @@ struct os_map* os_map_init(size_t key_size, size_t capacity)
                   0 <= i &*& i <= capacity; @*/
     //@ decreases capacity - i;
   {
-    //@ move_bb(busybits, i, capacity);
-    //@ move_uint(chains, i, capacity);
+    //@ move_busybit(busybits, i, capacity);
+    //@ move_chain(chains, i, capacity);
     //@ extend_repeat_n(nat_of_int(i), head(drop(i, busybits_lst)), 0);
     //@ extend_repeat_n(nat_of_int(i), head(drop(i, chains_lst)), 0);
     busybits[i] = 0;
