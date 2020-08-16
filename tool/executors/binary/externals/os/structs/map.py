@@ -6,7 +6,7 @@ import executors.binary.utils as utils
 from collections import namedtuple
 
 
-# predicate mapp(struct os_map* map, uint64_t key_size, uint64_t capacity, list<pair<list<char>, uint64_t> > values, list<pair<void*, list<char> > > addrs);
+# predicate mapp(struct os_map* map, uint64_t key_size, uint64_t capacity, list<pair<list<char>, uint64_t> > values, list<pair<list<char>, void*> > addrs);
 Map = namedtuple('mapp', ['key_size', 'capacity', 'values', 'addrs'])
 
 # struct os_map* os_map_init(uint64_t key_size, uint64_t capacity);

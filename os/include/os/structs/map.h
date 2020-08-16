@@ -9,7 +9,7 @@
 
 struct os_map;
 
-//@ predicate mapp(struct os_map* map, size_t key_size, size_t capacity, list<pair<list<char>, uint64_t> > values, list<pair<void*, list<char> > > addrs);
+//@ predicate mapp(struct os_map* map, size_t key_size, size_t capacity, list<pair<list<char>, uint64_t> > values, list<pair<list<char>, void*> > addrs);
 
 
 struct os_map* os_map_init(size_t key_size, size_t capacity);
@@ -33,20 +33,16 @@ void os_map_set(struct os_map* map, void* key_ptr, uint64_t value);
              [0.25]chars(key_ptr, key_size, ?key) &*&
              length(values) < capacity &*&
              ghostmap_get(values, key) == none &*&
-             ghostmap_get(addrs, key_ptr) == none; @*/
-/*@ ensures mapp(map, key_size, capacity, ?new_values, ?new_addrs) &*&
-            new_values == ghostmap_set(values, key, value) &*&
-            new_addrs == ghostmap_set(addrs, key_ptr, key); @*/
+             ghostmap_get(addrs, key) == none; @*/
+/*@ ensures mapp(map, key_size, capacity, ghostmap_set(values, key, value), ghostmap_set(addrs, key, key_ptr)); @*/
 
 void os_map_remove(struct os_map* map, void* key_ptr);
 /*@ requires mapp(map, ?key_size, ?capacity, ?values, ?addrs) &*&
              [?frac]chars(key_ptr, key_size, ?key) &*&
              frac != 0.0 &*&
              ghostmap_get(values, key) != none &*&
-             ghostmap_get(addrs, key_ptr) == some(key); @*/
-/*@ ensures mapp(map, key_size, capacity, ?new_values, ?new_addrs) &*&
-            new_values == ghostmap_remove(values, key) &*&
-            new_addrs == ghostmap_remove(addrs, key_ptr) &*&
+             ghostmap_get(addrs, key) == some(key_ptr); @*/
+/*@ ensures mapp(map, key_size, capacity, ghostmap_remove(values, key), ghostmap_remove(addrs, key)) &*&
            [frac + 0.25]chars(key_ptr, key_size, key); @*/
 
 #endif
