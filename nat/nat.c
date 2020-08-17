@@ -38,7 +38,7 @@ bool nf_init(uint16_t devices_count)
 
 	uint16_t start_port = os_config_get_u16("start port");
 
-	table = flowtable_init(start_port, expiration_time, max_flows);
+	table = flowtable_alloc(start_port, expiration_time, max_flows);
 	return table != 0;
 }
 

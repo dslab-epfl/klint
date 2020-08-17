@@ -59,7 +59,7 @@ predicate poolp(struct os_pool* pool, size_t size, list<pair<size_t, time_t> > i
   pool->timestamps |-> ?timestamps &*&
   malloc_block_chars((void*)cells, (size + DCHAIN_RESERVED)*sizeof(struct os_pool_cell)) &*&
   malloc_block_time(timestamps, index_range) &*&
-  timestamps[0..size] |-> ?tstamps) &*&
+  timestamps[0..size] |-> ?tstamps &*&
           dchainip(?dci, cells) &*&
           dchaini_irange_fp(dci) == index_range &*&
           true == insync_fp(dchaini_alist_fp(dci), tstamps, alist) &*&

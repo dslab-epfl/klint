@@ -15,8 +15,8 @@ struct flow {
 
 struct flowtable;
 
-// Initializes a flow table. Cannot fail (unless memory allocation fails, in which case the program crashes).
-struct flowtable* flowtable_init(uint16_t starting_port, int64_t expiration_time, uint64_t max_flows);
+// Allocates a new flow table. Cannot fail (unless memory allocation fails, in which case the program crashes).
+struct flowtable* flowtable_alloc(uint16_t starting_port, int64_t expiration_time, uint64_t max_flows);
 
 // Gets the external port associated with a given internal flow, at the given time, allocating one if needed. Fails if allocation is required but there is no more space and no flow could be expired.
 bool flowtable_get_internal(struct flowtable* table, int64_t time, struct flow* flow, uint16_t* out_port);

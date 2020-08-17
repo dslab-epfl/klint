@@ -7,28 +7,28 @@
 
 //@ #include "proof/ghost_map.gh"
 
+
 struct os_map;
 
-//@ predicate mapp(struct os_map* map, size_t key_size, size_t capacity, list<pair<list<char>, uint64_t> > values, list<pair<list<char>, char*> > addrs);
+//@ predicate mapp(struct os_map* map, size_t key_size, size_t capacity, list<pair<list<char>, void*> > values, list<pair<list<char>, void*> > addrs);
 
 
-struct os_map* os_map_init(size_t key_size, size_t capacity);
-/*@ requires capacity < (SIZE_MAX / 8) &*&
-             key_size > 0; @*/
+struct os_map* os_map_alloc(size_t key_size, size_t capacity);
+/*@ requires capacity < (SIZE_MAX / 8); @*/
 /*@ ensures result == NULL ? true : mapp(result, key_size, capacity, nil, nil); @*/
 
-bool os_map_get(struct os_map* map, char* key_ptr, uint64_t* value_out);
+bool os_map_get(struct os_map* map, void* key_ptr, void** out_value);
 /*@ requires mapp(map, ?key_size, ?capacity, ?values, ?addrs) &*&
              chars(key_ptr, key_size, ?key) &*&
-             *value_out |-> _; @*/
+             *out_value |-> _; @*/
 /*@ ensures mapp(map, key_size, capacity, values, addrs) &*&
             chars(key_ptr, key_size, key) &*&
             switch(ghostmap_get(values, key)) {
-              case none: return result == false &*& *value_out |-> _;
-              case some(v): return result == true &*& *value_out |-> v;
+              case none: return result == false &*& *out_value |-> _;
+              case some(v): return result == true &*& *out_value |-> v;
             }; @*/
 
-void os_map_set(struct os_map* map, char* key_ptr, uint64_t value);
+void os_map_set(struct os_map* map, void* key_ptr, void* value);
 /*@ requires mapp(map, ?key_size, ?capacity, ?values, ?addrs) &*&
              [0.25]chars(key_ptr, key_size, ?key) &*&
              length(values) < capacity &*&
@@ -36,7 +36,7 @@ void os_map_set(struct os_map* map, char* key_ptr, uint64_t value);
              ghostmap_get(addrs, key) == none; @*/
 /*@ ensures mapp(map, key_size, capacity, ghostmap_set(values, key, value), ghostmap_set(addrs, key, key_ptr)); @*/
 
-void os_map_remove(struct os_map* map, char* key_ptr);
+void os_map_remove(struct os_map* map, void* key_ptr);
 /*@ requires mapp(map, ?key_size, ?capacity, ?values, ?addrs) &*&
              [?frac]chars(key_ptr, key_size, ?key) &*&
              frac != 0.0 &*&
