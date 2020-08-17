@@ -10,11 +10,9 @@
 
 
 typedef uint32_t hash_t;
+#define chars_to_hashes chars_to_uints
 
 //@ fixpoint hash_t hash_fp(list<char> value);
-
-#define malloc_block_hashes malloc_block_uints
-#define PRED_hashes uints
 
 
 static inline bool generic_eq(void* a, void* b, size_t obj_size)

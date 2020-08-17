@@ -1,19 +1,19 @@
 #include "os/structs/map.h"
 
-// !!! IMPORTANT !!! 
-// To verify, 'default_value_eq_zero' needs to be turned from a lemma_auto to a lemma in prelude_core.gh, see verifast issue 68
-
 #include <stdlib.h>
 
-#include "proof/generic_ops.h"
+#include "os/memory.h"
+#include "generic_ops.h"
 
 //@ #include "proof/chain-buckets.gh"
 //@ #include "proof/listexex.gh"
-//@ #include "proof/mod-pow2.gh"
 //@ #include "proof/modulo.gh"
 //@ #include "proof/nth-prop.gh"
 //@ #include "proof/sizeex.gh"
 //@ #include "proof/stdex.gh"
+
+// !!! IMPORTANT !!! 
+// To verify, 'default_value_eq_zero' needs to be turned from a lemma_auto to a lemma in prelude_core.gh, see verifast issue 68
 
 struct os_map {
   void** kaddrs;
@@ -26,7 +26,7 @@ struct os_map {
 };
 
 /*@
-  fixpoint int opts_size<kt>(list<option<kt> > opts) {
+  fixpoint size_t opts_size(list<option<list<char> > > opts) {
     switch(opts) {
       case nil: return 0;
       case cons(h,t): return (h == none ? 0 : 1) + opts_size(t);
@@ -46,7 +46,7 @@ struct os_map {
     };
 
   // Key options => hashes
-  // NOTE: It's important that we say nothing about hashes of none keys, which is why this can't return a list<unsigned> (which would need to reason about this info)
+  // NOTE: It's important that we say nothing about hashes of none keys, which is why this can't return a list<hash_t> (which would need to reason about this info)
   fixpoint bool hash_list(list<option<list<char> > > key_opts, list<hash_t> hashes) {
     switch(key_opts) {
       case nil:
@@ -58,11 +58,11 @@ struct os_map {
     }
   }
 
-  fixpoint bool has_given_hash(int pos, size_t capacity, pair<list<char>, nat> chain) {
+  fixpoint bool has_given_hash(size_t pos, size_t capacity, pair<list<char>, nat> chain) {
     return pos == loop_fp(hash_fp(fst(chain)), capacity);
   }
 
-  fixpoint bool key_chains_start_on_hash_fp(list<bucket<list<char> > > buckets, int pos, size_t capacity) {
+  fixpoint bool key_chains_start_on_hash_fp(list<bucket<list<char> > > buckets, size_t pos, size_t capacity) {
     switch(buckets) {
       case nil: return true;
       case cons(h,t):
@@ -83,7 +83,7 @@ struct os_map {
     length(buckets) == capacity;
 
   // Partial: Chains + buckets => key options
-  predicate buckets_keys_insync_Xchain(size_t capacity, list<hash_t> chains, list<bucket<list<char> > > buckets, int start, int fin; list<option<list<char> > > key_opts) =
+  predicate buckets_keys_insync_Xchain(size_t capacity, list<hash_t> chains, list<bucket<list<char> > > buckets, size_t start, size_t fin; list<option<list<char> > > key_opts) =
     chains == add_partial_chain_fp(start,
                                    (fin < start) ? capacity + fin - start :
                                                    fin - start,
@@ -147,7 +147,7 @@ struct os_map {
      buckets_keys_insync(capacity, chains, buckets, key_opts);
 
   predicate mapp(struct os_map* map, size_t key_size, size_t capacity, list<pair<list<char>, void*> > map_values, list<pair<list<char>, void*> > map_addrs) =
-    malloc_block_os_map(map) &*&
+    struct_os_map_padding(map) &*&
     map->kaddrs |-> ?kaddrs_ptr &*&
     map->busybits |-> ?busybits_ptr &*&
     map->hashes |-> ?hashes_ptr &*&
@@ -155,11 +155,6 @@ struct os_map {
     map->values |-> ?values_ptr &*&
     map->capacity |-> capacity &*&
     map->key_size |-> key_size &*&
-    malloc_block_pointers(kaddrs_ptr, capacity) &*&
-    malloc_block_bools(busybits_ptr, capacity) &*&
-    malloc_block_hashes(hashes_ptr, capacity) &*&
-    malloc_block_sizes(chains_ptr, capacity) &*&
-    malloc_block_pointers(values_ptr, capacity) &*&
     mapping(key_size, capacity, kaddrs_ptr, busybits_ptr, hashes_ptr, chains_ptr, values_ptr, _, _, map_values, map_addrs) &*&
     is_pow2(capacity, N63) != none;
 @*/
@@ -175,7 +170,7 @@ static size_t loop(size_t pos, size_t capacity)
 }
 
 /*@
-lemma list<char> extract_key_at_index(list<void*> kaddrs_b, list<bool> busybits_b, list<option<list<char> > > key_opts_b, int n, 
+lemma list<char> extract_key_at_index(list<void*> kaddrs_b, list<bool> busybits_b, list<option<list<char> > > key_opts_b, size_t n, 
                                       list<bool> busybits, list<option<list<char> > > key_opts)
   requires key_opt_list(?key_size, ?kaddrs, busybits, key_opts) &*&
            key_opt_list(key_size, kaddrs_b, busybits_b, key_opts_b) &*&
@@ -245,7 +240,7 @@ lemma void reconstruct_key_opt_list(list<void*> kaddrs1, list<bool> busybits1,
   }
 }
 
-lemma void recover_key_opt_list(list<void*> kaddrs, list<bool> busybits, list<option<list<char> > > key_opts, int n)
+lemma void recover_key_opt_list(list<void*> kaddrs, list<bool> busybits, list<option<list<char> > > key_opts, size_t n)
   requires key_opt_list(?key_size, reverse(take(n, kaddrs)), reverse(take(n, busybits)), reverse(take(n, key_opts))) &*&
            true == nth(n, busybits) &*&
            [0.25]chars(nth(n, kaddrs), key_size, ?k) &*&
@@ -271,7 +266,7 @@ lemma void recover_key_opt_list(list<void*> kaddrs, list<bool> busybits, list<op
 
 // ---
 
-lemma void key_opt_list_find_key(list<option<list<char> > > key_opts, int i, list<char> k)
+lemma void key_opt_list_find_key(list<option<list<char> > > key_opts, size_t i, list<char> k)
   requires nth(i, key_opts) == some(k) &*&
            true == opt_no_dups(key_opts) &*&
            0 <= i &*& i < length(key_opts);
@@ -290,7 +285,7 @@ lemma void key_opt_list_find_key(list<option<list<char> > > key_opts, int i, lis
 
 // ---
 
-lemma void no_hash_no_key(list<option<list<char> > > key_opts, list<hash_t> hashes, list<char> k, int i)
+lemma void no_hash_no_key(list<option<list<char> > > key_opts, list<hash_t> hashes, list<char> k, size_t i)
   requires true == hash_list(key_opts, hashes) &*&
            nth(i, hashes) != hash_fp(k) &*&
            0 <= i &*& i < length(key_opts);
@@ -319,7 +314,7 @@ lemma void no_hash_no_key(list<option<list<char> > > key_opts, list<hash_t> hash
 
 // ---
 
-lemma void no_bb_no_key(list<option<list<char> > > key_opts, list<bool> busybits, int i)
+lemma void no_bb_no_key(list<option<list<char> > > key_opts, list<bool> busybits, size_t i)
   requires key_opt_list(?key_size, ?kaddrs, busybits, key_opts) &*& 0 <= i &*& i < length(key_opts) &*&
            false == nth(i, busybits);
   ensures key_opt_list(key_size, kaddrs, busybits, key_opts) &*& nth(i, key_opts) == none;
@@ -363,7 +358,7 @@ lemma void no_key_found<kt>(list<option<kt> > ks, kt k)
 
 
 lemma void hash_for_given_key(list<pair<list<char>, nat> > chains,
-                              unsigned shift, unsigned capacity,
+                              size_t shift, size_t capacity,
                               list<char> k)
   requires true == mem(k, map(fst, chains)) &*&
            true == forall(chains, (has_given_hash)(shift, capacity));
@@ -379,7 +374,7 @@ lemma void hash_for_given_key(list<pair<list<char>, nat> > chains,
   }
 }
 
-lemma void overshoot_bucket(list<bucket<list<char> > > buckets, unsigned shift, unsigned capacity, list<char> k)
+lemma void overshoot_bucket(list<bucket<list<char> > > buckets, size_t shift, size_t capacity, list<char> k)
   requires true == key_chains_start_on_hash_fp(buckets, shift, capacity) &*&
            loop_fp(hash_fp(k), capacity) < shift &*& shift <= capacity &*&
            capacity - shift == length(buckets);
@@ -400,7 +395,7 @@ lemma void overshoot_bucket(list<bucket<list<char> > > buckets, unsigned shift, 
 }
 
 lemma void no_hash_not_in_this_bucket(list<pair<list<char>, nat> > chains, list<char> k,
-                                      unsigned shift, unsigned capacity)
+                                      size_t shift, size_t capacity)
   requires true == forall(chains, (has_given_hash)(shift, capacity)) &&
            shift != loop_fp(hash_fp(k), capacity);
   ensures false == mem(k, map(fst, chains));
@@ -416,7 +411,7 @@ lemma void no_hash_not_in_this_bucket(list<pair<list<char>, nat> > chains, list<
 }
 
 lemma void wrong_hash_no_key(list<char> k, bucket<list<char> > bh, list<bucket<list<char> > > bt,
-                             unsigned shift, unsigned capacity)
+                             size_t shift, size_t capacity)
   requires true == key_chains_start_on_hash_fp(cons(bh,bt), shift, capacity) &*&
            shift != loop_fp(hash_fp(k), capacity);
   ensures false == bucket_has_key_fp(k, bh);
@@ -427,7 +422,7 @@ lemma void wrong_hash_no_key(list<char> k, bucket<list<char> > bh, list<bucket<l
 }
 
 lemma void key_is_contained_in_the_bucket_rec(list<bucket<list<char> > > buckets, list<pair<list<char>, nat> > acc,
-                                              unsigned shift, unsigned capacity,
+                                              size_t shift, size_t capacity,
                                               list<char> k)
   requires true == key_chains_start_on_hash_fp(buckets, shift, capacity) &*&
            true == buckets_ok_rec(acc, buckets, capacity) &*&
@@ -489,7 +484,7 @@ lemma void key_is_contained_in_the_bucket_rec(list<bucket<list<char> > > buckets
 }
 
 lemma void bucket_has_key_correct_hash(list<bucket<list<char> > > buckets, list<char> k,
-                                       unsigned start, unsigned capacity)
+                                       size_t start, size_t capacity)
   requires true == exists(buckets, (bucket_has_key_fp)(k)) &*&
            true == key_chains_start_on_hash_fp(buckets, start, capacity) &*&
            start + length(buckets) == capacity;
@@ -514,7 +509,7 @@ lemma void bucket_has_key_correct_hash(list<bucket<list<char> > > buckets, list<
 }
 
 lemma void key_is_contained_in_the_bucket(list<bucket<list<char> > > buckets,
-                                          unsigned capacity, list<char> k)
+                                          size_t capacity, list<char> k)
   requires true == key_chains_start_on_hash_fp(buckets, 0, capacity) &*&
            0 < capacity &*&
            true == buckets_ok(buckets) &*&
@@ -536,8 +531,8 @@ lemma void key_is_contained_in_the_bucket(list<bucket<list<char> > > buckets,
 
 // ---
 
-lemma void chains_depleted_no_hope(list<bucket<list<char> > > buckets, int i,
-                                   int start, list<char> k, unsigned capacity)
+lemma void chains_depleted_no_hope(list<bucket<list<char> > > buckets, size_t i,
+                                   size_t start, list<char> k, size_t capacity)
   requires buckets != nil &*&
            true == up_to(nat_of_int(i + 1),
                          (byLoopNthProp)(buckets_get_keys_fp(buckets),
@@ -697,7 +692,7 @@ lemma void key_opts_size_limits(list<option<list<char> > > key_opts)
   }
 }
 
-lemma void zero_bbs_is_for_empty(list<bool> busybits, list<option<list<char> > > key_opts, int i)
+lemma void zero_bbs_is_for_empty(list<bool> busybits, list<option<list<char> > > key_opts, size_t i)
   requires key_opt_list(?key_size, ?kaddrs, busybits,  key_opts) &*&
            false == nth(i, busybits) &*&
            0 <= i &*& i < length(busybits);
@@ -722,7 +717,7 @@ lemma void zero_bbs_is_for_empty(list<bool> busybits, list<option<list<char> > >
 
 // ---
 
-lemma void start_Xchain(unsigned capacity, list<hash_t> chains,  list<bucket<list<char> > > buckets, list<option<list<char> > > key_opts, int start)
+lemma void start_Xchain(size_t capacity, list<hash_t> chains,  list<bucket<list<char> > > buckets, list<option<list<char> > > key_opts, size_t start)
   requires buckets_keys_insync(capacity, chains, buckets, key_opts) &*&
            0 <= start &*& start < capacity;
   ensures buckets_keys_insync_Xchain(capacity, chains, buckets, start, start, key_opts);
@@ -735,7 +730,7 @@ lemma void start_Xchain(unsigned capacity, list<hash_t> chains,  list<bucket<lis
 
 // ---
   
-lemma void bb_nonzero_cell_busy(list<bool> busybits, list<option<list<char> > > key_opts, int i)
+lemma void bb_nonzero_cell_busy(list<bool> busybits, list<option<list<char> > > key_opts, size_t i)
   requires key_opt_list(?key_size, ?kaddrs, busybits, key_opts) &*& 
            true == nth(i, busybits) &*&
            0 <= i &*& i < length(busybits);
@@ -871,7 +866,7 @@ ensures true == key_chains_start_on_hash_fp(buckets_remove_key_fp(buckets, key),
 
 // ---
 
-lemma void key_opts_rem_preserves_hash_list(list<option<list<char> > > key_opts, list<hash_t> hashes, int index)
+lemma void key_opts_rem_preserves_hash_list(list<option<list<char> > > key_opts, list<hash_t> hashes, size_t index)
 requires true == hash_list(key_opts, hashes) &*& 0 <= index;
 ensures true == hash_list(update(index, none, key_opts), hashes);
 {
@@ -886,7 +881,7 @@ ensures true == hash_list(update(index, none, key_opts), hashes);
 
 // ---
 
-lemma void map_drop_key(int index)
+lemma void map_drop_key(size_t index)
 requires key_opt_list(?key_size, ?kaddrs, ?busybits, ?key_opts) &*&
          map_valuesaddrs(kaddrs, key_opts, ?values, ?map_values, ?map_addrs) &*&
          0 <= index &*& index < length(key_opts) &*&
@@ -1102,7 +1097,7 @@ static size_t find_key_remove_chain(void** kaddrs, bool* busybits, hash_t* hashe
 }
 
 /*@
-lemma void move_chain(size_t* data, size_t i, int len)
+lemma void move_chain(size_t* data, size_t i, size_t len)
   requires data[0..i] |-> ?l1 &*& 
            data[i..len] |-> ?l2 &*&
           i < len;
@@ -1122,7 +1117,7 @@ lemma void move_chain(size_t* data, size_t i, int len)
 
 // ---
 
-lemma void move_busybit(bool* data, size_t i, int len)
+lemma void move_busybit(bool* data, size_t i, size_t len)
   requires data[0..i] |-> ?l1 &*& 
            data[i..len] |-> ?l2 &*&
           i < len;
@@ -1160,11 +1155,10 @@ lemma void nat_len_of_non_nil<t>(t h, list<t> t)
   ensures nat_of_int(length(cons(h, t)) - 1) == nat_of_int(length(t)) &*&
           nat_of_int(length(cons(h, t))) == succ(nat_of_int(length(t)));
 {
-  int l = length(cons(h,t));
-  assert 0 < l;
-  switch(nat_of_int(l)) {
+  assert 0 < length(cons(h,t));
+  switch(nat_of_int(length(cons(h,t)))) {
     case zero:
-      note(int_of_nat(zero) == l);
+      note(int_of_nat(zero) == length(cons(h,t)));
       assert false;
     case succ(lll):
   }
@@ -1204,7 +1198,7 @@ ensures opts_size(kopts) == 0;
 
 // ---
 
-lemma void confirm_hash_list_for_nones(list<unsigned> hashes)
+lemma void confirm_hash_list_for_nones(list<hash_t> hashes)
   requires true;
   ensures true == hash_list(repeat_n(nat_of_int(length(hashes)), none), hashes);
 {
@@ -1228,7 +1222,7 @@ lemma void nat_gt_zero_not_zero(int n)
   assert nat_of_int(n) != zero;
 }
 
-lemma void empty_keychains_start_on_hash(nat len, int pos, unsigned capacity)
+lemma void empty_keychains_start_on_hash(nat len, size_t pos, size_t capacity)
   requires 0 < capacity;
   ensures true == key_chains_start_on_hash_fp(empty_buckets_fp<list<char> >(len), pos, capacity);
 {
@@ -1239,7 +1233,7 @@ lemma void empty_keychains_start_on_hash(nat len, int pos, unsigned capacity)
   }
 }
 
-lemma void empty_buckets_insync(list<size_t> chains, unsigned capacity)
+lemma void empty_buckets_insync(list<size_t> chains, size_t capacity)
   requires chains == repeat_n(nat_of_int(capacity), 0) &*&
            0 < capacity;
   ensures buckets_keys_insync(capacity, chains,
@@ -1300,79 +1294,51 @@ lemma void produce_empty_map_valuesaddrs(size_t capacity, list<void*> kaddrs, li
 @*/
 
 struct os_map* os_map_alloc(size_t key_size, size_t capacity)
-/*@ requires capacity < (SIZE_MAX / 8); @*/
-/*@ ensures result == NULL ? true : mapp(result, key_size, capacity, nil, nil); @*/
+/*@ requires capacity < (SIZE_MAX / 8) &*&
+             is_pow2(capacity, N63) != none; @*/
+/*@ ensures mapp(result, key_size, capacity, nil, nil); @*/
 {
-
-  // Check that capacity is a power of 2
-  if (capacity == 0 || (capacity & (capacity - 1)) != 0) {
-      return (struct os_map*) NULL;
-  }
-  //@ check_pow2_valid(capacity);
-
-  struct os_map* map = (struct os_map*) malloc(sizeof(struct os_map));
+  struct os_map* map = (struct os_map*) os_memory_init(1, sizeof(struct os_map));
+  //@ close_struct_zero(map);
   //@ mul_bounds(capacity, SIZE_MAX / 8, sizeof(void*), 8);
-  void** kaddrs = (void**) malloc(capacity * sizeof(void*));
-  bool* busybits = (bool*) malloc(capacity * sizeof(bool));
-  hash_t* hashes = (hash_t*) malloc(capacity * sizeof(hash_t));
-  size_t* chains = (size_t*) malloc(capacity * sizeof(size_t));
-  void** values = (void**) malloc(capacity * sizeof(void*));
+  void** kaddrs = (void**) os_memory_init(capacity, sizeof(void*));
+  bool* busybits = (bool*) os_memory_init(capacity, sizeof(bool));
+  hash_t* hashes = (hash_t*) os_memory_init(capacity, sizeof(hash_t));
+  size_t* chains = (size_t*) os_memory_init(capacity, sizeof(size_t));
+  void** values = (void**) os_memory_init(capacity, sizeof(void*));
 
-  if(map == NULL || kaddrs == NULL || busybits == NULL || hashes == NULL || chains == NULL || values == NULL) {
-    if(map != NULL) {
-      free(map);
-    }
-    if(kaddrs != NULL) {
-      free(kaddrs);
-    }
-    if(busybits != NULL) {
-      free(busybits);
-    }
-    if(hashes != NULL) {
-      free(hashes);
-    }
-    if(chains != NULL) {
-      free(chains);
-    }
-    if(values != NULL) {
-      free(values);
-    }
-    return NULL;
-  }
-
-  //@ assert kaddrs[0..capacity] |-> ?kaddrs_lst;
-  //@ assert hashes[0..capacity] |-> ?hashes_lst;
-  //@ assert values[0..capacity] |-> ?values_lst;
   //@ assert chains[0..capacity] |-> ?chains_lst;
   //@ assert busybits[0..capacity] |-> ?busybits_lst;
   size_t i = 0;
   for (; i < capacity; ++i)
     /*@ invariant busybits[0..i] |-> repeat_n(nat_of_int(i), false) &*&
-                  busybits[i..capacity] |-> drop(i, busybits_lst) &*&
+                  busybits[i..capacity] |-> ?busybits_rest &*&
                   chains[0..i] |-> repeat_n(nat_of_int(i), 0) &*&
-                  chains[i..capacity] |-> drop(i, chains_lst) &*&
+                  chains[i..capacity] |-> ?chains_rest &*&
                   0 <= i &*& i <= capacity; @*/
     //@ decreases capacity - i;
   {
     //@ move_busybit(busybits, i, capacity);
     //@ move_chain(chains, i, capacity);
-    //@ extend_repeat_n(nat_of_int(i), head(drop(i, busybits_lst)), false);
-    //@ extend_repeat_n(nat_of_int(i), head(drop(i, chains_lst)), 0);
+    //@ extend_repeat_n(nat_of_int(i), head(busybits_rest), false);
+    //@ extend_repeat_n(nat_of_int(i), head(chains_rest), 0);
     busybits[i] = false;
     chains[i] = 0;
-    //@ assert(succ(nat_of_int(i)) == nat_of_int(i+1));
-    //@ tail_drop(busybits_lst, i);
-    //@ tail_drop(chains_lst, i);
+    //@ assert succ(nat_of_int(i)) == nat_of_int(i+1);
   }
+  //@ assert kaddrs[0..capacity] |-> ?kaddrs_lst;
+  //@ chars_to_hashes(hashes, capacity);
+  //@ assert hashes[0..capacity] |-> ?hashes_lst;
+  //@ assert values[0..capacity] |-> ?values_lst;
   //@ produce_key_opt_list(key_size, hashes_lst, kaddrs_lst);
   //@ assert key_opt_list(key_size, kaddrs_lst, _, ?kopts);
-  //@ repeat_n_contents(nat_of_int(length(kaddrs_lst)), none);
+  //@ repeat_n_contents(nat_of_int(capacity), none);
   //@ kopts_size_0_when_empty(kopts);
   //@ assert chains[0..capacity] |-> ?zeroed_chains_lst;
   //@ empty_buckets_insync(zeroed_chains_lst, capacity);
   //@ produce_empty_map_valuesaddrs(capacity, kaddrs_lst, values_lst);
   //@ confirm_hash_list_for_nones(hashes_lst);
-  //@ repeat_none_is_opt_no_dups(nat_of_int(length(kaddrs_lst)), kopts);
+  //@ repeat_none_is_opt_no_dups(nat_of_int(capacity), kopts);
   //@ close mapping_core(key_size, capacity, kaddrs, busybits, hashes, values, kopts, nil, nil);
   //@ close mapping(key_size, capacity, kaddrs, busybits, hashes, chains, values, _, kopts, nil, nil);
 
@@ -1389,7 +1355,7 @@ struct os_map* os_map_alloc(size_t key_size, size_t capacity)
 }
 
 /*@
-lemma void map_values_reflects_keyopts_mem<k,v>(list<char> key, int idx)
+lemma void map_values_reflects_keyopts_mem<k,v>(list<char> key, size_t idx)
 requires map_valuesaddrs(?kaddrs, ?key_opts, ?values, ?map_values, ?map_addrs) &*&
          true == ghostmap_distinct(map_values) &*&
          true == mem(some(key), key_opts) &*&
@@ -1532,8 +1498,8 @@ ensures map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs) &*&
 
 // ---
 
-lemma void buckets_put_chains_still_start_on_hash(list<bucket<list<char> > > buckets, list<char> k, int shift,
-                                                  int start, int dist, unsigned capacity)
+lemma void buckets_put_chains_still_start_on_hash(list<bucket<list<char> > > buckets, list<char> k, size_t shift,
+                                                  size_t start, size_t dist, size_t capacity)
   requires true == key_chains_start_on_hash_fp(buckets, shift, capacity) &*&
            loop_fp(hash_fp(k), capacity) == start + shift &*&
            0 <= start &*& start < length(buckets) &*&
@@ -1554,8 +1520,8 @@ lemma void buckets_put_chains_still_start_on_hash(list<bucket<list<char> > > buc
   }
 }
 
-lemma void buckets_keys_put_key_insync(unsigned capacity, list<int> chains, int start,
-                                       int fin, list<char> k, list<option<list<char> > > key_opts)
+lemma void buckets_keys_put_key_insync(size_t capacity, list<size_t> chains, size_t start,
+                                       size_t fin, list<char> k, list<option<list<char> > > key_opts)
   requires buckets_keys_insync_Xchain(capacity, chains, ?buckets, start, fin, key_opts) &*&
            0 <= start &*& start < capacity &*&
            0 <= fin &*& fin < capacity &*&
@@ -1601,7 +1567,7 @@ lemma void buckets_keys_put_key_insync(unsigned capacity, list<int> chains, int 
 
 // ---
 
-lemma void put_preserves_no_dups(list<option<list<char> > > key_opts, int i, list<char> k)
+lemma void put_preserves_no_dups(list<option<list<char> > > key_opts, size_t i, list<char> k)
   requires false == mem(some(k), key_opts) &*& 
            true == opt_no_dups(key_opts);
   ensures true == opt_no_dups(update(i, some(k), key_opts));
