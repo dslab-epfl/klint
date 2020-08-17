@@ -31,6 +31,18 @@ fixpoint list<pair<k, v> > ghostmap_remove<k, v>(list<pair<k, v> > ghostmap, k k
   }
 }
 
+fixpoint bool ghostmap_forall<k, v>(list<pair<k, v> > ghostmap, fixpoint(k, v, bool) pred) {
+  switch(ghostmap) {
+    case nil:
+      return true;
+    case cons(h, t):
+      return switch(h) {
+        case pair(hk, hv):
+          return pred(hk, hv) && ghostmap_forall(t, pred);
+      };
+  }
+}
+
 // -- Proof API --
 
 fixpoint bool ghostmap_distinct<k, v>(list<pair<k, v> > ghostmap) {

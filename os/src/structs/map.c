@@ -1,10 +1,8 @@
 #include "os/structs/map.h"
 
 // !!! IMPORTANT !!! 
-// - To verify, 'default_value_eq_zero' needs to be turned from a lemma_auto to a lemma in prelude_core.gh, see verifast issue 68
-// - If using vfide, hardcode malloc_block_sizes and friends below, since it does not like using UINTPTR_MAX in an #if, see verifast issue 213
+// To verify, 'default_value_eq_zero' needs to be turned from a lemma_auto to a lemma in prelude_core.gh, see verifast issue 68
 
-#include <limits.h>
 #include <stdlib.h>
 
 #include "proof/generic_ops.h"
@@ -14,15 +12,8 @@
 //@ #include "proof/mod-pow2.gh"
 //@ #include "proof/modulo.gh"
 //@ #include "proof/nth-prop.gh"
+//@ #include "proof/sizeex.gh"
 //@ #include "proof/stdex.gh"
-
-#if UINTPTR_MAX == UINT_MAX
-#  define malloc_block_sizes malloc_block_uints
-#  define PRED_sizes uints
-#else
-#  define malloc_block_sizes malloc_block_ullongs
-#  define PRED_sizes ullongs
-#endif
 
 struct os_map {
   char** kaddrs;
@@ -199,7 +190,6 @@ lemma list<char> extract_key_at_index(list<char*> kaddrs_b, list<bool> busybits_
   open key_opt_list(_, kaddrs, _, _);
   switch(busybits) {
     case nil:
-      assert(length(busybits) == 0);
       return nil;
     case cons(bbh, bbt):
       switch(kaddrs) {
@@ -207,7 +197,7 @@ lemma list<char> extract_key_at_index(list<char*> kaddrs_b, list<bool> busybits_
         case cons(kph, kpt):
           switch(key_opts) {
             case nil: return nil;
-            case cons(kh, kt) :
+            case cons(kh, kt):
             if (n == 0) {
               switch(kh) {
                 case some(k):
@@ -245,7 +235,6 @@ lemma void reconstruct_key_opt_list(list<char*> kaddrs1, list<bool> busybits1,
     case nil:
       assert(kaddrs1 == nil);
       assert(key_opts1 == nil);
-      return;
     case cons(bbh, bbt):
       append_reverse_tail_cons_head(kaddrs1, kaddrs2);
       append_reverse_tail_cons_head(busybits1, busybits2);
@@ -289,12 +278,10 @@ lemma void key_opt_list_find_key(list<option<list<char> > > key_opts, int i, lis
   ensures index_of(some(k), key_opts) == i;
 {
   switch(key_opts) {
-    case nil: return;
+    case nil:
     case cons(h,t):
       if (h == some(k)) {
-        no_dups_same(key_opts, k, i, 0);
-        assert(i == 0);
-        return;
+        assert i == 0;
       } else {
         key_opt_list_find_key(t, i-1, k);
       }
@@ -312,9 +299,7 @@ lemma void no_hash_no_key(list<option<list<char> > > key_opts, list<uint32_t> ha
   switch(key_opts) {
     case nil:
       assert(hashes == nil);
-      return;
     case cons(kh,kt):
-      assert hashes != nil;
       if (i == 0) {
         assert(nth(i, key_opts) == kh);
         if (kh == some(k)) {
@@ -323,7 +308,6 @@ lemma void no_hash_no_key(list<option<list<char> > > key_opts, list<uint32_t> ha
           assert(nth(i, hashes) == head(hashes));
           assert(nth(i, hashes) == hash_fp(k));
         }
-        return;
       } else {
         nth_cons(i, tail(hashes), head(hashes));
         cons_head_tail(hashes);
@@ -402,14 +386,13 @@ lemma void overshoot_bucket(list<bucket<list<char> > > buckets, unsigned shift, 
   ensures false == exists(buckets, (bucket_has_key_fp)(k));
 {
   switch(buckets) {
-    case nil: return;
+    case nil:
     case cons(bh,bt):
       switch(bh) { case bucket(chains):
         if (bucket_has_key_fp(k, bh)) {
             assert true == mem(k, map(fst, chains));
             assert true == forall(chains, (has_given_hash)(shift, capacity));
             hash_for_given_key(chains, shift, capacity, k);
-            assert true == (loop_fp(hash_fp(k), capacity) == shift);
         }
         overshoot_bucket(bt, shift + 1, capacity, k);
       }
@@ -459,7 +442,7 @@ lemma void key_is_contained_in_the_bucket_rec(list<bucket<list<char> > > buckets
           bucket_has_key_fp(k, nth(loop_fp(hash_fp(k), capacity) - shift, buckets));
 {
   switch(buckets) {
-    case nil: return;
+    case nil:
     case cons(bh,bt):
       loop_lims(hash_fp(k), capacity);
       assert true == ((loop_fp(hash_fp(k), capacity) - shift) <= length(buckets));
@@ -575,7 +558,6 @@ lemma void chains_depleted_no_hope(list<bucket<list<char> > > buckets, int i,
     assert true == mem(k, map(fst, get_crossing_chains_fp(buckets, loop_fp(start + i, capacity))));
     loop_lims(start + i, capacity);
     no_crossing_chains_here(buckets, loop_fp(start + i, capacity));
-    assert get_crossing_chains_fp(buckets, loop_fp(start + i, capacity)) == nil;
   }
 }
 @*/
@@ -695,7 +677,7 @@ lemma void full_size(list<option<list<char> > > key_opts)
   ensures opts_size(key_opts) == length(key_opts);
 {
   switch(key_opts) {
-    case nil: return;
+    case nil:
     case cons(h,t):
       up_to_nth_uncons(h, t, nat_of_int(length(t)), cell_busy);
       full_size(t);
@@ -709,7 +691,7 @@ lemma void key_opts_size_limits(list<option<list<char> > > key_opts)
   ensures 0 <= opts_size(key_opts) &*& opts_size(key_opts) <= length(key_opts);
 {
   switch(key_opts) {
-    case nil: return;
+    case nil:
     case cons(h,t):
       key_opts_size_limits(t);
   }
@@ -725,7 +707,7 @@ lemma void zero_bbs_is_for_empty(list<bool> busybits, list<option<list<char> > >
 {
   open key_opt_list(key_size, kaddrs, busybits, key_opts);
   switch(busybits) {
-    case nil: break;
+    case nil:
     case cons(h,t):
       if (i == 0) {
         assert head(key_opts) == none;
@@ -762,7 +744,7 @@ lemma void bb_nonzero_cell_busy(list<bool> busybits, list<option<list<char> > > 
   {
     open key_opt_list(key_size, kaddrs, busybits, key_opts);
     switch(busybits) {
-      case nil: break;
+      case nil:
       case cons(h,t):
       if (i == 0) {
       } else {
@@ -941,9 +923,6 @@ ensures key_opt_list(key_size, kaddrs, update(index, false, busybits), update(in
             close map_valuesaddrs(kaddrs, update(index, none, key_opts), values, new_map_values, new_map_addrs);
             close key_opt_list(key_size, kaddrs, update(index, false, busybits), update(index, none, key_opts));
           case some(kohv):
-            if (kohv == key) {
-              no_dups_same(key_opts, key, index, 0);
-            }
             ghostmap_remove_preserves_other(map_values, kohv, key);
             ghostmap_remove_preserves_other(map_addrs, kohv, key);
             map_drop_key(index - 1);
@@ -1182,14 +1161,12 @@ lemma void nat_len_of_non_nil<t>(t h, list<t> t)
           nat_of_int(length(cons(h, t))) == succ(nat_of_int(length(t)));
 {
   int l = length(cons(h,t));
-  assert(0 < l);
+  assert 0 < l;
   switch(nat_of_int(l)) {
     case zero:
       note(int_of_nat(zero) == l);
-      assert(false);
-      return;
+      assert false;
     case succ(lll):
-      return;
   }
 }
 
@@ -1201,17 +1178,14 @@ lemma void produce_key_opt_list(size_t key_size, list<uint32_t> hashes, list<cha
   switch(kaddrs) {
     case nil:
       close key_opt_list(key_size, kaddrs, repeat_n(nat_of_int(length(kaddrs)), false), repeat_n(nat_of_int(length(kaddrs)), none));
-      return;
     case cons(kaddrh,kaddrt):
       switch(hashes) {
-        case nil: break;
-        case cons(hh,ht): break;
+        case nil:
+        case cons(hh,ht):
       }
-      assert(hashes != nil);
       produce_key_opt_list(key_size, tail(hashes), kaddrt);
       nat_len_of_non_nil(kaddrh,kaddrt);
       close key_opt_list(key_size, kaddrs, repeat_n(nat_of_int(length(kaddrs)), false), repeat_n(nat_of_int(length(kaddrs)), none));
-      return;
   }
 }
 
@@ -1236,12 +1210,10 @@ lemma void confirm_hash_list_for_nones(list<unsigned> hashes)
 {
   switch(hashes) {
     case nil:
-      return;
     case cons(h,t):
       confirm_hash_list_for_nones(t);
       nat_len_of_non_nil(h,t);
       assert(tail(repeat_n(nat_of_int(length(hashes)), none)) == repeat_n(nat_of_int(length(t)), none));
-      return;
   }
 }
 
@@ -1513,7 +1485,6 @@ lemma void put_keeps_key_opt_list(list<char*> kaddrs, list<bool> busybits, list<
   open key_opt_list(key_size, kaddrs, busybits, key_opts);
   switch(busybits) {
     case nil:
-      break;
     case cons(bbh, bbt):
       if (index == 0) {
         tail_of_update_0(kaddrs, key);
@@ -1637,7 +1608,7 @@ lemma void put_preserves_no_dups(list<option<list<char> > > key_opts, int i, lis
   ensures true == opt_no_dups(update(i, some(k), key_opts));
 {
   switch(key_opts) {
-    case nil: break;
+    case nil:
     case cons(h,t):
       if (i == 0) {
       } else {
@@ -1698,7 +1669,7 @@ lemma void put_preserves_hash_list(list<option<list<char> > > key_opts, list<uin
   ensures true == hash_list(update(index, some(k), key_opts), update(index, hash, hashes));
 {
   switch(key_opts) {
-    case nil: break;
+    case nil:
     case cons(h,t):
       update_non_nil(hashes, index, hash);
       if (index == 0) {

@@ -212,27 +212,6 @@ ensures true == opt_no_dups(update(i, none, ks));
   }
 }
 
-lemma void no_dups_same<kt>(list<option<kt> > ks, kt k, int n, int m)
-requires true == opt_no_dups(ks) &*& 0 <= n &*& n < length(ks) &*&
-         0 <= m &*& m < length(ks) &*&
-         nth(n, ks) == some(k) &*& nth(m, ks) == some(k);
-ensures n == m;
-{
-  switch(ks) {
-    case nil: return;
-    case cons(h,t):
-      if (n == 0) {
-        assert(h == some(k));
-        assert(!mem(h, t));
-      } else if (m == 0) {
-      } else {
-        assert(0<n);
-        assert(0<m);
-        no_dups_same(t, k, n-1, m-1);
-      }
-  }
-}
-
 lemma void less_and_not_eq_lesser(nat x, nat lim)
 requires int_of_nat(x) < int_of_nat(succ(lim)) &*&
          x != lim;
