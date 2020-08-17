@@ -9,7 +9,12 @@
 #include <nmmintrin.h>
 
 
-//@ fixpoint uint32_t hash_fp(list<char> value);
+typedef uint32_t hash_t;
+
+//@ fixpoint hash_t hash_fp(list<char> value);
+
+#define malloc_block_hashes malloc_block_uints
+#define PRED_hashes uints
 
 
 static inline bool generic_eq(void* a, void* b, size_t obj_size)
@@ -19,7 +24,7 @@ static inline bool generic_eq(void* a, void* b, size_t obj_size)
 	return 0 == memcmp(a, b, obj_size);
 }
 
-static inline uint32_t generic_hash(void* obj, size_t obj_size)
+static inline hash_t generic_hash(void* obj, size_t obj_size)
 //@ requires [?f]chars(obj, obj_size, ?value);
 /*@ ensures [f]chars(obj, obj_size, value) &*&
             result == hash_fp(value); @*/
