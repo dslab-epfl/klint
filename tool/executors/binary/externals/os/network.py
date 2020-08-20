@@ -57,13 +57,13 @@ class Transmit(angr.SimProcedure):
     data = packet_get_data(self.state, packet)
     length = packet_get_length(self.state, packet)
 
-    if utils.can_be_false(self.state.solver, claripy.Or(ether_header == 0, ether_header == data_addr)):
+    if utils.can_be_false(self.state.solver, (ether_header == 0) | (ether_header == data_addr)):
         raise "Precondition failed: ether_header is NULL or valid"
 
-    if utils.can_be_false(self.state.solver, claripy.Or(ipv4_header == 0, claripy.And(data[8*13-1:8*12] == 0x08, data[8*14-1:8*13] == 0x00))):
+    if utils.can_be_false(self.state.solver, (ipv4_header == 0) | ((data[8*13-1:8*12] == 0x08) & (data[8*14-1:8*13] == 0x00))):
         raise "Precondition failed: ipv4_header is NULL or valid"
 
-    if utils.can_be_false(self.state.solver, claripy.Or(tcpudp_header == 0, claripy.And(tcpudp_header == 34 + data_addr, ipv4_header == 14 + data_addr, claripy.Or(data[8*24-1:8*23] == 6, data[8*24-1:8*23] == 17)))):
+    if utils.can_be_false(self.state.solver, (tcpudp_header == 0) | ((tcpudp_header == 34 + data_addr) & (ipv4_header == 14 + data_addr) & ((data[8*24-1:8*23] == 6) | (data[8*24-1:8*23] == 17)))):
         raise "Precondition failed: tcpudp_header is NULL or valid"
 
     metadata = self.state.metadata.get(NetworkMetadata, None, default=NetworkMetadata([]))

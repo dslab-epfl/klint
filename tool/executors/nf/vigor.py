@@ -49,12 +49,12 @@ def check_one(solver, spec_out, code_out):
   if len(spec_out.packets) != len(code_out.packets):
     raise AssertionError("Total outputs do not have the same number of packets")
 
-  constraint = claripy.ast.bool.BoolV(True)
+  constraint = claripy.true
   for (sp, cp) in zip(spec_out.packets, code_out.packets):
     sd = sp._asdict()
     cd = cp._asdict()
     for key in sd.keys():
-      constraint = claripy.And(constraint, (to_claripy(sd[key]) == cd[key]))
+      constraint &= to_claripy(sd[key]) == cd[key]
 
   if solver.eval_upto(constraint, 3) != [True]:
     raise AssertionError("Not necessarily true: " + str(constraint))

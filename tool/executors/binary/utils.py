@@ -20,7 +20,7 @@ def can_be_true(solver, cond):
   return solver.satisfiable(extra_constraints=[cond])
 
 def can_be_false(solver, cond):
-  return solver.satisfiable(extra_constraints=[claripy.Not(cond)])
+  return solver.satisfiable(extra_constraints=[~cond])
 
 def can_be_true_or_false(solver, cond):
   return can_be_true(solver, cond) and can_be_false(solver, cond)
@@ -97,7 +97,7 @@ def fork_guarded(proc, guard, case_true, case_false):
       state.add_constraints(guard)
       return case_true(state)
     def case_false_prime(state):
-      state.add_constraints(claripy.Not(guard))
+      state.add_constraints(~guard)
       return case_false(state)
     return fork_always(proc, case_true_prime, case_false_prime)
 

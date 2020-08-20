@@ -102,7 +102,7 @@ class Map:
         for item in self.known_items(from_present=from_present):
             key_is_new = claripy.And(*[item.key != k for k in known_keys])
             known_keys.append(item.key)
-            known_len = known_len + claripy.If(claripy.And(key_is_new, item.present), claripy.BVV(1, l.size()), claripy.BVV(0, l.size()))
+            known_len = known_len + claripy.If(key_is_new & item.present, claripy.BVV(1, l.size()), claripy.BVV(0, l.size()))
         return known_len
 
     def __copy__(self):
@@ -122,7 +122,7 @@ class Map:
 
 # Helper function to make expressions clearer
 def Implies(a, b):
-    return claripy.Or(claripy.Not(a), b)
+    return ~a | b
 
 LOG_levels = {}
 def LOG(state, text):
@@ -172,7 +172,7 @@ class GhostMaps(SimStatePlugin):
 
 
     def new(self, key_size, value_size, name="map", length_size=64):
-        return self._new(key_size, value_size, name, claripy.BVV(0, length_size), [lambda st, i: claripy.Not(i.present)])
+        return self._new(key_size, value_size, name, claripy.BVV(0, length_size), [lambda st, i: ~i.present])
 
     def new_array(self, key_size, value_size, length, name="map"):
         return self._new(key_size, value_size, name, length, [lambda st, i: (i.key < length) == i.present])
@@ -229,7 +229,7 @@ class GhostMaps(SimStatePlugin):
         map.add_item(MapItem(key, value, present), from_present=from_present)
 
         self.state.add_constraints(
-            *[Implies(key == i.key, claripy.And(value == i.value, present == i.present)) for i in known_items],
+            *[Implies(key == i.key, (value == i.value) & (present == i.present)) for i in known_items],
             Implies(claripy.And(*[key != i.key for i in known_items]), map.invariant(from_present=from_present)(self.state, MapItem(key, value, present))),
             known_len <= map.length(from_present=from_present)
         )
@@ -303,16 +303,13 @@ class GhostMaps(SimStatePlugin):
         # Optimization: No need to even call the invariant if we're sure all items are known
         result = claripy.And(*[Implies(i.present, pred(i.key, i.value)) for i in map.known_items()])
         if not _known_only and utils.can_be_false(self.state.solver, known_len == total_len):
-            result = claripy.And(
-                result,
-                Implies(
-                    known_len < total_len,
-                    Implies(
-                        map.invariant()(self.state, MapItem(test_key, test_value, claripy.true)),
-                        pred(test_key, test_value)
-                    )
-                )
-            )
+            result &= Implies(
+                          known_len < total_len,
+                          Implies(
+                              map.invariant()(self.state, MapItem(test_key, test_value, claripy.true)),
+                              pred(test_key, test_value)
+                          )
+                      )
 
         # MUTATE the map!
         # Optimization: only if there's a chance it's useful, let's not needlessly complicate the invariant
@@ -394,7 +391,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                         orig_o1, orig_size = state.memory.get_obj_and_size_from_fracs_obj(o1)
                         if orig_o1 is not None and orig_o1 is not o2 and utils.definitely_true(state.solver, orig_size * 8 == x2.size()):
                             (orig_x1v, orig_x1p) = state.maps.get(orig_o1, it1.key)
-                            if utils.definitely_true(state.solver, claripy.And(orig_x1p, orig_x1v == x2.reversed)):
+                            if utils.definitely_true(state.solver, orig_x1p & (orig_x1v == x2.reversed)):
                                 candidate_func = lambda st, it, from_present, orig_o1=orig_o1: \
                                                  st.maps.get(orig_o1, it.key, from_present=from_present)[0].reversed
                                 found = True
@@ -536,7 +533,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                         def cross_val_inv(st, i, o2, fp, fk, fv):
                             fvres = fv(st, i, False)
                             (o2val, o2pres) = st.maps.get(o2, fk(st, i, False), value=fvres, from_present=False)
-                            return Implies(i.present, Implies(fp(i), claripy.And(o2pres, o2val == fvres)))
+                            return Implies(i.present, Implies(fp(i), o2pres & (o2val == fvres)))
                         results.put(("cross-val", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk, fv=fv: [maps[0].with_added_invariant(lambda st, i: cross_val_inv(st, i, o2, fp, fk, fv)), maps[1]]))
                     else:
                         results.put(("cross-key", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk: [maps[0].with_added_invariant(lambda st, i: Implies(i.present, Implies(fp(i), st.maps.get(o2, fk(st, i, False), from_present=False)[1]))), maps[1]]))
@@ -648,7 +645,7 @@ def maps_merge_one(states_to_merge, obj, ancestor_state):
                     constraints = claripy.And(*find_constraints(state, item.key), *find_constraints(state, item.value))
                     print("Item", item, "in map", obj, "does not comply with invariant conjunction", conj, "; adding disjunction", constraints)
                     conjunction = lambda st, i, oldc=conjunction, oldi=item, cs=constraints: \
-                                  claripy.Or(oldc(st, i), cs.replace(oldi.key, i.key).replace(oldi.value, i.value))
+                                  oldc(st, i) | cs.replace(oldi.key, i.key).replace(oldi.value, i.value)
         invariant_conjs.append(conjunction)
 
     return (ancestor_state.maps[obj].flatten().with_invariant_conjunctions(invariant_conjs), changed)
