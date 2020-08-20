@@ -9,13 +9,6 @@
 #include "multisubset.gh"
 
 
-fixpoint t get_some<t>(option<t> x) {
-  switch(x) {
-    case none: return default_value<t>();
-    case some(v): return v;
-  }
-}
-
 fixpoint bool forall2<t1,t2>(list<t1> l1, list<t2> l2, fixpoint (t1,t2,bool) f) {
   switch(l1) {
     case nil: return true;
@@ -114,16 +107,6 @@ ensures true == prop(index, nth(index - start_index, v));
   }
 }
 
-lemma void some_get_some<t>(option<t> x)
-requires x != none;
-ensures some(get_some(x)) == x;
-{
-  switch(x) {
-    case none: break;
-    case some(v): break;
-  }
-}
-
 fixpoint bool no_dups<t>(list<t> l) {
   switch(l) {
     case nil: return true;
@@ -196,19 +179,22 @@ requires true == opt_no_dups(ks) &*& 0 <= i;
 ensures true == opt_no_dups(update(i, none, ks));
 {
   switch(ks) {
-    case nil: return;
+    case nil:
     case cons(h,t):
       if (i == 0) {
       } else {
         rem_preserves_opt_no_dups(t, i-1);
         if (h == none){
         } else {
-          assert(false == mem(h, t));
-          some_get_some(h);
-          rem_preserves_no_mem(t, get_some(h), i-1);
+          assert false == mem(h, t);
+          switch(h) {
+            case none:
+              assert false;
+            case some(hv):
+              rem_preserves_no_mem(t, hv, i-1);
+          }
         }
       }
-      return;
   }
 }
 

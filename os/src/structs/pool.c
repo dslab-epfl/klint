@@ -132,7 +132,7 @@ predicate poolp(struct os_pool* pool, size_t size, list<pair<size_t, time_t> > i
 
   fixpoint time_t alist_get_fp(list<pair<int, time_t> > al, int i) {
     switch(al) {
-      case nil: return default_value<time_t>();
+      case nil: return ??? NOT DEFAULT VALUE ??? default_value<time_t>();
       case cons(h,t):
         return (fst(h) == i) ? snd(h) : alist_get_fp(t, i);
     }

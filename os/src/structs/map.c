@@ -113,12 +113,13 @@ struct os_map {
                length(map_values) == length(map_addrs) &*&
                true == ghostmap_distinct(map_values) &*&
                true == ghostmap_distinct(map_addrs) &*&
-               (key_optsh == none ? (map_values == map_values_rest &*&
-                                     map_addrs == map_addrs_rest)
-                                  : (map_values_rest == ghostmap_remove(map_values, get_some(key_optsh)) &*&
-                                     map_addrs_rest == ghostmap_remove(map_addrs, get_some(key_optsh)) &*&
-                                     some(valuesh) == ghostmap_get(map_values, get_some(key_optsh)) &*&
-                                     some(kaddrsh) == ghostmap_get(map_addrs, get_some(key_optsh)) ));
+               switch(key_optsh) {
+                 case none: return map_values == map_values_rest &*& map_addrs == map_addrs_rest;
+                 case some(kohv): return map_values_rest == ghostmap_remove(map_values, kohv) &*&
+                                         map_addrs_rest == ghostmap_remove(map_addrs, kohv) &*&
+                                         some(valuesh) == ghostmap_get(map_values, kohv) &*&
+                                         some(kaddrsh) == ghostmap_get(map_addrs, kohv);
+               };
                
     };
 
@@ -236,9 +237,10 @@ lemma void reconstruct_key_opt_list(list<void*> kaddrs1, list<bool> busybits1,
       append_reverse_tail_cons_head(kaddrs1, kaddrs2);
       append_reverse_tail_cons_head(busybits1, busybits2);
       append_reverse_tail_cons_head(key_opts1, key_opts2);
-      close key_opt_list(key_size, cons(head(kaddrs1), kaddrs2), cons(bbh, busybits2), cons(head(key_opts1), key_opts2));
-      reconstruct_key_opt_list(tail(kaddrs1), bbt, 
-                               cons(head(kaddrs1), kaddrs2), cons(bbh, busybits2));
+      assert kaddrs1 == cons(?ka1h, ?ka1t);
+      assert key_opts1 == cons(?ko1h, _);
+      close key_opt_list(key_size, cons(ka1h, kaddrs2), cons(bbh, busybits2), cons(ko1h, key_opts2));
+      reconstruct_key_opt_list(ka1t, bbt, cons(ka1h, kaddrs2), cons(bbh, busybits2));
   }
 }
 
@@ -299,19 +301,20 @@ lemma void no_hash_no_key(list<option<list<char> > > key_opts, list<hash_t> hash
     case nil:
       assert hashes == nil;
     case cons(kh,kt):
+      assert hashes == cons(?hh, ?ht);
       if (i == 0) {
         assert nth(i, key_opts) == kh;
         if (kh == some(k)) {
-          assert head(hashes) == hash_fp(k);
+          assert hh == hash_fp(k);
           nth_0_head(hashes);
-          assert nth(i, hashes) == head(hashes);
+          assert nth(i, hashes) == hh;
           assert nth(i, hashes) == hash_fp(k);
         }
       } else {
-        nth_cons(i, tail(hashes), head(hashes));
+        nth_cons(i, ht, hh);
         cons_head_tail(hashes);
-        assert nth(i, hashes) == nth(i-1,tail(hashes));
-        no_hash_no_key(kt, tail(hashes), k, i-1);
+        assert nth(i, hashes) == nth(i-1, ht);
+        no_hash_no_key(kt, ht, k, i-1);
       }
   }
   close hash_list(key_opts, hashes);
@@ -710,7 +713,6 @@ lemma void zero_bbs_is_for_empty(list<bool> busybits, list<option<list<char> > >
     case nil:
     case cons(h,t):
       if (i == 0) {
-        assert head(key_opts) == none;
         key_opts_size_limits(tail(key_opts));
       } else {
         nth_cons(i, t, h);
@@ -1107,19 +1109,20 @@ static size_t find_key_remove_chain(void** kaddrs, bool* busybits, hash_t* hashe
 lemma void move_chain(size_t* data, size_t i, size_t len)
   requires data[0..i] |-> ?l1 &*& 
            data[i..len] |-> ?l2 &*&
-          i < len;
-  ensures data[0..(i + 1)] |-> append(l1, cons(head(l2), nil)) &*&
+           l2 == cons(?l2h, ?l2t) &*&
+           i < len;
+  ensures data[0..(i + 1)] |-> append(l1, cons(l2h, nil)) &*&
           data[(i + 1)..len] |-> tail(l2);
 {
   open PRED_sizes(data, i, l1);
   switch(l1) {
     case nil:
       open PRED_sizes(data, len-i, l2);
-      close PRED_sizes(data, 1, cons(head(l2), nil));
+      close PRED_sizes(data, 1, cons(l2h, nil));
     case cons(h, t):
       move_chain(data+1, i-1, len-1);
   }
-  close PRED_sizes(data, i+1, append(l1, cons(head(l2), nil)));
+  close PRED_sizes(data, i+1, append(l1, cons(l2h, nil)));
 }
 
 // ---
@@ -1127,19 +1130,20 @@ lemma void move_chain(size_t* data, size_t i, size_t len)
 lemma void move_busybit(bool* data, size_t i, size_t len)
   requires data[0..i] |-> ?l1 &*& 
            data[i..len] |-> ?l2 &*&
-          i < len;
-  ensures data[0..(i + 1)] |-> append(l1, cons(head(l2), nil)) &*&
+           l2 == cons(?l2h, ?l2t) &*&
+           i < len;
+  ensures data[0..(i + 1)] |-> append(l1, cons(l2h, nil)) &*&
           data[(i + 1)..len] |-> tail(l2);
 {
   open bools(data, i, l1);
   switch(l1) {
     case nil:
       open bools(data, len-i, l2);
-      close bools(data, 1, cons(head(l2), nil));
+      close bools(data, 1, cons(l2h, nil));
     case cons(h, t):
       move_busybit(data+1, i-1, len-1);
   }
-  close bools(data, i+1, append(l1, cons(head(l2), nil)));
+  close bools(data, i+1, append(l1, cons(l2h, nil)));
 }
 
 // ---
@@ -1294,7 +1298,6 @@ lemma void produce_empty_map_valuesaddrs(size_t capacity, list<void*> kaddrs, li
       assert repeat_n(nat_of_int(capacity), none) == cons(?noh, ?not);
       repeat_n_is_n(nat_of_int(capacity), none);
       assert noh == none;
-      assert head(repeat_n(nat_of_int(capacity), none)) == none;
       produce_empty_map_valuesaddrs(capacity - 1, kt, vt);
       repeat_n_tail(nat_of_int(capacity), none);
       assert not == repeat_n(nat_of_int(capacity-1), none);
@@ -1331,8 +1334,10 @@ struct os_map* os_map_alloc(size_t key_size, size_t capacity)
   {
     //@ move_busybit(busybits, i, capacity);
     //@ move_chain(chains, i, capacity);
-    //@ extend_repeat_n(nat_of_int(i), head(busybits_rest), false);
-    //@ extend_repeat_n(nat_of_int(i), head(chains_rest), 0);
+    //@ assert busybits_rest == cons(?bbrh, _);
+    //@ assert chains_rest == cons(?crh, _);
+    //@ extend_repeat_n(nat_of_int(i), bbrh, false);
+    //@ extend_repeat_n(nat_of_int(i), crh, 0);
     busybits[i] = false;
     chains[i] = 0;
     //@ assert succ(nat_of_int(i)) == nat_of_int(i+1);
@@ -1462,16 +1467,18 @@ lemma void put_keeps_key_opt_list(list<void*> kaddrs, list<bool> busybits, list<
   switch(busybits) {
     case nil:
     case cons(bbh, bbt):
+      assert kaddrs == cons(?kah, ?kat);
+      assert key_opts == cons(?koh, ?kot);
       if (index == 0) {
         tail_of_update_0(kaddrs, key);
         tail_of_update_0(key_opts, some(k));
         head_update_0(key, kaddrs);
       } else {
-        put_keeps_key_opt_list(tail(kaddrs), bbt, tail(key_opts), index-1, key, k);
+        put_keeps_key_opt_list(kat, bbt, kot, index-1, key, k);
         cons_head_tail(kaddrs);
         cons_head_tail(key_opts);
-        update_tail_tail_update(head(kaddrs), tail(kaddrs), index, key);
-        update_tail_tail_update(head(key_opts), tail(key_opts), index, some(k));
+        update_tail_tail_update(kah, kat, index, key);
+        update_tail_tail_update(koh, kot, index, some(k));
         update_tail_tail_update(bbh, bbt, index, true);
       }
       update_non_nil(kaddrs, index, key);
