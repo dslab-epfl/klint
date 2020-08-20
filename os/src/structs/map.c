@@ -47,16 +47,18 @@ struct os_map {
 
   // Key options => hashes
   // NOTE: It's important that we say nothing about hashes of none keys, which is why this can't return a list<hash_t> (which would need to reason about this info)
-  fixpoint bool hash_list(list<option<list<char> > > key_opts, list<hash_t> hashes) {
+  predicate hash_list(list<option<list<char> > > key_opts, list<hash_t> hashes) =
     switch(key_opts) {
       case nil:
         return hashes == nil;
-      case cons(h,t):
-        return hashes != nil &&
-               hash_list(t, tail(hashes)) &&
-               (h == none || head(hashes) == hash_fp(get_some(h)));
-    }
-  }
+      case cons(koh, kot):
+        return hashes == cons(?hh, ?ht) &*&
+               hash_list(kot, ht) &*&
+               switch(koh) {
+                 case none: return true;
+                 case some(hv): return hh == hash_fp(hv);
+               };
+    };
 
   fixpoint bool has_given_hash(size_t pos, size_t capacity, pair<list<char>, nat> chain) {
     return pos == loop_fp(hash_fp(fst(chain)), capacity);
@@ -130,7 +132,7 @@ struct os_map {
      values_ptr[0..capacity] |-> ?values &*&
      key_opt_list(key_size, kaddrs, busybits, key_opts) &*&
      map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs) &*&
-     true == hash_list(key_opts, hashes) &*&
+     hash_list(key_opts, hashes) &*&
      true == opt_no_dups(key_opts) &*&
      true == ghostmap_distinct(map_values) &*&
      true == ghostmap_distinct(map_addrs) &*&
@@ -286,30 +288,33 @@ lemma void key_opt_list_find_key(list<option<list<char> > > key_opts, size_t i, 
 // ---
 
 lemma void no_hash_no_key(list<option<list<char> > > key_opts, list<hash_t> hashes, list<char> k, size_t i)
-  requires true == hash_list(key_opts, hashes) &*&
+  requires hash_list(key_opts, hashes) &*&
            nth(i, hashes) != hash_fp(k) &*&
            0 <= i &*& i < length(key_opts);
-  ensures nth(i, key_opts) != some(k);
+  ensures hash_list(key_opts, hashes) &*&
+          nth(i, key_opts) != some(k);
 {
+  open hash_list(key_opts, hashes);
   switch(key_opts) {
     case nil:
-      assert(hashes == nil);
+      assert hashes == nil;
     case cons(kh,kt):
       if (i == 0) {
-        assert(nth(i, key_opts) == kh);
+        assert nth(i, key_opts) == kh;
         if (kh == some(k)) {
-          assert(head(hashes) == hash_fp(k));
+          assert head(hashes) == hash_fp(k);
           nth_0_head(hashes);
-          assert(nth(i, hashes) == head(hashes));
-          assert(nth(i, hashes) == hash_fp(k));
+          assert nth(i, hashes) == head(hashes);
+          assert nth(i, hashes) == hash_fp(k);
         }
       } else {
         nth_cons(i, tail(hashes), head(hashes));
         cons_head_tail(hashes);
-        assert(nth(i, hashes) == nth(i-1,tail(hashes)));
+        assert nth(i, hashes) == nth(i-1,tail(hashes));
         no_hash_no_key(kt, tail(hashes), k, i-1);
       }
   }
+  close hash_list(key_opts, hashes);
 }
 
 // ---
@@ -591,7 +596,7 @@ static bool find_key(void** kaddrs, bool* busybits, hash_t* hashes, size_t* chai
                   0 <= i &*& i <= capacity &*&
                   [kfr]chars(key_ptr, key_size, key) &*&
                   hash_fp(key) == key_hash &*&
-                  true == hash_list(key_opts, hashes_lst) &*&
+                  hash_list(key_opts, hashes_lst) &*&
                   start == loop_fp(hash_fp(key), capacity) &*&
                   key_opts == buckets_get_keys_fp(buckets) &*&
                   buckets != nil &*&
@@ -777,7 +782,7 @@ static size_t find_empty(bool* busybits, size_t* chains, size_t start, size_t ca
                   values[0..capacity] |-> ?values_lst &*&
                   chains[0..capacity] |-> ?invariant_chains_lst &*&
                   length(key_opts) == capacity &*&
-                  true == hash_list(key_opts, hashes_lst) &*&
+                  hash_list(key_opts, hashes_lst) &*&
                   map_valuesaddrs(kaddrs_lst, key_opts, values_lst, map_values, map_addrs) &*&
                   0 <= i &*& i <= capacity &*&
                   true == up_to(nat_of_int(i),(byLoopNthProp)(key_opts, cell_busy, capacity, start)) &*&
@@ -867,9 +872,10 @@ ensures true == key_chains_start_on_hash_fp(buckets_remove_key_fp(buckets, key),
 // ---
 
 lemma void key_opts_rem_preserves_hash_list(list<option<list<char> > > key_opts, list<hash_t> hashes, size_t index)
-requires true == hash_list(key_opts, hashes) &*& 0 <= index;
-ensures true == hash_list(update(index, none, key_opts), hashes);
+requires hash_list(key_opts, hashes) &*& 0 <= index;
+ensures hash_list(update(index, none, key_opts), hashes);
 {
+  open hash_list(key_opts, hashes);
   switch(key_opts) {
     case nil:
     case cons(h, t):
@@ -877,6 +883,7 @@ ensures true == hash_list(update(index, none, key_opts), hashes);
         key_opts_rem_preserves_hash_list(t, tail(hashes), index - 1);
       }
   }
+  close hash_list(update(index, none, key_opts), hashes);
 }
 
 // ---
@@ -1012,7 +1019,7 @@ static size_t find_key_remove_chain(void** kaddrs, bool* busybits, hash_t* hashe
                   values[0..capacity] |-> ?values_lst &*&
                   key_opt_list(key_size, kaddrs_lst, busybits_lst, key_opts) &*&
                   map_valuesaddrs(kaddrs_lst, key_opts, values_lst, map_values, map_addrs) &*&
-                  true == hash_list(key_opts, hashes_lst) &*&
+                  hash_list(key_opts, hashes_lst) &*&
                   opts_size(key_opts) == length(map_values) &*&
                   chains[0..capacity] |-> chains_lst &*&
                   0 <= i &*& i <= capacity &*&
@@ -1198,16 +1205,20 @@ ensures opts_size(kopts) == 0;
 
 // ---
 
-lemma void confirm_hash_list_for_nones(list<hash_t> hashes)
-  requires true;
-  ensures true == hash_list(repeat_n(nat_of_int(length(hashes)), none), hashes);
+lemma void produce_empty_hash_list(list<option<list<char> > > key_opts, list<hash_t> hashes)
+  requires length(key_opts) == length(hashes) &*&
+           key_opts == repeat_n(nat_of_int(length(hashes)), none);
+  ensures hash_list(key_opts, hashes);
 {
   switch(hashes) {
     case nil:
-    case cons(h,t):
-      confirm_hash_list_for_nones(t);
+      close hash_list(nil, nil);
+    case cons(h, t):
+      assert key_opts == cons(?koh, ?kot);
+      repeat_n_is_n(nat_of_int(length(hashes)), none);
       nat_len_of_non_nil(h,t);
-      assert(tail(repeat_n(nat_of_int(length(hashes)), none)) == repeat_n(nat_of_int(length(t)), none));
+      produce_empty_hash_list(kot, t);
+      close hash_list(repeat_n(nat_of_int(length(hashes)), none), hashes);
   }
 }
 
@@ -1337,7 +1348,7 @@ struct os_map* os_map_alloc(size_t key_size, size_t capacity)
   //@ assert chains[0..capacity] |-> ?zeroed_chains_lst;
   //@ empty_buckets_insync(zeroed_chains_lst, capacity);
   //@ produce_empty_map_valuesaddrs(capacity, kaddrs_lst, values_lst);
-  //@ confirm_hash_list_for_nones(hashes_lst);
+  //@ produce_empty_hash_list(kopts, hashes_lst);
   //@ repeat_none_is_opt_no_dups(nat_of_int(capacity), kopts);
   //@ close mapping_core(key_size, capacity, kaddrs, busybits, hashes, values, kopts, nil, nil);
   //@ close mapping(key_size, capacity, kaddrs, busybits, hashes, chains, values, _, kopts, nil, nil);
@@ -1489,7 +1500,7 @@ ensures map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs) &*&
           open map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs);
           assert values == cons(?valuesh, ?valuest);
           assert map_valuesaddrs(?kaddrst, key_optst, valuest, ?map_values_rest, ?map_addrs_rest);
-          ghostmap_remove_preserves_other(map_values, get_some(key_optsh), key);
+          ghostmap_remove_preserves_other(map_values, kohv, key);
           map_values_has_not_implies_key_opts_has_not(map_values_rest, key_optst, key);
           close map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs);
       }
@@ -1628,29 +1639,21 @@ lemma void put_updates_valuesaddrs(size_t index, void* key_ptr, list<char> key, 
 // ---
 
 lemma void put_preserves_hash_list(list<option<list<char> > > key_opts, list<hash_t> hashes, size_t index, list<char> k, hash_t hash)
-  requires true == hash_list(key_opts, hashes) &*&
+  requires hash_list(key_opts, hashes) &*&
            hash_fp(k) == hash &*&
            0 <= index;
-  ensures true == hash_list(update(index, some(k), key_opts), update(index, hash, hashes));
+  ensures hash_list(update(index, some(k), key_opts), update(index, hash, hashes));
 {
+  open hash_list(key_opts, hashes);
   switch(key_opts) {
     case nil:
-    case cons(h,t):
-      update_non_nil(hashes, index, hash);
-      if (index == 0) {
-        head_update_0(some(k), key_opts);
-        head_update_0(hash, hashes);
-        tail_of_update_0(hashes, hash);
-        assert update(0, hash, hashes) != nil;
-        assert true == hash_list(t, tail(update(0, hash, hashes)));
-        assert head(update(0, hash, hashes)) == hash_fp(get_some(head(update(0, some(k), key_opts))));
-      } else {
-        put_preserves_hash_list(t, tail(hashes), index-1, k, hash);
-        cons_head_tail(hashes);
-        update_tail_tail_update(head(hashes), tail(hashes), index, hash);
-        update_tail_tail_update(h, t, index, some(k));
+    case cons(koh, kot):
+      if (index != 0) {
+        assert hashes == cons(?hh, ?ht);
+        put_preserves_hash_list(kot, ht, index - 1, k, hash);
       }
   }
+  close hash_list(update(index, some(k), key_opts), update(index, hash, hashes));
 }
 
 // ---
