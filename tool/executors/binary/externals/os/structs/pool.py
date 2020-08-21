@@ -60,7 +60,7 @@ class OsPoolBorrow(angr.SimProcedure):
         # Postconditions
         index = claripy.BVS("index", bitsizes.size_t)
         self.state.add_constraints(index < poolp.size)
-        self.state.memory.store(out_index, index)
+        self.state.memory.store(out_index, index, endness=self.state.arch.memory_endness)
         def case_true(state):
             print("!!! os_pool_borrow full")
             return claripy.BVV(0, bitsizes.bool)
@@ -151,7 +151,7 @@ class OsPoolUsed(angr.SimProcedure):
         # Postconditions
         def case_has(state, time):
             print("!!! os_pool_used has", time)
-            state.memory.store(out_time, time)
+            state.memory.store(out_time, time, endness=self.state.arch.memory_endness)
             return claripy.BVV(1, bitsizes.bool)
         def case_not(state):
             print("!!! os_pool_used not")
@@ -188,7 +188,7 @@ class OsPoolExpire(angr.SimProcedure):
         # Postconditions
         index = claripy.BVS('index', bitsizes.size_t)
         self.state.add_constraints(index < poolp.size)
-        self.state.memory.store(out_index, index)
+        self.state.memory.store(out_index, index, endness=self.state.arch.memory_endness)
         def case_true(state):
             print("!!! os_pool_expire none")
             return claripy.BVV(0, bitsizes.bool)

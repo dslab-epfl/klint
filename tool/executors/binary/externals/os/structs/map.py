@@ -70,7 +70,7 @@ class OsMapGet(angr.SimProcedure):
         # Postconditions
         def case_has(state, v):
             print("!!! os_map_get has", v)
-            self.state.memory.store(out_value, v)
+            self.state.memory.store(out_value, v, endness=self.state.arch.memory_endness)
             return claripy.BVV(1, bitsizes.bool)
         def case_not(state):
             print("!!! os_map_get not")

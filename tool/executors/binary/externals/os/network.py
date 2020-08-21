@@ -48,7 +48,7 @@ NetworkMetadata = namedtuple('NetworkMetadata', ['transmitted'])
 class Transmit(angr.SimProcedure):
   def run(self, packet, device, ether_header, ipv4_header, tcpudp_header):
     packet = cast.ptr(packet)
-    device = cast.u16(device)
+    device = cast.uint16_t(device)
     ether_header = cast.ptr(ether_header)
     ipv4_header = cast.ptr(ipv4_header)
     tcpudp_header = cast.ptr(tcpudp_header)
