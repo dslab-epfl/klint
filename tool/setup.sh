@@ -1,13 +1,10 @@
 # tested on Ubuntu 18.04
 # THIS SCRIPT SHOULD BE SOURCED NOT RAN
 
-# TODO: consider using normal python, most of the time is spent in z3 anyway... benchmark on the server?
-
 if [ ! -d "$HOME/.virtualenvs/angr" ]; then
-  # Virtual env for angr using pypy for python3
-  sudo snap install --classic pypy3
-  pypy3 -m ensurepip
-  pypy3 -m pip install virtualenv virtualenvwrapper
+  # Virtual env for angr using python3
+  python3 -m ensurepip --upgrade
+  python3 -m pip install virtualenv virtualenvwrapper
   mkdir -p "$HOME/.virtualenvs"
 fi
 

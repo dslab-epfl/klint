@@ -1,6 +1,8 @@
 from angr.state_plugins.sim_action import SimActionObject
 import executors.binary.bitsizes as bitsizes
 
+# TODO make this arch-dependent (maybe as a state plugin?)
+
 def _fix(o):
     if isinstance(o, SimActionObject):
         o = o.ast
