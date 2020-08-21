@@ -912,10 +912,10 @@ ensures key_opt_list(key_size, kaddrs, update(index, false, busybits), update(in
       assert key_opts == cons(?key_optsh, ?key_optst);
       assert values == cons(?valuesh, ?valuest);
       assert map_valuesaddrs(kaddrst, key_optst, valuest, ?map_values_rest, ?map_addrs_rest);
+      ghostmap_remove_when_distinct_and_present_decreases_length(map_values, key);
+      ghostmap_remove_when_distinct_and_present_decreases_length(map_addrs, key);
       if (index == 0) {
         assert busybits == cons(?busybitsh, ?busybitst);
-        ghostmap_remove_when_present_decreases_length(map_values, key);
-        ghostmap_remove_when_present_decreases_length(map_addrs, key);
         close map_valuesaddrs(kaddrs, cons(none, key_optst), values, map_values_rest, map_addrs_rest);
         close key_opt_list(key_size, kaddrs, cons(false, busybitst), cons(none, key_optst));
       } else {
@@ -1053,6 +1053,8 @@ static size_t find_key_remove_chain(void** kaddrs, bool* busybits, hash_t* hashe
         //@ key_opts_rem_preserves_hash_list(key_opts, hashes_lst, index);
         //@ remove_decreases_key_opts_size(key_opts, index);
         //@ map_drop_key(index);
+        //@ ghostmap_remove_when_distinct_and_present_decreases_length(map_values, key);
+        //@ ghostmap_remove_when_distinct_and_present_decreases_length(map_addrs, key);
         //@ close mapping_core(key_size, capacity, kaddrs, busybits, hashes, values, ?new_key_opts, ?new_map_values, ?new_map_addrs);
         //@ chns_after_partial_chain_ended(buckets, key, start, i, capacity);
         //@ buckets_remove_key_still_ok(buckets, key);
@@ -1621,26 +1623,34 @@ lemma void put_updates_valuesaddrs(size_t index, void* key_ptr, list<char> key, 
                           ghostmap_set(map_values, key, value),
                           ghostmap_set(map_addrs, key, key_ptr));
 {
-  open map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs);
   switch(key_opts) {
     case nil:
     case cons(key_optsh, key_optst):
-      if (index != 0) {
-        assert kaddrs == cons(?kaddrsh, ?kaddrst);
+      open map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs);
+      if (index == 0) {
+        ghostmap_remove_cancels_set(map_values, key, value);
+        ghostmap_remove_cancels_set(map_addrs, key, key_ptr);
+      } else {
         switch(key_optsh) {
           case none:
           case some(kohv):
             ghostmap_remove_preserves_other(map_values, kohv, key);
             ghostmap_remove_preserves_other(map_addrs, kohv, key);
+            ghostmap_set_remove_different_key_interchangeable(map_values, key, value, kohv);
+            ghostmap_set_remove_different_key_interchangeable(map_addrs, key, key_ptr, kohv);
+            ghostmap_set_preserves_other(map_values, key, value, kohv);
+            ghostmap_set_preserves_other(map_addrs, key, key_ptr, kohv);
         }
         put_updates_valuesaddrs(index - 1, key_ptr, key, value);
       }
+      ghostmap_set_new_preserves_distinct(map_values, key, value);
+      ghostmap_set_new_preserves_distinct(map_addrs, key, key_ptr);
+      close map_valuesaddrs(update(index, key_ptr, kaddrs),
+                            update(index, some(key), key_opts),
+                            update(index, value, values),
+                            ghostmap_set(map_values, key, value),
+                            ghostmap_set(map_addrs, key, key_ptr));
   }
-  close map_valuesaddrs(update(index, key_ptr, kaddrs),
-                        update(index, some(key), key_opts),
-                        update(index, value, values),
-                        ghostmap_set(map_values, key, value),
-                        ghostmap_set(map_addrs, key, key_ptr));
 }
 
 // ---

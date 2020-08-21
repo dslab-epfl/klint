@@ -40,7 +40,7 @@ void os_pool_refresh(struct os_pool* pool, time_t time, size_t index);
              true == ghostmap_forall(items, (pool_upperbounded)(time)) &*&
              index < size &*&
              ghostmap_get(items, index) != none; @*/
-/*@ ensures poolp(pool, size, ghostmap_set(ghostmap_remove(items, index), index, time)); @*/
+/*@ ensures poolp(pool, size, ghostmap_set(items, index, time)); @*/
 
 bool os_pool_used(struct os_pool* pool, size_t index, time_t* out_time);
 /*@ requires poolp(pool, ?size, ?items) &*&

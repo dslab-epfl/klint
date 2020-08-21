@@ -100,7 +100,7 @@ class OsPoolReturn(angr.SimProcedure):
 #          true == ghostmap_forall(items, (pool_upperbounded)(time)) &*&
 #          index < size &*&
 #          ghostmap_get(items, index) != none;
-# ensures poolp(pool, size, ghostmap_set(ghostmap_remove(items, index), index, time));
+# ensures poolp(pool, size, ghostmap_set(items, index, time));
 class OsPoolRefresh(angr.SimProcedure):
   def run(self, pool, time, index):
     # Casts

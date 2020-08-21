@@ -2,6 +2,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h> // for SIZE_MAX
 
 //@ #include "proof/ghost_map.gh"
 
