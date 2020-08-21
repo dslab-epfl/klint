@@ -1313,14 +1313,13 @@ struct os_map* os_map_alloc(size_t key_size, size_t capacity)
              (capacity & (capacity - 1)) == 0; @*/
 /*@ ensures mapp(result, key_size, capacity, nil, nil); @*/
 {
-  struct os_map* map = (struct os_map*) os_memory_init(1, sizeof(struct os_map));
+  struct os_map* map = (struct os_map*) os_memory_alloc(1, sizeof(struct os_map));
   //@ close_struct_zero(map);
-  //@ mul_bounds(capacity, SIZE_MAX / 8, sizeof(void*), 8);
-  void** kaddrs = (void**) os_memory_init(capacity, sizeof(void*));
-  bool* busybits = (bool*) os_memory_init(capacity, sizeof(bool));
-  hash_t* hashes = (hash_t*) os_memory_init(capacity, sizeof(hash_t));
-  size_t* chains = (size_t*) os_memory_init(capacity, sizeof(size_t));
-  void** values = (void**) os_memory_init(capacity, sizeof(void*));
+  void** kaddrs = (void**) os_memory_alloc(capacity, sizeof(void*));
+  bool* busybits = (bool*) os_memory_alloc(capacity, sizeof(bool));
+  hash_t* hashes = (hash_t*) os_memory_alloc(capacity, sizeof(hash_t));
+  size_t* chains = (size_t*) os_memory_alloc(capacity, sizeof(size_t));
+  void** values = (void**) os_memory_alloc(capacity, sizeof(void*));
 
   //@ assert chains[0..capacity] |-> ?chains_lst;
   //@ assert busybits[0..capacity] |-> ?busybits_lst;

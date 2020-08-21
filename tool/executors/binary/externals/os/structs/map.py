@@ -27,15 +27,15 @@ class OsMapAlloc(angr.SimProcedure):
         # Preconditions
         if utils.can_be_false(self.state.solver, 0 < capacity):
             raise "Precondition does not hold: 0 < capacity"
-        if utils.can_be_false(self.state.solver, capacity <= ((2 ** bitsizes.SIZE_T) // 8)):
+        if utils.can_be_false(self.state.solver, capacity <= ((2 ** bitsizes.size_t - 1) // 8)):
             raise "Precondition does not hold: capacity <= (SIZE_MAX / 8)"
         if utils.can_be_false(self.state.solver, (capacity & (capacity - 1)) == 0):
             raise "Precondition does not hold:  (capacity & (capacity - 1)) == 0"
 
         # Postconditions
         result = self.state.memory.allocate_opaque("os_map")
-        values = self.state.maps.new(key_size * 8, bitsizes.UINT64_T, name="map_values") # key_size is in bytes
-        addrs = self.state.maps.new(key_size * 8, bitsizes.PTR, name="map_addrs") # key_size is in bytes
+        values = self.state.maps.new(key_size * 8, bitsizes.ptr, name="map_values") # key_size is in bytes
+        addrs = self.state.maps.new(key_size * 8, bitsizes.ptr, name="map_addrs") # key_size is in bytes
         self.state.metadata.set(result, Map(key_size, capacity, values, addrs))
         return result
 
@@ -64,17 +64,17 @@ class OsMapGet(angr.SimProcedure):
         # Preconditions
         mapp = self.state.metadata.get(Map, map)
         key = self.state.memory.load(key_ptr, mapp.key_size)
-        _ = self.state.memory.load(out_value, bitsizes.SIZE_T)
+        _ = self.state.memory.load(out_value, bitsizes.ptr // 8)
         print("!!! os_map_get key", key)
 
         # Postconditions
         def case_has(state, v):
             print("!!! os_map_get has", v)
             self.state.memory.store(out_value, v)
-            return claripy.BVV(1, bitsizes.BOOL)
+            return claripy.BVV(1, bitsizes.bool)
         def case_not(state):
             print("!!! os_map_get not")
-            return claripy.BVV(0, bitsizes.BOOL)
+            return claripy.BVV(0, bitsizes.bool)
         return utils.fork_guarded_has(self, mapp.values, key, case_has, case_not)
 
 # void os_map_set(struct os_map* map, void* key_ptr, void* value);

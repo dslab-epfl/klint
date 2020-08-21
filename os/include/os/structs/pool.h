@@ -46,11 +46,11 @@ bool os_pool_used(struct os_pool* pool, size_t index, time_t* out_time);
 /*@ requires poolp(pool, ?size, ?items) &*&
              index < size &*&
              *out_time |-> _; @*/
-             /*@ ensures poolp(pool, size, items) &*&
-                         switch (ghostmap_get(items, index)) {
-                           case none: return result == false &*& *out_time |-> _;
-                           case some(t): return result == true &*& *out_time |-> t;
-                         }; @*/
+/*@ ensures poolp(pool, size, items) &*&
+            switch (ghostmap_get(items, index)) {
+              case none: return result == false &*& *out_time |-> _;
+              case some(t): return result == true &*& *out_time |-> t;
+            }; @*/
 
 bool os_pool_expire(struct os_pool* pool, time_t time, size_t* out_index);
 /*@ requires poolp(pool, ?size, ?items) &*&

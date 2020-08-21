@@ -14,8 +14,8 @@ from executors.binary.externals.os import config
 from executors.binary.externals.os import debug
 from executors.binary.externals.os import memory
 from executors.binary.externals.os import network
-from executors.binary.externals.os.structs import dchain
 from executors.binary.externals.os.structs import map
+from executors.binary.externals.os.structs import pool
 # Us
 import executors.nf.defs as defs
 
@@ -23,9 +23,9 @@ init_externals = {
   'os_config_get_u16': config.ConfigU16,
   'os_config_get_u32': config.ConfigU32,
   'os_config_get_u64': config.ConfigU64,
-  'os_memory_init': memory.MemoryInit,
+  'os_memory_alloc': memory.OsMemoryAlloc,
   'os_map_alloc': map.OsMapAlloc,
-  'os_dchain_init': dchain.DChainInit
+  'os_pool_alloc': pool.OsPoolAlloc
 }
 
 handle_externals = {
@@ -36,11 +36,11 @@ handle_externals = {
   'os_map_get': map.OsMapGet,
   'os_map_set': map.OsMapSet,
   'os_map_remove': map.OsMapRemove,
-  'os_dchain_add': dchain.DChainAdd,
-  'os_dchain_refresh': dchain.DChainRefresh,
-  'os_dchain_expire': dchain.DChainExpire,
-  'os_dchain_get': dchain.DChainGet,
-#  'os_dchain_remove': dchain.DChainRemove
+  'os_pool_borrow': pool.OsPoolBorrow,
+  'os_pool_return': pool.OsPoolReturn,
+  'os_pool_refresh': pool.OsPoolRefresh,
+  'os_pool_used': pool.OsPoolUsed,
+  'os_pool_expire': pool.OsPoolExpire
 }
 
 def nf_init(nf_folder, devices_count):

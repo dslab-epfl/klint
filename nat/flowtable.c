@@ -21,8 +21,8 @@ struct flowtable* flowtable_alloc(uint16_t start_port, int64_t expiration_time, 
 {
 	struct os_map* flow_indexes = os_map_alloc(sizeof(struct flow), max_flows); // TODO: 2*max_flows because it's only a small amount of additional space for a lot more tput when near full
 	struct os_pool* port_allocator = os_pool_alloc(max_flows);
-	struct flowtable* table = os_memory_init(1, sizeof(struct flowtable));
-	table->flows = os_memory_init(max_flows, sizeof(struct flow));
+	struct flowtable* table = os_memory_alloc(1, sizeof(struct flowtable));
+	table->flows = os_memory_alloc(max_flows, sizeof(struct flow));
 	table->flow_indexes = flow_indexes;
 	table->port_allocator = port_allocator;
 	table->expiration_time = expiration_time;

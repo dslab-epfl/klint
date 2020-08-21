@@ -79,7 +79,7 @@ class FractionalMemory(SimMemory):
         return result
 
     def allocate_opaque(self, name):
-        result = claripy.BVS(name + "_opaque", bitsizes.PTR)
+        result = claripy.BVS(name + "_opaque", bitsizes.ptr)
         self.state.add_constraints(result != 0)
         return result
 

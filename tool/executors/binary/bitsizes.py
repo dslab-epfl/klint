@@ -1,8 +1,7 @@
 # Sizes, in bits, of common types on Linux x86_64
 
-BOOL = 8
-INT = 32
-UINT64_T = 64
-TIME_T = 64
-PTR = 64
-SIZE_T = UINT64_T
+bool = 8
+int64_t = 64
+uint64_t = 64
+ptr = 64
+size_t = uint64_t
