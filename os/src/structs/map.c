@@ -1,7 +1,5 @@
 #include "os/structs/map.h"
 
-#include <stdlib.h>
-
 #include "os/memory.h"
 #include "generic_ops.h"
 

@@ -1,5 +1,4 @@
-#ifndef GENERIC_OPS_H_INCLUDED
-#define GENERIC_OPS_H_INCLUDED
+#pragma once
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -90,5 +89,3 @@ static inline hash_t generic_hash(void* obj, size_t obj_size)
 
 	return hash;
 }
-
-#endif

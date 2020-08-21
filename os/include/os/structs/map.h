@@ -1,9 +1,7 @@
-#ifndef MAP_H_INCLUDED
-#define MAP_H_INCLUDED
+#pragma once
 
 #include <stdbool.h>
 #include <stddef.h>
-#include <stdint.h> // VeriFast has SIZE_MAX in stdint
 
 //@ #include "proof/ghost_map.gh"
 
@@ -45,5 +43,3 @@ void os_map_remove(struct os_map* map, void* key_ptr);
              ghostmap_get(addrs, key) == some(key_ptr); @*/
 /*@ ensures mapp(map, key_size, capacity, ghostmap_remove(values, key), ghostmap_remove(addrs, key)) &*&
            [frac + 0.25]chars(key_ptr, key_size, key); @*/
-
-#endif

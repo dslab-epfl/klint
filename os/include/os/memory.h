@@ -1,5 +1,4 @@
-#ifndef OS_MEMORY_H
-#define OS_MEMORY_H
+#pragma once
 
 #include <stdint.h>
 #include <stddef.h>
@@ -13,5 +12,3 @@
 void* os_memory_init(size_t count, size_t size);
 //@ requires count == 1 || count * size <= SIZE_MAX;
 //@ ensures chars(result, count * size, ?cs) &*& true == all_eq(cs, 0) &*& result + count * size <= (char *)UINTPTR_MAX;
-
-#endif
