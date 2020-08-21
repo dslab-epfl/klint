@@ -35,8 +35,8 @@
 // After initialization, any cell is always on one and only one of these lists.
 
 struct os_pool_cell {
-    int prev;
-    int next;
+    size_t prev;
+    size_t next;
 };
 
 struct os_pool {

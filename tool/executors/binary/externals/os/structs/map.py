@@ -9,7 +9,7 @@ from collections import namedtuple
 # predicate mapp(struct os_map* map, size_t key_size, size_t capacity, list<pair<list<char>, void*> > values, list<pair<list<char>, void*> > addrs);
 Map = namedtuple('mapp', ['key_size', 'capacity', 'values', 'addrs'])
 
-#struct os_map* os_map_alloc(size_t key_size, size_t capacity);
+# struct os_map* os_map_alloc(size_t key_size, size_t capacity);
 # requires 0 < capacity &*& capacity <= (SIZE_MAX / 8) &*&
 #          (capacity & (capacity - 1)) == 0;
 # ensures mapp(result, key_size, capacity, nil, nil);
@@ -27,19 +27,19 @@ class OsMapAlloc(angr.SimProcedure):
         # Preconditions
         if utils.can_be_false(self.state.solver, 0 < capacity):
             raise "Precondition does not hold: 0 < capacity"
-        if utils.can_be_false(self.state.solver, capacity < ((2 ** bitsizes.SIZE_T) // 8)):
-            raise "Precondition does not hold: capacity < (SIZE_MAX / 8)"
+        if utils.can_be_false(self.state.solver, capacity <= ((2 ** bitsizes.SIZE_T) // 8)):
+            raise "Precondition does not hold: capacity <= (SIZE_MAX / 8)"
         if utils.can_be_false(self.state.solver, (capacity & (capacity - 1)) == 0):
             raise "Precondition does not hold:  (capacity & (capacity - 1)) == 0"
 
         # Postconditions
-        result = state.memory.allocate_opaque("os_map")
-        values = state.maps.new(key_size * 8, bitsizes.UINT64_T, name="map_values") # key_size is in bytes
-        addrs = state.maps.new(key_size * 8, bitsizes.PTR, name="map_addrs") # key_size is in bytes
-        state.metadata.set(result, Map(key_size, capacity, values, addrs))
+        result = self.state.memory.allocate_opaque("os_map")
+        values = self.state.maps.new(key_size * 8, bitsizes.UINT64_T, name="map_values") # key_size is in bytes
+        addrs = self.state.maps.new(key_size * 8, bitsizes.PTR, name="map_addrs") # key_size is in bytes
+        self.state.metadata.set(result, Map(key_size, capacity, values, addrs))
         return result
 
-#bool os_map_get(struct os_map* map, void* key_ptr, void** out_value);
+# bool os_map_get(struct os_map* map, void* key_ptr, void** out_value);
 # requires mapp(map, ?key_size, ?capacity, ?values, ?addrs) &*&
 #          chars(key_ptr, key_size, ?key) &*&
 #          *out_value |-> _;
@@ -77,7 +77,7 @@ class OsMapGet(angr.SimProcedure):
             return claripy.BVV(0, bitsizes.BOOL)
         return utils.fork_guarded_has(self, mapp.values, key, case_has, case_not)
 
-#void os_map_set(struct os_map* map, void* key_ptr, void* value);
+# void os_map_set(struct os_map* map, void* key_ptr, void* value);
 # requires mapp(map, ?key_size, ?capacity, ?values, ?addrs) &*&
 #          [0.25]chars(key_ptr, key_size, ?key) &*&
 #          length(values) < capacity &*&
@@ -108,7 +108,7 @@ class OsMapSet(angr.SimProcedure):
         self.state.maps.set(mapp.values, key, value)
         self.state.maps.set(mapp.addrs, key, key_ptr)
 
-#void os_map_remove(struct os_map* map, void* key_ptr);
+# void os_map_remove(struct os_map* map, void* key_ptr);
 # requires mapp(map, ?key_size, ?capacity, ?values, ?addrs) &*&
 #          [?frac]chars(key_ptr, key_size, ?key) &*&
 #          frac != 0.0 &*&
