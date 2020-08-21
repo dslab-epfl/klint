@@ -3,10 +3,9 @@
 
 #include <stdbool.h>
 #include <stddef.h>
-#include <stdint.h>
+#include <stdint.h> // VeriFast has SIZE_MAX in stdint
 
 //@ #include "proof/ghost_map.gh"
-//@ #include "proof/mod-pow2.gh"
 
 
 struct os_map;
@@ -15,8 +14,8 @@ struct os_map;
 
 
 struct os_map* os_map_alloc(size_t key_size, size_t capacity);
-/*@ requires capacity < (SIZE_MAX / 8) &*&
-             is_pow2(capacity, N63) != none; @*/
+/*@ requires 0 < capacity &*& capacity <= (SIZE_MAX / 8) &*&
+             (capacity & (capacity - 1)) == 0; @*/
 /*@ ensures mapp(result, key_size, capacity, nil, nil); @*/
 
 bool os_map_get(struct os_map* map, void* key_ptr, void** out_value);

@@ -24,7 +24,7 @@ init_externals = {
   'os_config_get_u32': config.ConfigU32,
   'os_config_get_u64': config.ConfigU64,
   'os_memory_init': memory.MemoryInit,
-  'os_map_init': map.MapInit,
+  'os_map_alloc': map.OsMapAlloc,
   'os_dchain_init': dchain.DChainInit
 }
 
@@ -33,9 +33,9 @@ handle_externals = {
   'os_debug': debug.Debug,
   'os_net_transmit': network.Transmit,
   'os_net_flood': network.Flood,
-  'os_map_get': map.MapGet,
-  'os_map_set': map.MapSet,
-  'os_map_remove': map.MapRemove,
+  'os_map_get': map.OsMapGet,
+  'os_map_set': map.OsMapSet,
+  'os_map_remove': map.OsMapRemove,
   'os_dchain_add': dchain.DChainAdd,
   'os_dchain_refresh': dchain.DChainRefresh,
   'os_dchain_expire': dchain.DChainExpire,
