@@ -1638,13 +1638,6 @@ void os_map_remove(struct os_map* map, void* key_ptr)
 {
   //@ open mapp(map, key_size, capacity, map_values, map_addrs);
   //@ open mapping(key_size, capacity, ?kaddrs, ?busybits, ?hashes, ?chains, ?values, ?buckets, ?key_opts, map_values, map_addrs);
-  
-  // same as above
-  //@ assert map->kaddrs == kaddrs && map->busybits == busybits && map->hashes == hashes && map->chains == chains && map->values == values;
-  //@ open mapping_core(key_size, capacity, kaddrs, busybits, map->hashes, values, key_opts, map_values, map_addrs);
-  //@ assert map->capacity == capacity;
-  //@ close mapping_core(key_size, capacity, kaddrs, busybits, map->hashes, values, key_opts, map_values, map_addrs);
-  
   hash_t key_hash = generic_hash(key_ptr, map->key_size);
   //@ open mapping_core(key_size, capacity, kaddrs, busybits, hashes, values, key_opts, map_values, map_addrs);
   //@ open buckets_keys_insync(capacity, ?chains_lst, buckets, key_opts);
