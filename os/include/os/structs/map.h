@@ -19,10 +19,10 @@ struct os_map* os_map_alloc(size_t key_size, size_t capacity);
 
 bool os_map_get(struct os_map* map, void* key_ptr, void** out_value);
 /*@ requires mapp(map, ?key_size, ?capacity, ?values, ?addrs) &*&
-             chars(key_ptr, key_size, ?key) &*&
+             [?frac]chars(key_ptr, key_size, ?key) &*&
              *out_value |-> _; @*/
 /*@ ensures mapp(map, key_size, capacity, values, addrs) &*&
-            chars(key_ptr, key_size, key) &*&
+            [frac]chars(key_ptr, key_size, key) &*&
             switch(ghostmap_get(values, key)) {
               case none: return result == false &*& *out_value |-> _;
               case some(v): return result == true &*& *out_value |-> v;
