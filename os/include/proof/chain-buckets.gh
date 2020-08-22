@@ -5627,7 +5627,7 @@ ensures repeat_n<option<kt> >(capacity, none) ==
 }
 
 lemma void empty_buckets_ks_none<kt>(nat capacity)
-requires capacity != zero;
+requires true;
 ensures repeat_n<option<kt> >(capacity, none) ==
         buckets_get_keys_fp(empty_buckets_fp<kt>(capacity));
 {
@@ -5665,7 +5665,7 @@ ensures true == distinct(buckets_all_keys_fp(empty_buckets_fp<kt>(len)));
 }//took 1m
 
 lemma void empty_buckets_ok<kt>(nat capacity)
-requires capacity != zero;
+requires true;
 ensures true == buckets_ok(empty_buckets_fp<kt>(capacity));
 {
   empty_buckets_empty_wraparound(capacity);

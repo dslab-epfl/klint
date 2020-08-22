@@ -10,7 +10,7 @@ from collections import namedtuple
 Map = namedtuple('mapp', ['key_size', 'capacity', 'values', 'addrs'])
 
 # struct os_map* os_map_alloc(size_t key_size, size_t capacity);
-# requires 0 < capacity &*& capacity <= (SIZE_MAX / 8) &*&
+# requires capacity <= (SIZE_MAX / 8) &*&
 #          (capacity & (capacity - 1)) == 0;
 # ensures mapp(result, key_size, capacity, nil, nil);
 class OsMapAlloc(angr.SimProcedure):
@@ -25,8 +25,6 @@ class OsMapAlloc(angr.SimProcedure):
             raise "key_size cannot be symbolic"
 
         # Preconditions
-        if utils.can_be_false(self.state.solver, 0 < capacity):
-            raise "Precondition does not hold: 0 < capacity"
         if utils.can_be_false(self.state.solver, capacity <= ((2 ** bitsizes.size_t - 1) // 8)):
             raise "Precondition does not hold: capacity <= (SIZE_MAX / 8)"
         if utils.can_be_false(self.state.solver, (capacity & (capacity - 1)) == 0):
