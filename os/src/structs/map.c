@@ -11,7 +11,7 @@
 //@ #include "proof/sizeex.gh"
 //@ #include "proof/stdex.gh"
 
-// !!! IMPORTANT !!! 
+// !!! IMPORTANT !!!
 // To verify, 'default_value_eq_zero' needs to be turned from a lemma_auto to a lemma in prelude_core.gh, see verifast issue 68
 
 struct os_map {
@@ -154,11 +154,33 @@ struct os_map {
 
   // Combine everything, including the chains optimization
   predicate mapp(struct os_map* map, size_t key_size, size_t capacity, list<pair<list<char>, void*> > map_values, list<pair<list<char>, void*> > map_addrs) =
-    mapp_raw(map, ?kaddrs, ?busybits, ?hashes, ?chains, ?values, key_size, capacity) &*&
-    mapp_core(key_size, capacity, kaddrs, busybits, hashes, values, ?key_opts, map_values, map_addrs) &*&
-    buckets_keys_insync(capacity, chains, ?buckets, key_opts) &*&
-    (capacity == 0 || is_pow2(capacity, N63) != none);
+    mapp_raw(map, ?kaddrs, ?busybits, ?hashes, ?chains, ?values, key_size, ?real_capacity) &*&
+    mapp_core(key_size, real_capacity, kaddrs, busybits, hashes, values, ?key_opts, map_values, map_addrs) &*&
+    buckets_keys_insync(real_capacity, chains, ?buckets, key_opts) &*&
+    capacity == 0 ? real_capacity == 0
+                  : (real_capacity >= capacity &*&
+                     is_pow2(real_capacity, N63) != none);
 @*/
+
+static size_t get_real_capacity(size_t capacity)
+//@ requires capacity <= (SIZE_MAX / 16);
+/*@ ensures capacity == 0 ? result == 0 :
+                            (result >= capacity &*&
+                             result <= (SIZE_MAX / 8) &*&
+                             is_pow2(result, N63) != none); @*/
+{
+  if (capacity == 0) {
+    return 0;
+  }
+  size_t real_capacity = 1;
+  while (real_capacity < capacity)
+  /*@ invariant is_pow2(real_capacity, N63) != none; @*/;
+  {
+    real_capacity *= 2;
+  }
+  //@ assert none != is_pow2(real_capacity, N63);
+  return real_capacity;
+}
 
 static size_t loop(size_t pos, size_t capacity)
 //@ requires capacity == 0 || is_pow2(capacity, N63) != none;
@@ -366,31 +388,31 @@ lemma void produce_empty_map_valuesaddrs(size_t capacity, list<void*> kaddrs, li
 @*/
 
 struct os_map* os_map_alloc(size_t key_size, size_t capacity)
-/*@ requires capacity <= (SIZE_MAX / 8) &*&
-             (capacity & (capacity - 1)) == 0; @*/
+/*@ requires capacity <= (SIZE_MAX / 16); @*/
 /*@ ensures mapp(result, key_size, capacity, nil, nil); @*/
 {
+  size_t real_capacity = get_real_capacity(capacity);
   struct os_map* map = (struct os_map*) os_memory_alloc(1, sizeof(struct os_map));
   //@ close_struct_zero(map);
-  void** kaddrs = (void**) os_memory_alloc(capacity, sizeof(void*));
-  bool* busybits = (bool*) os_memory_alloc(capacity, sizeof(bool));
-  hash_t* hashes = (hash_t*) os_memory_alloc(capacity, sizeof(hash_t));
-  size_t* chains = (size_t*) os_memory_alloc(capacity, sizeof(size_t));
-  void** values = (void**) os_memory_alloc(capacity, sizeof(void*));
+  void** kaddrs = (void**) os_memory_alloc(real_capacity, sizeof(void*));
+  bool* busybits = (bool*) os_memory_alloc(real_capacity, sizeof(bool));
+  hash_t* hashes = (hash_t*) os_memory_alloc(real_capacity, sizeof(hash_t));
+  size_t* chains = (size_t*) os_memory_alloc(real_capacity, sizeof(size_t));
+  void** values = (void**) os_memory_alloc(real_capacity, sizeof(void*));
 
-  //@ assert chains[0..capacity] |-> ?chains_lst;
-  //@ assert busybits[0..capacity] |-> ?busybits_lst;
+  //@ assert chains[0..real_capacity] |-> ?chains_lst;
+  //@ assert busybits[0..real_capacity] |-> ?busybits_lst;
   size_t i = 0;
-  for (; i < capacity; ++i)
+  for (; i < real_capacity; ++i)
     /*@ invariant busybits[0..i] |-> repeat_n(nat_of_int(i), false) &*&
-                  busybits[i..capacity] |-> ?busybits_rest &*&
+                  busybits[i..real_capacity] |-> ?busybits_rest &*&
                   chains[0..i] |-> repeat_n(nat_of_int(i), 0) &*&
-                  chains[i..capacity] |-> ?chains_rest &*&
-                  0 <= i &*& i <= capacity; @*/
-    //@ decreases capacity - i;
+                  chains[i..real_capacity] |-> ?chains_rest &*&
+                  0 <= i &*& i <= real_capacity; @*/
+    //@ decreases real_capacity - i;
   {
-    //@ move_busybit(busybits, i, capacity);
-    //@ move_chain(chains, i, capacity);
+    //@ move_busybit(busybits, i, real_capacity);
+    //@ move_chain(chains, i, real_capacity);
     //@ assert busybits_rest == cons(?bbrh, _);
     //@ assert chains_rest == cons(?crh, _);
     //@ extend_repeat_n(nat_of_int(i), bbrh, false);
@@ -399,13 +421,13 @@ struct os_map* os_map_alloc(size_t key_size, size_t capacity)
     chains[i] = 0;
     //@ assert succ(nat_of_int(i)) == nat_of_int(i+1);
   }
-  //@ assert kaddrs[0..capacity] |-> ?kaddrs_lst;
-  //@ chars_to_hashes(hashes, capacity);
-  //@ assert hashes[0..capacity] |-> ?hashes_lst;
-  //@ assert values[0..capacity] |-> ?values_lst;
+  //@ assert kaddrs[0..real_capacity] |-> ?kaddrs_lst;
+  //@ chars_to_hashes(hashes, real_capacity);
+  //@ assert hashes[0..real_capacity] |-> ?hashes_lst;
+  //@ assert values[0..real_capacity] |-> ?values_lst;
   //@ produce_key_opt_list(key_size, hashes_lst, kaddrs_lst);
   //@ assert key_opt_list(key_size, kaddrs_lst, _, ?kopts);
-  //@ repeat_n_contents(nat_of_int(capacity), none);
+  //@ repeat_n_contents(nat_of_int(real_capacity), none);
   //@ kopts_size_0_when_empty(kopts);
 
   map->kaddrs = kaddrs;
@@ -413,16 +435,15 @@ struct os_map* os_map_alloc(size_t key_size, size_t capacity)
   map->hashes = hashes;
   map->chains = chains;
   map->values = values;
-  map->capacity = capacity;
+  map->capacity = real_capacity;
   map->key_size = key_size;
 
-  //@ close mapp_raw(map, kaddrs_lst, ?zeroed_busybits_lst, hashes_lst, ?zeroed_chains_lst, values_lst, key_size, capacity);
-  //@ empty_buckets_insync(zeroed_chains_lst, capacity);
-  //@ produce_empty_map_valuesaddrs(capacity, kaddrs_lst, values_lst);
+  //@ close mapp_raw(map, kaddrs_lst, ?zeroed_busybits_lst, hashes_lst, ?zeroed_chains_lst, values_lst, key_size, real_capacity);
+  //@ empty_buckets_insync(zeroed_chains_lst, real_capacity);
+  //@ produce_empty_map_valuesaddrs(real_capacity, kaddrs_lst, values_lst);
   //@ produce_empty_hash_list(kopts, hashes_lst);
-  //@ repeat_none_is_opt_no_dups(nat_of_int(capacity), kopts);
-  //@ close mapp_core(key_size, capacity, kaddrs_lst, zeroed_busybits_lst, hashes_lst, values_lst, kopts, nil, nil);
-  //@ if (capacity != 0) check_pow2_valid(capacity);
+  //@ repeat_none_is_opt_no_dups(nat_of_int(real_capacity), kopts);
+  //@ close mapp_core(key_size, real_capacity, kaddrs_lst, zeroed_busybits_lst, hashes_lst, values_lst, kopts, nil, nil);
   //@ close mapp(map, key_size, capacity, nil, nil);
   return map;
 }
@@ -886,23 +907,25 @@ bool os_map_get(struct os_map* map, void* key_ptr, void** out_value)
   //@ open mapp(map, key_size, capacity, map_values, map_addrs);
   hash_t key_hash = generic_hash(key_ptr, map->key_size);
   size_t start = loop(key_hash, map->capacity);
-  size_t i = 0;
-  for (; i < map->capacity; ++i)
-    /*@ invariant mapp_raw(map, ?kaddrs_lst, ?busybits_lst, ?hashes_lst, ?chains_lst, ?values_lst, key_size, capacity) &*&
-                  mapp_core(key_size, capacity, kaddrs_lst, busybits_lst, hashes_lst, values_lst, ?key_opts, map_values, map_addrs) &*&
-                  buckets_keys_insync(capacity, chains_lst, ?buckets, key_opts) &*&
-                  (capacity == 0 || is_pow2(capacity, N63) != none) &*&
-                  0 <= i &*& i <= capacity &*&
+  for (size_t i = 0; i < map->capacity; ++i)
+    /*@ invariant mapp_raw(map, ?kaddrs_lst, ?busybits_lst, ?hashes_lst, ?chains_lst, ?values_lst, key_size, ?real_capacity) &*&
+                  mapp_core(key_size, real_capacity, kaddrs_lst, busybits_lst, hashes_lst, values_lst, ?key_opts, map_values, map_addrs) &*&
+                  buckets_keys_insync(real_capacity, chains_lst, ?buckets, key_opts) &*&
+                  0 <= i &*& i <= real_capacity &*&
                   [frac]chars(key_ptr, key_size, key) &*&
                   hash_fp(key) == key_hash &*&
-                  (capacity == 0 || start == loop_fp(hash_fp(key), capacity)) &*&
-                  true == up_to(nat_of_int(i), (byLoopNthProp)(key_opts, (neq)(some(key)), capacity, start)) &*&
+                  capacity == 0 ? real_capacity == 0 :
+                                  (real_capacity >= capacity &*&
+                                   start < real_capacity &*&
+                                   start == loop_fp(hash_fp(key), real_capacity) &*&
+                                   is_pow2(real_capacity, N63) != none) &*&
+                  true == up_to(nat_of_int(i), (byLoopNthProp)(key_opts, (neq)(some(key)), real_capacity, start)) &*&
                   *out_value |-> _;
     @*/
-    //@ decreases capacity - i;
+    //@ decreases real_capacity - i;
   {
-    //@ open mapp_core(key_size, capacity, kaddrs_lst, busybits_lst, hashes_lst, values_lst, key_opts, map_values, map_addrs);
-    //@ open buckets_keys_insync(capacity, chains_lst, buckets, key_opts);
+    //@ open mapp_core(key_size, real_capacity, kaddrs_lst, busybits_lst, hashes_lst, values_lst, key_opts, map_values, map_addrs);
+    //@ open buckets_keys_insync(real_capacity, chains_lst, buckets, key_opts);
     size_t index = loop(start + i, map->capacity);
     void* kp = map->kaddrs[index];
     bool bb = map->busybits[index];
@@ -920,11 +943,11 @@ bool os_map_get(struct os_map* map, void* key_ptr, void** out_value)
         //@ assert true == opt_no_dups(key_opts);
         //@ close map_valuesaddrs(kaddrs_lst, key_opts, values_lst, map_values, map_addrs);
         //@ key_opt_list_find_key(key_opts, index, key);
-        //@ close buckets_keys_insync(capacity, chains_lst, buckets, key_opts);
+        //@ close buckets_keys_insync(real_capacity, chains_lst, buckets, key_opts);
         //@ map_values_reflects_keyopts_mem(key, index);
         *out_value = map->values[index];
-        //@ close mapp_core(key_size, capacity, kaddrs_lst, busybits_lst, hashes_lst, values_lst, key_opts, map_values, map_addrs);
-        //@ close mapp_raw(map, kaddrs_lst, busybits_lst, hashes_lst, chains_lst, values_lst, key_size, capacity);
+        //@ close mapp_core(key_size, real_capacity, kaddrs_lst, busybits_lst, hashes_lst, values_lst, key_opts, map_values, map_addrs);
+        //@ close mapp_raw(map, kaddrs_lst, busybits_lst, hashes_lst, chains_lst, values_lst, key_size, real_capacity);
         //@ close mapp(map, key_size, capacity, map_values, map_addrs);
         return true;
       }
@@ -932,41 +955,41 @@ bool os_map_get(struct os_map* map, void* key_ptr, void** out_value)
     } else {
       //@ if (bb) no_hash_no_key(key_opts, hashes_lst, key, index); else no_bb_no_key(key_opts, busybits_lst, index);
       if (chn == 0) {
-        //@ assert length(chains_lst) == capacity;
+        //@ assert length(chains_lst) == real_capacity;
         //@ buckets_keys_chns_same_len(buckets);
-        //@ assert length(buckets) == capacity;
+        //@ assert length(buckets) == real_capacity;
         //@ no_crossing_chains_here(buckets, index);
         //@ assert nil == get_crossing_chains_fp(buckets, index);
-        //@ key_is_contained_in_the_bucket(buckets, capacity, key);
-        //@ assert true == up_to(nat_of_int(i), (byLoopNthProp)(key_opts, (neq)(some(key)), capacity, start));
-        //@ assert true == up_to(nat_of_int(i), (byLoopNthProp)(key_opts, (neq)(some(key)), capacity, loop_fp(hash_fp(key), capacity)));
-        //@ assert true == up_to(succ(nat_of_int(i)), (byLoopNthProp)(key_opts, (neq)(some(key)), capacity, loop_fp(hash_fp(key), capacity)));
-        //@ assert true == up_to(nat_of_int(i+1), (byLoopNthProp)(key_opts, (neq)(some(key)), capacity, loop_fp(hash_fp(key), capacity)));
+        //@ key_is_contained_in_the_bucket(buckets, real_capacity, key);
+        //@ assert true == up_to(nat_of_int(i), (byLoopNthProp)(key_opts, (neq)(some(key)), real_capacity, start));
+        //@ assert true == up_to(nat_of_int(i), (byLoopNthProp)(key_opts, (neq)(some(key)), real_capacity, loop_fp(hash_fp(key), real_capacity)));
+        //@ assert true == up_to(succ(nat_of_int(i)), (byLoopNthProp)(key_opts, (neq)(some(key)), real_capacity, loop_fp(hash_fp(key), real_capacity)));
+        //@ assert true == up_to(nat_of_int(i+1), (byLoopNthProp)(key_opts, (neq)(some(key)), real_capacity, loop_fp(hash_fp(key), real_capacity)));
         //@ assert buckets != nil;
-        //@ chains_depleted_no_hope(buckets, i, loop_fp(hash_fp(key), capacity), key, capacity);
+        //@ chains_depleted_no_hope(buckets, i, loop_fp(hash_fp(key), real_capacity), key, real_capacity);
         //@ assert false == mem(some(key), key_opts);
         //@ key_opts_has_not_implies_map_values_has_not(key);
-        //@ close buckets_keys_insync(capacity, chains_lst, buckets, key_opts);
-        //@ close mapp_core(key_size, capacity, kaddrs_lst, busybits_lst, hashes_lst, values_lst, key_opts, map_values, map_addrs);
-        //@ close mapp_raw(map, kaddrs_lst, busybits_lst, hashes_lst, chains_lst, values_lst, key_size, capacity);
+        //@ close buckets_keys_insync(real_capacity, chains_lst, buckets, key_opts);
+        //@ close mapp_core(key_size, real_capacity, kaddrs_lst, busybits_lst, hashes_lst, values_lst, key_opts, map_values, map_addrs);
+        //@ close mapp_raw(map, kaddrs_lst, busybits_lst, hashes_lst, chains_lst, values_lst, key_size, real_capacity);
         //@ close mapp(map, key_size, capacity, map_values, map_addrs);
         return false;
       }
-      //@ assert(length(key_opts) == capacity);
+      //@ assert(length(key_opts) == real_capacity);
     }
     //@ assert(nth(index, key_opts) != some(key));
     //@ assert(true == neq(some(key), nth(index, key_opts)));
-    //@ assert(true == neq(some(key), nth(loop_fp(i+start,capacity), key_opts)));
+    //@ assert(true == neq(some(key), nth(loop_fp(i+start, real_capacity), key_opts)));
     //@ assert(nat_of_int(i+1) == succ(nat_of_int(i)));
-    //@ close buckets_keys_insync(capacity, chains_lst, buckets, key_opts);
-    //@ close mapp_core(key_size, capacity, kaddrs_lst, busybits_lst, hashes_lst, values_lst, key_opts, map_values, map_addrs);
+    //@ close buckets_keys_insync(real_capacity, chains_lst, buckets, key_opts);
+    //@ close mapp_core(key_size, real_capacity, kaddrs_lst, busybits_lst, hashes_lst, values_lst, key_opts, map_values, map_addrs);
   }
-  //@ assert buckets_keys_insync(capacity, ?chains_lst, ?buckets, ?key_opts);
-  //@ open mapp_core(key_size, capacity, ?kaddrs_lst, ?busybits_lst, ?hashes_lst, ?values_lst, key_opts, map_values, map_addrs);
-  //@ if (capacity != 0) by_loop_for_all(key_opts, (neq)(some(key)), start, capacity, nat_of_int(capacity));
+  //@ open mapp_core(key_size, ?real_capacity, ?kaddrs_lst, ?busybits_lst, ?hashes_lst, ?values_lst, ?key_opts, map_values, map_addrs);
+  //@ assert buckets_keys_insync(real_capacity, ?chains_lst, ?buckets, key_opts);
+  //@ if (real_capacity != 0) by_loop_for_all(key_opts, (neq)(some(key)), start, real_capacity, nat_of_int(real_capacity));
   //@ no_key_found(key_opts, key);
   //@ key_opts_has_not_implies_map_values_has_not(key);
-  //@ close mapp_core(key_size, capacity, kaddrs_lst, busybits_lst, hashes_lst, values_lst, key_opts, map_values, map_addrs);
+  //@ close mapp_core(key_size, real_capacity, kaddrs_lst, busybits_lst, hashes_lst, values_lst, key_opts, map_values, map_addrs);
   //@ close mapp(map, key_size, capacity, map_values, map_addrs);
   return false;
 }
@@ -1303,24 +1326,23 @@ void os_map_set(struct os_map* map, void* key_ptr, void* value)
   //@ open mapp(map, key_size, capacity, map_values, map_addrs);
   hash_t hash = generic_hash(key_ptr, map->key_size);
   size_t start = loop(hash, map->capacity);
-  //@ assert buckets_keys_insync(capacity, ?old_chains_lst, ?buckets, ?key_opts);
-  //@ start_Xchain(capacity, old_chains_lst, buckets, key_opts, start);
-  //@ loop_bijection(start, capacity);
-  size_t i = 0;
-  for (; i < map->capacity; ++i)
-    /*@ invariant mapp_raw(map, ?kaddrs_lst, ?busybits_lst, ?hashes_lst, ?chains_lst, ?values_lst, key_size, capacity) &*&
-                  mapp_core(key_size, capacity, kaddrs_lst, busybits_lst, hashes_lst, values_lst, key_opts, map_values, map_addrs) &*&
-                  is_pow2(capacity, N63) != none &*&
+  //@ assert buckets_keys_insync(?real_capacity, ?old_chains_lst, ?buckets, ?key_opts);
+  //@ start_Xchain(real_capacity, old_chains_lst, buckets, key_opts, start);
+  //@ loop_bijection(start, real_capacity);
+  for (size_t i = 0; i < map->capacity; ++i)
+    /*@ invariant mapp_raw(map, ?kaddrs_lst, ?busybits_lst, ?hashes_lst, ?chains_lst, ?values_lst, key_size, real_capacity) &*&
+                  mapp_core(key_size, real_capacity, kaddrs_lst, busybits_lst, hashes_lst, values_lst, key_opts, map_values, map_addrs) &*&
+                  is_pow2(real_capacity, N63) != none &*&
                   [0.25]chars(key_ptr, key_size, key) &*&
-                  0 <= i &*& i <= capacity &*&
-                  true == up_to(nat_of_int(i),(byLoopNthProp)(key_opts, cell_busy, capacity, start)) &*&
-                  buckets_keys_insync_Xchain(capacity, chains_lst, buckets, start, loop_fp(start + i, capacity), key_opts);
+                  0 <= i &*& i <= real_capacity &*&
+                  true == up_to(nat_of_int(i),(byLoopNthProp)(key_opts, cell_busy, real_capacity, start)) &*&
+                  buckets_keys_insync_Xchain(real_capacity, chains_lst, buckets, start, loop_fp(start + i, real_capacity), key_opts);
       @*/
-    //@ decreases capacity - i;
+    //@ decreases real_capacity - i;
   {
     size_t index = loop(start + i, map->capacity);
-    //@ open mapp_core(key_size, capacity, kaddrs_lst, busybits_lst, hashes_lst, values_lst, key_opts, map_values, map_addrs);
-    //@ open buckets_keys_insync_Xchain(capacity, chains_lst, buckets, start, index, key_opts);
+    //@ open mapp_core(key_size, real_capacity, kaddrs_lst, busybits_lst, hashes_lst, values_lst, key_opts, map_values, map_addrs);
+    //@ open buckets_keys_insync_Xchain(real_capacity, chains_lst, buckets, start, index, key_opts);
     bool bb = map->busybits[index];
     if (!bb) {
       //@ zero_bbs_is_for_empty(busybits_lst, key_opts, index);
@@ -1330,8 +1352,8 @@ void os_map_set(struct os_map* map, void* key_ptr, void* value)
       map->hashes[index] = hash;
       map->values[index] = value;
       //@ no_key_in_ks_no_key_in_buckets(buckets, key);
-      //@ close buckets_keys_insync_Xchain(capacity, chains_lst, buckets, start, index, key_opts);
-      //@ buckets_keys_put_key_insync(capacity, chains_lst, start, index, key, key_opts);
+      //@ close buckets_keys_insync_Xchain(real_capacity, chains_lst, buckets, start, index, key_opts);
+      //@ buckets_keys_put_key_insync(real_capacity, chains_lst, start, index, key, key_opts);
       //@ put_keeps_key_opt_list(kaddrs_lst, busybits_lst, key_opts, index, key_ptr, key);
       //@ put_updates_valuesaddrs(index, key_ptr, key, value);
       //@ put_preserves_no_dups(key_opts, index, key);
@@ -1340,53 +1362,53 @@ void os_map_set(struct os_map* map, void* key_ptr, void* value)
       //@ ghostmap_set_new_preserves_distinct(map_values, key, value);
       //@ ghostmap_set_new_preserves_distinct(map_addrs, key, key_ptr);
       //@ assert true == ghostmap_distinct(ghostmap_set(map_values, key, value));
-      //@ close mapp_core(key_size, capacity, ?new_kaddrs_lst, ?new_busybits_lst, ?new_hashes_lst, ?new_values_lst, ?new_key_opts, ?new_map_values, ?new_map_addrs);
+      //@ close mapp_core(key_size, real_capacity, ?new_kaddrs_lst, ?new_busybits_lst, ?new_hashes_lst, ?new_values_lst, ?new_key_opts, ?new_map_values, ?new_map_addrs);
       //@ close mapp(map, key_size, capacity, new_map_values, new_map_addrs);
       return;
     }
     size_t chn = map->chains[index];
     //@ buckets_keys_chns_same_len(buckets);
     //@ buckets_ok_chn_bound(buckets, index);
-    //@ outside_part_chn_no_effect(buckets_get_chns_fp(buckets), start, index, capacity);
-    //@ assert chn <= capacity;
+    //@ outside_part_chn_no_effect(buckets_get_chns_fp(buckets), start, index, real_capacity);
+    //@ assert chn <= real_capacity;
     map->chains[index] = chn + 1;
     //@ bb_nonzero_cell_busy(busybits_lst, key_opts, index);
-    //@ assert true == cell_busy(nth(loop_fp(i+start,capacity), key_opts));
+    //@ assert true == cell_busy(nth(loop_fp(i+start, real_capacity), key_opts));
     //@ assert nat_of_int(i+1) == succ(nat_of_int(i));
-    //@ Xchain_add_one(chains_lst, buckets_get_chns_fp(buckets), start, index < start ? capacity + index - start : index - start, capacity);
+    //@ Xchain_add_one(chains_lst, buckets_get_chns_fp(buckets), start, index < start ? real_capacity + index - start : index - start, real_capacity);
     /*@
-        if (i + 1 == capacity) {
-          by_loop_for_all(key_opts, cell_busy, start, capacity, nat_of_int(capacity));
+        if (i + 1 == real_capacity) {
+          by_loop_for_all(key_opts, cell_busy, start, real_capacity, nat_of_int(real_capacity));
           full_size(key_opts);
           assert false;
         }
     @*/
     /*@
         if (index < start) {
-          if (start + i < capacity) loop_bijection(start + i, capacity);
-          loop_injection_n(start + i + 1 - capacity, capacity, 1);
-          loop_bijection(start + i + 1 - capacity, capacity);
-          loop_injection_n(start + i - capacity, capacity, 1);
-          loop_bijection(start + i - capacity, capacity);
+          if (start + i < real_capacity) loop_bijection(start + i, real_capacity);
+          loop_injection_n(start + i + 1 - real_capacity, real_capacity, 1);
+          loop_bijection(start + i + 1 - real_capacity, real_capacity);
+          loop_injection_n(start + i - real_capacity, real_capacity, 1);
+          loop_bijection(start + i - real_capacity, real_capacity);
         } else {
-          if (capacity <= start + i) {
-            loop_injection_n(start + i - capacity, capacity, 1);
-            loop_bijection(start + i - capacity, capacity);
+          if (real_capacity <= start + i) {
+            loop_injection_n(start + i - real_capacity, real_capacity, 1);
+            loop_bijection(start + i - real_capacity, real_capacity);
           }
-          loop_bijection(start + i, capacity);
-          if (start + i + 1 == capacity) {
-            loop_injection_n(start + i + 1 - capacity, capacity, 1);
-            loop_bijection(start + i + 1 - capacity, capacity);
+          loop_bijection(start + i, real_capacity);
+          if (start + i + 1 == real_capacity) {
+            loop_injection_n(start + i + 1 - real_capacity, real_capacity, 1);
+            loop_bijection(start + i + 1 - real_capacity, real_capacity);
           } else {
-            loop_bijection(start + i + 1, capacity);
+            loop_bijection(start + i + 1, real_capacity);
           }
         }
       @*/
-    //@ close buckets_keys_insync_Xchain(capacity, ?new_chains_lst, buckets, start, index, key_opts);
-    //@ close mapp_core(key_size, capacity, kaddrs_lst, busybits_lst, hashes_lst, values_lst, key_opts, map_values, map_addrs);
+    //@ close buckets_keys_insync_Xchain(real_capacity, ?new_chains_lst, buckets, start, index, key_opts);
+    //@ close mapp_core(key_size, real_capacity, kaddrs_lst, busybits_lst, hashes_lst, values_lst, key_opts, map_values, map_addrs);
   }
-  //@ open mapp_core(key_size, capacity, ?kaddrs_lst, ?busybits_lst, ?hashes_lst, ?values_lst, key_opts, map_values, map_addrs);
-  //@ by_loop_for_all(key_opts, cell_busy, start, capacity, nat_of_int(capacity));
+  //@ open mapp_core(key_size, real_capacity, ?kaddrs_lst, ?busybits_lst, ?hashes_lst, ?values_lst, key_opts, map_values, map_addrs);
+  //@ by_loop_for_all(key_opts, cell_busy, start, real_capacity, nat_of_int(real_capacity));
   //@ full_size(key_opts);
   //@ assert false;
 }
@@ -1571,33 +1593,32 @@ void os_map_remove(struct os_map* map, void* key_ptr)
 {
   //@ open mapp(map, key_size, capacity, map_values, map_addrs);
   hash_t key_hash = generic_hash(key_ptr, map->key_size);
-  //@ open mapp_core(key_size, capacity, ?kaddrs_lst, ?busybits_lst, ?hashes_lst, ?values_lst, ?key_opts, map_values, map_addrs);
+  //@ open mapp_core(key_size, ?real_capacity, ?kaddrs_lst, ?busybits_lst, ?hashes_lst, ?values_lst, ?key_opts, map_values, map_addrs);
   //@ map_values_has_implies_key_opts_has(key);
   //@ key_opts_has_implies_not_empty(key_opts, key);
-  //@ close mapp_core(key_size, capacity, kaddrs_lst, busybits_lst, hashes_lst, values_lst, key_opts, map_values, map_addrs);
-  size_t i = 0;
+  //@ close mapp_core(key_size, real_capacity, kaddrs_lst, busybits_lst, hashes_lst, values_lst, key_opts, map_values, map_addrs);
   size_t start = loop(key_hash, map->capacity);
-  //@ open buckets_keys_insync(capacity, ?old_chains_lst, ?buckets, key_opts);
+  //@ open buckets_keys_insync(real_capacity, ?old_chains_lst, ?buckets, key_opts);
   //@ buckets_keys_chns_same_len(buckets);
-  //@ key_is_contained_in_the_bucket(buckets, capacity, key);
+  //@ key_is_contained_in_the_bucket(buckets, real_capacity, key);
   //@ buckets_remove_add_one_chain(buckets, start, key);
-  //@ loop_bijection(start, capacity);
-  for (; i < map->capacity; ++i)
-    /*@ invariant mapp_raw(map, kaddrs_lst, busybits_lst, hashes_lst, ?chains_lst, values_lst, key_size, capacity) &*&
-                  mapp_core(key_size, capacity, kaddrs_lst, busybits_lst, hashes_lst, values_lst, key_opts, map_values, map_addrs) &*&
-                  is_pow2(capacity, N63) != none &*&
-                  0 <= i &*& i <= capacity &*&
+  //@ loop_bijection(start, real_capacity);
+  for (size_t i = 0; i < map->capacity; ++i)
+    /*@ invariant mapp_raw(map, kaddrs_lst, busybits_lst, hashes_lst, ?chains_lst, values_lst, key_size, real_capacity) &*&
+                  mapp_core(key_size, real_capacity, kaddrs_lst, busybits_lst, hashes_lst, values_lst, key_opts, map_values, map_addrs) &*&
+                  is_pow2(real_capacity, N63) != none &*&
+                  0 <= i &*& i <= real_capacity &*&
                   [frac]chars(key_ptr, key_size, key) &*&
                   hash_fp(key) == key_hash &*&
                   key_opts == buckets_get_keys_fp(buckets) &*&
                   i <= buckets_get_chain_fp(buckets, key, start) &*&
-                  chains_lst == add_partial_chain_fp(loop_fp(start + i, capacity), 
+                  chains_lst == add_partial_chain_fp(loop_fp(start + i, real_capacity), 
                                                      buckets_get_chain_fp(buckets, key, start) - i, 
                                                      buckets_get_chns_fp(buckets_remove_key_fp(buckets, key))) &*&
-                  true == up_to(nat_of_int(i), (byLoopNthProp)(key_opts, (neq)(some(key)), capacity, start)); @*/
-    //@ decreases capacity - i;
+                  true == up_to(nat_of_int(i), (byLoopNthProp)(key_opts, (neq)(some(key)), real_capacity, start)); @*/
+    //@ decreases real_capacity - i;
   {
-    //@ open mapp_core(key_size, capacity, kaddrs_lst, busybits_lst, hashes_lst, values_lst, key_opts, map_values, map_addrs);
+    //@ open mapp_core(key_size, real_capacity, kaddrs_lst, busybits_lst, hashes_lst, values_lst, key_opts, map_values, map_addrs);
     size_t index = loop(start + i, map->capacity);
     bool bb = map->busybits[index];
     hash_t kh = map->hashes[index];
@@ -1619,13 +1640,13 @@ void os_map_remove(struct os_map* map, void* key_ptr)
         //@ map_drop_key(index);
         //@ ghostmap_remove_when_distinct_and_present_decreases_length(map_values, key);
         //@ ghostmap_remove_when_distinct_and_present_decreases_length(map_addrs, key);
-        //@ chns_after_partial_chain_ended(buckets, key, start, i, capacity);
+        //@ chns_after_partial_chain_ended(buckets, key, start, i, real_capacity);
         //@ buckets_remove_key_still_ok(buckets, key);
         //@ buckets_rm_key_get_keys(buckets, key);
-        //@ buckets_remove_key_chains_still_start_on_hash(buckets, capacity, key);
+        //@ buckets_remove_key_chains_still_start_on_hash(buckets, real_capacity, key);
         //@ buckets_remove_key_same_len(buckets, key);
-        //@ close buckets_keys_insync(capacity, chains_lst, buckets_remove_key_fp(buckets, key), update(index_of(some(key), key_opts), none, key_opts));
-        //@ close mapp_core(key_size, capacity, kaddrs_lst, _, hashes_lst, values_lst, _, ghostmap_remove(map_values, key), ghostmap_remove(map_addrs, key));
+        //@ close buckets_keys_insync(real_capacity, chains_lst, buckets_remove_key_fp(buckets, key), update(index_of(some(key), key_opts), none, key_opts));
+        //@ close mapp_core(key_size, real_capacity, kaddrs_lst, _, hashes_lst, values_lst, _, ghostmap_remove(map_values, key), ghostmap_remove(map_addrs, key));
         //@ close mapp(map, key_size, capacity, ghostmap_remove(map_values, key), ghostmap_remove(map_addrs, key));
         return;
       }
@@ -1635,35 +1656,35 @@ void os_map_remove(struct os_map* map, void* key_ptr)
     }
     //@ buckets_remove_key_same_len(buckets, key);
     //@ buckets_keys_chns_same_len(buckets_remove_key_fp(buckets, key));
-    //@ buckets_get_chain_longer(buckets, start, i, key, capacity);
+    //@ buckets_get_chain_longer(buckets, start, i, key, real_capacity);
     //@ buckets_get_chns_nonneg(buckets_remove_key_fp(buckets, key));
     //@ add_part_chn_gt0(index, buckets_get_chain_fp(buckets, key, start) - i, buckets_get_chns_fp(buckets_remove_key_fp(buckets, key)));
     //@ produce_limits(chn);
     map->chains[index] = chn - 1;
     //@ assert nth(index, key_opts) != some(key);
     //@ assert true == neq(some(key), nth(index, key_opts));
-    //@ assert true == neq(some(key), nth(loop_fp(i+start,capacity), key_opts));
+    //@ assert true == neq(some(key), nth(loop_fp(i+start, real_capacity), key_opts));
     //@ assert nat_of_int(i+1) == succ(nat_of_int(i));
     //@ buckets_keys_chns_same_len(buckets);
-    //@ assert length(buckets) == capacity;
+    //@ assert length(buckets) == real_capacity;
     //@ assert length(chains_lst) == length(buckets);
     //@ buckets_remove_key_same_len(buckets, key);
     //@ buckets_keys_chns_same_len(buckets_remove_key_fp(buckets, key));
     //@ add_partial_chain_same_len(start + i, buckets_get_chain_fp(buckets, key, start) - i, buckets_get_chns_fp(buckets_remove_key_fp(buckets, key)));
-    //@ loop_fixp(start + i, capacity);
+    //@ loop_fixp(start + i, real_capacity);
     //@ buckets_ok_get_chain_bounded(buckets, key, start);
-    //@ remove_one_cell_from_partial_chain(chains_lst, loop_fp(start + i, capacity), buckets_get_chain_fp(buckets, key, start) - i, buckets_get_chns_fp(buckets_remove_key_fp(buckets, key)), capacity);
+    //@ remove_one_cell_from_partial_chain(chains_lst, loop_fp(start + i, real_capacity), buckets_get_chain_fp(buckets, key, start) - i, buckets_get_chns_fp(buckets_remove_key_fp(buckets, key)), real_capacity);
     //@ assert map->chains |-> ?chains_ptr;
-    //@ assert chains_ptr[0..capacity] |-> update(index, nth(index, chains_lst) - 1, add_partial_chain_fp(loop_fp(start + i, capacity), buckets_get_chain_fp(buckets, key, start) - i, buckets_get_chns_fp(buckets_remove_key_fp(buckets, key))));
-    //@ assert chains_ptr[0..capacity] |-> add_partial_chain_fp(loop_fp(loop_fp(start + i, capacity) + 1, capacity), buckets_get_chain_fp(buckets, key, start) - i - 1, buckets_get_chns_fp(buckets_remove_key_fp(buckets, key)));
-    //@ inc_modulo_loop(start + i, capacity);
-    //@ assert loop_fp(loop_fp(start + i, capacity) + 1, capacity) == loop_fp(start + i + 1, capacity);
-    //@ chains_lst = add_partial_chain_fp(loop_fp(start + i + 1, capacity), buckets_get_chain_fp(buckets, key, start) - i - 1, buckets_get_chns_fp(buckets_remove_key_fp(buckets, key)));
-    //@ assert chains_ptr[0..capacity] |-> add_partial_chain_fp(loop_fp(start + i + 1, capacity), buckets_get_chain_fp(buckets, key, start) - i - 1, buckets_get_chns_fp(buckets_remove_key_fp(buckets, key)));
-    //@ close mapp_core(key_size, capacity, kaddrs_lst, busybits_lst, hashes_lst, values_lst, key_opts, map_values, map_addrs);
+    //@ assert chains_ptr[0..real_capacity] |-> update(index, nth(index, chains_lst) - 1, add_partial_chain_fp(loop_fp(start + i, real_capacity), buckets_get_chain_fp(buckets, key, start) - i, buckets_get_chns_fp(buckets_remove_key_fp(buckets, key))));
+    //@ assert chains_ptr[0..real_capacity] |-> add_partial_chain_fp(loop_fp(loop_fp(start + i, real_capacity) + 1, real_capacity), buckets_get_chain_fp(buckets, key, start) - i - 1, buckets_get_chns_fp(buckets_remove_key_fp(buckets, key)));
+    //@ inc_modulo_loop(start + i, real_capacity);
+    //@ assert loop_fp(loop_fp(start + i, real_capacity) + 1, real_capacity) == loop_fp(start + i + 1, real_capacity);
+    //@ chains_lst = add_partial_chain_fp(loop_fp(start + i + 1, real_capacity), buckets_get_chain_fp(buckets, key, start) - i - 1, buckets_get_chns_fp(buckets_remove_key_fp(buckets, key)));
+    //@ assert chains_ptr[0..real_capacity] |-> add_partial_chain_fp(loop_fp(start + i + 1, real_capacity), buckets_get_chain_fp(buckets, key, start) - i - 1, buckets_get_chns_fp(buckets_remove_key_fp(buckets, key)));
+    //@ close mapp_core(key_size, real_capacity, kaddrs_lst, busybits_lst, hashes_lst, values_lst, key_opts, map_values, map_addrs);
   }
-  //@ open mapp_core(key_size, capacity, kaddrs_lst, busybits_lst, hashes_lst, values_lst, key_opts, map_values, map_addrs);
-  //@ by_loop_for_all(key_opts, (neq)(some(key)), start, capacity, nat_of_int(capacity));
+  //@ open mapp_core(key_size, real_capacity, kaddrs_lst, busybits_lst, hashes_lst, values_lst, key_opts, map_values, map_addrs);
+  //@ by_loop_for_all(key_opts, (neq)(some(key)), start, real_capacity, nat_of_int(real_capacity));
   //@ no_key_found(key_opts, key);
   //@ assert false;
 }

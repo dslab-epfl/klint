@@ -27,9 +27,7 @@ bool nf_init(uint16_t devices_count)
 	}
 
 	uint64_t max_flows = os_config_get_u64("max flows");
-// TODO: angr doesn't like this; looks like an unimplemented VEX op?
-//	if ((max_flows & (max_flows - 1)) != 0) {
-	if (max_flows != 65536) {
+	if (max_flows > SIZE_MAX / 16) {
 		return false;
 	}
 
