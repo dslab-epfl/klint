@@ -407,6 +407,7 @@ struct os_map* os_map_alloc(size_t key_size, size_t capacity)
   map->values = (void**) os_memory_alloc(real_capacity, sizeof(void*));
   map->capacity = real_capacity;
   map->key_size = key_size;
+  // TODO extend VeriFast to understand that since map->busybits and map->chains are zeroed chars, they are zeroed bools/size_ts
   for (size_t i = 0; i < real_capacity; ++i)
     /*@ invariant map->busybits |-> ?busybits_ptr &*&
                   busybits_ptr[0..i] |-> repeat_n(nat_of_int(i), false) &*&

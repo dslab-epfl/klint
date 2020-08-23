@@ -56,7 +56,7 @@ bool flowtable_get_internal(struct flowtable* table, int64_t time, struct flow* 
 bool flowtable_get_external(struct flowtable* table, int64_t time, uint16_t port, struct flow* out_flow)
 {
 	uint64_t index = (uint16_t) (port - table->start_port);
-	// Per its contract, we cannot call 'os_dchain_get' with an out-of-range index
+	// Per its contract, we cannot call 'os_pool_used' with an out-of-range index
 	// TODO fix its contract?
 	if (index >= table->max_flows) {
 		return false;
