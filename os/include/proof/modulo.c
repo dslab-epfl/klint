@@ -143,7 +143,6 @@
         mod_rotate(k + i*capacity, capacity);
         assert loop_fp(k + i*capacity, capacity) == loop_fp(k + n*capacity, capacity);
     }
-    assume(loop_fp(k + i*capacity, capacity) == loop_fp(k + n*capacity, capacity));//workaround
     assert loop_fp(k + i*capacity, capacity) == loop_fp(k + n*capacity, capacity);
     }
 
@@ -395,6 +394,20 @@
         loop_injection_n(a, b, k);
         loop_fp_pop(a + b*k, b);
         loop_fp_pop(a, b);
+    }
+    
+    lemma void mod_mod(int a, int b, int mod)
+    requires a >= 0 &*& b >= 0 &*& mod > 0;
+    ensures ((a % mod) + b) % mod == (a + b) % mod;
+    {
+    int arem = a % mod;
+    int adiv = a / mod;
+    int brem = b % mod;
+    int bdiv = b / mod;
+    div_rem_nonneg(a, mod);
+    div_rem_nonneg(b, mod);
+    mod_reduce(arem+brem, mod, adiv+bdiv);
+    mod_reduce(arem+b, mod, adiv);
     }
 
     lemma void div_minus_one(int a, int b)

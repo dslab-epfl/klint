@@ -11,6 +11,10 @@ lemma void div_mod_gt_0(int mod, int div, int whole);
 requires mod == (div % whole) &*& whole > 0 &*& div >= 0;
 ensures (0 <= mod) &*& (mod < whole);
 
+lemma void mod_mod(int a, int b, int mod);
+requires a >= 0 &*& b >= 0 &*& mod > 0;
+ensures ((a % mod) + b) % mod == (a + b) % mod;
+
 fixpoint int loop_fp(int k, int capacity) {
   return ((k%capacity + capacity)%capacity);
 }
