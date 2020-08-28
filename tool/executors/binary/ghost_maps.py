@@ -193,66 +193,62 @@ class GhostMaps(SimStatePlugin):
 
 
     def get(self, obj, key, value=None, from_present=True):
-        # If the map contains an item (K', V', P') such that K' = K, then return (V', P') [so that invariants can reference each other]
-        # Let V be a fresh symbolic value
-        # Let P be a fresh symbolic presence bit
-        # Add K = K' => (V = V' and P = P') to the path constraint for each item (K', V', P') in the map [from the present or the past],
-        # Let UK be And(K != K') for each key K' in the map's known items [in the present or the past]
-        # Add UK => invariant(M)(K', V', P') to the path constraint [invariant in the present or the past]
-        # Add (K, V, P) to the map's known items [in the present or the past]
-        # Let L be the number of unique known keys in the map whose presence bit is set [in the present or the past] (including the newly-added item)
-        # Add L <= length(M) [in the present or the past]
-        # Return (V, P)
-
         map = self[obj]
         LOG(self.state, "GET " + map.meta.name + " " + ("present" if from_present else "past") + (" key: " + str(key)) + ((" value: " + str(value)) if value is not None else "") + " (" + str(len(list(map.known_items(from_present=from_present)))) + " items, " + str(len(self.state.solver.constraints)) + " constraints)")
-        #LOG(self.state, "GET " + map.meta.name + " (" + str(len(list(map.known_items(from_present=from_present)))) + " items, " + str(len(self.state.solver.constraints)) + " constraints)")
 
         # Optimization: If the map is empty, the answer is always false
         if map.is_empty(from_present=from_present):
             LOGEND(self.state)
             return (claripy.BVS(map.meta.name + "_bad_value", map.meta.value_size), claripy.false)
 
+        # If the map contains an item (K', V', P') such that K' = K, then return (V', P') [so that invariants can reference each other]
         matching_item = utils.get_exact_match(self.state.solver, key, map.known_items(from_present=from_present), selector=lambda i: i.key)
         if matching_item is not None:
             LOGEND(self.state)
             return (matching_item.value, matching_item.present)
 
+        # Let V be a fresh symbolic value [or use the hint]
         if value is None or not value.symbolic:
             value = claripy.BVS(map.meta.name + "_value", map.meta.value_size)
+
+        # Let P be a fresh symbolic presence bit
         present = claripy.BoolS(map.meta.name + "_present")
 
-        known_items = map.known_items(from_present=from_present)
-        known_len = map.known_length(from_present=from_present)
+        # Let UK be And(K != K') for each key K' in the map's known items [in the present or the past]
+        unknown = claripy.And(*[key != i.key for i in map.known_items(from_present=from_present)])
 
-        # MUTATE the map!
+        # MUTATE the map's known items by adding (K, V, P) [in the present or the past]
         map.add_item(MapItem(key, value, present), from_present=from_present)
 
         self.state.add_constraints(
-            *[Implies(key == i.key, (value == i.value) & (present == i.present)) for i in known_items],
-            Implies(claripy.And(*[key != i.key for i in known_items]), map.invariant(from_present=from_present)(self.state, MapItem(key, value, present))),
-            known_len <= map.length(from_present=from_present)
+            # Add K = K' => (V = V' and P = P') to the path constraint for each item (K', V', P') in the map [from the present or the past],
+            *[Implies(key == i.key, (value == i.value) & (present == i.present)) for i in map.known_items(from_present=from_present)],
+            # Add UK => invariant(M)(K', V', P') to the path constraint [invariant in the present or the past]
+            Implies(unknown, map.invariant(from_present=from_present)(self.state, MapItem(key, value, present))),
+            # Let L be the number of unique known keys in the map whose presence bit is set [in the present or the past] (including the newly-added item)
+            # Add L <= length(M) [in the present or the past]
+            map.known_length(from_present=from_present) <= map.length(from_present=from_present)
         )
         if not self.state.satisfiable():
             raise "Could not add constraints in ghost map get!?"
 
         LOGEND(self.state)
+        # Return (V, P)
         return (value, present)
 
 
     def set(self, obj, key, value):
-        # Let P be get(M, K) != None
-        # Update known items (K', V', P') into (K', ITE(K = K', V', V), ITE(K = K', true, P'))
-        # Add (K, V, true) to the known items.
-        # Add ITE(P, 0, 1) the map length.
-
         map = self[obj]
 
+        # Let P be get(M, K) != None
         (_, present) = self.get(obj, key)
-        added_length = claripy.If(present, claripy.BVV(0, map.length().size()), claripy.BVV(1, map.length().size()))
+        # Return a new map with:
+        #   ITE(P, 0, 1) added to the map length.
+        #   Each known item (K', V', P') updated to (K', ITE(K = K', V', V), ITE(K = K', true, P'))
+        #   (K, V, true) added to the known items
         map = map.with_items_layer(
             items=[MapItem(key, value, claripy.true)],
-            length_change=added_length,
+            length_change=claripy.If(present, claripy.BVV(0, map.length().size()), claripy.BVV(1, map.length().size())),
             filter=lambda i: not i.key.structurally_match(key), # Optimization: Filter out known-obsolete keys already
             map=lambda i: MapItem(i.key, claripy.If(i.key == key, value, i.value), claripy.If(i.key == key, claripy.true, i.present))
         )
@@ -260,19 +256,21 @@ class GhostMaps(SimStatePlugin):
 
 
     def remove(self, obj, key):
-        # Let P be get(M, K) != None
-        # Create a fresh symbolic value V.
-        # Update known items (K', V', P') into (K', ITE(K = K', V, V'), ITE(K = K', false, P'))
-        # Add (K, V, false) to the known items.
-        # Add ITE(P, -1, 0) to the map length.
-
         map = self[obj]
 
-        (value, present) = self.get(obj, key) # reuse the value as a "bad value" that should not be used since the presence bit will be unset
-        added_length = claripy.If(present, claripy.BVV(-1, map.length().size()), claripy.BVV(0, map.length().size()))
+        # Let P be get(M, K) != None
+        (_, present) = self.get(obj, key)
+
+        # Create a fresh symbolic value V.
+        value = claripy.BVS(map.meta.name + "_bad_value", map.meta.value_size)
+
+        # Return a new map with:
+        #   ITE(P, -1, 0) added to the map length
+        #   Each known item (K', V', P') updated to (K', ITE(K = K', V, V'), ITE(K = K', false, P'))
+        #   (K, V, false) added to the known items
         map = map.with_items_layer(
             items=[MapItem(key, value, claripy.false)],
-            length_change=added_length,
+            length_change=claripy.If(present, claripy.BVV(-1, map.length().size()), claripy.BVV(0, map.length().size())),
             filter=lambda i: not i.key.structurally_match(key), # Optimization: Filter out known-obsolete keys already
             map=lambda i: MapItem(i.key, claripy.If(i.key == key, value, i.value), claripy.If(i.key == key, claripy.false, i.present))
         )
@@ -280,12 +278,6 @@ class GhostMaps(SimStatePlugin):
 
 
     def forall(self, obj, pred, _known_only=False):
-        # Let L be the number of known items whose presence bit is set
-        # Let K' be a fresh symbolic key and V' a fresh symbolic value
-        # Let F = ((P1 => pred(K1, V1)) and (P2 => pred(K2, V2)) and (...) and ((L < length(M)) => (invariant(M)(K', V', true) => pred(K', V'))))
-        # Add F => (P => pred(K, V)) to the map's invariant
-        # Return F
-
         map = self[obj]
         LOG(self.state, "forall " + map.meta.name + " ( " + str(len(self.state.solver.constraints)) + " constraints)")
 
@@ -294,25 +286,24 @@ class GhostMaps(SimStatePlugin):
             LOGEND(self.state)
             return claripy.true
 
-        known_len = map.known_length()
-        total_len = map.length()
-
+        # Let K' be a fresh symbolic key and V' a fresh symbolic value
         test_key = claripy.BVS(map.meta.name + "_test_key", map.meta.key_size)
         test_value = claripy.BVS(map.meta.name + "_test_value", map.meta.value_size)
 
+        # Let L be the number of known items whose presence bit is set
+        # Let F = ((P1 => pred(K1, V1)) and (P2 => pred(K2, V2)) and (...) and ((L < length(M)) => (invariant(M)(K', V', true) => pred(K', V'))))
         # Optimization: No need to even call the invariant if we're sure all items are known
         result = claripy.And(*[Implies(i.present, pred(i.key, i.value)) for i in map.known_items()])
-        if not _known_only and utils.can_be_false(self.state.solver, known_len == total_len):
+        if not _known_only and utils.can_be_false(self.state.solver, map.known_length() == map.length()):
             result &= Implies(
-                          known_len < total_len,
+                          map.known_length() < map.length(),
                           Implies(
                               map.invariant()(self.state, MapItem(test_key, test_value, claripy.true)),
                               pred(test_key, test_value)
                           )
                       )
 
-        # MUTATE the map!
-        # Optimization: only if there's a chance it's useful, let's not needlessly complicate the invariant
+        # Optimization: No need to change the invariant if it's definitely not useful
         if utils.definitely_true(self.state.solver, result):
             LOGEND(self.state)
             return claripy.true
@@ -320,8 +311,11 @@ class GhostMaps(SimStatePlugin):
             LOGEND(self.state)
             return claripy.false
 
+        # MUTATE the map's invariant by adding F => (P => pred(K, V))
         map.add_invariant(lambda st, i: Implies(result, Implies(i.present, pred(i.key, i.value))))
+
         LOGEND(self.state)
+        # Return F
         return result
 
 
