@@ -3,7 +3,6 @@
 
 if [ ! -d "$HOME/.virtualenvs/angr" ]; then
   # Virtual env for angr using python3
-  python3 -m ensurepip --upgrade
   python3 -m pip install virtualenv virtualenvwrapper
   mkdir -p "$HOME/.virtualenvs"
 fi
