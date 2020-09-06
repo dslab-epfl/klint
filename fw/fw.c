@@ -24,7 +24,7 @@ bool nf_init(uint16_t devices_count)
 	}
 
 	uint64_t max_flows = os_config_get_u64("max flows");
-	if (max_flows == 0) {
+	if (max_flows == 0 || max_flows > SIZE_MAX / 16 - 2) {
 		return false;
 	}
 

@@ -68,7 +68,7 @@ def check(nf_folder):
     'end': spec_end
   }
 
-  nf_results = nf_executor.execute(nf_folder)
+  nf_executor.execute(nf_folder)
   print("OK")
   #for (state_solver, state_input, state_output) in nf_results:
     # note: _asdict is named that way to avoid name clashes, we're not using a private method here
@@ -77,4 +77,7 @@ def check(nf_folder):
       # ignore spec_pathcond, the outputs must match regardless of the spec structure
   #    check_one(state_solver, defs.NFOutput(**spec_output), state_output)
 
-check(str(pathlib.Path(__file__).parent.absolute()) + os.sep + ".." + os.sep + ".." + os.sep + ".." + os.sep + "nat")
+nf_to_verify = "nat"
+if len(sys.argv) == 2:
+  nf_to_verify = sys.argv[1]
+check(str(pathlib.Path(__file__).parent.absolute()) + (os.sep + "..") * 3 + os.sep + nf_to_verify)

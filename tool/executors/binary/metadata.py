@@ -70,7 +70,6 @@ class Metadata(SimStatePlugin):
                             pass # was not in across_previous_results[cls], that's OK
                 # Merge individual values, keeping track of whether any of them changed
                 for key in common_keys:
-                    old_value = ancestor_state.metadata.get(cls, key)
                     (merged_value, has_changed) = Metadata.merge_funcs[cls][1]([self.state] + other_states, key, ancestor_state)
                     any_individual_changed = any_individual_changed or has_changed
                     merged_items[cls].append((key, merged_value))

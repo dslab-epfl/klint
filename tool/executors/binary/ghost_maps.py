@@ -344,7 +344,6 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
 
     # helper function to get only the items that are definitely in the map associated with the given obj in the given state
     def filter_present(state, obj):
-        known_keys = []
         present_items = []
         for i in state.maps[obj].known_items():
             if utils.definitely_true(state.solver, claripy.And(i.present, *[i.key != pi.key for pi in present_items])):
