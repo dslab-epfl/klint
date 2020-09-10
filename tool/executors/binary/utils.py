@@ -68,6 +68,7 @@ def fork_always(proc, case_true, case_false):
   false_was_unsat = False
   if not proc.state.satisfiable():
     raise "too lazy to handle this :/"
+  
   try:
     state_copy = proc.state.copy()
     ret_expr = case_false(state_copy)
@@ -75,7 +76,6 @@ def fork_always(proc, case_true, case_false):
     ret_addr = proc.cc.teardown_callsite(state_copy, ret_expr, arg_types=[False]*proc.num_args if proc.cc.args is None else None)
   except angr.errors.SimUnsatError:
     false_was_unsat = True
-    pass
   else:
     proc.successors.add_successor(state_copy, ret_addr, claripy.true, 'Ijk_Ret')
 

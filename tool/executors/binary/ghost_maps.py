@@ -48,11 +48,6 @@ class Map:
         if self.is_empty(from_present=from_present):
             return (claripy.BVS(self.meta.name + "_bad_value", self.meta.value_size), claripy.false)
 
-        # If the map contains an item (K', V', P') such that K' = K, then return (V', P') [so that invariants can reference each other]
-        matching_item = utils.get_exact_match(state.solver, key, self.known_items(from_present=from_present), selector=lambda i: i.key)
-        if matching_item is not None:
-            return (matching_item.value, matching_item.present)
-
         # Let V be a fresh symbolic value [or use the hint]
         if value is None or not value.symbolic:
             value = claripy.BVS(self.meta.name + "_value", self.meta.value_size)
@@ -60,23 +55,30 @@ class Map:
         # Let P be a fresh symbolic presence bit
         present = claripy.BoolS(self.meta.name + "_present")
 
+        known_items = self.known_items(from_present=from_present)
+        new_known_item = MapItem(key, value, present)
+
+        # If the map contains an item (K', V', P') such that K' = K, then return (V', P') [so that invariants can reference each other]
+        matching_item = utils.get_exact_match(state.solver, key, known_items, selector=lambda i: i.key)
+        if matching_item is not None:
+            return (matching_item.value, matching_item.present)
+
         # Let UK be And(K != K') for each key K' in the map's known items [in the present or the past]
-        unknown = claripy.And(*[key != i.key for i in self.known_items(from_present=from_present)])
+        unknown = claripy.And(*[key != i.key for i in known_items])
 
         # MUTATE the map's known items by adding (K, V, P) [in the present or the past]
-        self.add_item(MapItem(key, value, present), from_present=from_present)
+        self.add_item(new_known_item, from_present=from_present)
 
         state.add_constraints(
             # Add K = K' => (V = V' and P = P') to the path constraint for each item (K', V', P') in the map [from the present or the past],
-            *[Implies(key == i.key, (value == i.value) & (present == i.present)) for i in self.known_items(from_present=from_present)],
+            *[Implies(key == i.key, (value == i.value) & (present == i.present)) for i in known_items],
             # Add UK => invariant(M)(K', V', P') to the path constraint [invariant in the present or the past]
-            Implies(unknown, self.invariant(from_present=from_present)(state, MapItem(key, value, present))),
-            # Let L be the number of unique known keys in the map whose presence bit is set [in the present or the past] (including the newly-added item)
+            Implies(unknown, self.invariant(from_present=from_present)(state, new_known_item)),
             # Add L <= length(M) [in the present or the past]
             self.known_length(from_present=from_present) <= self.length(from_present=from_present)
-        )
+        )    
         if not state.satisfiable():
-            raise "Could not add constraints in ghost map get!?"
+            raise angr.errors.SimUnsatError()
 
         # Return (V, P)
         return (value, present)
@@ -377,7 +379,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                 for it2 in items2:
                     x2 = sel2(it2)
                     if candidate_func is not None:
-                        if utils.definitely_true(state.solver, x2 == candidate_func(state, x1, True)):
+                        if utils.definitely_true(state.solver, x2 == candidate_func(state, it1, True)):
                             # All good, our candidate worked
                             found = True
                             items2.remove(it2)

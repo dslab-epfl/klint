@@ -86,7 +86,7 @@ class OsPoolReturn(angr.SimProcedure):
         print("!!! os_pool_return", pool, index)
 
         # Preconditions
-        poolp = self.state.metadata.get(Pool, poolp)
+        poolp = self.state.metadata.get(Pool, pool)
         if utils.can_be_false(self.state.solver, index < poolp.size):
             raise "Precondition does not hold: index < size"
         if utils.can_be_false(self.state.solver, self.state.maps.get(poolp.items, index)[1]):
