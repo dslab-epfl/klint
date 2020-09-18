@@ -66,9 +66,7 @@ class OsPoolBorrow(angr.SimProcedure):
             return claripy.BVV(0, bitsizes.bool)
         def case_false(state):
             print("!!! os_pool_borrow notfull", index)
-            state.add_constraints(claripy.Not(state.maps.get(poolp.items, index)[1]))
-            if not state.satisfiable():
-                raise "Could not add constraint: ghostmap_get(items, index) == none"
+            utils.add_constraints_and_check_sat(state, claripy.Not(state.maps.get(poolp.items, index)[1]))
             state.maps.set(poolp.items, index, time)
             return claripy.BVV(1, bitsizes.bool)
         return utils.fork_guarded(self, self.state.maps.length(poolp.items) == poolp.size, case_true, case_false)
@@ -194,10 +192,10 @@ class OsPoolExpire(angr.SimProcedure):
             return claripy.BVV(0, bitsizes.bool)
         def case_false(state):
             print("!!! os_pool_expire some", index)
-            state.add_constraints(state.maps.get(poolp.items, index)[1])
-            state.add_constraints(state.maps.get(poolp.items, index)[0].SLT(time))
-            if not state.satisfiable():
-                raise "Could not add constraint: ghostmap_get(items, index) == some(?old) &*& old < time"
+            utils.add_constraints_and_check_sat(state,
+                state.maps.get(poolp.items, index)[1],
+                state.maps.get(poolp.items, index)[0].SLT(time)
+            )
             state.maps.remove(poolp.items, index)
             return claripy.BVV(1, bitsizes.bool)
         return utils.fork_guarded(self, self.state.maps.forall(poolp.items, lambda k, v: v.SGE(time)), case_true, case_false)

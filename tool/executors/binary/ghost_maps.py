@@ -69,16 +69,14 @@ class Map:
         # MUTATE the map's known items by adding (K, V, P) [in the present or the past]
         self.add_item(new_known_item, from_present=from_present)
 
-        state.add_constraints(
+        utils.add_constraints_and_check_sat(state,
             # Add K = K' => (V = V' and P = P') to the path constraint for each item (K', V', P') in the map [from the present or the past],
             *[Implies(key == i.key, (value == i.value) & (present == i.present)) for i in known_items],
             # Add UK => invariant(M)(K', V', P') to the path constraint [invariant in the present or the past]
             Implies(unknown, self.invariant(from_present=from_present)(state, new_known_item)),
             # Add L <= length(M) [in the present or the past]
             self.known_length(from_present=from_present) <= self.length(from_present=from_present)
-        )    
-        if not state.satisfiable():
-            raise angr.errors.SimUnsatError()
+        )
 
         # Return (V, P)
         return (value, present)
@@ -499,9 +497,9 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
             # For each pair of maps (M1, M2),
             #  if there exist functions FP, FK such that in all states, forall(M1, (K,V): FP(K,V) => get(M2, FK(K, V)) == (_, true)),
             #  then assume this is an invariant of M1 in the merged state.
-            #  Additionally,
-            #   if there exists a function FV such that in all states, forall(M1, (K,V): FP(K,V) => get(M2, FK(K, V)) == (FV(K, V), true)),
-            #   then assume this is an invariant of M1 in the merged state.
+            # Additionally,
+            #  if there exists a function FV such that in all states, forall(M1, (K,V): FP(K,V) => get(M2, FK(K, V)) == (FV(K, V), true)),
+            #  then assume this is an invariant of M1 in the merged state.
             # TODO: a string ID is not really enough to guarantee the constraints are the same here...
             # We use maps directly to refer to the map state as it was in the ancestor, not during execution;
             # otherwise, get(M1, k) after remove(M2, k) might add has(M2, k) to the constraints, which is obviously false

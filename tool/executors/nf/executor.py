@@ -8,6 +8,7 @@ import angr
 import claripy
 # Our executors (TODO: ideally, the externals shouldn't depend on a specific executor...)
 import executors.binary.executor as bin_exec
+import executors.binary.utils as utils
 from executors.binary.ghost_maps import GhostMaps
 from executors.binary.externals.os import clock
 from executors.binary.externals.os import config
@@ -118,9 +119,9 @@ def execute(nf_folder):
     # code to get the return value copied from angr's "Callable" implementation
     cc = angr.DEFAULT_CC[state.project.arch.name](state.project.arch)
     init_result = cc.get_return_val(state, stack_base=state.regs.sp - cc.STACKARG_SP_DIFF)
-    state.add_constraints(init_result != 0)
-    if not state.satisfiable():
-#      print("DISCARDING", state.solver.constraints)
+    try:
+      utils.add_constraints_and_check_sat(state, init_result != 0)
+    except angr.errors.SimUnsatError:
       continue
     reached_fixpoint = False
     while not reached_fixpoint:

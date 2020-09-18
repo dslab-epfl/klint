@@ -128,3 +128,8 @@ def structural_eq(a, b):
     if hasattr(a, '__iter__') and hasattr(b, '__iter__') and hasattr(a, '__len__') and hasattr(b, '__len__'):
         return len(a) == len(b) and all(structural_eq(ai, bi) for (ai, bi) in zip(a, b))
     return a == b
+
+def add_constraints_and_check_sat(state, *constraints, **kwargs):
+  state.add_constraints(*constraints, **kwargs)
+  if not state.satisfiable():
+    raise angr.errors.SimUnsatError()
