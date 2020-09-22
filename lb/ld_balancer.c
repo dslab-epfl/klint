@@ -6,6 +6,7 @@
 
 #include "ld_balancer.h"
 #include "os/memory.h"
+#include "utils.h"
 
 struct ld_balancer *ld_balancer_alloc(uint32_t flow_capacity,
                                       uint32_t backend_capacity,
@@ -66,7 +67,7 @@ struct lb_backend lb_get_backend(struct ld_balancer *balancer,
         if (!os_pool_used(balancer->state->active_backends, backend_index, &out_time))
         {
             os_map_remove(balancer->state->flow_to_flow_id, flow);
-            dchain_free_index(balancer->state->flow_chain, flow_index);
+            os_pool_return(balancer->state->flow_chain, flow_index);
             return lb_get_backend(balancer, flow, now, wan_device);
         }
         else
@@ -94,8 +95,8 @@ void lb_process_heartbit(struct ld_balancer *balancer,
             new_backend->mac = mac_addr;
             new_backend->nic = nic;
 
-            uint32_t *ip = &balancer->state->backend_ips[backend_index];
-            *ip = flow->src_ip;
+            struct ip_addr *ip = &balancer->state->backend_ips[backend_index];
+            ip->addr = flow->src_ip;
             os_map_set(balancer->state->ip_to_backend_id, ip, (void *)backend_index);
         }
         // Otherwise ignore this backend, we are full.
@@ -117,7 +118,7 @@ void lb_expire_flows(struct ld_balancer *balancer, time_t time)
     time_t last_time =
         time_u - balancer->flow_expiration_time * 1000; // us to ns
     expire_items_single_map(balancer->state->flow_chain,
-                            balancer->state->flow_heap,
+                            (void**) balancer->state->flow_heap,
                             balancer->state->flow_to_flow_id, last_time);
 }
 
@@ -129,22 +130,6 @@ void lb_expire_backends(struct ld_balancer *balancer, time_t time)
     time_t last_time =
         time_u - balancer->backend_expiration_time * 1000; // us to ns
     expire_items_single_map(balancer->state->active_backends,
-                            balancer->state->backend_ips,
+                            (void**) balancer->state->backend_ips,
                             balancer->state->ip_to_backend_id, last_time);
-}
-
-int expire_items_single_map(struct os_pool *chain,
-                            void **vector,
-                            struct os_map *map,
-                            time_t time)
-{
-    int count = 0;
-    size_t index = -1;
-    while (os_pool_expire(chain, time, &index))
-    {
-        void *key = vector[index];
-        os_map_remove(map, key);
-        ++count;
-    }
-    return count;
 }

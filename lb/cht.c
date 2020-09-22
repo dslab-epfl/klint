@@ -36,7 +36,6 @@ struct cht *cht_alloc(uint32_t cht_height, uint32_t backend_capacity)
     {
         for (uint32_t j = 0; j < backend_capacity; ++j)
         {
-            uint32_t *value;
             uint32_t index = j * cht_height + i;
             int bucket_id = permutations[index];
             int priority = next[bucket_id];
@@ -45,8 +44,8 @@ struct cht *cht_alloc(uint32_t cht_height, uint32_t backend_capacity)
         }
     }
 
-    free(next);
-    free(permutations);
+    // free(next);
+    // free(permutations);
     return cht;
 }
 
@@ -59,7 +58,7 @@ int cht_find_preferred_available_backend(struct cht *cht, uint64_t hash, struct 
         uint64_t candidate_idx = cht_bucket + i;
         int candidate = cht->data[candidate_idx];
         time_t out_time;
-        if (os_pool_used(active_backends, (size_t) candidate, out_time))
+        if (os_pool_used(active_backends, (size_t) candidate, &out_time))
         {
             *chosen_backend = candidate;
             return 1;
