@@ -150,7 +150,7 @@ class SegmentedMemory(SimMemory):
                 raise "!= 1 candidate for base???"
             added = sum([a for a in addr.args if not a.structurally_match(base)])
 
-            (count, size) = self._count_size(base)
+            (_, size) = self._count_size(base)
             offset = self.state.solver.eval_one(added % (size // 8), cast_to=int)
             # Don't make the index be a weird '0 // ...' expr if we can avoid it
             if utils.definitely_true(self.state.solver, added == offset):
@@ -158,5 +158,13 @@ class SegmentedMemory(SimMemory):
             else:
                 index = (added - offset) / (size // 8)
             return (base, index, offset * 8)
+
+        print("-> Oops, we are going to fail, dump:")
+        print(f"address: {addr}")
+        print(f"address type: {type(addr)}")
+        print(f"address op: {addr.op}")
+        print("args are:")
+        for arg in addr.args:
+            print(f"\t{arg}")
 
         raise ("B_I_O doesn't know what to do with: " + str(addr) + " of type " + str(type(addr)) + " ; op is " + str(addr.op) + " ; args is " + str(addr.args) + " ; constrs are " + str(self.state.solver.constraints))

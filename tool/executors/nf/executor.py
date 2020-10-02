@@ -17,6 +17,7 @@ from executors.binary.externals.os import memory
 from executors.binary.externals.os import network
 from executors.binary.externals.os.structs import map
 from executors.binary.externals.os.structs import pool
+from executors.binary.externals.os.structs import cht
 # Us
 import executors.nf.defs as defs
 
@@ -24,9 +25,12 @@ init_externals = {
   'os_config_get_u16': config.ConfigU16,
   'os_config_get_u32': config.ConfigU32,
   'os_config_get_u64': config.ConfigU64,
+  'os_config_get_time': config.ConfigTime,
+  'os_config_get_device_macs': config.ConfigDeviceMacs,
   'os_memory_alloc': memory.OsMemoryAlloc,
   'os_map_alloc': map.OsMapAlloc,
-  'os_pool_alloc': pool.OsPoolAlloc
+  'os_pool_alloc': pool.OsPoolAlloc,
+  'cht_alloc': cht.ChtAlloc,
 }
 
 handle_externals = {
@@ -41,7 +45,9 @@ handle_externals = {
   'os_pool_return': pool.OsPoolReturn,
   'os_pool_refresh': pool.OsPoolRefresh,
   'os_pool_used': pool.OsPoolUsed,
-  'os_pool_expire': pool.OsPoolExpire
+  'os_pool_expire': pool.OsPoolExpire,
+  'cht_find_preferred_available_backend': cht.ChtFindPreferredAvailableBackend,
+  'angr_breakpoint': cht.AngrBreakpoint,
 }
 
 def nf_init(nf_folder, devices_count):

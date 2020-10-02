@@ -9,9 +9,15 @@
 
 #include "ld_balancer.h"
 
+#define MAX_UINT32 ((uint32_t) 0xFFFFFFFF)
+
 struct ld_balancer *balancer;
 uint16_t wan_device;
-uint8_t** device_macs;
+// @TODO; maybe this should be part of struct ld_balancer ?
+// uint8_t** device_macs;
+
+// For debugging purposes
+uint8_t dummy_device_mac[6] = {0, 0, 0, 0, 0, 0};
 
 bool nf_init(uint16_t devices_count)
 {
@@ -21,12 +27,17 @@ bool nf_init(uint16_t devices_count)
         return false;
     }
 
-    device_macs = os_config_get_device_macs("device macs");
+    // device_macs = os_config_get_device_macs("device macs");
 
-    // @TODO: probably need to add some checks on the "values" returned from os_config_get_*, we'll see during symbex
     uint32_t flow_capacity = os_config_get_u32("flow capacity");
-    uint32_t backend_capacity = os_config_get_u32("backend capacity");
     uint32_t cht_height = os_config_get_u32("cht height");
+    if (cht_height == 0 || cht_height >= MAX_CHT_HEIGHT) {
+        return false;
+    }
+    uint32_t backend_capacity = os_config_get_u32("backend capacity");
+    if (backend_capacity == 0 || backend_capacity >= cht_height || backend_capacity * cht_height >= MAX_UINT32) {
+        return false;
+    }
     time_t end_expiration_time = os_config_get_time("end expiration time");
     time_t flow_expiration_time = os_config_get_time("flow expiration time");
 
@@ -68,17 +79,14 @@ void nf_handle(struct os_net_packet *packet)
     struct lb_backend backend = lb_get_backend(balancer, &flow, now, wan_device);
 
     os_debug("Processing packet from %" PRIu16 " to %" PRIu16, device, backend.nic);
-    // @TODO: seems useless in this new symbex pipeline
+    // @TODO: seems useless in this new symbex pipeline, make sure this is true
     // concretize_devices(&backend.nic, rte_eth_dev_count());
 
     if (backend.nic != wan_device)
     {
         ipv4_header->dst_addr = backend.ip;
-        memcpy(&ether_header->src_addr, device_macs[backend.nic], OS_NET_ETHER_ADDR_SIZE);
+        memcpy(&ether_header->src_addr, dummy_device_mac, OS_NET_ETHER_ADDR_SIZE);
         memcpy(&ether_header->dst_addr, backend.mac.addr_bytes, OS_NET_ETHER_ADDR_SIZE);
-
-        // @TODO: couldn't find all the code for this in Vigor
-        // nf_set_ipv4_udptcp_checksum(ipv4_header, tcpudp_header, packet->data);
     }
 
 	os_net_transmit(packet, backend.nic, ether_header, ipv4_header, tcpudp_header);

@@ -3,10 +3,10 @@
 
 #include <stdint.h>
 
-#include "cht.h"
 #include "structs.h"
 #include "os/structs/map.h"
 #include "os/structs/pool.h"
+#include "os/structs/cht.h"
 
 struct State {
   struct os_map* flow_to_flow_id;

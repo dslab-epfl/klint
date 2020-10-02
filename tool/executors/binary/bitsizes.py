@@ -7,3 +7,4 @@ int64_t = 64
 uint64_t = 64
 ptr = 64
 size_t = uint64_t
+uint32_t = 32
