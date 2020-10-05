@@ -62,12 +62,12 @@ def check_one(solver, spec_out, code_out):
 
 def check(nf_folder):
   with open(nf_folder + os.sep + 'spec.py') as spec_file:
-    spec_text = spec_file.read()
+    _ = spec_file.read()
 
-  spec_externals = {
-    'send': spec_send,
-    'end': spec_end
-  }
+  # spec_externals = {
+  #   'send': spec_send,
+  #   'end': spec_end
+  # }
 
   nf_executor.execute(nf_folder)
   print("OK")
@@ -81,4 +81,4 @@ def check(nf_folder):
 nf_to_verify = "nat"
 if len(sys.argv) == 2:
   nf_to_verify = sys.argv[1]
-check(str(pathlib.Path(__file__).parent.absolute()) + (os.sep + "..") * 3 + os.sep + nf_to_verify)
+check(f"{pathlib.Path(__file__).parent.absolute()}{(os.sep + '..') * 3 + os.sep}nf{os.sep + nf_to_verify}")

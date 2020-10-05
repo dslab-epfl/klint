@@ -1,1 +1,7 @@
 libnf.so
+
+# Python environment path file 
+.env
+
+# VSCode config
+.vscode/
