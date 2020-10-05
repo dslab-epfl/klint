@@ -3,6 +3,7 @@ import claripy
 from angr.state_plugins.plugin import SimStatePlugin
 import executors.binary.utils as utils
 import copy
+from executors.binary.exceptions import SymbexException
 
 # Optimization: objects are compared structurally instead of with the solver, which might cause spurious failures
 # (this does not work unless ghost maps are doing the "use existing items if possible in get" optimization)
@@ -23,7 +24,7 @@ class Metadata(SimStatePlugin):
     @staticmethod
     def set_merge_funcs(cls, func_across, func_one):
         if cls in Metadata.merge_funcs and Metadata.merge_funcs[cls] != (func_across, func_one):
-            raise "Cannot change merge functions once set"
+            raise SymbexException("Cannot change merge functions once set")
         Metadata.merge_funcs[cls] = (func_across, func_one)
 
 
@@ -121,13 +122,13 @@ class Metadata(SimStatePlugin):
         results = self._get(cls, key)
         if len(results) == 0:
             if default is None:
-                raise ("No metadata for key: " + str(key) + " of class: " + str(cls))
+                raise SymbexException("No metadata for key: " + str(key) + " of class: " + str(cls))
             else:
                 self.set(key, default)
                 return default
 
         if len(results) > 1:
-            raise ("More than one matching metadata of type " + str(cls) + " for key: " + str(key))
+            raise SymbexException("More than one matching metadata of type " + str(cls) + " for key: " + str(key))
 
         return results[0][1]
 
@@ -140,7 +141,7 @@ class Metadata(SimStatePlugin):
         cls = type(value)
         results = self._get(cls, key)
         if len(results) > 1:
-            raise ("More than one existing metadata of type " + str(cls) + " for key: " + str(key))
+            raise SymbexException("More than one existing metadata of type " + str(cls) + " for key: " + str(key))
 
         has_already = len(results) == 1
         if has_already:
@@ -149,10 +150,10 @@ class Metadata(SimStatePlugin):
                 self.items[cls] = [((key, value) if k is results[0][0] else (k, v)) for (k, v) in self.items[cls]]
                 return
             else:
-                raise ("There is already metadata of type " + str(cls) + " for key: " + str(key) + ", namely " + str(results))
+                raise SymbexException("There is already metadata of type " + str(cls) + " for key: " + str(key) + ", namely " + str(results))
 
         if override and not has_already:
-            raise ("There is no metadata of type " + str(cls) + " to override for key: " + str(key))
+            raise SymbexException("There is no metadata of type " + str(cls) + " to override for key: " + str(key))
 
         if cls not in self.items:
             self.items[cls] = []

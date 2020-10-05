@@ -5,6 +5,7 @@ import archinfo
 import claripy
 import executors.binary.bitsizes as bitsizes
 import executors.binary.utils as utils
+from executors.binary.exceptions import SymbexException
 
 
 # Supports loads and stores, as well as "allocate(count, size, ?default) -> addr_symbol" and "base_index_offset(addr_symbol) -> (base_symbol, index_symbol, offset)"; all methods take sizes in bytes but offset is in bits
@@ -22,7 +23,7 @@ class SegmentedMemory(SimMemory):
 
     def merge(self, others, merge_conditions, common_ancestor=None):
         if any(o.id != self.id for o in others) or any(o.endness != self.endness for o in others):
-            raise "Merging SegmentedMemory instances with different IDs or endnesses is not supported"
+            raise SymbexException("Merging SegmentedMemory instances with different IDs or endnesses is not supported")
         new_segments = set(self.segments)
         for o in others:
             new_segments.update(o.segments)
@@ -38,11 +39,11 @@ class SegmentedMemory(SimMemory):
 
     def _store(self, request): # request is MemoryStoreRequest; has addr, data=None, size=None, condition=None, endness + "completed" must be set to True and "stored_values" must be set to a singleton list of the written data
         if request.data is None or request.size is None or request.condition is not None:
-            raise "Sorry, can't handle that yet"
+            raise SymbexException("Sorry, can't handle that yet")
         if request.size.symbolic:
-            raise "Can't handle symbolic sizes"
+            raise SymbexException("Can't handle symbolic sizes")
         if request.endness is not None and request.endness != self.endness:
-            raise "SegmentedMemory supports only BE endness"
+            raise SymbexException("SegmentedMemory supports only BE endness")
 
         data = request.data
         size = self.state.solver.eval_one(request.size, cast_to=int) * 8 # we get the size in bytes
@@ -55,7 +56,7 @@ class SegmentedMemory(SimMemory):
         else:
             (full, present) = self.state.maps.get(base, index)
             if utils.can_be_false(self.state.solver, present):
-                raise "Memory value may not be present!?"
+                raise SymbexException("Memory value may not be present!?")
             if offset + size < full.length:
                 value = full[(full.length-1):(offset+size)].concat(data)
             else:
@@ -70,16 +71,16 @@ class SegmentedMemory(SimMemory):
 
     def _load(self, addr, size, condition=None, fallback=None, inspect=True, events=True, ret_on_segv=False):
         if condition is not None or fallback is not None or ret_on_segv:
-            raise "Sorry, can't handle that yet"
+            raise SymbexException("Sorry, can't handle that yet")
         (base, index, offset) = self.base_index_offset(addr)
 
         (value, present) = self.state.maps.get(base, index)
         if utils.can_be_false(self.state.solver, present):
-            raise "Memory value may not be present!?"
+            raise SymbexException("Memory value may not be present!?")
 
         size = self._to_bv64(size) * 8 # we get the size in bytes
         if size.symbolic:
-            raise "Can't handle symbolic sizes"
+            raise SymbexException("Can't handle symbolic sizes")
         size = self.state.solver.eval_one(size, cast_to=int)
 
         if offset == 0 and size == self.state.maps.value_size(base):
@@ -102,7 +103,7 @@ class SegmentedMemory(SimMemory):
 
         max_size = self.state.solver.max(size)
         if max_size // 8 > 4096:
-            raise ("That's a huge block you want to allocate... let's just not: " + str(max_size))
+            raise SymbexException("That's a huge block you want to allocate... let's just not: " + str(max_size))
 
         name = (name or "segmented_memory") + "_addr"
         addr = self.state.maps.new_array(bitsizes.ptr, max_size, count, name=name)
@@ -119,9 +120,9 @@ class SegmentedMemory(SimMemory):
         if result is None:
             results = [(count, size) for (cand_addr, count, size) in self.segments if utils.definitely_true(self.state.solver, addr == cand_addr)]
             if len(results) == 0:
-                raise ("No segment with base: " + str(addr))
+                raise SymbexException("No segment with base: " + str(addr))
             if len(results) > 1:
-                raise ("Multiple possible segments with base: " + str(addr))
+                raise SymbexException("Multiple possible segments with base: " + str(addr))
             result = results[0]
         # more convenient
         return self._to_bv64(result[0]), self._to_bv64(result[1])
@@ -147,7 +148,7 @@ class SegmentedMemory(SimMemory):
             if len(base) == 1:
                 base = base[0]
             else:
-                raise "!= 1 candidate for base???"
+                raise SymbexException("!= 1 candidate for base???")
             added = sum([a for a in addr.args if not a.structurally_match(base)])
 
             (_, size) = self._count_size(base)
@@ -159,12 +160,4 @@ class SegmentedMemory(SimMemory):
                 index = (added - offset) / (size // 8)
             return (base, index, offset * 8)
 
-        print("-> Oops, we are going to fail, dump:")
-        print(f"address: {addr}")
-        print(f"address type: {type(addr)}")
-        print(f"address op: {addr.op}")
-        print("args are:")
-        for arg in addr.args:
-            print(f"\t{arg}")
-
-        raise ("B_I_O doesn't know what to do with: " + str(addr) + " of type " + str(type(addr)) + " ; op is " + str(addr.op) + " ; args is " + str(addr.args) + " ; constrs are " + str(self.state.solver.constraints))
+        raise SymbexException("B_I_O doesn't know what to do with: " + str(addr) + " of type " + str(type(addr)) + " ; op is " + str(addr.op) + " ; args is " + str(addr.args) + " ; constrs are " + str(self.state.solver.constraints))

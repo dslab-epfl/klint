@@ -6,6 +6,7 @@ import executors.binary.clock as clock
 import executors.binary.utils as utils
 from collections import namedtuple
 from .pool import Pool
+from executors.binary.exceptions import SymbexException
 
 # predicate poolp(struct os_pool* pool, size_t size, list<pair<size_t, time_t> > items);
 Cht = namedtuple("chtp", ["cht_height", "backend_capacity"])
@@ -26,7 +27,7 @@ class ChtAlloc(angr.SimProcedure):
             cht_height * backend_capacity < (2 ** bitsizes.uint32_t - 1)
         )
         if utils.can_be_false(self.state.solver, precond):
-            raise "Precondition does not hold."
+            raise SymbexException("Precondition does not hold.")
 
         # Postconditions
         result = self.state.memory.allocate_opaque("cht")
@@ -46,14 +47,14 @@ class ChtFindPreferredAvailableBackend(angr.SimProcedure):
 
         # Symbolism assumptions
         if chosen_backend.symbolic:
-            raise "chosen_backend cannot be symbolic"
+            raise SymbexException("chosen_backend cannot be symbolic")
 
         # Preconditions
         cht = self.state.metadata.get(Cht, cht)
         active_backends = self.state.metadata.get(Pool, active_backends)
         self.state.memory.load(chosen_backend, bitsizes.size_t // 8)
         if utils.can_be_false(self.state.solver, cht.backend_capacity.zero_extend(32) <= active_backends.size):
-            raise "Precondition does not hold."
+            raise SymbexException("Precondition does not hold.")
 
         # Postconditions
         backend = claripy.BVS("backend", bitsizes.uint32_t)

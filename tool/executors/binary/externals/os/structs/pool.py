@@ -5,6 +5,7 @@ import executors.binary.cast as cast
 import executors.binary.clock as clock
 import executors.binary.utils as utils
 from collections import namedtuple
+from executors.binary.exceptions import SymbexException
 
 # predicate poolp(struct os_pool* pool, size_t size, list<pair<size_t, time_t> > items);
 Pool = namedtuple('poolp', ['size', 'items'])
@@ -20,7 +21,7 @@ class OsPoolAlloc(angr.SimProcedure):
 
         # Preconditions
         if utils.can_be_false(self.state.solver, size <= (((2 ** bitsizes.size_t - 1) // 16) - 2)):
-            raise "Precondition does not hold: size <= (SIZE_MAX / 16) - 2"
+            raise SymbexException("Precondition does not hold: size <= (SIZE_MAX / 16) - 2")
 
         # Postconditions
         result = self.state.memory.allocate_opaque("os_pool")
@@ -50,7 +51,7 @@ class OsPoolBorrow(angr.SimProcedure):
 
         # Symbolism assumptions
         if out_index.symbolic:
-            raise "out_index cannot be symbolic"
+            raise SymbexException("out_index cannot be symbolic") 
 
         # Preconditions
         poolp = self.state.metadata.get(Pool, pool)
@@ -86,9 +87,9 @@ class OsPoolReturn(angr.SimProcedure):
         # Preconditions
         poolp = self.state.metadata.get(Pool, pool)
         if utils.can_be_false(self.state.solver, index < poolp.size):
-            raise "Precondition does not hold: index < size"
+            raise SymbexException("Precondition does not hold: index < size")
         if utils.can_be_false(self.state.solver, self.state.maps.get(poolp.items, index)[1]):
-            raise "Precondition does not hold: ghostmap_get(items, index) != none"
+            raise SymbexException("Precondition does not hold: ghostmap_get(items, index) != none")
 
         # Postconditions
         self.state.maps.remove(poolp.items, index)
@@ -111,9 +112,9 @@ class OsPoolRefresh(angr.SimProcedure):
         poolp = self.state.metadata.get(Pool, pool)
         clock.assert_is_current_time(self.state, time) # equivalent to the "upperbounded" precondition; TODO improve this
         if utils.can_be_false(self.state.solver, index < poolp.size):
-            raise "Precondition does not hold: index < size"
+            raise SymbexException("Precondition does not hold: index < size")
         if utils.can_be_false(self.state.solver, self.state.maps.get(poolp.items, index)[1]):
-            raise "Precondition does not hold: ghostmap_get(items, index) != none"
+            raise SymbexException("Precondition does not hold: ghostmap_get(items, index) != none")
 
         # Postconditions
         self.state.maps.set(poolp.items, index, time)
@@ -138,12 +139,12 @@ class OsPoolUsed(angr.SimProcedure):
 
         # Symbolism assumptions
         if out_time.symbolic:
-            raise "out_time cannot be symbolic"
+            raise SymbexException("out_time cannot be symbolic")
 
         # Preconditions
         poolp = self.state.metadata.get(Pool, pool)
         if utils.can_be_false(self.state.solver, index < poolp.size):
-            raise "Precondition does not hold: index < size"
+            raise SymbexException("Precondition does not hold: index < size")
         self.state.memory.load(out_time, bitsizes.int64_t // 8)
 
         # Postconditions
@@ -177,7 +178,7 @@ class OsPoolExpire(angr.SimProcedure):
 
         # Symbolism assumptions
         if out_index.symbolic:
-            raise "out_index cannot be symbolic"
+            raise SymbexException("out_index cannot be symbolic") 
 
         # Preconditions
         poolp = self.state.metadata.get(Pool, pool)

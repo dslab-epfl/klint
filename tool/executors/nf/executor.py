@@ -18,6 +18,7 @@ from executors.binary.externals.os import network
 from executors.binary.externals.os.structs import map
 from executors.binary.externals.os.structs import pool
 from executors.binary.externals.os.structs import cht
+from executors.binary.exceptions import SymbexException
 # Us
 import executors.nf.defs as defs
 
@@ -110,7 +111,7 @@ def havoc_iter(nf_folder, state, devices_count):
     opaque_metadata_value = handled_states[0][0].metadata.notify_impending_merge(other_states, original_state)
     (new_state, _, merged) = handled_states[0][0].merge(*other_states, common_ancestor=original_state)
     if not merged:
-      raise "Not merged..."
+      raise SymbexException("Not merged...")
     reached_fixpoint = new_state.metadata.notify_completed_merge(opaque_metadata_value)
     if reached_fixpoint:
         return (new_state, True)

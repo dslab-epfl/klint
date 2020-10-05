@@ -10,6 +10,7 @@ sys.path.append(".")
 import executors.nf.defs as defs
 import executors.nf.executor as nf_executor
 import executors.python.executor as py_executor
+
 # TODO would be cleaner to unwrap everything during symbex... but recursively unwrapping stuff gets hairy
 import executors.python.symbex as py_symbex
 import pathlib
@@ -37,14 +38,14 @@ def to_claripy(val):
   if isinstance(val, bool):
     return claripy.BVV(1 if val else 0, 64)
   print(type(val))
-  raise 'not implemented'
+  raise NotImplementedError()
 
 def check_one(solver, spec_out, code_out):
   if not code_out.total:
-    raise 'not implemented' # not sure if we ever want to allow this; what would it mean?
+    raise NotImplementedError() # not sure if we ever want to allow this; what would it mean?
 
   if not spec_out.total:
-    raise 'not implemented' # TODO
+    raise NotImplementedError() # TODO
 
   if len(spec_out.packets) != len(code_out.packets):
     raise AssertionError("Total outputs do not have the same number of packets")

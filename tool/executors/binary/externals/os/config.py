@@ -3,6 +3,7 @@ import claripy
 import executors.binary.cast as cast
 import executors.binary.utils as utils
 from collections import namedtuple
+from executors.binary.exceptions import SymbexException
 
 ConfigMetadata = namedtuple('ConfigMetadata', ['items'])
 
@@ -14,7 +15,7 @@ class ConfigU(angr.SimProcedure):
     name = cast.ptr(name)
 
     if name.symbolic:
-      raise "Cannot use symbolic names for config"
+      raise SymbexException("Cannot use symbolic names for config")
 
     py_name = utils.read_str(self.state, name)
 

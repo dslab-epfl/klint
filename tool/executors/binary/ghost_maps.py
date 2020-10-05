@@ -4,6 +4,7 @@ import claripy
 from executors.binary.metadata import Metadata
 import executors.binary.utils as utils
 from collections import namedtuple
+from executors.binary.exceptions import SymbexException
 import copy
 import itertools
 import os
@@ -27,7 +28,7 @@ class Map:
     def new(state, key_size, value_size, name, length, invariants, _name_counter=[0]): # use a list for the counter as a byref equivalent
         def to_int(n, name):
             if isinstance(n, claripy.ast.base.Base) and n.symbolic:
-                raise (name + " cannot be symbolic")
+                raise SymbexException(name + " cannot be symbolic")
             return state.solver.eval_one(n, cast_to=int)
 
         key_size = to_int(key_size, "key_size")
@@ -370,7 +371,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                 return None
             if len(items1) != len(items2):
                 # Lazyness: implementing backtracking in case a guess fails is hard :p
-                raise "backtracking not implemented yet"
+                raise SymbexException("backtracking not implemented yet")
             # TODO: This loop could use some refactoring to avoid the over-repeated "found = True, items2.remove(it2), break"...
             for it1 in items1:
                 found = False

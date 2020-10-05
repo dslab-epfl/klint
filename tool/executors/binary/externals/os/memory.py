@@ -3,6 +3,7 @@ import claripy
 import executors.binary.bitsizes as bitsizes
 import executors.binary.cast as cast
 import executors.binary.utils as utils
+from executors.binary.exceptions import SymbexException
 
 # void* os_memory_alloc(size_t count, size_t size);
 # requires count == 1 || count * size <= SIZE_MAX;
@@ -17,11 +18,11 @@ class OsMemoryAlloc(angr.SimProcedure):
 
         # Symbolism assumptions
         if size.symbolic:
-            raise "size cannot be symbolic"
+            raise SymbexException("size cannot be symbolic")
 
         # Preconditions
         if utils.can_be_false(self.state.solver, (count == 1) | (count * size <= (2 ** bitsizes.size_t - 1))):
-            raise "Precondition does not hold: count == 1 || count * size <= SIZE_MAX"
+            raise SymbexException("Precondition does not hold: count == 1 || count * size <= SIZE_MAX")
 
         # Postconditions
         return self.state.memory.allocate(count, size, name="allocated", default=claripy.BVV(0, self.state.solver.eval_one(size, cast_to=int) * 8))

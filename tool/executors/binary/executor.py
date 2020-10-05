@@ -5,6 +5,7 @@ from executors.binary.ghost_maps import GhostMaps
 from executors.binary.memory_split import SplitMemory
 from executors.binary.metadata import Metadata
 from executors.binary.path import Path
+from executors.binary.exceptions import SymbexException
 import faulthandler
 import random
 
@@ -21,7 +22,7 @@ class EmptyLibrary():
   class Abort(angr.SimProcedure):
     NO_RET = True
     def run(self, x):
-      raise ('Unimplemented function: ' + self.display_name)
+      raise SymbexException('Unimplemented function: ' + self.display_name)
 
   def __init__(self):
     # the existence of syscall_number_mapping and minimum/maximum_syscall_number is required by angr

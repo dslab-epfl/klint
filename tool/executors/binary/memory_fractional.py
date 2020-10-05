@@ -7,6 +7,7 @@ import claripy
 from executors.binary.memory_segmented import SegmentedMemory
 import executors.binary.bitsizes as bitsizes
 import executors.binary.utils as utils
+from executors.binary.exceptions import SymbexException
 from collections import namedtuple
 
 Facts = namedtuple('Facts', ['fractions', 'size'])
@@ -35,7 +36,7 @@ class FractionalMemory(SimMemory):
 
     def merge(self, others, merge_conditions, common_ancestor=None):
         if any(o.id != self.id for o in others) or any(o.endness != self.endness for o in others):
-            raise "Merging FractionalMemory instances with different IDs or endnesses is not supported"
+            raise SymbexException("Merging FractionalMemory instances with different IDs or endnesses is not supported")
 
         self.memory.merge([o.memory for o in others], merge_conditions, common_ancestor=common_ancestor.memory if common_ancestor is not None else None)
         self.fractions_memory.merge([o.fractions_memory for o in others], merge_conditions, common_ancestor=common_ancestor.fractions_memory if common_ancestor is not None else None)
@@ -48,7 +49,7 @@ class FractionalMemory(SimMemory):
         facts = self.state.metadata.get(Facts, base)
         fraction = self.fractions_memory.load(facts.fractions + index, 1)
         if utils.can_be_true(self.state.solver, fraction != 100):
-            raise ("Attempt to store without definitely owning the object at addr " + str(request.addr) + " ; fraction is " + str(fraction) + " ; constraints are " + str(self.state.solver.constraints) + " ; e.g. could be " + str(self.state.solver.eval_upto(fraction, 10, cast_to=int)))
+            raise SymbexException("Attempt to store without definitely owning the object at addr " + str(request.addr) + " ; fraction is " + str(fraction) + " ; constraints are " + str(self.state.solver.constraints) + " ; e.g. could be " + str(self.state.solver.eval_upto(fraction, 10, cast_to=int)))
 
         endness = self.endness if request.endness is None else request.endness
         if endness == archinfo.Endness.BE:
@@ -62,7 +63,7 @@ class FractionalMemory(SimMemory):
         facts = self.state.metadata.get(Facts, base)
         fraction = self.fractions_memory.load(facts.fractions + index, 1)
         if utils.can_be_true(self.state.solver, fraction == 0):
-            raise ("Attempt to load without definitely having access to the object at addr " + str(addr) + " ; fraction is " + str(fraction) + " ; constraints are " + str(self.state.solver.constraints) + " ; e.g. could be " + str(self.state.solver.eval_upto(fraction, 10, cast_to=int)))
+            raise SymbexException("Attempt to load without definitely having access to the object at addr " + str(addr) + " ; fraction is " + str(fraction) + " ; constraints are " + str(self.state.solver.constraints) + " ; e.g. could be " + str(self.state.solver.eval_upto(fraction, 10, cast_to=int)))
         (addr, value, constrs) = self.memory._load(addr, size, condition=condition, fallback=fallback, inspect=inspect, events=events, ret_on_segv=ret_on_segv)
         return (addr, value.reversed, constrs)
 
@@ -86,18 +87,18 @@ class FractionalMemory(SimMemory):
     def take(self, fraction, ptr, size): # fraction == None -> take all
         (base, index, offset) = self.memory.base_index_offset(ptr)
         if offset != 0:
-            raise "Cannot take at an offset"
+            raise SymbexException("Cannot take at an offset")
 
         facts = self.state.metadata.get(Facts, base)
         if utils.can_be_true(self.state.solver, facts.size != size):
-            raise ("Can only take entire items ; you wanted " + str(size) + " but the item size is " + str(facts.size))
+            raise SymbexException("Can only take entire items ; you wanted " + str(size) + " but the item size is " + str(facts.size))
 
         current_fraction = self.fractions_memory.load(facts.fractions + index, 1)
         if fraction is None:
             fraction = current_fraction
 
         if utils.can_be_true(self.state.solver, current_fraction.ULT(fraction)):
-            raise ("Cannot take " + str(fraction) + " ; there is only " + str(current_fraction))
+            raise SymbexException("Cannot take " + str(fraction) + " ; there is only " + str(current_fraction))
 
         self.fractions_memory.store(facts.fractions + index, (current_fraction - fraction), size=1)
         return current_fraction
@@ -105,15 +106,15 @@ class FractionalMemory(SimMemory):
     def give(self, fraction, ptr, size):
         (base, index, offset) = self.memory.base_index_offset(ptr)
         if offset != 0:
-            raise ("Cannot give at an offset")
+            raise SymbexException("Cannot give at an offset")
 
         facts = self.state.metadata.get(Facts, base)
         if utils.can_be_true(self.state.solver, facts.size != size):
-            raise ("Can only give entire items ; you wanted " + str(size) + " but the item size is " + str(fact.size))
+            raise SymbexException("Can only give entire items ; you wanted " + str(size) + " but the item size is " + str(facts.size))
 
         current_fraction = self.fractions_memory.load(facts.fractions + index, 1)
         if utils.can_be_true(self.state.solver, (current_fraction + fraction).UGT(100)):
-            raise ("Cannot give " + str(fraction) + " ; there is already " + str(current_fraction))
+            raise SymbexException("Cannot give " + str(fraction) + " ; there is already " + str(current_fraction))
 
         self.fractions_memory.store(facts.fractions + index, (current_fraction + fraction), size=1)
 
@@ -123,4 +124,4 @@ class FractionalMemory(SimMemory):
         for (o, facts) in self.state.metadata.get_all(Facts):
             if facts.fractions is fracs_obj:
                 return (o, facts.size)
-        raise "What are you doing?"
+        raise SymbexException("What are you doing?")
