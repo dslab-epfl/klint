@@ -1,27 +1,20 @@
-#pragma once
-
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
-
 #include <nmmintrin.h>
 
-
-typedef uint32_t hash_t;
-#define chars_to_hashes chars_to_uints
+#include "os/generic_ops.h"
 
 //@ fixpoint hash_t hash_fp(list<char> value);
 
-
-static inline bool generic_eq(void* a, void* b, size_t obj_size)
+bool generic_eq(void* a, void* b, size_t obj_size)
 //@ requires [?f1]chars(a, obj_size, ?ac) &*& [?f2]chars(b, obj_size, ?bc);
 //@ ensures [f1]chars(a, obj_size, ac) &*& [f2]chars(b, obj_size, bc) &*& result == (ac == bc);
 {
 	return 0 == memcmp(a, b, obj_size);
 }
 
-static inline hash_t generic_hash(void* obj, size_t obj_size)
+hash_t generic_hash(void* obj, size_t obj_size)
 //@ requires [?f]chars(obj, obj_size, ?value);
 /*@ ensures [f]chars(obj, obj_size, value) &*&
             result == hash_fp(value); @*/
@@ -44,7 +37,7 @@ static inline hash_t generic_hash(void* obj, size_t obj_size)
 		hash = (uint32_t) _mm_crc32_u64(hash, *((uint64_t*)obj));
 		//@ integer__to_chars(obj, 8, false);
 		//@ discarded_size += 8;
-		obj += 8;
+		obj = (void*) (((char*)obj) + 8);
 		obj_size -= 8;
 	}
 	if (obj_size >= 4) {
@@ -54,7 +47,7 @@ static inline hash_t generic_hash(void* obj, size_t obj_size)
 		hash = _mm_crc32_u32(hash, *((uint32_t*)obj));
 		//@ integer__to_chars(obj, 4, false);
 		//@ discarded_size += 4;
-		obj += 4;
+		obj = (void*) (((char*)obj) + 4);
 		obj_size -= 4;
 		//@ chars_join(obj - discarded_size);
 	}
@@ -65,7 +58,7 @@ static inline hash_t generic_hash(void* obj, size_t obj_size)
 		hash = _mm_crc32_u16(hash, *((uint16_t*)obj));
 		//@ integer__to_chars(obj, 2, false);
 		//@ discarded_size += 2;
-		obj += 2;
+		obj = (void*) (((char*)obj) + 2);
 		obj_size -= 2;
 		//@ chars_join(obj - discarded_size);
 	}

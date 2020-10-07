@@ -13,11 +13,6 @@
 
 struct ld_balancer *balancer;
 uint16_t wan_device;
-// @TODO; maybe this should be part of struct ld_balancer ?
-// uint8_t** device_macs;
-
-// For debugging purposes
-uint8_t dummy_device_mac[6] = {0, 0, 0, 0, 0, 0};
 
 bool nf_init(uint16_t devices_count)
 {
@@ -26,8 +21,6 @@ bool nf_init(uint16_t devices_count)
     {
         return false;
     }
-
-    // device_macs = os_config_get_device_macs("device macs");
 
     uint32_t flow_capacity = os_config_get_u32("flow capacity");
     uint32_t cht_height = os_config_get_u32("cht height");
@@ -38,10 +31,10 @@ bool nf_init(uint16_t devices_count)
     if (backend_capacity == 0 || backend_capacity >= cht_height || backend_capacity * cht_height >= MAX_UINT32) {
         return false;
     }
-    time_t end_expiration_time = os_config_get_time("end expiration time");
+    time_t backend_expiration_time = os_config_get_time("backend expiration time");
     time_t flow_expiration_time = os_config_get_time("flow expiration time");
 
-    balancer = ld_balancer_alloc(flow_capacity, backend_capacity, cht_height, end_expiration_time, flow_expiration_time);
+    balancer = ld_balancer_alloc(flow_capacity, backend_capacity, cht_height, backend_expiration_time, flow_expiration_time);
     return balancer != NULL;
 }
 
@@ -79,13 +72,10 @@ void nf_handle(struct os_net_packet *packet)
     struct lb_backend backend = lb_get_backend(balancer, &flow, now, wan_device);
 
     os_debug("Processing packet from %" PRIu16 " to %" PRIu16, device, backend.nic);
-    // @TODO: seems useless in this new symbex pipeline, make sure this is true
-    // concretize_devices(&backend.nic, rte_eth_dev_count());
 
     if (backend.nic != wan_device)
     {
         ipv4_header->dst_addr = backend.ip;
-        memcpy(&ether_header->src_addr, dummy_device_mac, OS_NET_ETHER_ADDR_SIZE);
         memcpy(&ether_header->dst_addr, backend.mac.addr_bytes, OS_NET_ETHER_ADDR_SIZE);
     }
 

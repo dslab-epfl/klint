@@ -74,7 +74,3 @@ class ChtFindPreferredAvailableBackend(angr.SimProcedure):
 
         guard = self.state.maps.forall(active_backends.items, lambda k, v: claripy.And(k < 0, k >= cht.backend_capacity))
         return utils.fork_guarded(self, guard, case_true, case_false)
-
-class AngrBreakpoint(angr.SimProcedure):
-    def run(self):
-        print("!!! angr_breakpoint")

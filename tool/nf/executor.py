@@ -15,6 +15,7 @@ from binary.externals.os import config
 from binary.externals.os import debug
 from binary.externals.os import memory
 from binary.externals.os import network
+from binary.externals.os import generic_ops
 from binary.externals.os.structs import map
 from binary.externals.os.structs import pool
 from binary.externals.os.structs import cht
@@ -26,7 +27,6 @@ init_externals = {
   'os_config_get_u32': config.ConfigU32,
   'os_config_get_u64': config.ConfigU64,
   'os_config_get_time': config.ConfigTime,
-  'os_config_get_device_macs': config.ConfigDeviceMacs,
   'os_memory_alloc': memory.OsMemoryAlloc,
   'os_map_alloc': map.OsMapAlloc,
   'os_pool_alloc': pool.OsPoolAlloc,
@@ -47,7 +47,8 @@ handle_externals = {
   'os_pool_used': pool.OsPoolUsed,
   'os_pool_expire': pool.OsPoolExpire,
   'cht_find_preferred_available_backend': cht.ChtFindPreferredAvailableBackend,
-  'angr_breakpoint': cht.AngrBreakpoint,
+  'generic_eq': generic_ops.GenericEq,
+  'generic_hash': generic_ops.GenericEq,
 }
 
 def nf_init(nf_folder, devices_count):

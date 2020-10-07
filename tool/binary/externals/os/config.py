@@ -43,6 +43,3 @@ class ConfigU64(ConfigU):
 
 class ConfigTime(ConfigU):
   def size(self): return 64
-
-class ConfigDeviceMacs(ConfigU):
-  def size(self): return 64

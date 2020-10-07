@@ -1,7 +1,7 @@
 #include "os/structs/map.h"
 
 #include "os/memory.h"
-#include "generic_ops.h"
+#include "os/generic_ops.h"
 
 //@ #include "proof/chain-buckets.gh"
 //@ #include "proof/listexex.gh"
