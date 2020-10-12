@@ -10,7 +10,7 @@ struct State *state_alloc(uint32_t backend_capacity, uint32_t flow_capacity, uin
     state->flow_to_flow_id = os_map_alloc(sizeof(struct lb_flow), flow_capacity);
     state->flow_heap = os_memory_alloc(flow_capacity, sizeof(struct lb_flow));
     state->flow_chain = os_pool_alloc(flow_capacity);
-    state->flow_id_to_backend_id = os_memory_alloc(flow_capacity, sizeof(uint32_t));
+    state->flow_id_to_backend_id = os_memory_alloc(flow_capacity, sizeof(size_t));
     state->ip_to_backend_id = os_map_alloc(sizeof(struct ip_addr), backend_capacity);
     state->backend_ips = os_memory_alloc(backend_capacity, sizeof(struct ip_addr));
     state->backends = os_memory_alloc(backend_capacity, sizeof(struct lb_backend));

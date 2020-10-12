@@ -8,9 +8,9 @@
 #include "os/memory.h"
 #include "os/generic_ops.h"
 
-struct ld_balancer *ld_balancer_alloc(uint32_t flow_capacity,
-                                      uint32_t backend_capacity,
-                                      uint32_t cht_height,
+struct ld_balancer *ld_balancer_alloc(size_t flow_capacity,
+                                      size_t backend_capacity,
+                                      size_t cht_height,
                                       time_t backend_expiration_time,
                                       time_t flow_expiration_time)
 {
@@ -35,9 +35,9 @@ struct lb_backend lb_get_backend(struct ld_balancer *balancer,
     struct lb_backend backend;
     if (!os_map_get(balancer->state->flow_to_flow_id, flow, (void **)&flow_index))
     {
-        uint32_t backend_index = 0;
-        uint32_t found = cht_find_preferred_available_backend(
-            balancer->state->cht, generic_hash((void*)flow, sizeof(struct lb_flow)),
+        size_t backend_index = 0;
+        bool found = cht_find_preferred_available_backend(
+            balancer->state->cht, (void*)flow, sizeof(struct lb_flow),
             balancer->state->active_backends, &backend_index);
         if (found)
         {
@@ -46,7 +46,7 @@ struct lb_backend lb_get_backend(struct ld_balancer *balancer,
                 struct lb_flow *vec_flow = &balancer->state->flow_heap[flow_index];
                 memcpy(vec_flow, flow, sizeof(struct lb_flow));
 
-                uint32_t *vec_flow_id_to_backend_id = &balancer->state->flow_id_to_backend_id[flow_index];
+                size_t *vec_flow_id_to_backend_id = &balancer->state->flow_id_to_backend_id[flow_index];
                 *vec_flow_id_to_backend_id = backend_index;
 
                 os_map_set(balancer->state->flow_to_flow_id, vec_flow, (void *)flow_index);
@@ -62,7 +62,7 @@ struct lb_backend lb_get_backend(struct ld_balancer *balancer,
     }
     else
     {
-        uint32_t backend_index = balancer->state->flow_id_to_backend_id[flow_index];
+        size_t backend_index = balancer->state->flow_id_to_backend_id[flow_index];
         time_t out_time;
         if (!os_pool_used(balancer->state->active_backends, backend_index, &out_time))
         {

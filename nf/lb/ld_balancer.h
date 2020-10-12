@@ -10,9 +10,9 @@ struct ld_balancer
     time_t backend_expiration_time;
 };
 
-struct ld_balancer *ld_balancer_alloc(uint32_t flow_capacity,
-                                      uint32_t backend_capacity,
-                                      uint32_t cht_height,
+struct ld_balancer *ld_balancer_alloc(size_t flow_capacity,
+                                      size_t backend_capacity,
+                                      size_t cht_height,
                                       time_t backend_expiration_time,
                                       time_t flow_expiration_time);
 struct lb_backend lb_get_backend(struct ld_balancer *balancer,

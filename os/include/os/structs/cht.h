@@ -10,9 +10,9 @@
 
 struct cht
 {
-    uint32_t *data;
-    uint32_t height;
-    uint32_t backend_capacity;
+    size_t *data;
+    size_t height;
+    size_t backend_capacity;
 };
 
 // @TODO: how to check that cht_height is prime ?
@@ -25,7 +25,7 @@ struct cht
     }
 @*/
 
-struct cht *cht_alloc(uint32_t cht_height, uint32_t backend_capacity);
+struct cht *cht_alloc(size_t cht_height, size_t backend_capacity);
 /*@ requires
         0 < cht_height &*& cht_height < MAX_CHT_HEIGHT &*&
         0 < backend_capacity &*& backend_capacity < cht_height &*&
@@ -35,7 +35,7 @@ struct cht *cht_alloc(uint32_t cht_height, uint32_t backend_capacity);
         chtp(result)
 @*/
 
-uint32_t cht_find_preferred_available_backend(struct cht *cht, uint64_t hash, struct os_pool *active_backends, uint32_t *chosen_backend);
+bool cht_find_preferred_available_backend(struct cht *cht, void* obj, size_t obj_size, struct os_pool *active_backends, size_t *chosen_backend);
 /*@ requires
         chtp(cht) &*&
         poolp(active_backends, ?size, ?backends) &*& cht->backend_capacity <= size &*&
@@ -49,7 +49,5 @@ uint32_t cht_find_preferred_available_backend(struct cht *cht, uint64_t hash, st
                 ghostmap_get(backends, index) == some(?t)) &*& result == 1;
 
 @*/
-
-void angr_breakpoint();
 
 #endif //_CHT_H_INCLUDED_

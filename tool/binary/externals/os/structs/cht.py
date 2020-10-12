@@ -19,8 +19,8 @@ MAX_CHT_HEIGHT = 40000
 class ChtAlloc(angr.SimProcedure):
     def run(self, cht_height, backend_capacity):
         # Casts
-        cht_height = cast.uint32_t(cht_height)
-        backend_capacity = cast.uint32_t(backend_capacity)
+        cht_height = cast.size_t(cht_height)
+        backend_capacity = cast.size_t(backend_capacity)
         print(f"!!! cht_alloc [cht_height: {cht_height}, backend_capcity: {backend_capacity}]")
 
         # Preconditions
@@ -56,12 +56,11 @@ class ChtFindPreferredAvailableBackend(angr.SimProcedure):
         cht = self.state.metadata.get(Cht, cht)
         active_backends = self.state.metadata.get(Pool, active_backends)
         self.state.memory.load(chosen_backend, bitsizes.size_t // 8)
-        if utils.can_be_false(self.state.solver, cht.backend_capacity.zero_extend(32) <= active_backends.size):
+        if utils.can_be_false(self.state.solver, cht.backend_capacity <= active_backends.size):
             raise SymbexException("Precondition does not hold.")
 
         # Postconditions
-        backend = claripy.BVS("backend", bitsizes.uint32_t)
-
+        backend = claripy.BVS("backend", bitsizes.size_t)
         def case_true(state):
             print("!!! cht_find_preferred_available_backend: did not find available backend")
             return claripy.BVV(0, bitsizes.bool)
@@ -72,5 +71,5 @@ class ChtFindPreferredAvailableBackend(angr.SimProcedure):
             utils.add_constraints_and_check_sat(state, state.maps.get(active_backends.items, backend)[1])
             return claripy.BVV(1, bitsizes.bool)
 
-        guard = self.state.maps.forall(active_backends.items, lambda k, v: claripy.And(k < 0, k >= cht.backend_capacity))
+        guard = self.state.maps.forall(active_backends.items, lambda k, v: claripy.Or(k < 0, k >= cht.backend_capacity))
         return utils.fork_guarded(self, guard, case_true, case_false)
