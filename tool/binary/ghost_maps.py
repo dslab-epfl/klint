@@ -336,15 +336,19 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
 
     first_time = len(_cache) == 0
 
+    def init_cache(objs):
+        last_level = {k: (False, None) for k in ["k", "p", "v"]}
+        for (o1, o2) in itertools.permutations(objs, 2):
+            if o1 not in _cache:
+                _cache[o1] = {}
+            if o2 not in _cache[o1]:
+                _cache[o1][o2] = copy.deepcopy(last_level)
+
     def get_cached(o1, o2, op):
-        key = str(o1) + str(o2) + op
-        if key in _cache:
-            return (True, _cache[key]) # value can be None!
-        return (False, None)
+        return _cache[o1][o2][op]
 
     def set_cached(o1, o2, op, val):
-        key = str(o1) + str(o2) + op
-        _cache[key] = val
+        _cache[o1][o2][op] = (True, val)
 
     # helper function to get only the items that are definitely in the map associated with the given obj in the given state
     def filter_present(state, obj):
@@ -483,6 +487,9 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
     remaining_work = queue.Queue()
     for (o1, o2) in itertools.permutations(objs, 2):
         remaining_work.put((o1, o2))
+    
+    # Initialize the cache for fast read/write acces during invariant inference
+    init_cache(objs)
 
     def thread_main(ancestor_state, orig_states):
         while True:
@@ -504,7 +511,6 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
             # Additionally,
             #  if there exists a function FV such that in all states, forall(M1, (K,V): FP(K,V) => get(M2, FK(K, V)) == (FV(K, V), true)),
             #  then assume this is an invariant of M1 in the merged state.
-            # TODO: a string ID is not really enough to guarantee the constraints are the same here...
             # We use maps directly to refer to the map state as it was in the ancestor, not during execution;
             # otherwise, get(M1, k) after remove(M2, k) might add has(M2, k) to the constraints, which is obviously false
             (fk_is_cached, fk) = get_cached(o1, o2, "k")
