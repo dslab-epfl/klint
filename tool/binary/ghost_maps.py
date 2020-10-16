@@ -333,8 +333,10 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
     print("Cross-merge of maps starting. State count:", len(_states_to_merge))
 
     _states = _states_to_merge + [_ancestor_state]
-
     first_time = len(_cache) == 0
+    get_key = lambda i: i.key
+    get_value = lambda i: i.value
+    ancestor_variables = _ancestor_state.solver.variables(claripy.And(*_ancestor_state.solver.constraints))
 
     def init_cache(objs):
         last_level = {k: (False, None) for k in ["k", "p", "v"]}
@@ -352,112 +354,53 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
 
     # helper function to get only the items that are definitely in the map associated with the given obj in the given state
     def filter_present(state, obj):
-        present_items = []
+        present_items = set()
         for i in state.maps[obj].known_items():
             if utils.definitely_true(state.solver, claripy.And(i.present, *[i.key != pi.key for pi in present_items])):
-                present_items.append(i)
+                present_items.add(i)
         return present_items
 
     # helper function to find FK or FV
-    ancestor_variables = _ancestor_state.solver.variables(claripy.And(*_ancestor_state.solver.constraints))
-    def find_f(states, o1, o2, kind1, kind2):
-        def get_sel(kind):
-            return (lambda i: i.key) if kind == "key" else (lambda i: i.value)
-        sel1 = get_sel(kind1)
-        sel2 = get_sel(kind2)
-
+    def find_f(states, o1, o2, sel1, sel2, candidate_finders):
         candidate_func = None
+        
         for state in states:
             items1 = filter_present(state, o1)
             items2 = filter_present(state, o2)
             if len(items1) == 0:
                 # If there are no items in 1 it's fine but doesn't give us info either
                 continue
-            if len(items1) > len(items2):
+            elif len(items1) > len(items2):
                 # Pigeonhole: there must be an item in 1 that does not match one in 2
                 return None
-            if len(items1) != len(items2):
+            elif len(items1) < len(items2):
                 # Lazyness: implementing backtracking in case a guess fails is hard :p
-                raise SymbexException("backtracking not implemented yet")
-            # TODO: This loop could use some refactoring to avoid the over-repeated "found = True, items2.remove(it2), break"...
-            for it1 in items1:
-                found = False
+                raise SymbexException("backtracking not implemented yet")                
+
+            if candidate_func is not None: # We have a candidate function
+                # Returns None iff the candidate function cannot match each element in items1 with an element of items2 
+                for it1 in items1:
+                    ref = candidate_func(state, it1, True)
+                    for it2 in items2:
+                        if utils.definitely_true(state.solver, sel2(it2) == ref):
+                            items2.remove(it2)
+                            break
+                    else:
+                        return None
+            else: # We don't have a candidate function yet
+                it1 = items1.pop()
                 for it2 in items2:
-                    x2 = sel2(it2)
+                    for finder in candidate_finders: # Use the finders
+                        candidate_func = finder(state, o1, o2, sel1, sel2, it1, it2)
+                        if candidate_func is not None:
+                            items2.remove(it2)
+                            break
                     if candidate_func is not None:
-                        if utils.definitely_true(state.solver, x2 == candidate_func(state, it1, True)):
-                            # All good, our candidate worked
-                            found = True
-                            items2.remove(it2)
-                        # else: maybe next item?
                         break
-                    # The ugliest one first: if o1 is a "fractions" obj, check if the corresponding value in the corresponding obj is equal to x2.reversed
-                    if kind1 == "key":
-                        # note that orig_size is in bytes, but x2.size() is in bits!
-                        orig_o1, orig_size = state.memory.get_obj_and_size_from_fracs_obj(o1)
-                        if orig_o1 is not None and orig_o1 is not o2 and utils.definitely_true(state.solver, orig_size * 8 == x2.size()):
-                            (orig_x1v, orig_x1p) = state.maps.get(orig_o1, it1.key)
-                            if utils.definitely_true(state.solver, orig_x1p & (orig_x1v == x2.reversed)):
-                                candidate_func = lambda st, it, from_present, orig_o1=orig_o1: \
-                                                 st.maps.get(orig_o1, it.key, from_present=from_present)[0].reversed
-                                found = True
-                                items2.remove(it2)
-                                break
-                    x1 = sel1(it1)
-                    if x1.size() == x2.size():
-                        if utils.definitely_true(state.solver, x1 == x2):
-                            # Identity is a possible function
-                            candidate_func = lambda st, it, _: sel1(it)
-                            found = True
-                            items2.remove(it2)
-                            break
-                        fake = claripy.BVS("fake", x1.size())
-                        if not x2.replace(x1, fake).structurally_match(x2):
-                            # Replacement is a possible function
-                            candidate_func = lambda st, it, _, x1=x1, x2=x2: x2.replace(x1, sel1(it))
-                            found = True
-                            items2.remove(it2)
-                            break
-                        # a few special cases on the concept of finding a function and its inverse
-                        # if x1 is "(0..x)" and x2 contains "x"
-                        if x1.op == "Concat" and \
-                           len(x1.args) == 2 and \
-                           x1.args[0].structurally_match(claripy.BVV(0, x1.args[0].size())):
-                            fake = claripy.BVS("fake", x1.args[1].size())
-                            if not x2.replace(x1.args[1], fake).structurally_match(x2):
-                                candidate_func = lambda st, it, _, x1=x1, x2=x2: x2.replace(x1.args[1], claripy.Extract(x1.args[1].size() - 1, 0, sel1(it)))
-                                found = True
-                                items2.remove(it2)
-                                break
-                        # if x1 is "(x..0) + n" where n is known from the ancestor and x2 contains "x"
-                        if x1.op == "__add__" and \
-                           len(x1.args) == 2 and \
-                           state.solver.variables(x1.args[1]).issubset(ancestor_variables) and \
-                           x1.args[0].op == "Concat" and \
-                           len(x1.args[0].args) == 2 and \
-                           x1.args[0].args[1].structurally_match(claripy.BVV(0, x1.args[0].args[1].size())):
-                            fake = claripy.BVS("fake", x1.args[0].args[0].size())
-                            if not x2.replace(x1.args[0].args[0], fake).structurally_match(x2):
-                                candidate_func = lambda st, it, _, x1=x1, x2=x2: x2.replace(x1.args[0].args[0], claripy.Extract(x1.size() - 1, x1.args[0].args[1].size(), sel1(it) - x1.args[1]))
-                                found = True
-                                items2.remove(it2)
-                                break
-                            if utils.definitely_true(state.solver, x2 == x1.args[0].args[0].zero_extend(x1.size() - x1.args[0].args[0].size())):
-                                candidate_func = lambda st, it, _, x1=x1: claripy.Extract(x1.size() - 1, x1.args[0].args[1].size(), sel1(it) - x1.args[1]).zero_extend(x1.args[0].args[1].size())
-                                found = True
-                                items2.remove(it2)
-                                break
-                    if kind2 == "value":
-                        const = utils.get_if_constant(state.solver, x2)
-                        if const is not None:
-                            # A constant is a possible function
-                            candidate_func = lambda st, it, _, const=const, sz=x2.size(): claripy.BVV(const, sz)
-                            found = True
-                            items2.remove(it2)
-                            break
-                if not found:
-                    # Found nothing in this state, give up
+                else:
+                    # We couldn't find a candidate function
                     return None
+            
         # Our candidate has survived all states!
         return candidate_func
 
@@ -466,30 +409,62 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
         constants = set([utils.get_if_constant(state.solver, sel(i)) for state in states for i in filter_present(state, o)])
         return [lambda i: claripy.true] + [lambda i, c=c: sel(i) == claripy.BVV(c, sel(i).size()) for c in constants if c is not None]
 
-    # Optimization: Ignore maps that have not changed at all, e.g. those that are de facto readonly after initialization
-    objs = [o for o in objs if any(not utils.structural_eq(_ancestor_state.maps[o], st.maps[o]) for st in _states)]
+    def candidate_finder_1(state, o1, o2, sel1, sel2, it1, it2):
+        # The ugliest one first: if o1 is a "fractions" obj, check if the corresponding value in the corresponding obj is equal to x2.reversed
+        x2 = sel2(it2)
+        if sel1 is get_key:
+            # note that orig_size is in bytes, but x2.size() is in bits!
+            orig_o1, orig_size = state.memory.get_obj_and_size_from_fracs_obj(o1)
+            if orig_o1 is not None and orig_o1 is not o2 and utils.definitely_true(state.solver, orig_size * 8 == x2.size()):
+                (orig_x1v, orig_x1p) = state.maps.get(orig_o1, it1.key)
+                if utils.definitely_true(state.solver, orig_x1p & (orig_x1v == x2.reversed)):
+                    return lambda st, it, from_present, orig_o1=orig_o1: st.maps.get(orig_o1, it.key, from_present=from_present)[0].reversed
+        return None
 
-    results = queue.Queue() # pairs: (ID, maps, lambda states, maps: returns None for no changes or maps to overwrite them)
-    to_cache = queue.Queue() # set_cached(...) will be called with all elements in there
+    def candidate_finder_2(state, o1, o2, sel1, sel2, it1, it2):
+        x1 = sel1(it1)
+        x2 = sel2(it2)
+        if x1.size() == x2.size():
+            if utils.definitely_true(state.solver, x1 == x2):
+                # Identity is a possible function
+                return lambda st, it, _: sel1(it)
 
-    # Invariant inference algorithm: if some property P holds in all states to merge and the ancestor state, optimistically assume it is part of the invariant
-    for o in objs:
-        # Step 1: Length variation.
-        # If the length may have changed in any state from the one in the ancestor state,
-        # replace the length with a fresh symbol
-        ancestor_length = _ancestor_state.maps.length(o)
-        for state in _states_to_merge:
-            if utils.can_be_false(state.solver, state.maps.length(o) == ancestor_length):
-                print("Length of map", o, " was changed; making it symbolic")
-                results.put(("length-var", [o], lambda st, ms: [ms[0].with_length(claripy.BVS("map_length", ms[0].length().size()))]))
-                break
+            fake = claripy.BVS("fake", x1.size())
+            if not x2.replace(x1, fake).structurally_match(x2):
+                # Replacement is a possible function
+                return lambda st, it, _, x1=x1, x2=x2: x2.replace(x1, sel1(it))
 
-    remaining_work = queue.Queue()
-    for (o1, o2) in itertools.permutations(objs, 2):
-        remaining_work.put((o1, o2))
-    
-    # Initialize the cache for fast read/write acces during invariant inference
-    init_cache(objs)
+            # a few special cases on the concept of finding a function and its inverse
+            # if x1 is "(0..x)" and x2 contains "x"
+            if x1.op == "Concat" and \
+            len(x1.args) == 2 and \
+            x1.args[0].structurally_match(claripy.BVV(0, x1.args[0].size())):
+                fake = claripy.BVS("fake", x1.args[1].size())
+                if not x2.replace(x1.args[1], fake).structurally_match(x2):
+                    return lambda st, it, _, x1=x1, x2=x2: x2.replace(x1.args[1], claripy.Extract(x1.args[1].size() - 1, 0, sel1(it)))
+                    
+            # if x1 is "(x..0) + n" where n is known from the ancestor and x2 contains "x"
+            if x1.op == "__add__" and \
+            len(x1.args) == 2 and \
+            state.solver.variables(x1.args[1]).issubset(ancestor_variables) and \
+            x1.args[0].op == "Concat" and \
+            len(x1.args[0].args) == 2 and \
+            x1.args[0].args[1].structurally_match(claripy.BVV(0, x1.args[0].args[1].size())):
+                fake = claripy.BVS("fake", x1.args[0].args[0].size())
+                if not x2.replace(x1.args[0].args[0], fake).structurally_match(x2):
+                    return lambda st, it, _, x1=x1, x2=x2: x2.replace(x1.args[0].args[0], claripy.Extract(x1.size() - 1, x1.args[0].args[1].size(), sel1(it) - x1.args[1]))
+                if utils.definitely_true(state.solver, x2 == x1.args[0].args[0].zero_extend(x1.size() - x1.args[0].args[0].size())):
+                    return lambda st, it, _, x1=x1: claripy.Extract(x1.size() - 1, x1.args[0].args[1].size(), sel1(it) - x1.args[1]).zero_extend(x1.args[0].args[1].size())
+        return None
+
+    def candidate_finder_3(state, o1, o2, sel1, sel2, it1, it2):
+        x2 = sel2(it2)
+        if sel2 is get_value:
+            const = utils.get_if_constant(state.solver, x2)
+            if const is not None:
+                # A constant is a possible function
+                return lambda st, it, _, const=const, sz=x2.size(): claripy.BVV(const, sz)
+        return None
 
     def thread_main(ancestor_state, orig_states):
         while True:
@@ -515,24 +490,22 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
             # otherwise, get(M1, k) after remove(M2, k) might add has(M2, k) to the constraints, which is obviously false
             (fk_is_cached, fk) = get_cached(o1, o2, "k")
             if not fk_is_cached:
-                fk = find_f(orig_states, o1, o2, "key", "key") \
-                  or find_f(orig_states, o1, o2, "value", "key")
+                fk = find_f(orig_states, o1, o2, get_key, get_key, candidate_finders) \
+                  or find_f(orig_states, o1, o2, get_value, get_key, candidate_finders)
                 to_cache.put([o1, o2, "k", fk])
             (fps_is_cached, fps) = get_cached(o1, o2, "p")
             if not fps_is_cached:
                 fps = find_f_constants(orig_states, o1, lambda i: i.value)
-            found_fp = False
             for fp in fps:
                 states = [s.copy() for s in orig_states]
                 if fk and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk: Implies(fp(MapItem(k, v, None)), st.maps.get(o2, fk(st, MapItem(k, v, None), True))[1]), _known_only=not first_time)) for st in states):
-                    found_fp = True
                     to_cache.put([o1, o2, "p", [fp]]) # only put the working one, don't have us try a pointless one next time
                     log_item = MapItem(claripy.BVS("K", ancestor_state.maps.key_size(o1)), claripy.BVS("V", ancestor_state.maps.value_size(o1)), None)
                     log_text = "Inferred: when " + str(o1) + " contains (K,V), if " + str(fp(log_item)) + " then " + str(o2) + " contains " + str(fk(ancestor_state, log_item, True))
                     (fv_is_cached, fv) = get_cached(o1, o2, "v")
                     if not fv_is_cached:
-                        fv = find_f(orig_states, o1, o2, "key", "value") \
-                          or find_f(orig_states, o1, o2, "value", "value")
+                        fv = find_f(orig_states, o1, o2, get_key, get_value, candidate_finders) \
+                          or find_f(orig_states, o1, o2, get_value, get_value, candidate_finders)
                         to_cache.put([o1, o2, "v", fv])
                     states = [s.copy() for s in orig_states]
                     if fv and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk, fv=fv: Implies(fp(MapItem(k, v, None)), st.maps.get(o2, fk(st, MapItem(k, v, None), True))[0] == fv(st, MapItem(k, v, None), True)), _known_only=not first_time)) for st in states):
@@ -547,9 +520,37 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                         results.put(("cross-key", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk: [maps[0].with_added_invariant(lambda st, i: Implies(i.present, Implies(fp(i), st.maps.get(o2, fk(st, i, False), from_present=False)[1]))), maps[1]]))
                     print(log_text) # print it at once to avoid interleavings from threads
                     break # this might make us miss some stuff in theory? but that's sound; and in practice it doesn't
-            if not found_fp:
+            else:
                 to_cache.put([o1, o2, "p", []])
 
+    # Optimization: Ignore maps that have not changed at all, e.g. those that are de facto readonly after initialization
+    objs = [o for o in objs if any(not utils.structural_eq(_ancestor_state.maps[o], st.maps[o]) for st in _states)]
+
+    # Initialize the cache for fast read/write acces during invariant inference
+    init_cache(objs)
+
+    # List of all candidate finders used by find_f
+    candidate_finders = [candidate_finder_1, candidate_finder_2, candidate_finder_3]
+
+    results = queue.Queue() # pairs: (ID, maps, lambda states, maps: returns None for no changes or maps to overwrite them)
+    to_cache = queue.Queue() # set_cached(...) will be called with all elements in there
+
+    # Invariant inference algorithm: if some property P holds in all states to merge and the ancestor state, optimistically assume it is part of the invariant
+    for o in objs:
+        # Step 1: Length variation.
+        # If the length may have changed in any state from the one in the ancestor state,
+        # replace the length with a fresh symbol
+        ancestor_length = _ancestor_state.maps.length(o)
+        for state in _states_to_merge:
+            if utils.can_be_false(state.solver, state.maps.length(o) == ancestor_length):
+                print("Length of map", o, " was changed; making it symbolic")
+                results.put(("length-var", [o], lambda st, ms: [ms[0].with_length(claripy.BVS("map_length", ms[0].length().size()))]))
+                break
+
+    remaining_work = queue.Queue()
+    for (o1, o2) in itertools.permutations(objs, 2):
+        remaining_work.put((o1, o2))
+    
     # Multithreading disabled because it causes weird errors (maybe we're configuring angr wrong; we end up with a claripy mixin shared between threads)
     # and even segfaults (which look like z3 is accessed concurrently when it shouldn't be)
     thread_main(_ancestor_state.copy(), [s.copy() for s in _states])
