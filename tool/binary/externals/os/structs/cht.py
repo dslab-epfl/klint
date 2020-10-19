@@ -39,13 +39,14 @@ class ChtAlloc(angr.SimProcedure):
 
 
 class ChtFindPreferredAvailableBackend(angr.SimProcedure):
-    def run(self, cht, hash, active_backends, chosen_backend):
+    def run(self, cht, obj, obj_size, active_backends, chosen_backend):
         # Casts
         cht = cast.ptr(cht)
-        hash = cast.uint64_t(hash)
+        obj = cast.ptr(obj)
+        obj_size = cast.size_t(obj_size)
         active_backends = cast.ptr(active_backends)
         chosen_backend = cast.ptr(chosen_backend)
-        print(  f"!!! cht_find_preferred_available_backend [hash: {hash}, " +
+        print(  f"!!! cht_find_preferred_available_backend [obj: {obj}, obj_size: {obj_size}, " +
                 f"active_backends: {active_backends}, chosen_backend: {chosen_backend}]" )
 
         # Symbolism assumptions
