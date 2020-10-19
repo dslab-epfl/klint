@@ -330,7 +330,7 @@ class GhostMaps(SimStatePlugin):
 
 # state args have a leading _ to ensure toe functions run concurrently don't accidentally touch them
 def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
-    print("Cross-merge of maps starting. State count:", len(_states_to_merge))
+    print(f"Cross-merge of maps starting. State count: {len(_states_to_merge)}")
 
     _states = _states_to_merge + [_ancestor_state]
     first_time = len(_cache) == 0
@@ -362,6 +362,14 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
 
     # helper function to find FK or FV
     def find_f(states, o1, o2, sel1, sel2, candidate_finders):
+        
+        # Returns False iff the candidate function cannot match each element in items1 with an element of items2 
+        def is_candidate_valid(items1, items2, candidate_func):
+            for it1 in items1:
+                if not utils.definitely_true(state.solver, sel2(items2.pop()) == candidate_func(state, it1, True)):
+                    return False
+            return True
+        
         candidate_func = None
         
         for state in states:
@@ -375,18 +383,10 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                 return None
             elif len(items1) < len(items2):
                 # Lazyness: implementing backtracking in case a guess fails is hard :p
-                raise SymbexException("backtracking not implemented yet")                
+                raise SymbexException("backtracking not implemented yet")
 
-            if candidate_func is not None: # We have a candidate function
-                # Returns None iff the candidate function cannot match each element in items1 with an element of items2 
-                for it1 in items1:
-                    ref = candidate_func(state, it1, True)
-                    for it2 in items2:
-                        if utils.definitely_true(state.solver, sel2(it2) == ref):
-                            items2.remove(it2)
-                            break
-                    else:
-                        return None
+            if candidate_func is not None and not is_candidate_valid(items1, items2, candidate_func): # We have a candidate function
+                return None
             else: # We don't have a candidate function yet
                 it1 = items1.pop()
                 for it2 in items2:
@@ -394,6 +394,10 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                         candidate_func = finder(state, o1, o2, sel1, sel2, it1, it2)
                         if candidate_func is not None:
                             items2.remove(it2)
+                            if not is_candidate_valid(items1, items2, candidate_func):
+                                return None
+                            # @TODO If is_candidate_valid returns false we could technically re-add it2 to items2 and try again
+                            # with another item
                             break
                     if candidate_func is not None:
                         break
