@@ -481,7 +481,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
             #   if length(M1) <= length(M2) across all states,
             #   then assume this holds the merged state
             if all(utils.definitely_true(st.solver, st.maps.length(o1) <= st.maps.length(o2)) for st in orig_states):
-                results.put(("length-lte", [o1, o2], lambda st, ms: st.add_constraints(ms[0].length() <= ms[1].length())))
+                length_results.append(("length-lte", [o1, o2], lambda st, ms: st.add_constraints(ms[0].length() <= ms[1].length())))
 
             # Step 2: Map relationships.
             # For each pair of maps (M1, M2),
@@ -519,9 +519,9 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                             fvres = fv(st, i, False)
                             (o2val, o2pres) = st.maps.get(o2, fk(st, i, False), value=fvres, from_present=False)
                             return Implies(i.present, Implies(fp(i), o2pres & (o2val == fvres)))
-                        results.put(("cross-val", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk, fv=fv: [maps[0].with_added_invariant(lambda st, i: cross_val_inv(st, i, o2, fp, fk, fv)), maps[1]]))
+                        cross_results.append(("cross-val", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk, fv=fv: [maps[0].with_added_invariant(lambda st, i: cross_val_inv(st, i, o2, fp, fk, fv)), maps[1]]))
                     else:
-                        results.put(("cross-key", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk: [maps[0].with_added_invariant(lambda st, i: Implies(i.present, Implies(fp(i), st.maps.get(o2, fk(st, i, False), from_present=False)[1]))), maps[1]]))
+                        cross_results.append(("cross-key", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk: [maps[0].with_added_invariant(lambda st, i: Implies(i.present, Implies(fp(i), st.maps.get(o2, fk(st, i, False), from_present=False)[1]))), maps[1]]))
                     print(log_text) # print it at once to avoid interleavings from threads
                     break # this might make us miss some stuff in theory? but that's sound; and in practice it doesn't
             else:
@@ -536,7 +536,8 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
     # List of all candidate finders used by find_f
     candidate_finders = [candidate_finder_1, candidate_finder_2, candidate_finder_3]
 
-    results = queue.Queue() # pairs: (ID, maps, lambda states, maps: returns None for no changes or maps to overwrite them)
+    cross_results = [] # pairs: (ID, maps, lambda states, maps: returns None for no changes or maps to overwrite them)
+    length_results = [] # pairs: (ID, maps, lambda states, maps: returns None for no changes or maps to overwrite them)
     to_cache = queue.Queue() # set_cached(...) will be called with all elements in there
 
     # Invariant inference algorithm: if some property P holds in all states to merge and the ancestor state, optimistically assume it is part of the invariant
@@ -548,7 +549,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
         for state in _states_to_merge:
             if utils.can_be_false(state.solver, state.maps.length(o) == ancestor_length):
                 print("Length of map", o, " was changed; making it symbolic")
-                results.put(("length-var", [o], lambda st, ms: [ms[0].with_length(claripy.BVS("map_length", ms[0].length().size()))]))
+                length_results.append(("length-var", [o], lambda st, ms: [ms[0].with_length(claripy.BVS("map_length", ms[0].length().size()))]))
                 break
 
     remaining_work = queue.Queue()
@@ -569,12 +570,6 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
     while not to_cache.empty():
         set_cached(*(to_cache.get()))
 
-    # turn it to a list for the next stage (and the return value)
-    results_dump = []
-    while not results.empty():
-        results_dump.append(results.get())
-    results = results_dump
-
     # ensure we don't pollute states through the next check
     _orig_states = [s.copy() for s in _states]
 
@@ -586,31 +581,27 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
     for (o1, o2) in itertools.combinations(objs, 2):
         if _ancestor_state.maps.key_size(o1) == _ancestor_state.maps.key_size(o2):
             states = [s.copy() for s in _orig_states]
-            if all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v: st.maps.get(o2, k)[1])) for st in states) and \
-               len([r for r in results if "cross-" in r[0] and r[1][0] is o1]) == len([r for r in results if "cross-" in r[0] and r[1][0] is o2]):
-                to_remove  = [r for r in results
-                                if "cross-" in r[0]
-                                and r[1][1] is o2
-                                and any(True for r2 in results
-                                             if "cross-" in r2[0]
-                                             and r2[1][1] is o1
+            if len([r for r in cross_results if r[1][0] is o1]) == len([r for r in cross_results if r[1][0] is o2]) and \
+                all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st: st.maps.get(o2, k)[1])) for st in states):
+                to_remove  = [r for r in cross_results
+                                if r[1][1] is o2
+                                and any(True for r2 in cross_results
+                                             if  r2[1][1] is o1
                                              and r2[1][0] is r[1][0])]
 
-                to_remove += [r for r in results
-                                if "cross-" in r[0]
-                                and r[1][0] is o2
-                                and any(True for r2 in results
-                                             if "cross-" in r2[0]
-                                             and r2[1][0] is o1
+                to_remove += [r for r in cross_results
+                                if r[1][0] is o2
+                                and any(True for r2 in cross_results
+                                             if r2[1][0] is o1
                                              and r2[1][1] is r[1][1])]
 
                 for r in to_remove:
-                    print("Discarding redundant inference", r[0], "between", r[1])
+                    print(f"Discarding redundant inference {r[0]} between {r[1]}")
                 # can't just use "not in" due to claripy's ==
                 to_remove_ids = set(id(r) for r in to_remove)
-                results = [r for r in results if id(r) not in to_remove_ids]
+                cross_results = [r for r in cross_results if id(r) not in to_remove_ids]
 
-    return results
+    return cross_results + length_results
 
 def maps_merge_one(states_to_merge, obj, ancestor_state):
     print("Merging map", obj)
