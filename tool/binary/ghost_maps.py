@@ -8,6 +8,7 @@ import os
 import threading
 import queue
 from collections import namedtuple
+from enum import Enum
 
 # Us
 from . import utils
@@ -327,6 +328,23 @@ class GhostMaps(SimStatePlugin):
         # Shortcut
         return self.state.metadata.get(Map, obj)
 
+class ResultType(Enum):
+    LENGTH_LTE = 0
+    LENGTH_VAR = 1
+    CROSS_VAL = 2
+    CROSS_KEY = 3
+
+    def __str__(self):
+        if self == ResultType.LENGTH_LTE:
+            return "LENGTH_LTE"
+        elif self == ResultType.LENGTH_VAR:
+            return "LENGTH_VAR"
+        elif self == ResultType.CROSS_VAL:
+            return "CROSS_VAL"
+        elif self == ResultType.CROSS_KEY:
+            return "CROSS_KEY"
+        raise ValueError("Unknown ResultType")
+
 
 # state args have a leading _ to ensure toe functions run concurrently don't accidentally touch them
 def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
@@ -366,6 +384,8 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
         # Returns False iff the candidate function cannot match each element in items1 with an element of items2 
         def is_candidate_valid(items1, items2, candidate_func):
             for it1 in items1:
+                # @TODO Here we could loop over all items in items2 at each iteration, to maximize our chance of
+                # satisfying the candidate. Of course that would increase execution-time...
                 if not utils.definitely_true(state.solver, sel2(items2.pop()) == candidate_func(state, it1, True)):
                     return False
             return True
@@ -476,12 +496,13 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                 (o1, o2) = remaining_work.get(block=False)
             except queue.Empty:
                 return
+
             # Step 2: Length relationships.
             # For each pair of maps (M1, M2),
             #   if length(M1) <= length(M2) across all states,
-            #   then assume this holds the merged state
+            #   then assume this holds in the merged state
             if all(utils.definitely_true(st.solver, st.maps.length(o1) <= st.maps.length(o2)) for st in orig_states):
-                length_results.append(("length-lte", [o1, o2], lambda st, ms: st.add_constraints(ms[0].length() <= ms[1].length())))
+                length_results.append((ResultType.LENGTH_LTE, [o1, o2], lambda st, ms: st.add_constraints(ms[0].length() <= ms[1].length())))
 
             # Step 2: Map relationships.
             # For each pair of maps (M1, M2),
@@ -492,36 +513,51 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
             #  then assume this is an invariant of M1 in the merged state.
             # We use maps directly to refer to the map state as it was in the ancestor, not during execution;
             # otherwise, get(M1, k) after remove(M2, k) might add has(M2, k) to the constraints, which is obviously false
+            
+            # Try to find a FK
             (fk_is_cached, fk) = get_cached(o1, o2, "k")
             if not fk_is_cached:
                 fk = find_f(orig_states, o1, o2, get_key, get_key, candidate_finders) \
                   or find_f(orig_states, o1, o2, get_value, get_key, candidate_finders)
                 to_cache.put([o1, o2, "k", fk])
+            if not fk:
+                # No point in continuing if we couldn't find a FK
+                continue
+
+            # Try to find a few FPs
             (fps_is_cached, fps) = get_cached(o1, o2, "p")
             if not fps_is_cached:
-                fps = find_f_constants(orig_states, o1, lambda i: i.value)
+                fps = find_f_constants(orig_states, o1, get_value)
+
             for fp in fps:
                 states = [s.copy() for s in orig_states]
-                if fk and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk: Implies(fp(MapItem(k, v, None)), st.maps.get(o2, fk(st, MapItem(k, v, None), True))[1]), _known_only=not first_time)) for st in states):
+                if all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk: Implies(fp(MapItem(k, v, None)), st.maps.get(o2, fk(st, MapItem(k, v, None), True))[1]), _known_only=not first_time)) for st in states):
                     to_cache.put([o1, o2, "p", [fp]]) # only put the working one, don't have us try a pointless one next time
+                    
+                    # Logging
                     log_item = MapItem(claripy.BVS("K", ancestor_state.maps.key_size(o1)), claripy.BVS("V", ancestor_state.maps.value_size(o1)), None)
-                    log_text = "Inferred: when " + str(o1) + " contains (K,V), if " + str(fp(log_item)) + " then " + str(o2) + " contains " + str(fk(ancestor_state, log_item, True))
+                    log_text = f"Inferred: when {o1} contains (K,V), if {fp(log_item)} then {o2} contains {fk(ancestor_state, log_item, True)}"
+                    
+                    # Try to find a FV
                     (fv_is_cached, fv) = get_cached(o1, o2, "v")
                     if not fv_is_cached:
                         fv = find_f(orig_states, o1, o2, get_key, get_value, candidate_finders) \
                           or find_f(orig_states, o1, o2, get_value, get_value, candidate_finders)
                         to_cache.put([o1, o2, "v", fv])
+                    
                     states = [s.copy() for s in orig_states]
                     if fv and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk, fv=fv: Implies(fp(MapItem(k, v, None)), st.maps.get(o2, fk(st, MapItem(k, v, None), True))[0] == fv(st, MapItem(k, v, None), True)), _known_only=not first_time)) for st in states):
-                        log_text += os.linesep + "          in addition, the value is " + str(fv(ancestor_state, log_item, True))
+                        log_text += f"\n\tin addition, the value is {fv(ancestor_state, log_item, True)}"
                         # Python doesn't have multiline lambdas :/
                         def cross_val_inv(st, i, o2, fp, fk, fv):
                             fvres = fv(st, i, False)
                             (o2val, o2pres) = st.maps.get(o2, fk(st, i, False), value=fvres, from_present=False)
                             return Implies(i.present, Implies(fp(i), o2pres & (o2val == fvres)))
-                        cross_results.append(("cross-val", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk, fv=fv: [maps[0].with_added_invariant(lambda st, i: cross_val_inv(st, i, o2, fp, fk, fv)), maps[1]]))
+                        cross_results.append((ResultType.CROSS_VAL, [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk, fv=fv: [maps[0].with_added_invariant(lambda st, i: cross_val_inv(st, i, o2, fp, fk, fv)), maps[1]]))
                     else:
-                        cross_results.append(("cross-key", [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk: [maps[0].with_added_invariant(lambda st, i: Implies(i.present, Implies(fp(i), st.maps.get(o2, fk(st, i, False), from_present=False)[1]))), maps[1]]))
+                        cross_key_inv = lambda st, i, o2, fp, fk: Implies(i.present, Implies(fp(i), st.maps.get(o2, fk(st, i, False), from_present=False)[1]))
+                        cross_results.append((ResultType.CROSS_KEY, [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk: [maps[0].with_added_invariant(lambda st, i: cross_key_inv(st, i, o2, fp, fk)), maps[1]]))
+                   
                     print(log_text) # print it at once to avoid interleavings from threads
                     break # this might make us miss some stuff in theory? but that's sound; and in practice it doesn't
             else:
@@ -533,7 +569,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
     # Initialize the cache for fast read/write acces during invariant inference
     init_cache(objs)
 
-    # List of all candidate finders used by find_f
+    # List all candidate finders used by find_f
     candidate_finders = [candidate_finder_1, candidate_finder_2, candidate_finder_3]
 
     cross_results = [] # pairs: (ID, maps, lambda states, maps: returns None for no changes or maps to overwrite them)
@@ -549,7 +585,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
         for state in _states_to_merge:
             if utils.can_be_false(state.solver, state.maps.length(o) == ancestor_length):
                 print("Length of map", o, " was changed; making it symbolic")
-                length_results.append(("length-var", [o], lambda st, ms: [ms[0].with_length(claripy.BVS("map_length", ms[0].length().size()))]))
+                length_results.append((ResultType.LENGTH_VAR, [o], lambda st, ms: [ms[0].with_length(claripy.BVS("map_length", ms[0].length().size()))]))
                 break
 
     remaining_work = queue.Queue()
@@ -579,10 +615,10 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
     # This is a conservative algorithm; a better version eliminating more things would need to keep track of whether relationships are lossy,
     # to avoid eliminating a lossless relationship in favor of a lossy one, and create a proper graph instead of relying on pairs.
     for (o1, o2) in itertools.combinations(objs, 2):
-        if _ancestor_state.maps.key_size(o1) == _ancestor_state.maps.key_size(o2):
+        if _ancestor_state.maps.key_size(o1) == _ancestor_state.maps.key_size(o2) and \
+            sum(1 for r in cross_results if r[1][0] is o1) == sum(1 for r in cross_results if r[1][0] is o2):
             states = [s.copy() for s in _orig_states]
-            if len([r for r in cross_results if r[1][0] is o1]) == len([r for r in cross_results if r[1][0] is o2]) and \
-                all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st: st.maps.get(o2, k)[1])) for st in states):
+            if all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st: st.maps.get(o2, k)[1])) for st in states):
                 to_remove  = [r for r in cross_results
                                 if r[1][1] is o2
                                 and any(True for r2 in cross_results
