@@ -253,20 +253,6 @@ class Map:
     def _asdict(self): # pretend we are a namedtuple so functions that expect one will work (e.g. utils.structural_eq)
         return {'meta': self.meta, '_length': self._length, '_invariants': self._invariants, '_known_items': self._known_items, '_previous': self._previous, '_filter': self._filter, '_map': self._map}
 
-
-# Quick and dirty logging...
-LOG_levels = {}
-def LOG(state, text):
-    if id(state) in LOG_levels:
-        level = LOG_levels[id(state)]
-    else:
-        level = 1
-    LOG_levels[id(state)] = level + 1
-    #print(level, "  " * level, text)
-def LOGEND(state):
-    LOG_levels[id(state)] = LOG_levels[id(state)] - 1
-
-
 class GhostMaps(SimStatePlugin):
     # === Public API ===
 
@@ -328,11 +314,15 @@ class GhostMaps(SimStatePlugin):
         # Shortcut
         return self.state.metadata.get(Map, obj)
 
+
 class ResultType(Enum):
     LENGTH_LTE = 0
     LENGTH_VAR = 1
     CROSS_VAL = 2
     CROSS_KEY = 3
+
+    def is_cross_result(self):
+        return self == ResultType.CROSS_VAL or self == ResultType.CROSS_KEY
 
     def __str__(self):
         if self == ResultType.LENGTH_LTE:
@@ -346,6 +336,18 @@ class ResultType(Enum):
         raise ValueError("Unknown ResultType")
 
 
+# Quick and dirty logging...
+LOG_levels = {}
+def LOG(state, text):
+    if id(state) in LOG_levels:
+        level = LOG_levels[id(state)]
+    else:
+        level = 1
+    LOG_levels[id(state)] = level + 1
+    print(level, "  " * level, text)
+def LOGEND(state):
+    LOG_levels[id(state)] = LOG_levels[id(state)] - 1
+    
 # state args have a leading _ to ensure toe functions run concurrently don't accidentally touch them
 def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
     print(f"Cross-merge of maps starting. State count: {len(_states_to_merge)}")
@@ -502,7 +504,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
             #   if length(M1) <= length(M2) across all states,
             #   then assume this holds in the merged state
             if all(utils.definitely_true(st.solver, st.maps.length(o1) <= st.maps.length(o2)) for st in orig_states):
-                length_results.append((ResultType.LENGTH_LTE, [o1, o2], lambda st, ms: st.add_constraints(ms[0].length() <= ms[1].length())))
+                results.put((ResultType.LENGTH_LTE, [o1, o2], lambda st, ms: st.add_constraints(ms[0].length() <= ms[1].length())))
 
             # Step 2: Map relationships.
             # For each pair of maps (M1, M2),
@@ -553,10 +555,10 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                             fvres = fv(st, i, False)
                             (o2val, o2pres) = st.maps.get(o2, fk(st, i, False), value=fvres, from_present=False)
                             return Implies(i.present, Implies(fp(i), o2pres & (o2val == fvres)))
-                        cross_results.append((ResultType.CROSS_VAL, [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk, fv=fv: [maps[0].with_added_invariant(lambda st, i: cross_val_inv(st, i, o2, fp, fk, fv)), maps[1]]))
+                        results.put((ResultType.CROSS_VAL, [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk, fv=fv: [maps[0].with_added_invariant(lambda st, i: cross_val_inv(st, i, o2, fp, fk, fv)), maps[1]]))
                     else:
                         cross_key_inv = lambda st, i, o2, fp, fk: Implies(i.present, Implies(fp(i), st.maps.get(o2, fk(st, i, False), from_present=False)[1]))
-                        cross_results.append((ResultType.CROSS_KEY, [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk: [maps[0].with_added_invariant(lambda st, i: cross_key_inv(st, i, o2, fp, fk)), maps[1]]))
+                        results.put((ResultType.CROSS_KEY, [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk: [maps[0].with_added_invariant(lambda st, i: cross_key_inv(st, i, o2, fp, fk)), maps[1]]))
                    
                     print(log_text) # print it at once to avoid interleavings from threads
                     break # this might make us miss some stuff in theory? but that's sound; and in practice it doesn't
@@ -572,8 +574,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
     # List all candidate finders used by find_f
     candidate_finders = [candidate_finder_1, candidate_finder_2, candidate_finder_3]
 
-    cross_results = [] # pairs: (ID, maps, lambda states, maps: returns None for no changes or maps to overwrite them)
-    length_results = [] # pairs: (ID, maps, lambda states, maps: returns None for no changes or maps to overwrite them)
+    results = queue.Queue() # pairs: (ID, maps, lambda states, maps: returns None for no changes or maps to overwrite them)
     to_cache = queue.Queue() # set_cached(...) will be called with all elements in there
 
     # Invariant inference algorithm: if some property P holds in all states to merge and the ancestor state, optimistically assume it is part of the invariant
@@ -585,7 +586,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
         for state in _states_to_merge:
             if utils.can_be_false(state.solver, state.maps.length(o) == ancestor_length):
                 print("Length of map", o, " was changed; making it symbolic")
-                length_results.append((ResultType.LENGTH_VAR, [o], lambda st, ms: [ms[0].with_length(claripy.BVS("map_length", ms[0].length().size()))]))
+                results.put((ResultType.LENGTH_VAR, [o], lambda st, ms: [ms[0].with_length(claripy.BVS("map_length", ms[0].length().size()))]))
                 break
 
     remaining_work = queue.Queue()
@@ -603,10 +604,21 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
     for thread in threads:
         thread.join()"""
 
+    # Convert results queue into lists (split cross results from length results)
+    cross_results = []
+    length_results = []
+    while not to_cache.empty():
+        res = results.get()
+        if res[0].is_cross_result():
+            cross_results.append(res)
+        else:
+            length_results.append(res)
+
+    # Fill cache
     while not to_cache.empty():
         set_cached(*(to_cache.get()))
 
-    # ensure we don't pollute states through the next check
+    # Ensure we don't pollute states through the next check
     _orig_states = [s.copy() for s in _states]
 
     # Optimization: Remove redundant inferences.

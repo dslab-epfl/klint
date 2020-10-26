@@ -114,7 +114,6 @@ class Metadata(SimStatePlugin):
     def items_copy(self): # for verification purposes
         return self.items.copy()
 
-
     def _get(self, cls, key):
         if cls not in self.items:
             return []
@@ -125,13 +124,13 @@ class Metadata(SimStatePlugin):
         results = self._get(cls, key)
         if len(results) == 0:
             if default is None:
-                raise SymbexException("No metadata for key: " + str(key) + " of class: " + str(cls))
+                raise SymbexException(f"No metadata for key: {key} of class: {cls}")
             else:
                 self.set(key, default)
                 return default
 
         if len(results) > 1:
-            raise SymbexException("More than one matching metadata of type " + str(cls) + " for key: " + str(key))
+            raise SymbexException(f"More than one matching metadata of type {cls} for key: {key}")
 
         return results[0][1]
 
@@ -144,7 +143,7 @@ class Metadata(SimStatePlugin):
         cls = type(value)
         results = self._get(cls, key)
         if len(results) > 1:
-            raise SymbexException("More than one existing metadata of type " + str(cls) + " for key: " + str(key))
+            raise SymbexException(f"More than one existing metadata of type {cls} for key: {key}")
 
         has_already = len(results) == 1
         if has_already:
@@ -153,10 +152,10 @@ class Metadata(SimStatePlugin):
                 self.items[cls] = [((key, value) if k is results[0][0] else (k, v)) for (k, v) in self.items[cls]]
                 return
             else:
-                raise SymbexException("There is already metadata of type " + str(cls) + " for key: " + str(key) + ", namely " + str(results))
+                raise SymbexException(f"There is already metadata of type {cls} for key: {key}, namely {results}")
 
         if override and not has_already:
-            raise SymbexException("There is no metadata of type " + str(cls) + " to override for key: " + str(key))
+            raise SymbexException(f"There is no metadata of type {cls} to override for key: {key}")
 
         if cls not in self.items:
             self.items[cls] = []
