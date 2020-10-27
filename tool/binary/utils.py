@@ -135,4 +135,4 @@ def structural_eq(a, b):
 def add_constraints_and_check_sat(state, *constraints, **kwargs):
   state.add_constraints(*constraints, **kwargs)
   if not state.satisfiable():
-    raise angr.errors.SimUnsatError()
+    raise angr.errors.SimUnsatError("UNSAT after adding constraints")

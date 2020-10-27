@@ -19,8 +19,6 @@ struct lb_backend lb_get_backend(struct ld_balancer *balancer,
                                  struct lb_flow *flow,
                                  time_t now,
                                  uint16_t wan_device);
-void lb_expire_flows(struct ld_balancer *balancer, time_t now);
-void lb_expire_backends(struct ld_balancer *balancer, time_t now);
 void lb_process_heartbit(struct ld_balancer *balancer,
                          struct lb_flow *flow,
                          struct ether_addr mac_addr, int nic, time_t now);
