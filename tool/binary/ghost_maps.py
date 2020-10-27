@@ -359,12 +359,11 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
     ancestor_variables = _ancestor_state.solver.variables(claripy.And(*_ancestor_state.solver.constraints))
 
     def init_cache(objs):
-        last_level = {k: (False, None) for k in ["k", "p", "v"]}
         for (o1, o2) in itertools.permutations(objs, 2):
             if o1 not in _cache:
                 _cache[o1] = {}
             if o2 not in _cache[o1]:
-                _cache[o1][o2] = copy.deepcopy(last_level)
+                _cache[o1][o2] = {k: (False, None) for k in ["k", "p", "v"]}
 
     def get_cached(o1, o2, op):
         return _cache[o1][o2][op]
@@ -382,7 +381,6 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
 
     # helper function to find FK or FV
     def find_f(states, o1, o2, sel1, sel2, candidate_finders):
-        
         # Returns False iff the candidate function cannot match each element in items1 with an element of items2 
         def is_candidate_valid(items1, items2, candidate_func):
             for it1 in items1:
@@ -407,9 +405,8 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                 # Lazyness: implementing backtracking in case a guess fails is hard :p
                 raise SymbexException("backtracking not implemented yet")
 
-            if candidate_func is not None and not is_candidate_valid(items1, items2, candidate_func): # We have a candidate function
-                return None
-            else: # We don't have a candidate function yet
+            if candidate_func is None:
+                # No candidate yet (1st iteration), try and find one
                 it1 = items1.pop()
                 for it2 in items2:
                     for finder in candidate_finders: # Use the finders
@@ -426,6 +423,12 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                 else:
                     # We couldn't find a candidate function
                     return None
+            elif is_candidate_valid(items1, items2, candidate_func):
+                # Candidate looks OK, keep going
+                continue
+            else:
+                # Candidate failed :(
+                return None
             
         # Our candidate has survived all states!
         return candidate_func
