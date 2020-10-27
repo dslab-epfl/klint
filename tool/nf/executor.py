@@ -15,7 +15,6 @@ from binary.externals.os import config
 from binary.externals.os import debug
 from binary.externals.os import memory
 from binary.externals.os import network
-from binary.externals.os import generic_ops
 from binary.externals.os.structs import map
 from binary.externals.os.structs import pool
 from binary.externals.os.structs import cht
@@ -46,9 +45,7 @@ handle_externals = {
   'os_pool_refresh': pool.OsPoolRefresh,
   'os_pool_used': pool.OsPoolUsed,
   'os_pool_expire': pool.OsPoolExpire,
-  'cht_find_preferred_available_backend': cht.ChtFindPreferredAvailableBackend,
-  'generic_eq': generic_ops.GenericEq,
-  'generic_hash': generic_ops.GenericEq,
+  'cht_find_preferred_available_backend': cht.ChtFindPreferredAvailableBackend
 }
 
 def nf_init(nf_folder, devices_count):
