@@ -344,7 +344,7 @@ def LOG(state, text):
     else:
         level = 1
     LOG_levels[id(state)] = level + 1
-    print(level, "  " * level, text)
+    #print(level, "  " * level, text)
 def LOGEND(state):
     LOG_levels[id(state)] = LOG_levels[id(state)] - 1
     
@@ -607,8 +607,8 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
     # Convert results queue into lists (split cross results from length results)
     cross_results = []
     length_results = []
-    while not to_cache.empty():
-        res = results.get()
+    while not results.empty():
+        res = results.get(block=False)
         if res[0].is_cross_result():
             cross_results.append(res)
         else:
@@ -616,7 +616,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
 
     # Fill cache
     while not to_cache.empty():
-        set_cached(*(to_cache.get()))
+        set_cached(*(to_cache.get(block=False)))
 
     # Ensure we don't pollute states through the next check
     _orig_states = [s.copy() for s in _states]
