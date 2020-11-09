@@ -7,6 +7,204 @@ struct rule {
   uint16_t route;
 };
 
+//@ #include "../proof/lpm-dir-24-8-lemmas.gh"
+
+/*@
+  predicate table(struct lpm* t, dir_24_8 dir) =
+    malloc_block_lpm(t) &*&
+    t->lpm_24 |-> ?lpm_24 &*& t->lpm_long |-> ?lpm_long &*&
+    t->lpm_long_index |-> ?long_index &*&
+    malloc_block_ushorts(lpm_24, lpm_24_MAX_ENTRIES) &*&
+    malloc_block_ushorts(lpm_long, lpm_LONG_MAX_ENTRIES) &*&
+    lpm_24[0..lpm_24_MAX_ENTRIES] |-> ?tt_24 &*&
+    lpm_long[0..lpm_LONG_MAX_ENTRIES] |-> ?tt_l &*&
+    true == forall(tt_24, valid_entry24) &*&
+    true == forall(tt_l, valid_entry_long) &*&
+    build_tables(tt_24, tt_l, long_index) == dir &*&
+    map(entry_24_mapping, tt_24) == dir_lpm24(dir) &*&
+    map(entry_long_mapping, tt_l) == dir_lpm_long(dir) &*&
+    length(tt_24) == length(dir_lpm24(dir)) &*&
+    length(tt_l) == length(dir_lpm_long(dir)) &*&
+    long_index >= 0 &*& long_index <= lpm_LONG_FACTOR;
+  @*/
+
+/*@
+  predicate rule(struct rule* r; uint32_t ipv4, uint8_t prefixlen,
+                uint16_t route) =
+    malloc_block_rule(r) &*&
+    r->ipv4 |-> ipv4 &*&
+    r->prefixlen |-> prefixlen &*&
+    r->route |-> route &*&
+    prefixlen >= 0 &*& prefixlen <= 32 &*&
+    route != INVALID &*& 0 <= route &*& route <= MAX_NEXT_HOP_VALUE &*&
+    false == extract_flag(route) &*&
+    true == valid_entry24(route) &*& true == valid_entry_long(route);
+  @*/
+
+/*@
+  fixpoint bool is_none<t>(option<t> mapped) {
+    return mapped == none;
+  }
+  @*/
+
+/*@
+  fixpoint bool check_INVALID(uint16_t current) {
+    return current == INVALID;
+  }
+  @*/
+
+/*@
+  lemma void map_update<t, u>(int i, t y, list<t> xs, fixpoint(t, u) f)
+    requires 0 <= i &*& i < length(xs);
+    ensures map(f, update(i, y, xs)) == update(i, f(y), map(f, xs));
+  {
+    switch(xs) {
+      case nil:
+      case cons(x, xs0):
+        if (i != 0) {
+          map_update(i-1, y, xs0, f);
+        }
+    }
+  }
+  @*/
+
+/*@
+  lemma void map_update_n<t, u>(int start, nat n, t y, list<t> xs,
+                                fixpoint(t, u) f)
+    requires 0 <= start &*& start + int_of_nat(n) <= length(xs);
+    ensures map(f, update_n(xs, start, n, y)) ==
+            update_n(map(f, xs), start, n, f(y));
+  {
+    switch(n) {
+      case zero:
+      case succ(n0):
+        list<t> updated = update(start, y, xs);
+        map_update(start, y, xs, f);
+        map_update_n(start+1, n0, y, updated, f);
+    }
+  }
+  @*/
+
+/*@
+  lemma void loop_update_n<t>(int start, nat count, t y, list<t> xs)
+    requires true;
+    ensures update(start + int_of_nat(count), y,
+                   update_n(xs, start, count, y)) ==
+            update_n(xs, start, succ(count), y);
+  {
+    switch(count) {
+      case zero:
+      case succ(n):
+        loop_update_n(start+1, n, y, update(start, y, xs));
+    }
+  }
+  @*/
+
+/*@
+  lemma void repeat_n_forall<t>(nat size, t e, fixpoint(t, bool) p)
+    requires true == p(e);
+    ensures true == forall(repeat_n(size, e), p);
+  {
+     switch(size) {
+       case zero:
+       case succ(n): repeat_n_forall(n, e, p);
+     }
+  }
+  @*/
+
+/*@
+  lemma void repeat_n_append<t>(t e, nat size)
+    requires true;
+    ensures append(repeat_n(size, e), cons(e, nil)) == repeat_n(succ(size), e);
+  {
+    switch(size) {
+      case zero:
+      case succ(n): repeat_n_append(e, n);
+    }
+  }
+  @*/
+
+/*@
+  lemma void new_invalid(uint16_t *t, uint32_t i, nat j, uint32_t size)
+    requires t[(i - int_of_nat(j))..i] |-> repeat_n(j, INVALID) &*&
+             i < size &*&
+             int_of_nat(j) <= i &*&
+             t[i] |-> INVALID &*&
+             t[i+1..size] |-> _;
+    ensures t[(i - int_of_nat(j))..i+1] |->
+            append(repeat_n(j, INVALID), cons(INVALID, nil)) &*&
+            t[i+1..size] |-> _;
+  {
+    switch(j) {
+      case zero:
+      case succ(n):
+        assert int_of_nat(succ(n)) == int_of_nat(n)+1;
+        assert u_short_integer(t+(i - int_of_nat(n))-1, INVALID);
+        new_invalid(t, i, n, size);
+        assert ushorts(t+(i - int_of_nat(n)), int_of_nat(n)+1,
+                       append(repeat_n(n, INVALID), cons(INVALID, nil)));
+        assert ushorts(t+(i - int_of_nat(n))-1, int_of_nat(n)+2,
+                       cons(INVALID,
+                            append(repeat_n(n, INVALID), cons(INVALID, nil))));
+        assert t[(i - int_of_nat(n))-1..i+1] |->
+               cons(INVALID,  append(repeat_n(n, INVALID), cons(INVALID, nil)));
+        assert t[(i - int_of_nat(n))-1..i+1] |->
+               append(cons(INVALID, repeat_n(n, INVALID)), cons(INVALID, nil));
+        assert t[(i - int_of_nat(n))-1..i+1] |->
+               append(repeat_n(succ(n), INVALID), cons(INVALID, nil));
+        assert t[(i - int_of_nat(succ(n)))..i+1] |->
+               append(repeat_n(succ(n), INVALID), cons(INVALID, nil));
+    }
+  }
+  @*/
+
+/*@
+  lemma void enforce_map_invalid_is_valid(list<uint16_t> entries,
+                                          nat size,
+                                          fixpoint(uint16_t, bool)
+                                            validation_func)
+    requires entries == repeat_n(size, INVALID) &*&
+             true == forall(entries, check_INVALID) &*&
+             true == validation_func(INVALID);
+    ensures true == forall(entries, validation_func);
+  {
+    switch(entries) {
+      case nil:
+      case cons(x, xs):
+        switch(size) {
+          case zero:
+          case succ(n): enforce_map_invalid_is_valid(xs, n, validation_func);
+        }
+    }
+  }
+  @*/
+
+/*@
+  lemma void invalid_24_none_holds(nat size)
+    requires entry_24_mapping(INVALID) == none;
+    ensures map(entry_24_mapping, repeat_n(size, INVALID)) ==
+            repeat_n(size, none);
+    {
+      switch(size) {
+        case zero:
+        case succ(n): invalid_24_none_holds(n);
+      }
+    }
+  @*/
+
+/*@
+  lemma void invalid_long_none_holds(nat size)
+    requires entry_long_mapping(INVALID) == none;
+    ensures map(entry_long_mapping, repeat_n(size, INVALID)) ==
+            repeat_n(size, none);
+  {
+    switch(size) {
+      case zero:
+      case succ(n): invalid_long_none_holds(n);
+    }
+  }
+  @*/
+
 uint32_t build_mask_from_prefixlen(uint8_t prefixlen)
 //@ requires prefixlen <= 32;
 //@ ensures result == int_of_Z(mask32_from_prefixlen(prefixlen));
@@ -127,7 +325,7 @@ uint16_t lpm_long_extract_first_index(uint32_t data, uint8_t prefixlen,
   return res;
 }
 
-int lpm_allocate(struct lpm **lpm_out)
+struct lpm* lpm_allocate()
 //@ requires *lpm_out |-> ?old_lo;
 /*@ ensures result == 0 ?
               *lpm_out |-> old_lo :
@@ -193,8 +391,7 @@ int lpm_allocate(struct lpm **lpm_out)
   /*@ close table(_lpm, build_tables(t_24, t_l, lpm_long_first_index));
   @*/
 
-  *lpm_out = _lpm;
-  return 1;
+  return _lpm;  
 }
 
 void lpm_free(struct lpm *_lpm)
@@ -207,11 +404,17 @@ void lpm_free(struct lpm *_lpm)
   free(_lpm);
 }
 
-int lpm_lookup_elem(struct lpm *_lpm, uint32_t prefix)
+#define UNUSED(x) (void)(x)
+
+bool lpm_lookup_elem(struct lpm *_lpm, uint32_t prefix, uint16_t *out_value,
+                     uint32_t *out_prefix, uint8_t *out_prefixlen)
 //@ requires table(_lpm, ?dir);
 /*@ ensures table(_lpm, dir) &*&
             result == lpm_dir_24_8_lookup(Z_of_int(prefix, N32),dir); @*/
 {
+  // Shut up unused parameter warnings
+  UNUSED(out_prefix);
+  UNUSED(out_prefixlen);
 
   //@ open table(_lpm, dir);
   uint16_t *lpm_24 = _lpm->lpm_24;
@@ -264,25 +467,27 @@ int lpm_lookup_elem(struct lpm *_lpm, uint32_t prefix)
     //@ close table(_lpm, dir);
 
     if (value_long == INVALID) {
-      return INVALID;
+      return false;
     } else {
       //@ valid_next_hop_long(value_long, value_l);
-      return value_long;
+      *out_value = value_long;
+      return true;
     }
   } else {
   //the value found in lpm_24 is the next hop, just return it
     //@ close table(_lpm, dir);
 
     if (value == INVALID) {
-      return INVALID;
+      return false;
     } else {
     //@ valid_next_hop24(value, value24);
-      return value;
+      *out_value = value;
+      return true;
     }
   }
 }
 
-int lpm_update_elem(struct lpm *_lpm, uint32_t prefix,
+bool lpm_update_elem(struct lpm *_lpm, uint32_t prefix,
                     uint8_t prefixlen, uint16_t value)
 /*@ requires table(_lpm, ?dir) &*&
              prefixlen >= 0 &*& prefixlen <= 32 &*&
@@ -431,7 +636,7 @@ int lpm_update_elem(struct lpm *_lpm, uint32_t prefix,
         printf("No more available index for lpm_long!\n");
         fflush(stdout);
         //@ close table(_lpm, dir);
-        return 0;
+        return false;
 
       } else {
       //generate next index and store it in lpm_24
@@ -541,5 +746,5 @@ int lpm_update_elem(struct lpm *_lpm, uint32_t prefix,
 
     //@ close table(_lpm, build_tables(new_t_24, new_t_l, new_long_index));
   }
-  return 1;
+  return true;
 }

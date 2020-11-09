@@ -36,12 +36,14 @@
 
 struct lpm
 {
-    uint16_t *lpm_24;
-    uint16_t *lpm_long;
-    uint16_t lpm_long_index;
+  uint16_t *lpm_24;
+  uint16_t *lpm_long;
+  uint16_t lpm_long_index;
 };
 
-int lpm_allocate(struct lpm **lpm_out);
+/*@ predicate table(struct lpm* t, dir_24_8 dir); @*/
+
+struct lpm *lpm_alloc();
 //@ requires *lpm_out |-> ?old_lo;
 /*@ ensures result == 0 ?
               *lpm_out |-> old_lo :
@@ -53,8 +55,8 @@ void lpm_free(struct lpm *_lpm);
 //@ requires table(_lpm, _);
 //@ ensures true;
 
-int lpm_update_elem(struct lpm *_lpm, uint32_t prefix,
-                    uint8_t prefixlen, uint16_t value);
+bool lpm_update_elem(struct lpm *_lpm, uint32_t prefix,
+                     uint8_t prefixlen, uint16_t value);
 /*@ requires table(_lpm, ?dir) &*&
              prefixlen >= 0 &*& prefixlen <= 32 &*&
              value != INVALID &*&
@@ -68,7 +70,8 @@ int lpm_update_elem(struct lpm *_lpm, uint32_t prefix,
             :
               table(_lpm, dir); @*/
 
-int lpm_lookup_elem(struct lpm *_lpm, uint32_t prefix);
+bool lpm_lookup_elem(struct lpm *_lpm, uint32_t prefix, uint16_t *out_value,
+                     uint32_t *out_prefix, uint8_t *out_prefixlen);
 //@ requires table(_lpm, ?dir);
 /*@ ensures table(_lpm, dir) &*&
             result == lpm_dir_24_8_lookup(Z_of_int(prefix, N32),dir); @*/

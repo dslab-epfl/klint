@@ -11,17 +11,15 @@ struct lpm *lpm;
 bool nf_init(uint16_t devices_count __attribute__((unused)))
 {
     // Initialize forwarding table
-    if (!lpm_allocate(&lpm)) {
-        return false;
+    lpm = lpm_alloc();
+    for (uint32_t n = 0; n < 128; n++)
+    {
+        lpm_update_elem(lpm, n << 24, 8, 1);
     }
-    // for (uint32_t n = 0; n < 128; n++)
-    // {
-    //     lpm_update_elem(lpm, n << 24, 8, 1);
-    // }
-    // for (uint32_t n = 0; n < 128; n++)
-    // {
-    //     lpm_update_elem(lpm, n, 32, 1);
-    // }
+    for (uint32_t n = 0; n < 128; n++)
+    {
+        lpm_update_elem(lpm, n, 32, 1);
+    }
     return true;
 }
 
@@ -35,7 +33,10 @@ void nf_handle(struct os_net_packet *packet)
         return;
     }
 
-    uint16_t dst_device = lpm_lookup_elem(lpm, ipv4_header->dst_addr);
+    uint16_t dst_device;
+    uint32_t out_prefix;
+    uint8_t out_prefixlen;
+    lpm_lookup_elem(lpm, ipv4_header->dst_addr, &dst_device, &out_prefix, &out_prefixlen);
     // if (dst_device == mbuf->port)
     //     return mbuf->port;
 
