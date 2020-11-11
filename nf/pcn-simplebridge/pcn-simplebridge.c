@@ -14,20 +14,10 @@
 #define FDB_TIMEOUT 300
 #endif
 
-//#include <bcc/helpers.h>
-//#include <bcc/proto.h>
 #include "bpfutil/ktime.h"
 #include "bpfutil/polycube.h"
 #include "bpfutil/table.h"
 #include "bpfutil/types.h"
-
-//#include <uapi/linux/bpf.h>
-//#include <uapi/linux/filter.h>
-//#include <uapi/linux/if_ether.h>
-//#include <uapi/linux/if_packet.h>
-//#include <uapi/linux/in.h>
-//#include <uapi/linux/ip.h>
-//#include <uapi/linux/pkt_cls.h>
 
 #define REASON_FLOODING 0x01
 
