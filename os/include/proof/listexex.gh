@@ -1180,4 +1180,17 @@ ensures update(index, el, l) == l;
   }
 }
 
+lemma void drop_except_last<t>(list<t> lst, int n)
+  requires 0 <= n &*& n < length(lst);
+  ensures cons(nth(n, lst), drop(n + 1, lst)) == drop(n, lst);
+{
+  switch (lst) {
+    case nil:
+    case cons(h, t):
+      if (n != 0) {
+        drop_except_last(t, n - 1);
+      }
+  }
+}
+
 #endif//LISTEXEX_GH

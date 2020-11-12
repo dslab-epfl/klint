@@ -5,8 +5,6 @@
 
 #include "os/generic_ops.h"
 
-//@ fixpoint hash_t hash_fp(list<char> value);
-
 bool generic_eq(void* a, void* b, size_t obj_size)
 //@ requires [?f1]chars(a, obj_size, ?ac) &*& [?f2]chars(b, obj_size, ?bc);
 //@ ensures [f1]chars(a, obj_size, ac) &*& [f2]chars(b, obj_size, bc) &*& result == (ac == bc);
@@ -81,4 +79,12 @@ hash_t generic_hash(void* obj, size_t obj_size)
 	//@ assume(hash == hash_fp(value));
 
 	return hash;
+}
+
+
+void generic_copy(void* src, void* dst, size_t obj_size)
+//@ requires [?f]chars(src, obj_size, ?srccs) &*& chars(dst, obj_size, ?dstcs);
+//@ ensures [f]chars(src, obj_size, srccs) &*& chars(dst, obj_size, srccs);
+{
+	memcpy(dst, src, obj_size);
 }

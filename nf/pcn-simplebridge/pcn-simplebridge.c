@@ -53,7 +53,7 @@ static __always_inline int handle_rx(struct CTXTYPE *ctx,
   __be64 src_key = eth->src;
   u32 now = time_get_sec();
 
-  struct fwd_entry *entry = bpfutil_table_lookup(&fwdtable, &src_key);
+  struct fwd_entry *entry = bpfutil_table_lookup(fwdtable, &src_key);
 
   if (!entry) {
     struct fwd_entry e;  // used to update the entry in the fdb
@@ -61,7 +61,7 @@ static __always_inline int handle_rx(struct CTXTYPE *ctx,
     e.timestamp = now;
     e.port = in_ifc;
 
-    bpfutil_table_update(&fwdtable, &src_key, &e);
+    bpfutil_table_update(fwdtable, &src_key, &e);
   } else {
     entry->port = in_ifc;
     entry->timestamp = now;
@@ -70,7 +70,7 @@ static __always_inline int handle_rx(struct CTXTYPE *ctx,
   // FORWARDING PHASE: select interface(s) to send the packet
   __be64 dst_mac = eth->dst;
   // lookup in forwarding table fwdtable
-  entry = bpfutil_table_lookup(&fwdtable, &dst_mac);
+  entry = bpfutil_table_lookup(fwdtable, &dst_mac);
   if (!entry) {
     goto DO_FLOODING;
   }
@@ -79,7 +79,7 @@ static __always_inline int handle_rx(struct CTXTYPE *ctx,
 
   // Check if the entry is still valid (not too old)
   if ((now - timestamp) > FDB_TIMEOUT) {
-    bpfutil_table_delete(&fwdtable, &dst_mac);
+    bpfutil_table_delete(fwdtable, &dst_mac);
     goto DO_FLOODING;
   }
 

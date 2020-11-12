@@ -27,11 +27,11 @@ lemma void mul_bounds(int x, int xb, int y, int yb);
     ensures 0 <= x * y &*& x * y <= xb * yb;
 
 lemma void mul_subst(int x, int y, int a);
-requires x == y &*& 0 <= a;
-ensures a*x == a*y;
+    requires x == y &*& 0 <= a;
+    ensures a*x == a*y;
 
 lemma void less_than_neq(int a, int b);
-requires a < b;
-ensures a != b;
+    requires a < b;
+    ensures a != b;
 
 #endif ARITH_GH

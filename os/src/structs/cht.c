@@ -1,7 +1,8 @@
-#include "cht.h"
+#include "os/structs/cht.h"
 
 #include "os/memory.h"
-#include "os/generic_ops.h"
+
+#include "generic_ops.h"
 
 static size_t loop(size_t k, size_t capacity)
 {
