@@ -17,6 +17,9 @@ def uint32_t(o):
 def uint16_t(o):
     return _fix(o)[15:0]
 
+def uint8_t(o):
+    return _fix(o)[7:0]
+
 def int64_t(o):
     return _fix(o)
 

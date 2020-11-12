@@ -18,6 +18,7 @@ from binary.externals.os import network
 from binary.externals.os.structs import map
 from binary.externals.os.structs import pool
 from binary.externals.os.structs import cht
+from binary.externals.os.structs import lpm
 from binary.exceptions import SymbexException
 from . import defs
 
@@ -30,6 +31,8 @@ init_externals = {
   'os_map_alloc': map.OsMapAlloc,
   'os_pool_alloc': pool.OsPoolAlloc,
   'cht_alloc': cht.ChtAlloc,
+  'lpm_alloc': lpm.LpmAlloc,
+  'lpm_update_elem': lpm.LpmUpdateElem,
 }
 
 handle_externals = {
@@ -45,7 +48,8 @@ handle_externals = {
   'os_pool_refresh': pool.OsPoolRefresh,
   'os_pool_used': pool.OsPoolUsed,
   'os_pool_expire': pool.OsPoolExpire,
-  'cht_find_preferred_available_backend': cht.ChtFindPreferredAvailableBackend
+  'cht_find_preferred_available_backend': cht.ChtFindPreferredAvailableBackend,
+  'lpm_lookup_elem': lpm.LpmLookupElem
 }
 
 def nf_init(nf_folder, devices_count):
