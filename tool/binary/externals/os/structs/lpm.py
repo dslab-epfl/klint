@@ -65,8 +65,8 @@ class LpmLookupElem(angr.SimProcedure):
         def case_true(state):
             print("!!! lpm_lookup_elem: lookup success")
             def forall_fun(key, value):
-                prefixlen = key[39:8]
-                prefix = key[7:0]
+                prefix = key[39:8]
+                prefixlen = key[7:0]
 
                 returned_match = (prefixlen == out_prefixlen_bv and prefix == out_prefix)
                 shorter_prefix = prefixlen < out_prefixlen_bv
@@ -78,8 +78,8 @@ class LpmLookupElem(angr.SimProcedure):
         def case_false(state):
             print("!!! lpm_lookup_elem: lookup fail")
             def forall_fun(key, value):
-                prefixlen = key[39:8]
-                prefix = key[7:0]
+                prefix = key[39:8]
+                prefixlen = key[7:0]
                 return prefix[31:31-(prefixlen+1)] == out_prefix_bv[31:31-(out_prefixlen_bv+1)]
 
             utils.add_constraints_and_check_sat(state, state.maps.forall(lpmp.table, forall_fun))
