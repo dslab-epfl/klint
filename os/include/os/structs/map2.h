@@ -35,11 +35,11 @@ void os_map2_set(struct os_map2* map, void* key_ptr, void* value_ptr);
 /*@ requires mapp2(map, ?key_size, ?value_size, ?capacity, ?items) &*&
              [?kf]chars(key_ptr, key_size, ?key) &*&
              [?vf]chars(value_ptr, value_size, ?value) &*&
-             length(items) < capacity &*&
              ghostmap_get(items, key) == none; @*/
 /*@ ensures [kf]chars(key_ptr, key_size, key) &*&
             [vf]chars(value_ptr, value_size, value) &*&
-            mapp2(map, key_size, value_size, capacity, ghostmap_set(items, key, value)); @*/
+            length(items) < capacity ? (result == true &*& mapp2(map, key_size, value_size, capacity, ghostmap_set(items, key, value)))
+                                     : (result == false &*& mapp2(map, key_size, value_size, capacity, items)); @*/
 
 void os_map2_remove(struct os_map2* map, void* key_ptr);
 /*@ requires mapp2(map, ?key_size, ?value_size, ?capacity, ?items) &*&

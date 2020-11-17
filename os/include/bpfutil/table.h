@@ -12,10 +12,6 @@ struct bpfutil_table {
 
 static inline void bpfutil_table_update(struct bpfutil_table table, void* key, void* value)
 {
-/*	void* unused;
-	if (os_map2_get(table.map, key, &unused)) {
-		os_map2_remove(table.map, key);
-	}*/
 	os_map2_set(table.map, key, value);
 }
 

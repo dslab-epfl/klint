@@ -90,11 +90,11 @@ class OsMap2Get(angr.SimProcedure):
 # requires mapp2(map, ?key_size, ?value_size, ?capacity, ?items) &*&
 #          [?kf]chars(key_ptr, key_size, ?key) &*&
 #          [?vf]chars(value_ptr, value_size, ?value) &*&
-#          length(items) < capacity &*&
 #          ghostmap_get(items, key) == none;
 # ensures [kf]chars(key_ptr, key_size, key) &*&
 #         [vf]chars(value_ptr, value_size, value) &*&
-#          mapp2(map, key_size, value_size, capacity, ghostmap_set(items, key, value));
+#         length(items) < capacity ? (result == true &*& mapp2(map, key_size, value_size, capacity, ghostmap_set(items, key, value)))
+#                                  : (result == false &*& mapp2(map, key_size, value_size, capacity, items));
 class OsMap2Set(angr.SimProcedure):
     def run(self, map, key_ptr, value_ptr):
         # Casts
@@ -107,14 +107,18 @@ class OsMap2Set(angr.SimProcedure):
         mapp = self.state.metadata.get(Map, map)
         key = self.state.memory.load(key_ptr, mapp.key_size)
         value = self.state.memory.load(value_ptr, mapp.value_size)
-        if utils.can_be_false(self.state.solver, self.state.maps.length(mapp.items) < mapp.capacity):
-            raise SymbexException("Precondition does not hold: length(items) < capacity")
         if utils.can_be_false(self.state.solver, claripy.Not(self.state.maps.get(mapp.items, key)[1])):
             raise SymbexException("Precondition does not hold: ghostmap_get(items, key) == none")
         print("!!! os_map2_set key/value", key, value)
 
         # Postconditions
-        self.state.maps.set(mapp.items, key, value)
+        def case_true(state):
+            self.state.maps.set(mapp.items, key, value)
+            return claripy.BVV(1, bitsizes.bool)
+        def case_false(state):
+            return claripy.BVV(0, bitsizes.bool)
+        return utils.fork_guarded(self, self.state.maps.length(mapp.items).ULT(mapp.capacity), case_true, case_false)
+
 
 # void os_map2_remove(struct os_map2* map, void* key_ptr);
 # requires mapp2(map, ?key_size, ?value_size, ?capacity, ?items) &*&
