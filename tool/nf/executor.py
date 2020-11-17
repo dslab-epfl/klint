@@ -16,6 +16,7 @@ from binary.externals.os import debug
 from binary.externals.os import memory
 from binary.externals.os import network
 from binary.externals.os.structs import map
+from binary.externals.os.structs import map2
 from binary.externals.os.structs import pool
 from binary.externals.os.structs import cht
 from binary.externals.os.structs import lpm
@@ -29,6 +30,7 @@ init_externals = {
   'os_config_get_time': config.ConfigTime,
   'os_memory_alloc': memory.OsMemoryAlloc,
   'os_map_alloc': map.OsMapAlloc,
+  'os_map2_alloc': map2.OsMap2Alloc,
   'os_pool_alloc': pool.OsPoolAlloc,
   'cht_alloc': cht.ChtAlloc,
   'lpm_alloc': lpm.LpmAlloc,
@@ -43,6 +45,9 @@ handle_externals = {
   'os_map_get': map.OsMapGet,
   'os_map_set': map.OsMapSet,
   'os_map_remove': map.OsMapRemove,
+  'os_map2_get': map2.OsMap2Get,
+  'os_map2_set': map2.OsMap2Set,
+  'os_map2_remove': map2.OsMap2Remove,
   'os_pool_borrow': pool.OsPoolBorrow,
   'os_pool_return': pool.OsPoolReturn,
   'os_pool_refresh': pool.OsPoolRefresh,

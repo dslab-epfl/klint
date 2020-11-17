@@ -52,13 +52,6 @@ static inline int pcn_pkt_controller(struct xdp_md* pkt, struct pkt_metadata* md
 }
 
 
-bool nf_init(uint16_t devices_count)
-{
-	(void) devices_count;
-	return true;
-}
-
-
 void nf_handle(struct os_net_packet* packet)
 {
 	struct xdp_md ctx = {

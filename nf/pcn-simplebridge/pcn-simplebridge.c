@@ -5,6 +5,7 @@
 // - Removed `pcn_log` calls (we do not need logging, and pcn_log has advanced formats we do not support).
 // - Replaced the `timestamp` table, intended to be updated by userspace, with a call to `bpf_ktime_get_boot_ns`.
 // - Replaced the object-oriented BPF tables functional-style ones (since we compile as C, not via BPF).
+// - Moved the table initialization macro to nf_init
 // - Replaced the BCC and Linux headers with our equivalent ones.
 // - Replaced non-standard C constructs with their standard equivalents, such as using u8* instead of void* for pointers used in arithmetic
 // - Fixed C constructs that cause warnings, such as removing unused labels
@@ -26,7 +27,7 @@ struct fwd_entry {
   u32 port;
 } __attribute__((packed, aligned(8)));
 
-BPF_TABLE(hash, __be64, struct fwd_entry, fwdtable, 1024)
+struct bpfutil_table fwdtable;
 
 struct eth_hdr {
   __be64 dst : 48;
@@ -98,4 +99,11 @@ static __always_inline int handle_rx(struct CTXTYPE *ctx,
 DO_FLOODING:
   pcn_pkt_controller(ctx, md, REASON_FLOODING);
   return RX_DROP;
+}
+
+bool nf_init(uint16_t devices_count)
+{
+	(void) devices_count;
+	BPF_TABLE(hash, __be64, struct fwd_entry, fwdtable, 1024);
+	return true;
 }

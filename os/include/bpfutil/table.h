@@ -12,10 +12,10 @@ struct bpfutil_table {
 
 static inline void bpfutil_table_update(struct bpfutil_table table, void* key, void* value)
 {
-	void* unused;
+/*	void* unused;
 	if (os_map2_get(table.map, key, &unused)) {
 		os_map2_remove(table.map, key);
-	}
+	}*/
 	os_map2_set(table.map, key, value);
 }
 
@@ -34,10 +34,6 @@ static inline void bpfutil_table_delete(struct bpfutil_table table, void* key)
 
 
 #define BPF_TABLE_hash(key_type, value_type, name, size) \
-	struct bpfutil_table name; \
-	__attribute__((constructor)) static void name##_ctor(void) \
-	{ \
-		name = (struct bpfutil_table) { .value_holder = os_memory_alloc(1, sizeof(value_type)), .map = os_map2_alloc(sizeof(key_type), sizeof(value_type), size) }; \
-	}
+	name = (struct bpfutil_table) { .value_holder = os_memory_alloc(1, sizeof(value_type)), .map = os_map2_alloc(sizeof(key_type), sizeof(value_type), size) }
 
 #define BPF_TABLE(type, key_type, value_type, name, size) BPF_TABLE_##type(key_type, value_type, name, size)

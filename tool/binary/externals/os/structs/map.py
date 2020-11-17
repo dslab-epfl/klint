@@ -56,10 +56,6 @@ class OsMapGet(angr.SimProcedure):
         out_value = cast.ptr(out_value)
         print("!!! os_map_get", map, key_ptr, out_value)
 
-        # Symbolism assumptions
-        if out_value.symbolic:
-            raise SymbexException("out_value cannot be symbolic")
-
         # Preconditions
         mapp = self.state.metadata.get(Map, map)
         key = self.state.memory.load(key_ptr, mapp.key_size)
@@ -89,7 +85,7 @@ class OsMapSet(angr.SimProcedure):
         map = cast.ptr(map)
         key_ptr = cast.ptr(key_ptr)
         value = cast.ptr(value)
-        print("!!! os_map_put", map, key_ptr, value)
+        print("!!! os_map_set", map, key_ptr, value)
 
         # Preconditions
         mapp = self.state.metadata.get(Map, map)
@@ -101,7 +97,7 @@ class OsMapSet(angr.SimProcedure):
             raise SymbexException("Precondition does not hold: ghostmap_get(values, key) == none")
         if utils.can_be_false(self.state.solver, claripy.Not(self.state.maps.get(mapp.addrs, key)[1])):
             raise SymbexException("Precondition does not hold: ghostmap_get(addrs, key) == none")
-        print("!!! os_map_put key", key)
+        print("!!! os_map_set key", key)
 
         # Postconditions
         self.state.maps.set(mapp.values, key, value)
