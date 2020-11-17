@@ -13,13 +13,18 @@ from binary.exceptions import SymbexException
 
 Lpm = namedtuple("lpmp", ["table"])
 
+def bit_not(n, numbits):
+    return (1 << numbits) - 1 - n
+
+IP_LEN = bitsizes.uint32_t
+
 class LpmAlloc(angr.SimProcedure):
     def run(self):
         print(f"!!! lpm_alloc")
 
         # Postconditions
         result = self.state.memory.allocate_opaque("lpm")
-        table = self.state.maps.new(bitsizes.uint32_t + bitsizes.uint8_t, bitsizes.uint16_t, name="lpm_table")
+        table = self.state.maps.new(IP_LEN + bitsizes.uint8_t, IP_LEN + bitsizes.uint16_t, name="lpm_table")
         self.state.metadata.set(result, Lpm(table))
         return result
 
@@ -35,7 +40,9 @@ class LpmUpdateElem(angr.SimProcedure):
 
         # Postconditions
         lpmp = self.state.metadata.get(Lpm, lpm)
-        self.state.maps.set(lpmp.table, prefix.concat(prefixlen), value)
+        # Mask for the "prefixlen" MSBs of prefix
+        mask = claripy.BVV(bit_not(((1 << (IP_LEN - prefixlen.args[0])) - 1), IP_LEN), IP_LEN)
+        self.state.maps.set(lpmp.table, prefix.concat(prefixlen), mask.concat(value))
         return claripy.BVV(1, bitsizes.bool)
 
 class LpmLookupElem(angr.SimProcedure):
@@ -56,7 +63,7 @@ class LpmLookupElem(angr.SimProcedure):
         # Postconditions
         lpmp = self.state.metadata.get(Lpm, lpm)
         out_value_bv = claripy.BVS("out_value", bitsizes.uint16_t)
-        out_prefix_bv = claripy.BVS("out_prefix", bitsizes.uint32_t)
+        out_prefix_bv = claripy.BVS("out_prefix", IP_LEN)
         out_prefixlen_bv = claripy.BVS("out_prefixlen", bitsizes.uint8_t)
         self.state.memory.store(out_value, out_value_bv, endness=self.state.arch.memory_endness)
         self.state.memory.store(out_prefix, out_prefix_bv, endness=self.state.arch.memory_endness)
@@ -64,27 +71,33 @@ class LpmLookupElem(angr.SimProcedure):
 
         def case_true(state):
             print("!!! lpm_lookup_elem: lookup success")
+            # The function returns the longest prefix match
             def forall_fun(key, value):
-                prefix = key[39:8]
-                prefixlen = key[7:0]
+                key_prefix = key[39:8]
+                key_prefixlen = key[7:0]
+                mask = value[47:16]
 
-                returned_match = (prefixlen == out_prefixlen_bv and prefix == out_prefix)
-                shorter_prefix = prefixlen < out_prefixlen_bv
-                no_match = prefix[31:31-(prefixlen+1)] == out_prefix_bv[31:31-(out_prefixlen_bv+1)]
-                return claripy.Or(returned_match, shorter_prefix, no_match)
+                # For each entry in the map, either:
+                # shorter_prefix: the entry's prefix length is shorter
+                # match: the entry corresponds to the returned values (out parameters)
+                # no_match: the entry's prefix length is >= to the returned match but the prefixes don't match
+                shorter_prefix = key_prefixlen < out_prefixlen_bv
+                match = claripy.And(key == out_prefix_bv.concat(out_prefixlen_bv), (prefix & mask) == (key_prefix & mask))
+                no_match = claripy.And(key_prefixlen >= out_prefixlen_bv, (prefix & mask) != (key_prefix & mask))
+                return claripy.Or(shorter_prefix, match, no_match)
 
             utils.add_constraints_and_check_sat(state, state.maps.forall(lpmp.table, forall_fun))
             return claripy.BVV(1, bitsizes.bool)
         def case_false(state):
             print("!!! lpm_lookup_elem: lookup fail")
+            # There was no match
             def forall_fun(key, value):
-                prefix = key[39:8]
-                prefixlen = key[7:0]
-                return prefix[31:31-(prefixlen+1)] == out_prefix_bv[31:31-(out_prefixlen_bv+1)]
+                mask = value[47:16]
+                return (prefix & mask) != (key[39:8] & mask)
 
             utils.add_constraints_and_check_sat(state, state.maps.forall(lpmp.table, forall_fun))
             return claripy.BVV(0, bitsizes.bool)
 
         get_value = self.state.maps.get(lpmp.table, out_prefix_bv.concat(out_prefixlen_bv))
-        guard = claripy.And(get_value[1], get_value[0] == out_value_bv)
+        guard = claripy.And(get_value[1], get_value[0][15:0] == out_value_bv)
         return utils.fork_guarded(self, guard, case_true, case_false)
