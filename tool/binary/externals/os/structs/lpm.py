@@ -13,13 +13,14 @@ Lpm = namedtuple("lpmp", ["table"])
 
 IP_LEN = bitsizes.uint32_t
 
+# TODO: Split allocation and fill-from-config
 class LpmAlloc(angr.SimProcedure):
     def run(self):
         print(f"!!! lpm_alloc")
 
         # Postconditions
         result = self.state.memory.allocate_opaque("lpm")
-        table = self.state.maps.new(IP_LEN + bitsizes.uint8_t, bitsizes.uint16_t, name="lpm_table")
+        table = self.state.maps.new_havoced(IP_LEN + bitsizes.uint8_t, bitsizes.uint16_t, claripy.BVS("lpm_table_length", 64), name="lpm_table")
         self.state.metadata.set(result, Lpm(table))
         return result
 
@@ -69,7 +70,7 @@ class LpmLookupElem(angr.SimProcedure):
             # the entry's prefix length is shorter (=> lower priority), or
             shorter_prefix = key_prefixlen < out_prefixlen_bv
             # the prefixes don't match (=> no match), or
-            no_match = claripy.LShR(key_prefix, IP_LEN - key_prefixlen) != claripy.LShR(out_prefix_bv, IP_LEN - out_prefixlen_bv)
+            no_match = claripy.LShR(key_prefix, (IP_LEN - key_prefixlen).zero_extend(24)) != claripy.LShR(out_prefix_bv, (IP_LEN - out_prefixlen_bv).zero_extend(24))
             # the entry corresponds to the returned value (=> match)
             match = (key == out_prefix_bv.concat(out_prefixlen_bv))
             return shorter_prefix | no_match | match

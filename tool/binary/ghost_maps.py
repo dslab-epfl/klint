@@ -266,6 +266,11 @@ class GhostMaps(SimStatePlugin):
         self.state.metadata.set(obj, Map.new(self.state, key_size, value_size, name, length, [lambda st, i: (i.key < length) == i.present]))
         return obj
 
+    def new_havoced(self, key_size, value_size, length, name="map"):
+        obj = self.state.memory.allocate_opaque(name)
+        self.state.metadata.set(obj, Map.new(self.state, key_size, value_size, name, length, []))
+        return obj
+
     def length(self, obj):
         return self[obj].length()
 

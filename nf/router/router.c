@@ -11,9 +11,9 @@ bool nf_init(uint16_t devices_count)
 {
 	(void) devices_count;
 
-	// Initialize forwarding table
+	// TODO: Split allocation and fill-from-config
 	lpm = lpm_alloc();
-	// ??? update it        lpm_update_elem(lpm, n << 24, 8, 1);
+
 	return true;
 }
 
