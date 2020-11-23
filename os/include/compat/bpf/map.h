@@ -29,7 +29,7 @@ struct bpf_map_def {
 void* bpf_map_lookup_elem(struct bpf_map_def* map, void* key)
 {
 	// "Perform a lookup in map for an entry associated to key. Return Map value associated to key, or NULL if no entry was found."
-	if (os_map2_get(map->_map, key, &(map->_value_holder))) {
+	if (os_map2_get(map->_map, key, map->_value_holder)) {
 		return map->_value_holder;
 	}
 	return NULL;

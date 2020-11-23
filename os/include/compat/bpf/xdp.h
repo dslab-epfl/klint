@@ -16,6 +16,6 @@ void nf_handle(struct os_net_packet* packet)
 
 	int result = xdp_main(&ctx);
 	if (result != XDP_DROP) {
-		os_net_transmit(packet, (uint16_t) result, (struct os_net_ether_header*) packet, 0, 0);
+		os_net_transmit(packet, (uint16_t) result, (struct os_net_ether_header*) packet->data, 0, 0);
 	}
 }
