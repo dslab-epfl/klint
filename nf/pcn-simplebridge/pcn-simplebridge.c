@@ -15,10 +15,9 @@
 #define FDB_TIMEOUT 300
 #endif
 
-#include "bpfutil/ktime.h"
-#include "bpfutil/polycube.h"
-#include "bpfutil/table.h"
-#include "bpfutil/types.h"
+#include "compat/bpf/ktime.h"
+#include "compat/bpf/types.h"
+#include "compat/polycube.h"
 
 #define REASON_FLOODING 0x01
 
