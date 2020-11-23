@@ -16,7 +16,7 @@
 #endif
 
 #include "compat/bpf/ktime.h"
-#include "compat/bpf/types.h"
+#include "compat/linux/types.h"
 #include "compat/polycube.h"
 
 #define REASON_FLOODING 0x01

@@ -31,7 +31,7 @@ bool os_map2_get(struct os_map2* map, void* key_ptr, void* out_value_ptr);
               case some(v): return result == true &*& chars(out_value_ptr, value_size, v);
             }; @*/
 
-void os_map2_set(struct os_map2* map, void* key_ptr, void* value_ptr);
+bool os_map2_set(struct os_map2* map, void* key_ptr, void* value_ptr);
 /*@ requires mapp2(map, ?key_size, ?value_size, ?capacity, ?items) &*&
              [?kf]chars(key_ptr, key_size, ?key) &*&
              [?vf]chars(value_ptr, value_size, ?value) &*&
