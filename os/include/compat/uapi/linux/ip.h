@@ -2,7 +2,8 @@
 
 #include <stdint.h>
 
-#include "compat/linux/inet.h"
+#include "compat/endian.h"
+
 
 #define IPPROTO_ICMP 1
 #define IPPROTO_IPIP 4

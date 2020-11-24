@@ -11,6 +11,16 @@
 #include "os/structs/map2.h"
 #include "os/structs/pool.h"
 
+
+// not the best place but they have to be somewhere so...
+#define __be16 uint16_t
+#define __be32 uint32_t
+#define __be64 uint64_t
+#define __u8 uint8_t
+#define __u16 uint16_t
+#define __u32 uint32_t
+#define __u64 uint64_t
+
 // See compat/skeleton/xdp.h
 #define XDP_DROP -1
 #define XDP_TX -2

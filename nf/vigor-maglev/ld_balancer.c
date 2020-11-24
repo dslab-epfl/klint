@@ -5,7 +5,6 @@
 
 #include "ld_balancer.h"
 #include "os/memory.h"
-#include "os/generic_ops.h"
 
 struct ld_balancer *ld_balancer_alloc(size_t flow_capacity,
                                       size_t backend_capacity,

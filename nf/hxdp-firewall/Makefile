@@ -1,11 +1,12 @@
 # Compatibility layer
 CFLAGS += -isystem ../../os/include/compat
+CFLAGS += -isystem ../../os/include/compat/uapi
 
 # Somehow the code expects the Linux UDP header to be included
 CFLAGS += --include linux/udp.h
 
-# Somehow the code expects u* aliases
-CFLAGS += -Du8=__u8 -Du16=__u16 -Du32=__u32 -Du64=__u64
+# The code expects u* aliases
+CFLAGS += -Du8=uint8_t -Du16=uint16_t -Du32=uint32_t -Du64=uint64_t
 
 # The code uses pointer arithmetic on void*
 CFLAGS += -Wno-pointer-arith

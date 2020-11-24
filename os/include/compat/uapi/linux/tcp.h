@@ -2,7 +2,8 @@
 
 #include <stdint.h>
 
-#include "compat/linux/inet.h"
+#include "compat/endian.h"
+
 
 struct tcphdr {
 	uint16_t source;
