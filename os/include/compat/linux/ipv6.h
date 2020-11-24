@@ -12,12 +12,16 @@ struct in6_addr {
 	#define s6_addr			in6_u.u6_addr8
 	#define s6_addr16		in6_u.u6_addr16
 	#define s6_addr32		in6_u.u6_addr32
-	#endif
 } __packed;
 
 struct ipv6hdr {
+#ifdef IS_BIG_ENDIAN
+	__u8 version : 4,
+	     priority : 4;
+#else
 	__u8 priority : 4,
 	     version : 4;
+#endif
 	__u8 flow_lbl[3];
 	__u16 payload_len;
 	__u8 nexthdr;

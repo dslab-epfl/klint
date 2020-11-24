@@ -9,7 +9,7 @@
 
 
 struct ethhdr {
-	u8 h_dest[6];
-	u8 h_src[6];
-	u16 h_proto;
+	__u8 h_dest[6];
+	__u8 h_src[6];
+	__u16 h_proto;
 } __packed;

@@ -22,8 +22,7 @@
  * involving information pertaining to proper forwarding of packets
  */
 
-#include "bpf.h"
-#include "bpf_helpers.h"
+#include "compat/bpf/map.h"
 
 #include "balancer_consts.h"
 #include "balancer_structs.h"

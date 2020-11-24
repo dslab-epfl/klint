@@ -17,12 +17,11 @@
 #ifndef __CSUM_HELPERS_H
 #define __CSUM_HELPERS_H
 
-#include <linux/in.h>
-#include <linux/ip.h>
-#include <linux/ipv6.h>
+#include "compat/bpf/csum.h"
+#include "compat/linux/inet.h"
+#include "compat/linux/ip.h"
+#include "compat/linux/ipv6.h"
 
-#include "bpf.h"
-#include "bpf_helpers.h"
 
 __attribute__((__always_inline__))
 static inline __u16 csum_fold_helper(__u64 csum) {

@@ -16,6 +16,11 @@ SRCS += $(shell echo *.c)
 # Name of the app
 LIB := nf
 
+# NF-specific makefile if truly necessary
+ifneq (,$(wildcard Makefile))
+include Makefile
+endif
+
 # TODO: this should have dependency tracking, proper targets, and stuff
 compile:
 	@$(CC) $(SRCS) $(CFLAGS) -shared -o lib$(LIB).so

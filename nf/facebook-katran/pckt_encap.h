@@ -23,17 +23,16 @@
  * using IPIP as our encap of choice
  */
 
-#include <linux/ip.h>
-#include <linux/ipv6.h>
-#include <string.h>
+#include "compat/bpf/endian.h"
+#include "compat/bpf/helpers.h"
+#include "compat/linux/ip.h"
+#include "compat/linux/ipv6.h"
+#include "compat/string.h"
 
 #include "balancer_consts.h"
 #include "balancer_helpers.h"
 #include "balancer_structs.h"
 #include "control_data_maps.h"
-#include "bpf.h"
-#include "bpf_endian.h"
-#include "bpf_helpers.h"
 #include "encap_helpers.h"
 #include "pckt_parsing.h"
 

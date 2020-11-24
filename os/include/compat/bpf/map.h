@@ -3,13 +3,12 @@
 #include <stddef.h>
 
 #include "compat/linux/types.h"
+#include "compat/string.h"
 
 #include "os/memory.h"
 #include "os/structs/map.h"
 #include "os/structs/map2.h"
 #include "os/structs/pool.h"
-
-#define memcpy(dst, src, size) for(size_t x_ = 0; x_ < size; x_++) { *(((uint8_t*)dst) + x_) = *(((uint8_t*)src) + x_); }
 
 
 enum bpf_map_type {
@@ -17,6 +16,7 @@ enum bpf_map_type {
 	BPF_MAP_TYPE_ARRAY,
 	BPF_MAP_TYPE_PERCPU_ARRAY,
 	BPF_MAP_TYPE_LRU_HASH,
+	BPF_MAP_TYPE_ARRAY_OF_MAPS, // not actually supported at runtime; but Katran refers to it
 // don't care about others for now
 };
 
@@ -39,8 +39,11 @@ struct bpf_map_def {
 	void* _value_holder; // workaround since we cannot gain ownership of values within the map; works as long as code uses one lookup at a time
 };
 
-// no need for typed stuff
-#define BPF_ANNOTATE_KV_PAIR(...)
+// no need for a separate section
+#define SEC(...)
+
+// no need for typed stuff; but declare a struct because this macro is used with a ; at the end and that's illegal on its own
+#define BPF_ANNOTATE_KV_PAIR(name, ...) struct name##_annotate { uint64_t unused; }
 
 
 void* bpf_map_lookup_elem(struct bpf_map_def* map, void* key)

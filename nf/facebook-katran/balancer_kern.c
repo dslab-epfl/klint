@@ -3,9 +3,11 @@
  * This is main balancer's application code
  */
 
-#include <linux/in.h>
-#include <linux/ip.h>
-#include <linux/ipv6.h>
+#include "compat/bpf/helpers.h"
+#include "compat/bpf/xdp.h"
+#include "compat/linux/inet.h"
+#include "compat/linux/ip.h"
+#include "compat/linux/ipv6.h"
 #include <stddef.h>
 #include <stdbool.h>
 
@@ -13,9 +15,7 @@
 #include "balancer_helpers.h"
 #include "balancer_structs.h"
 #include "balancer_maps.h"
-#include "bpf.h"
-#include "bpf_helpers.h"
-#include "jhash.h"
+#include "compat/linux/jhash.h"
 #include "pckt_encap.h"
 #include "pckt_parsing.h"
 #include "handle_icmp.h"

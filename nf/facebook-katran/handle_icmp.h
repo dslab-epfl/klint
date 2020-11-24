@@ -22,18 +22,17 @@
  * and handling ICMP packets
  */
 
-#include <linux/ip.h>
-#include <linux/ipv6.h>
-#include <linux/icmp.h>
-#include <linux/icmpv6.h>
-#include <stddef.h>
-#include <linux/if_ether.h>
+#include "compat/bpf/endian.h"
+#include "compat/linux/ip.h"
+#include "compat/linux/ipv6.h"
+#include "compat/linux/icmp.h"
+#include "compat/linux/icmpv6.h"
+#include "compat/string.h"
+#include "compat/linux/if_ether.h"
 
 #include "balancer_consts.h"
 #include "balancer_structs.h"
 #include "balancer_helpers.h"
-#include "bpf.h"
-#include "bpf_endian.h"
 
 __attribute__((__always_inline__))
 static inline int swap_mac_and_send(void *data, void *data_end) {

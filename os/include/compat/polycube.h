@@ -8,7 +8,7 @@
 #include "os/network.h"
 #include "os/structs/map2.h"
 
-#include "compat/bpf/xdp_md.h"
+#include "compat/bpf/helpers.h"
 
 
 struct pkt_metadata {
