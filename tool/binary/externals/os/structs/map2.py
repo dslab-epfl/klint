@@ -67,7 +67,7 @@ class OsMap2Get(angr.SimProcedure):
         # Casts
         map = cast.ptr(map)
         key_ptr = cast.ptr(key_ptr)
-        out_value_otr = cast.ptr(out_value_ptr)
+        out_value_ptr = cast.ptr(out_value_ptr)
         print("!!! os_map2_get", map, key_ptr, out_value_ptr)
 
         # Preconditions
