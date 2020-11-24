@@ -15,7 +15,7 @@
 #define FDB_TIMEOUT 300
 #endif
 
-#include "compat/bpf/ktime.h"
+#include "compat/bpf/helpers.h"
 #include "compat/linux/types.h"
 #include "compat/polycube.h"
 

@@ -633,7 +633,7 @@ static inline int process_packet(void *data, __u64 off, void *data_end,
 }
 
 SEC("xdp-balancer")
-int balancer_ingress(struct xdp_md *ctx) {
+int xdp_main(struct xdp_md *ctx) {
   void *data = (void *)(long)ctx->data;
   void *data_end = (void *)(long)ctx->data_end;
   struct eth_hdr *eth = data;

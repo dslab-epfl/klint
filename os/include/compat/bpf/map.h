@@ -45,8 +45,11 @@ struct bpf_map_def {
 // no need for typed stuff; but declare a struct because this macro is used with a ; at the end and that's illegal on its own
 #define BPF_ANNOTATE_KV_PAIR(name, ...) struct name##_annotate { uint64_t unused; }
 
+// only supported bpf_map_update_elem flags
+#define BPF_ANY 0
 
-void* bpf_map_lookup_elem(struct bpf_map_def* map, void* key)
+
+static inline void* bpf_map_lookup_elem(struct bpf_map_def* map, void* key)
 {
 	// "Perform a lookup in map for an entry associated to key. Return Map value associated to key, or NULL if no entry was found."
 	switch (map->type) {
@@ -77,10 +80,7 @@ void* bpf_map_lookup_elem(struct bpf_map_def* map, void* key)
 	return NULL;
 }
 
-// only supported bpf_map_update_elem flags
-#define BPF_ANY 0
-
-long bpf_map_update_elem(struct bpf_map_def* map, void* key, void* value, u64 flags)
+static inline long bpf_map_update_elem(struct bpf_map_def* map, void* key, void* value, u64 flags)
 {
 	// "Add or update the value of the entry associated to key in map with value. flags is one of:
 	//  BPF_NOEXIST The entry for key must not exist in the map.
@@ -122,7 +122,7 @@ long bpf_map_update_elem(struct bpf_map_def* map, void* key, void* value, u64 fl
 	return -1;
 }
 
-long bpf_map_delete_elem(struct bpf_map_def* map, void* key)
+static inline long bpf_map_delete_elem(struct bpf_map_def* map, void* key)
 {
 	// "Delete entry with key from map. Return 0 on success, or a negative error in case of failure."
 
@@ -152,7 +152,7 @@ long bpf_map_delete_elem(struct bpf_map_def* map, void* key)
 
 // Not in the Linux definition, necessary for a standard native program
 // (we could lazily init in the lookup/update/delete functions but that would slow down processing)
-void bpf_map_init(struct bpf_map_def* map)
+static inline void bpf_map_init(struct bpf_map_def* map)
 {
 	// Single-threaded so no need to specially handle PERCPU
 	if (map->type == BPF_MAP_TYPE_PERCPU_ARRAY) {

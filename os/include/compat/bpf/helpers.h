@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 
+#include "os/clock.h"
 #include "os/memory.h"
 
 #include "compat/string.h"
@@ -17,7 +18,7 @@ struct xdp_md {
 //	uint32_t egress_ifindex;
 };
 
-long bpf_xdp_adjust_head(struct xdp_md* xdp_md, int delta)
+static inline long bpf_xdp_adjust_head(struct xdp_md* xdp_md, int delta)
 {
 	if (delta >= 0) {
 		xdp_md->data += delta;
@@ -31,7 +32,7 @@ long bpf_xdp_adjust_head(struct xdp_md* xdp_md, int delta)
 	return 0;
 }
 
-long bpf_xdp_adjust_tail(struct xdp_md* xdp_md, int delta)
+static inline long bpf_xdp_adjust_tail(struct xdp_md* xdp_md, int delta)
 {
 	if (delta >= 0) {
 		xdp_md->data_end -= delta;
@@ -49,3 +50,4 @@ long bpf_xdp_adjust_tail(struct xdp_md* xdp_md, int delta)
 #define bpf_get_smp_processor_id() 0
 
 #define bpf_ktime_get_ns os_clock_time
+#define bpf_ktime_get_boot_ns os_clock_time

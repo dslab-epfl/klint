@@ -7,3 +7,5 @@ The original files are Copyright (c) Facebook, Inc. and its affiliates, and dist
 They were modified in the following ways:
 - Removed files unrelated to `balancer_kern.c`
 - Replaced Linux header includes with our equivalent ones.
+- Renamed `balancer_ingress` to `xdp_main`
+- Added `init.c`

@@ -10,9 +10,9 @@ CC ?= gcc
 CFLAGS += -std=c17 -D_POSIX_C_SOURCE=200809L -D_GNU_SOURCE
 
 # Max optimizations
-CFLAGS += -O3
-CFLAGS += -march=native
-CFLAGS += -flto
+#CFLAGS += -O3
+#CFLAGS += -march=native
+#CFLAGS += -flto
 
 # Clang sometimes requires this
 CFLAGS += -fPIC
