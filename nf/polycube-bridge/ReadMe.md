@@ -1,4 +1,5 @@
-This file was obtained from the Polycube project, commit 245ed49ab119927055a9dd22120514aa0d34bbce of github.com/polycube-network/polycube
+The `Simplebridge_dp.c` file was obtained from the Polycube project, commit 245ed49ab119927055a9dd22120514aa0d34bbce of github.com/polycube-network/polycube
+It was originally in src/services/pcn-simplebridge/src/. 
 The original file is Copyright 2018 The Polycube Authors, Licensed under the Apache License, Version 2.0.
 
 It was modified in the following ways:

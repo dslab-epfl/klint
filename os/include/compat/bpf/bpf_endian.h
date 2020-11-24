@@ -1,6 +1,6 @@
 #pragma once
 
-#include "compat/linux/inet.h"
+#include "compat/uapi/linux/in.h"
 
 #define bpf_htons htons
 #define bpf_htonl htonl

@@ -22,18 +22,20 @@
  * parsing etc)
  */
 
-#include "compat/linux/ip.h"
-#include "compat/linux/ipv6.h"
-#include "compat/linux/icmp.h"
-#include "compat/linux/icmpv6.h"
+#include <linux/ip.h>
+#include <linux/ipv6.h>
+#include <linux/icmp.h>
+#include <linux/icmpv6.h>
 #include <stddef.h>
-#include "compat/linux/tcp.h"
-#include "compat/linux/udp.h"
-#include "compat/linux/if_ether.h"
+#include <linux/tcp.h>
+#include <linux/udp.h>
+#include <linux/if_ether.h>
+#include <linux/ptrace.h>
 #include <stdbool.h>
 
 #include "balancer_consts.h"
 #include "balancer_helpers.h"
+#include "bpf.h"
 
 struct quic_long_header {
   __u8 flags;

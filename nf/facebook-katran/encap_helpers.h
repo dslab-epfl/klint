@@ -17,12 +17,15 @@
 #ifndef __ENCAP_HELPERS_H
 #define __ENCAP_HELPERS_H
 
-#include "compat/bpf/endian.h"
-#include "compat/linux/ip.h"
-#include "compat/linux/ipv6.h"
-#include "compat/linux/udp.h"
+#include <linux/ip.h>
+#include <linux/ipv6.h>
+#include <linux/udp.h>
+#include <string.h>
 
 #include "balancer_consts.h"
+#include "bpf.h"
+#include "bpf_endian.h"
+#include "bpf_helpers.h"
 #include "csum_helpers.h"
 
 __attribute__((__always_inline__)) static inline void create_v4_hdr(

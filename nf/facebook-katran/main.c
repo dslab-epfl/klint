@@ -1,8 +1,11 @@
 #include <stdbool.h>
 
+#define XDP_MAIN_FUNC balancer_ingress
+#include "compat/skeleton/xdp.h"
+
 #include "balancer_consts.h"
 
-#include "compat/bpf/map.h"
+#include "bpf.h"
 
 extern struct bpf_map_def vip_map;
 extern struct bpf_map_def lru_mapping;

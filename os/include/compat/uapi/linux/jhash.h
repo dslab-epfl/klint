@@ -1,7 +1,8 @@
+// Changes from the original code are marked as "MODIFIED:"
+
 #ifndef _LINUX_JHASH_H
 #define _LINUX_JHASH_H
 
-// Changes from the original code, with the following header, are marked as "MODIFIED:"
 /* jhash.h: Jenkins hash support.
  *
  * Copyright (C) 2006. Bob Jenkins (bob_jenkins@burtleburtle.net)
@@ -26,8 +27,8 @@
  */
 
 // MODIFIED: use our headers instead
-#include "compat/linux/bitops.h"
-#include "compat/linux/unaligned.h"
+#include "bitops.h"
+#include "unaligned.h"
 
 /* Best hash sizes are of power of two */
 #define jhash_size(n)   ((u32)1<<(n))

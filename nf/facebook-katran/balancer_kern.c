@@ -3,11 +3,9 @@
  * This is main balancer's application code
  */
 
-#include "compat/bpf/helpers.h"
-#include "compat/bpf/xdp.h"
-#include "compat/linux/inet.h"
-#include "compat/linux/ip.h"
-#include "compat/linux/ipv6.h"
+#include <linux/in.h>
+#include <linux/ip.h>
+#include <linux/ipv6.h>
 #include <stddef.h>
 #include <stdbool.h>
 
@@ -15,7 +13,9 @@
 #include "balancer_helpers.h"
 #include "balancer_structs.h"
 #include "balancer_maps.h"
-#include "compat/linux/jhash.h"
+#include "bpf.h"
+#include "bpf_helpers.h"
+#include "jhash.h"
 #include "pckt_encap.h"
 #include "pckt_parsing.h"
 #include "handle_icmp.h"
@@ -633,7 +633,7 @@ static inline int process_packet(void *data, __u64 off, void *data_end,
 }
 
 SEC("xdp-balancer")
-int xdp_main(struct xdp_md *ctx) {
+int balancer_ingress(struct xdp_md *ctx) {
   void *data = (void *)(long)ctx->data;
   void *data_end = (void *)(long)ctx->data_end;
   struct eth_hdr *eth = data;

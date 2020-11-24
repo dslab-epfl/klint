@@ -1,3 +1,8 @@
+# Compatibility layer
+CFLAGS += -isystem ../../os/include/compat
+CFLAGS += -I ../../os/include/compat/uapi/linux
+CFLAGS += -I ../../os/include/compat/bpf
+
 # Ignore #pragma unroll
 CFLAGS += -Wno-unknown-pragmas
 

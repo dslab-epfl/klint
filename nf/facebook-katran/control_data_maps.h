@@ -22,7 +22,8 @@
  * information about encapsulation / decapsulation
  */
 
-#include "compat/bpf/map.h"
+#include "bpf.h"
+#include "bpf_helpers.h"
 
 #include "balancer_consts.h"
 #include "balancer_structs.h"

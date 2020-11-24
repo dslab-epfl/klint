@@ -20,14 +20,16 @@
  * This file contains common used routines. such as csum helpers etc
  */
 
-#include "compat/linux/inet.h"
-#include "compat/linux/ip.h"
-#include "compat/linux/ipv6.h"
+#include <linux/in.h>
+#include <linux/ip.h>
+#include <linux/ipv6.h>
 #include <stdbool.h>
 
 #include "balancer_consts.h"
 #include "balancer_structs.h"
 #include "control_data_maps.h"
+#include "bpf.h"
+#include "bpf_helpers.h"
 #include "csum_helpers.h"
 #include "introspection.h"
 
