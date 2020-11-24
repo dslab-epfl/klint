@@ -20,9 +20,9 @@
  * This file contains common used routines. such as csum helpers etc
  */
 
-#include <linux/in.h>
-#include <linux/ip.h>
-#include <linux/ipv6.h>
+#include "compat/linux/inet.h"
+#include "compat/linux/ip.h"
+#include "compat/linux/ipv6.h"
 #include <stdbool.h>
 
 #include "balancer_consts.h"
