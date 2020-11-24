@@ -1,7 +1,6 @@
 #pragma once
 
-#include "compat/linux/types.h"
-
+#include <stdint.h>
 
 #define ETH_ALEN 6
 
@@ -9,7 +8,7 @@
 
 
 struct ethhdr {
-	__u8 h_dest[6];
-	__u8 h_src[6];
-	__u16 h_proto;
-} __packed;
+	uint8_t h_dest[6];
+	uint8_t h_src[6];
+	uint16_t h_proto;
+} __attribute__((packed));

@@ -7,6 +7,7 @@ include $(SELF_DIR)/Makefile.base
 # Disable stdlib, this is an NF, we only use the "OS" abstractions
 CFLAGS += -nostdlib
 
+
 # OS headers
 CFLAGS += -I$(SELF_DIR)/os/include
 
@@ -20,6 +21,9 @@ LIB := nf
 ifneq (,$(wildcard Makefile))
 include Makefile
 endif
+
+CFLAGS += -nostdinc -isystem $(shell $(CC) --print-file-name=include) -isystem /usr/local/include -isystem /usr/include/x86_64-linux-gnu -isystem /usr/include
+
 
 # TODO: this should have dependency tracking, proper targets, and stuff
 compile:

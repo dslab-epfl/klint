@@ -1,15 +1,14 @@
 // This header is intended to be included *once*. It includes non-static declarations.
 
-#include "compat/bpf/helpers.h"
+#include "os/skeleton/nf.h"
 
-#include "os/network.h"
+#include "compat/uapi/linux/bpf.h"
 
+#ifndef XDP_MAIN_FUNC
+#error Please define XDP_MAIN_FUNC to the name of the main XDP function
+#endif
 
-#define XDP_DROP -1
-#define XDP_TX -2
-#define XDP_PASS -3
-
-int xdp_main(struct xdp_md* ctx);
+int XDP_MAIN_FUNC(struct xdp_md* ctx);
 
 void nf_handle(struct os_net_packet* packet)
 {
@@ -19,7 +18,7 @@ void nf_handle(struct os_net_packet* packet)
 		.ingress_ifindex = packet->device
 	};
 
-	int result = xdp_main(&ctx);
+	int result = XDP_MAIN_FUNC(&ctx);
 	packet->data = (void*) ctx.data;
 	packet->length = (ctx.data_end - ctx.data);
 	if (result == XDP_TX) {

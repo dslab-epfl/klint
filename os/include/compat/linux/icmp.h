@@ -1,6 +1,6 @@
 #pragma once
 
-#include "compat/linux/types.h"
+#include <stdint.h>
 
 #define ICMP_ECHOREPLY 0
 #define ICMP_DEST_UNREACH 3
@@ -8,18 +8,18 @@
 #define ICMP_ECHO 8
 
 struct icmphdr {
-	__u8 type;
-	__u8 code;
-	__u16 checksum;
+	uint8_t type;
+	uint8_t code;
+	uint16_t checksum;
 	union {
 		struct {
-			__u16 id;
-			__u16 sequence;
+			uint16_t id;
+			uint16_t sequence;
 		} echo;
-		__u32 gateway;
+		uint32_t gateway;
 		struct {
-			__u16 __unused;
-			__u16 mtu;
+			uint16_t __unused;
+			uint16_t mtu;
 		} frag;
 	} un;
-} __packed;
+} __attribute__((packed));

@@ -77,7 +77,7 @@ def check(nf_folder):
       # ignore spec_pathcond, the outputs must match regardless of the spec structure
   #    check_one(state_solver, defs.NFOutput(**spec_output), state_output)
 
-nf_to_verify = "router"
+nf_to_verify = "hxdp-new"
 if len(sys.argv) == 2:
   nf_to_verify = sys.argv[1]
 check(f"{pathlib.Path(__file__).parent.absolute()}{os.sep + '..' + os.sep}nf{os.sep + nf_to_verify}")

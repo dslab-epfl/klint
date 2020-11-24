@@ -1,10 +1,10 @@
 #pragma once
 
-#include "compat/linux/types.h"
+#include <stdint.h>
 
-struct __una_u32 { __u32 x; } __packed;
+struct __una_u32 { uint32_t x; } __attribute__((packed));
 
-static inline __u32 __get_unaligned_cpu32(const void* p)
+static inline uint32_t __get_unaligned_cpu32(const void* p)
 {
 	struct __una_u32* ptr = (struct __una_u32*) p;
 	return ptr->x;

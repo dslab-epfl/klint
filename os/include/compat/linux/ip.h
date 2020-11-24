@@ -1,7 +1,8 @@
 #pragma once
 
+#include <stdint.h>
+
 #include "compat/linux/inet.h"
-#include "compat/linux/types.h"
 
 #define IPPROTO_ICMP 1
 #define IPPROTO_IPIP 4
@@ -13,19 +14,19 @@
 
 struct iphdr {
 #ifdef IS_BIG_ENDIAN
-	__u8 version: 4,
+	uint8_t version: 4,
 	     ihl: 4;
 #else
-	__u8 ihl: 4,
+	uint8_t ihl: 4,
 	     version: 4;
 #endif
-	__u8 tos;
-	__u16 tot_len;
-	__u16 id;
-	__u16 frag_off;
-	__u8 ttl;
-	__u8 protocol;
-	__u16 check;
-	__u32 saddr;
-	__u32 daddr;
-} __packed;
+	uint8_t tos;
+	uint16_t tot_len;
+	uint16_t id;
+	uint16_t frag_off;
+	uint8_t ttl;
+	uint8_t protocol;
+	uint16_t check;
+	uint32_t saddr;
+	uint32_t daddr;
+} __attribute__((packed));

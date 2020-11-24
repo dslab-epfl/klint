@@ -1,7 +1,8 @@
 #pragma once
 
+#include <stdint.h>
+
 #include "compat/linux/inet.h"
-#include "compat/linux/types.h"
 
 #define ICMPV6_DEST_UNREACH 1
 #define ICMPV6_PKT_TOOBIG 2
@@ -9,25 +10,25 @@
 #define ICMPV6_ECHO_REPLY 129
 
 struct icmp6hdr {
-	__u8 icmp6_type;
-	__u8 icmp6_code;
-	__u16 icmp6_cksum;
+	uint8_t icmp6_type;
+	uint8_t icmp6_code;
+	uint16_t icmp6_cksum;
 	union {
-		__u32 un_data32[1];
-		__u16 un_data16[2];
-		__u8 un_data8[4];
+		uint32_t un_data32[1];
+		uint16_t un_data16[2];
+		uint8_t un_data8[4];
 		struct icmpv6_echo {
-			__u16 identifier;
-			__u16 sequence;
+			uint16_t identifier;
+			uint16_t sequence;
 		} u_echo;
 		struct icmpv6_nd_advt {
 #ifdef IS_BIG_ENDIAN
-			__u32 router : 1,
+			uint32_t router : 1,
 			      solicited : 1,
 			      override : 1,
 			      reserved : 29;
 #else
-			__u32 reserved : 5,
+			uint32_t reserved : 5,
 			      override : 1,
 			      solicited : 1,
 			      router : 1,
@@ -35,21 +36,21 @@ struct icmp6hdr {
 #endif
 		} u_nd_advt;
 		struct icmpv6_nd_ra {
-			__u8 hop_limit;
+			uint8_t hop_limit;
 #ifdef IS_BIG_ENDIAN
-			__u8 managed : 1,
+			uint8_t managed : 1,
 			     other : 1,
 			     home_agent : 1,
 			     router_pref : 2,
 			     reserved : 3;
 #else
-			__u8 reserved : 3,
+			uint8_t reserved : 3,
 			     router_pref : 2,
 			     home_agent : 1,
 			     other : 1,
 			     managed : 1;
 #endif
-			__u16 rt_lifetime;
+			uint16_t rt_lifetime;
 		} u_nd_ra;
 	} icmp6_dataun;
 
@@ -68,4 +69,4 @@ struct icmp6hdr {
 #define icmp6_addrconf_other        icmp6_dataun.u_nd_ra.other
 #define icmp6_rt_lifetime        icmp6_dataun.u_nd_ra.rt_lifetime
 #define icmp6_router_pref        icmp6_dataun.u_nd_ra.router_pref
-} __packed;
+} __attribute__((packed));

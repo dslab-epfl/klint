@@ -1,13 +1,14 @@
 #pragma once
 
+#include <stdint.h>
+
 #include "compat/linux/inet.h"
-#include "compat/linux/types.h"
 
 struct in6_addr {
 	union {
-		__u8		u6_addr8[16];
-		__u16		u6_addr16[8];
-		__u32		u6_addr32[4];
+		uint8_t		u6_addr8[16];
+		uint16_t		u6_addr16[8];
+		uint32_t		u6_addr32[4];
 	} in6_u;
 	#define s6_addr			in6_u.u6_addr8
 	#define s6_addr16		in6_u.u6_addr16
@@ -16,16 +17,16 @@ struct in6_addr {
 
 struct ipv6hdr {
 #ifdef IS_BIG_ENDIAN
-	__u8 version : 4,
+	uint8_t version : 4,
 	     priority : 4;
 #else
-	__u8 priority : 4,
+	uint8_t priority : 4,
 	     version : 4;
 #endif
-	__u8 flow_lbl[3];
-	__u16 payload_len;
-	__u8 nexthdr;
-	__u8 hop_limit;
+	uint8_t flow_lbl[3];
+	uint16_t payload_len;
+	uint8_t nexthdr;
+	uint8_t hop_limit;
 	struct in6_addr saddr;
 	struct in6_addr daddr;
-} __packed;
+} __attribute__((packed));
