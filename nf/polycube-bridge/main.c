@@ -10,7 +10,7 @@ bool nf_init(uint16_t devices_count)
 {
 	(void) devices_count;
 
-	bpf_map_init(&fwdtable);
+	bpf_map_init(&fwdtable, false);
 
 	return true;
 }

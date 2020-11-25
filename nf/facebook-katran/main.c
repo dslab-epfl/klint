@@ -37,13 +37,9 @@ extern struct bpf_map_def lpm_src_v4;
 extern struct bpf_map_def lpm_src_v4;
 #endif
 
-void* scratch_space; // for the skeleton
-
 bool nf_init(uint16_t devices_count)
 {
 	(void) devices_count;
-
-	scratch_space = os_memory_alloc(1, 1514); // MTU
 
 	bpf_map_init(&vip_map, true);
 	bpf_map_init(&lru_mapping, false); // is a map of maps; will lead to using fallback_cache as default

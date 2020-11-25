@@ -12,6 +12,8 @@
 #include "os/structs/map2.h"
 #include "os/structs/pool.h"
 
+// just so we have it somewhere
+#define ETHERNET_MTU_ 1514
 
 // not the best place but they have to be somewhere so...
 #define __be16 uint16_t
@@ -31,10 +33,13 @@
 #define u64 uint64_t
 
 // See compat/skeleton/xdp.h
-#define XDP_DROP -1
-#define XDP_ABORTED XDP_DROP
-#define XDP_TX -2
-#define XDP_PASS -3
+enum xdp_action {
+	XDP_ABORTED = 0,
+	XDP_DROP,
+	XDP_PASS,
+	XDP_TX,
+	XDP_REDIRECT,
+};
 
 struct xdp_md {
 // CHANGED from uint32_t to uintptr_t since we can't guarantee pointers will fit into 32 bits, unlike in BPF
@@ -45,8 +50,7 @@ struct xdp_md {
 	uint32_t ingress_ifindex;
 //	uint32_t rx_queue_index;
 //	uint32_t egress_ifindex;
-	// added: extra space for adjust_head/tail
-	void* _adjust_scratch;
+	// added: I don't want to make the adjusts more complex than they need to be
 	bool _adjust_used;
 };
 
@@ -71,10 +75,13 @@ static inline long bpf_xdp_adjust_head(struct xdp_md* xdp_md, int delta)
 			return -1;
 		}
 	} else {
-		uint8_t* new_data = xdp_md->_adjust_scratch;
-		memcpy(new_data - delta, (uint8_t*) xdp_md->data, old_length);
-		xdp_md->data = (uintptr_t) new_data;
-		xdp_md->data_end = (uintptr_t) new_data + old_length - delta;
+		if (delta >= -ETHERNET_MTU_) {
+			// OK, we have space
+			xdp_md->data += delta;
+		} else {
+			// can't adjust further than that
+			return -1;
+		}
 	}
 	return 0;
 }
@@ -96,10 +103,12 @@ static inline long bpf_xdp_adjust_tail(struct xdp_md* xdp_md, int delta)
 			return -1;
 		}
 	} else {
-		uint8_t* new_data = xdp_md->_adjust_scratch;
-		memcpy(new_data, (uint8_t*) xdp_md->data, old_length);
-		xdp_md->data = (uintptr_t) new_data;
-		xdp_md->data_end = (uintptr_t) new_data + old_length - delta;
+		if (old_length + delta <= ETHERNET_MTU_) {
+			xdp_md->data_end += delta;
+		} else {
+			// can't make a packet that big
+			return -1;
+		}
 	}
 	return 0;
 }

@@ -90,7 +90,10 @@ class FractionalMemory(SimMemory):
     def take(self, fraction, ptr, size): # fraction == None -> take all; size == None -> take all
         (base, index, offset) = self.memory.base_index_offset(ptr)
         if offset != 0:
-            raise SymbexException("Cannot take at an offset")
+            if size is None:
+                offset = 0
+            else:
+                raise SymbexException("Cannot take at an offset")
 
         facts = self.state.metadata.get(Facts, base)
         if size is None:

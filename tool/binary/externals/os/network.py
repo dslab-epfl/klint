@@ -19,13 +19,15 @@ def packet_init(state, devices_count):
   length = claripy.BVS("packet_length", 16)
   state.add_constraints(length.UGE(PACKET_MIN), length.ULE(PACKET_MTU))
 
-  data_addr = state.memory.allocate(1, length, name="packet_data")
+  # Allocate 2*MTU so that BPF's adjust_head can adjust negatively
+  # TODO instead, memcpy should be an intrinsic, and then adjust_head can memcpy into an init-allocated buffer
+  data_addr = state.memory.allocate(1, 2 * PACKET_MTU, name="packet_data")
   device = claripy.BVS("packet_device", 16)
   state.add_constraints(device.ULT(devices_count))
 
   # the packet is a bit weird because of all the reserved fields, we set them to fresh symbols
   packet_addr = state.memory.allocate(1, 42, name="packet")
-  state.mem[packet_addr].uint64_t = data_addr
+  state.mem[packet_addr].uint64_t = data_addr + PACKET_MTU
   state.memory.store(packet_addr + 8, claripy.BVS("packet_reserved[0-3]", 14 * 8))
   state.mem[packet_addr + 22].uint16_t = device
   state.memory.store(packet_addr + 24, claripy.BVS("packet_reserved[4-6]", 16 * 8))
