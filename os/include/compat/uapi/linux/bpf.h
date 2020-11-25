@@ -177,8 +177,7 @@ static inline void* bpf_map_lookup_elem(struct bpf_map_def* map, void* key)
 		case BPF_MAP_TYPE_ARRAY: {
 			uint32_t index = *((uint32_t*) key);
 			if (index < map->max_entries) {
-				memcpy(map->_value_holder, map->_values + (index * map->value_size), map->value_size);
-				return map->_value_holder;
+				return map->_values + (index * map->value_size);
 			}
 			return NULL;
 		}
@@ -186,8 +185,7 @@ static inline void* bpf_map_lookup_elem(struct bpf_map_def* map, void* key)
 			size_t index;
 			if (os_map_get(map->_raw_map, key, (void*) &index)) {
 				os_pool_refresh(map->_pool, os_clock_time(), index);
-				memcpy(map->_value_holder, map->_values + (index * map->value_size), map->value_size);
-				return map->_value_holder;
+				return map->_values + (index * map->value_size);
 			}
 			return NULL;
 		}
@@ -235,6 +233,7 @@ static inline long bpf_map_update_elem(struct bpf_map_def* map, void* key, void*
 			}
 			memcpy(map->_keys + (index * map->key_size), key, map->key_size);
 			memcpy(map->_values + (index * map->value_size), value, map->value_size);
+			os_map_set(map->_raw_map, map->_keys + (index * map->key_size), (void*) index);
 			return 0;
 		}
 	}
@@ -288,6 +287,7 @@ static inline void bpf_map_init(struct bpf_map_def* map, bool havoc)
 			if (havoc) {
 				os_map2_havoc(map->_map);
 			}
+			map->_value_holder = os_memory_alloc(1, map->value_size);
 			break;
 		case BPF_MAP_TYPE_ARRAY:
 			if (map->key_size != sizeof(uint32_t)) {
@@ -311,5 +311,4 @@ static inline void bpf_map_init(struct bpf_map_def* map, bool havoc)
 			return;
 		}
 	}
-	map->_value_holder = os_memory_alloc(1, map->value_size);
 }
