@@ -8,6 +8,8 @@
 #error Please define XDP_MAIN_FUNC to the name of the main XDP function
 #endif
 
+uint8_t scratch_space[1514]; // MTU
+
 int XDP_MAIN_FUNC(struct xdp_md* ctx);
 
 void nf_handle(struct os_net_packet* packet)
@@ -15,7 +17,9 @@ void nf_handle(struct os_net_packet* packet)
 	struct xdp_md ctx = {
 		.data = (uintptr_t) packet->data,
 		.data_end = (uintptr_t) packet->data + packet->length,
-		.ingress_ifindex = packet->device
+		.ingress_ifindex = packet->device,
+		._adjust_scratch = scratch_space,
+		._adjust_used = false
 	};
 
 	int result = XDP_MAIN_FUNC(&ctx);

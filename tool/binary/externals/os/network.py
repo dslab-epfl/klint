@@ -10,7 +10,7 @@ from ... import utils
 from ...exceptions import SymbexException
 
 PACKET_MIN = 64 # the NIC will pad it if shorter
-PACKET_MTU = 1512 # 1500 (Ethernet spec) + 2xMAC
+PACKET_MTU = 1514 # 1500 (Ethernet spec) + 2xMAC + EtherType
 
 # For the packet layout, see os/include/os/network.h (not reproducing here to avoid getting out of sync with changes)
 
@@ -21,7 +21,7 @@ def packet_init(state, devices_count):
 
   data_addr = state.memory.allocate(1, length, name="packet_data")
   device = claripy.BVS("packet_device", 16)
-  state.add_constraints(device.UGE(0), device.ULT(devices_count))
+  state.add_constraints(device.ULT(devices_count))
 
   # the packet is a bit weird because of all the reserved fields, we set them to fresh symbols
   packet_addr = state.memory.allocate(1, 42, name="packet")

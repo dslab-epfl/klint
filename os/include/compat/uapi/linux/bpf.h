@@ -40,6 +40,9 @@ struct xdp_md {
 	uint32_t ingress_ifindex;
 //	uint32_t rx_queue_index;
 //	uint32_t egress_ifindex;
+	// added: extra space for adjust_head/tail
+	void* _adjust_scratch;
+	bool _adjust_used;
 };
 
 // just ignore this for now... but use the arguments to avoid triggering "unused parameter" warnings
@@ -47,11 +50,23 @@ struct xdp_md {
 
 static inline long bpf_xdp_adjust_head(struct xdp_md* xdp_md, int delta)
 {
+	if (xdp_md->_adjust_used) {
+		// crash
+		*((uint8_t*)0) = 0;
+	}
+	xdp_md->_adjust_used = true;
+
+	ptrdiff_t old_length = xdp_md->data_end - xdp_md->data;
 	if (delta >= 0) {
-		xdp_md->data += delta;
+		if (delta <= old_length) {
+			// easy, can always do
+			xdp_md->data += delta;
+		} else {
+			// can't adjust head further than tail
+			return -1;
+		}
 	} else {
-		ptrdiff_t old_length = xdp_md->data_end - xdp_md->data;
-		uint8_t* new_data = os_memory_alloc(1, old_length - delta);
+		uint8_t* new_data = xdp_md->_adjust_scratch;
 		memcpy(new_data - delta, (uint8_t*) xdp_md->data, old_length);
 		xdp_md->data = (uintptr_t) new_data;
 		xdp_md->data_end = (uintptr_t) new_data + old_length - delta;
@@ -61,11 +76,22 @@ static inline long bpf_xdp_adjust_head(struct xdp_md* xdp_md, int delta)
 
 static inline long bpf_xdp_adjust_tail(struct xdp_md* xdp_md, int delta)
 {
-	if (delta >= 0) {
-		xdp_md->data_end -= delta;
+	if (xdp_md->_adjust_used) {
+		// crash
+		*((uint8_t*)0) = 0;
+	}
+	xdp_md->_adjust_used = true;
+
+	ptrdiff_t old_length = xdp_md->data_end - xdp_md->data;
+	if (delta <= 0) {
+		if (-delta <= old_length) {
+			xdp_md->data_end += delta;
+		} else {
+			// can't adjust tail earlier than head
+			return -1;
+		}
 	} else {
-		ptrdiff_t old_length = xdp_md->data_end - xdp_md->data;
-		uint8_t* new_data = os_memory_alloc(1, old_length - delta);
+		uint8_t* new_data = xdp_md->_adjust_scratch;
 		memcpy(new_data, (uint8_t*) xdp_md->data, old_length);
 		xdp_md->data = (uintptr_t) new_data;
 		xdp_md->data_end = (uintptr_t) new_data + old_length - delta;
@@ -103,7 +129,6 @@ struct bpf_map_def {
 	struct os_map2* _map; // for _HASH
 	struct os_map* _raw_map; // for _LRU_HASH
 	struct os_pool* _pool; // for _LRU_HASH
-	time_t _counter; // for _LRU_HASH
 	uint8_t* _keys; // for _LRU_HASH
 	uint8_t* _values; // for _ARRAY and _LRU_HASH
 	void* _value_holder; // workaround since we cannot gain ownership of values within the map; works as long as code uses one lookup at a time
@@ -144,9 +169,9 @@ static inline void* bpf_map_lookup_elem(struct bpf_map_def* map, void* key)
 			return NULL;
 		}
 		case BPF_MAP_TYPE_LRU_HASH: {
-			map->_counter++;
 			size_t index;
 			if (os_map_get(map->_raw_map, key, (void*) &index)) {
+				os_pool_refresh(map->_pool, os_clock_time(), index);
 				memcpy(map->_value_holder, map->_values + (index * map->value_size), map->value_size);
 				return map->_value_holder;
 			}
@@ -182,13 +207,17 @@ static inline long bpf_map_update_elem(struct bpf_map_def* map, void* key, void*
 			return -1;
 		}
 		case BPF_MAP_TYPE_LRU_HASH: {
-			map->_counter++;
+			time_t time = os_clock_time();
 			size_t index;
-			if (os_pool_expire(map->_pool, map->_counter, (void*) &index)) {
+			if (!os_pool_borrow(map->_pool, time, (void*) &index)) {
+				if (!os_pool_expire(map->_pool, time, (void*) &index)) {
+					return -1;
+				}
 				os_map_remove(map->_raw_map, map->_keys + (index * map->key_size));
-			}
-			if (!os_pool_borrow(map->_pool, map->_counter, (void*) &index)) {
-				return -1;
+
+				if (!os_pool_borrow(map->_pool, time, (void*) &index)) {
+					return -1; // cannot happen since we just expired...
+				}
 			}
 			memcpy(map->_keys + (index * map->key_size), key, map->key_size);
 			memcpy(map->_values + (index * map->value_size), value, map->value_size);
