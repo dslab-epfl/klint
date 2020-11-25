@@ -21,7 +21,6 @@ class ChtAlloc(angr.SimProcedure):
         # Casts
         cht_height = cast.size_t(cht_height)
         backend_capacity = cast.size_t(backend_capacity)
-        print(f"!!! cht_alloc [cht_height: {cht_height}, backend_capcity: {backend_capacity}]")
 
         # Preconditions
         precond = claripy.And(
@@ -35,6 +34,7 @@ class ChtAlloc(angr.SimProcedure):
         # Postconditions
         result = self.state.memory.allocate_opaque("cht")
         self.state.metadata.set(result, Cht(cht_height, backend_capacity))
+        print(f"!!! cht_alloc [cht_height: {cht_height}, backend_capcity: {backend_capacity}] -> {result}")
         return result
 
 

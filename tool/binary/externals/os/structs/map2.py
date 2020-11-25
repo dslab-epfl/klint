@@ -26,7 +26,6 @@ class OsMap2Alloc(angr.SimProcedure):
         key_size = cast.size_t(key_size)
         value_size = cast.size_t(value_size)
         capacity = cast.size_t(capacity)
-        print("!!! os_map2_alloc", key_size, value_size, capacity)
 
         # Symbolism assumptions
         if key_size.symbolic:
@@ -50,6 +49,7 @@ class OsMap2Alloc(angr.SimProcedure):
         result = self.state.memory.allocate_opaque("os_map2")
         items = self.state.maps.new(key_size * 8, value_size * 8, name="map_items") # key_size and value_size are in bytes
         self.state.metadata.set(result, Map(key_size, value_size, capacity, items))
+        print("!!! os_map2_alloc", key_size, value_size, capacity, "->", result)
         return result
 
 # bool os_map2_get(struct os_map2* map, void* key_ptr, void* out_value_ptr);
@@ -142,3 +142,11 @@ class OsMap2Remove(angr.SimProcedure):
 
         # Postconditions
         self.state.maps.remove(mapp.items, key)
+
+# No contract, not exposed publicly, only for symbex harnesses
+class OsMap2Havoc(angr.SimProcedure):
+    def run(self, map):
+        map = cast.ptr(map)
+        print("!!! os_map2_havoc", map)
+        mapp = self.state.metadata.get(Map, map)
+        self.state.maps.havoc(mapp.items, mapp.capacity, False)

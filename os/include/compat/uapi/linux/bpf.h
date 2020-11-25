@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -135,7 +136,7 @@ static inline void* bpf_map_lookup_elem(struct bpf_map_def* map, void* key)
 			return NULL;
 		}
 		case BPF_MAP_TYPE_ARRAY: {
-			size_t index = *((size_t*) key);
+			uint32_t index = *((uint32_t*) key);
 			if (index < map->max_entries) {
 				memcpy(map->_value_holder, map->_values + (index * map->value_size), map->value_size);
 				return map->_value_holder;
@@ -173,7 +174,7 @@ static inline long bpf_map_update_elem(struct bpf_map_def* map, void* key, void*
 			return 1 - os_map2_set(map->_map, key, value);
 		}
 		case BPF_MAP_TYPE_ARRAY: {
-			size_t index = *((size_t*) key);
+			uint32_t index = *((uint32_t*) key);
 			if (index < map->max_entries) {
 				memcpy(map->_values + (index * map->value_size), value, map->value_size);
 				return 0;
@@ -227,8 +228,12 @@ static inline long bpf_map_delete_elem(struct bpf_map_def* map, void* key)
 
 // Not in the Linux definition, necessary for a standard native program
 // (we could lazily init in the lookup/update/delete functions but that would slow down processing)
-static inline void bpf_map_init(struct bpf_map_def* map)
+static inline void bpf_map_init(struct bpf_map_def* map, bool havoc)
 {
+	// Those have no prototypes elsewhere since they are only needed for havocing
+	void os_map2_havoc(struct os_map2* map);
+	void os_memory_havoc(void* ptr);
+
 	// Single-threaded so no need to specially handle PERCPU
 	if (map->type == BPF_MAP_TYPE_PERCPU_ARRAY) {
 		map->type = BPF_MAP_TYPE_ARRAY;
@@ -237,16 +242,31 @@ static inline void bpf_map_init(struct bpf_map_def* map)
 	switch (map->type) {
 		case BPF_MAP_TYPE_HASH:
 			map->_map = os_map2_alloc(map->key_size, map->value_size, map->max_entries);
+			if (havoc) {
+				os_map2_havoc(map->_map);
+			}
 			break;
 		case BPF_MAP_TYPE_ARRAY:
+			if (map->key_size != sizeof(uint32_t)) {
+				return; // we expect all maps to have 32-bit indexes
+			}
 			map->_values = os_memory_alloc(map->max_entries, map->value_size);
+			if (havoc) {
+				os_memory_havoc(map->_values);
+			}
 			break;
 		case BPF_MAP_TYPE_LRU_HASH:
+			// No havocing here, it would automatically be a bug
 			map->_raw_map = os_map_alloc(map->key_size, map->max_entries);
 			map->_pool = os_pool_alloc(map->max_entries);
 			map->_keys = os_memory_alloc(map->max_entries, map->key_size);
 			map->_values = os_memory_alloc(map->max_entries, map->value_size);
 			break;
+
+		case BPF_MAP_TYPE_ARRAY_OF_MAPS:
+		case BPF_MAP_TYPE_DEVMAP: {
+			return;
+		}
 	}
 	map->_value_holder = os_memory_alloc(1, map->value_size);
 }

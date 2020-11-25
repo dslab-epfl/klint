@@ -39,32 +39,32 @@ bool nf_init(uint16_t devices_count)
 {
 	(void) devices_count;
 
-	bpf_map_init(&vip_map);
-	bpf_map_init(&lru_mapping);
-	bpf_map_init(&fallback_cache);
-	bpf_map_init(&ch_rings);
-	bpf_map_init(&reals);
-	bpf_map_init(&reals_stats);
-	bpf_map_init(&stats);
-	bpf_map_init(&quic_mapping);
-	bpf_map_init(&ctl_array);
+	bpf_map_init(&vip_map, true);
+	bpf_map_init(&lru_mapping, false); // is a map of maps; will lead to using fallback_cache as default
+	bpf_map_init(&fallback_cache, false); // managed by the BPF part
+	bpf_map_init(&ch_rings, true);
+	bpf_map_init(&reals, true);
+	bpf_map_init(&reals_stats, true);
+	bpf_map_init(&stats, true);
+	bpf_map_init(&quic_mapping, true);
+	bpf_map_init(&ctl_array, true);
 
 #ifdef LPM_SRC_LOOKUP
-	bpf_map_init(&lpm_src_v4);
-	bpf_map_init(&lpm_src_v6);
+	bpf_map_init(&lpm_src_v4, true);
+	bpf_map_init(&lpm_src_v6, true);
 #endif
 
 #ifdef KATRAN_INTROSPECTION
-	bpf_map_init(&event_pipe);
+	bpf_map_init(&event_pipe, true);
 #endif
 
 #ifdef INLINE_DECAP_GENERIC
-	bpf_map_init(&decap_dst);
-	bpf_map_init(&subprograms);
+	bpf_map_init(&decap_dst, true);
+	bpf_map_init(&subprograms, true);
 #endif
 
 #ifdef GUE_ENCAP
-	bpf_map_init(&pckt_srcs);
+	bpf_map_init(&pckt_srcs, true);
 #endif
 
 	return true;

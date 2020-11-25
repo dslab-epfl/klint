@@ -128,3 +128,7 @@ class FractionalMemory(SimMemory):
             if facts.fractions is fracs_obj:
                 return (o, facts.size)
         raise SymbexException("What are you doing?")
+
+    def havoc(self, addr):
+        self.memory.havoc(addr)
+        # don't havoc fractions, the notion of fractions doesn't really make sense with userspace BPF anyway, which this is for

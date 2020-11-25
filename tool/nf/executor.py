@@ -35,6 +35,9 @@ init_externals = {
   'cht_alloc': cht.ChtAlloc,
   'lpm_alloc': lpm.LpmAlloc,
   'lpm_update_elem': lpm.LpmUpdateElem,
+  # unfortunately needed to mimic BPF userspace
+  'os_map2_havoc': map2.OsMap2Havoc,
+  'os_memory_havoc': memory.OsMemoryHavoc,
 }
 
 handle_externals = {

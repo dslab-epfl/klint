@@ -16,7 +16,6 @@ class OsMemoryAlloc(angr.SimProcedure):
         # Casts
         count = cast.size_t(count)
         size = cast.size_t(size)
-        print("!!! os_memory_alloc", count, size)
 
         # Symbolism assumptions
         if size.symbolic:
@@ -27,4 +26,13 @@ class OsMemoryAlloc(angr.SimProcedure):
             raise SymbexException("Precondition does not hold: count == 1 || count * size <= SIZE_MAX")
 
         # Postconditions
-        return self.state.memory.allocate(count, size, name="allocated", default=claripy.BVV(0, self.state.solver.eval_one(size, cast_to=int) * 8))
+        result = self.state.memory.allocate(count, size, name="allocated", default=claripy.BVV(0, self.state.solver.eval_one(size, cast_to=int) * 8))
+        print("!!! os_memory_alloc", count, size, "->", result)
+        return result
+
+# No contract, not exposed publicly, only for symbex harnesses
+class OsMemoryHavoc(angr.SimProcedure):
+    def run(self, ptr):
+        ptr = cast.ptr(ptr)
+        print("!!! os_memory_havoc", ptr)
+        self.state.memory.havoc(ptr)

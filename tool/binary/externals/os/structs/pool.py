@@ -20,7 +20,6 @@ class OsPoolAlloc(angr.SimProcedure):
     def run(self, size):
         # Casts
         size = cast.size_t(size)
-        print("!!! os_pool_alloc", size)
 
         # Preconditions
         if utils.can_be_false(self.state.solver, size <= (((2 ** bitsizes.size_t - 1) // 16) - 2)):
@@ -30,6 +29,7 @@ class OsPoolAlloc(angr.SimProcedure):
         result = self.state.memory.allocate_opaque("os_pool")
         items = self.state.maps.new(bitsizes.size_t, bitsizes.int64_t, name="pool_items")
         self.state.metadata.set(result, Pool(size, items))
+        print("!!! os_pool_alloc", size, "->", result)
         return result
 
 

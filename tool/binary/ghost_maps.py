@@ -153,6 +153,17 @@ class Map:
         # Return F
         return result
 
+    # Havocs the map contents, mutating the map, with the given optional max_length (otherwise uses the current one)
+    # Do not use unless you know what you're doing; this is intended for init only, to mimic an external program configuring a map
+    def havoc(self, state, max_length, is_array):
+        if max_length is not None:
+            self._length = claripy.BVS("havoced_length", max_length.size())
+            utils.add_constraints_and_check_sat(state, self._length.ULE(max_length))
+        if is_array:
+            self._invariants = [lambda st, i: (i.key < self._length) == i.present]
+        else:
+            self._invariants = []
+        self._known_items = []
 
     # === Private API, also used by invariant inference ===
 
@@ -266,11 +277,6 @@ class GhostMaps(SimStatePlugin):
         self.state.metadata.set(obj, Map.new(self.state, key_size, value_size, name, length, [lambda st, i: (i.key < length) == i.present]))
         return obj
 
-    def new_havoced(self, key_size, value_size, length, name="map"):
-        obj = self.state.memory.allocate_opaque(name)
-        self.state.metadata.set(obj, Map.new(self.state, key_size, value_size, name, length, []))
-        return obj
-
     def length(self, obj):
         return self[obj].length()
 
@@ -300,6 +306,11 @@ class GhostMaps(SimStatePlugin):
         result = map.forall(self.state, pred, _known_only=_known_only)
         LOGEND(self.state)
         return result
+
+    # === Havocing, to mimic BPF userspace ===
+
+    def havoc(self, obj, max_length, is_array):
+        self[obj].havoc(self.state, max_length, is_array)
 
 
     # === Private API, including for invariant inference ===
