@@ -87,12 +87,14 @@ class FractionalMemory(SimMemory):
         self.state.add_constraints(result != 0)
         return result
 
-    def take(self, fraction, ptr, size): # fraction == None -> take all
+    def take(self, fraction, ptr, size): # fraction == None -> take all; size == None -> take all
         (base, index, offset) = self.memory.base_index_offset(ptr)
         if offset != 0:
             raise SymbexException("Cannot take at an offset")
 
         facts = self.state.metadata.get(Facts, base)
+        if size is None:
+            size = facts.size
         if utils.can_be_true(self.state.solver, facts.size != size):
             raise SymbexException("Can only take entire items ; you wanted " + str(size) + " but the item size is " + str(facts.size))
 

@@ -73,7 +73,7 @@ class Transmit(angr.SimProcedure):
     metadata = self.state.metadata.get(NetworkMetadata, None, default=NetworkMetadata([]))
     metadata.transmitted.append((data, length, device, ether_header != 0, ipv4_header != 0, tcpudp_header != 0))
 
-    self.state.memory.take(100, data_addr, length)
+    self.state.memory.take(None, data_addr, None)
 
 class Flood(angr.SimProcedure):
   def run(self, packet):

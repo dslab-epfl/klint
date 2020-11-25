@@ -155,7 +155,7 @@ class SegmentedMemory(SimMemory):
             if len(base) == 1:
                 base = base[0]
             else:
-                raise SymbexException("!= 1 candidate for base???")
+                raise SymbexException("!= 1 candidate for base??? are you symbolically indexing a global variable or something?")
             added = sum([a for a in addr.args if not a.structurally_match(base)])
 
             (_, size) = self._count_size(base)

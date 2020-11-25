@@ -8,7 +8,7 @@
 #error Please define XDP_MAIN_FUNC to the name of the main XDP function
 #endif
 
-uint8_t scratch_space[1514]; // MTU
+extern void* scratch_space;
 
 int XDP_MAIN_FUNC(struct xdp_md* ctx);
 
