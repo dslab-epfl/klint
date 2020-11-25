@@ -17,6 +17,10 @@
 #define __be16 uint16_t
 #define __be32 uint32_t
 #define __be64 uint64_t
+#define __sum8 uint8_t
+#define __sum16 uint16_t
+#define __sum32 uint32_t
+#define __sum64 uint64_t
 #define __u8 uint8_t
 #define __u16 uint16_t
 #define __u32 uint32_t
@@ -28,6 +32,7 @@
 
 // See compat/skeleton/xdp.h
 #define XDP_DROP -1
+#define XDP_ABORTED XDP_DROP
 #define XDP_TX -2
 #define XDP_PASS -3
 
