@@ -13,7 +13,7 @@ def get_current_time(state):
     existing = state.metadata.get_all(Time)
     if len(existing) != 0:
         # TODO: Make sure this is OK? Should be cause the dchain wants <= and in general the time only has to be monotonic
-        return existing[0]
+        return existing.keys()[0]
     time = claripy.BVS('time', bitsizes.int64_t)
     state.metadata.set(time, Time())
     return time
