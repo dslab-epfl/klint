@@ -12,6 +12,14 @@ int XDP_MAIN_FUNC(struct xdp_md* ctx);
 
 void nf_handle(struct os_net_packet* packet)
 {
+#ifdef XDP_SKELETON_RESTRICT
+	struct os_net_ether_header* ether_header;
+	struct os_net_ipv4_header* ipv4_header;
+	if (!os_net_get_ether_header(packet, &ether_header) || !os_net_get_ipv4_header(ether_header, &ipv4_header) || ipv4_header->next_proto_id != 6) {
+		return;
+	}
+#endif
+
 	struct xdp_md ctx = {
 		.data = (uintptr_t) packet->data,
 		.data_end = (uintptr_t) packet->data + packet->length,

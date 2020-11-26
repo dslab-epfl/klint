@@ -1,6 +1,7 @@
 #include <stdbool.h>
 
 #define XDP_MAIN_FUNC balancer_ingress
+#define XDP_SKELETON_RESTRICT
 #include "compat/skeleton/xdp.h"
 
 #include "os/memory.h"
