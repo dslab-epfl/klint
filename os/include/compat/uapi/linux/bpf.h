@@ -284,10 +284,11 @@ static inline void bpf_map_init(struct bpf_map_def* map, bool havoc)
 	switch (map->type) {
 		case BPF_MAP_TYPE_HASH:
 			map->_map = os_map2_alloc(map->key_size, map->value_size, map->max_entries);
+			map->_value_holder = os_memory_alloc(1, map->value_size);
 			if (havoc) {
 				os_map2_havoc(map->_map);
+				os_memory_havoc(map->_value_holder);
 			}
-			map->_value_holder = os_memory_alloc(1, map->value_size);
 			break;
 		case BPF_MAP_TYPE_ARRAY:
 			if (map->key_size != sizeof(uint32_t)) {

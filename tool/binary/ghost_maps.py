@@ -164,10 +164,11 @@ class Map:
         else:
             self._invariants = []
         self._known_items = []
+        self.ever_havoced = True
 
     # === Private API, also used by invariant inference ===
 
-    def __init__(self, meta, length, invariants, known_items, _previous=None, _filter=None, _map=None):
+    def __init__(self, meta, length, invariants, known_items, _previous=None, _filter=None, _map=None, ever_havoced=False):
         self.meta = meta
         self._length = length
         self._invariants = invariants
@@ -175,6 +176,7 @@ class Map:
         self._previous = _previous
         self._filter = _filter or (lambda i: True)
         self._map = _map or (lambda i: i)
+        self.ever_havoced = ever_havoced
 
     def invariant_conjunctions(self, from_present=True):
         if from_present or self._previous is None:
@@ -254,7 +256,7 @@ class Map:
         return self.__deepcopy__({})
 
     def __deepcopy__(self, memo):
-        result = Map(self.meta, self._length, copy.deepcopy(self._invariants, memo), copy.deepcopy(self._known_items, memo), copy.deepcopy(self._previous, memo), self._filter, self._map)
+        result = Map(self.meta, self._length, copy.deepcopy(self._invariants, memo), copy.deepcopy(self._known_items, memo), copy.deepcopy(self._previous, memo), self._filter, self._map, self.ever_havoced)
         memo[id(self)] = result
         return result
 
@@ -587,6 +589,10 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
     # Optimization: Ignore maps that have not changed at all, e.g. those that are de facto readonly after initialization
     objs = [o for o in objs if any(not utils.structural_eq(_ancestor_state.maps[o], st.maps[o]) for st in _states)]
 
+    # Optimization: If _all_ non-frac maps were havoced in the initial state, there are no invariants to find
+    if all(_ancestor_state.maps[o].ever_havoced or _ancestor_state.memory.get_obj_and_size_from_fracs_obj(o) != (None, None) for o in objs):
+        return []
+
     # Initialize the cache for fast read/write acces during invariant inference
     init_cache(objs)
 
@@ -671,6 +677,10 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
     return cross_results + length_results
 
 def maps_merge_one(states_to_merge, obj, ancestor_state):
+    # Optimization: Do not even consider maps that have not changed at all, e.g. those that are de facto readonly after initialization
+    if all(utils.structural_eq(ancestor_state.maps[obj], st.maps[obj]) for st in states_to_merge):
+        return (ancestor_state.maps[obj], False)
+
     print("Merging map", obj)
     # helper function to find constraints that hold on an expression in a state
     ancestor_variables = ancestor_state.solver.variables(claripy.And(*ancestor_state.solver.constraints))
@@ -690,10 +700,6 @@ def maps_merge_one(states_to_merge, obj, ancestor_state):
             if not constr.replace(expr, fake).structurally_match(constr) and constr_vars.difference(expr_vars).issubset(ancestor_variables):
                 results.append(constr)
         return results
-
-    # Optimization: Do not even consider maps that have not changed at all, e.g. those that are de facto readonly after initialization
-    if all(utils.structural_eq(ancestor_state.maps[obj], st.maps[obj]) for st in states_to_merge):
-        return (ancestor_state.maps[obj], False)
 
     flattened_states = [s.copy() for s in states_to_merge]
     for s in flattened_states:
