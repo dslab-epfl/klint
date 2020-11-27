@@ -1,48 +1,14 @@
-// This file was obtained from the hXDP project, commit 51c067f7aba732bf85842d00a768bfe71ba55434 of https://github.com/axbryd/hXDP-Artifacts
-// It was originally named xdp_progs/xdp_fw_kern.c
-// The original file is <TODO license?>
-// It was modified in the following ways:
-// - Inlined "xdp_fw_common.h" (same folder and commit)
-// - Removed SEC(...) instructions, which are not desirable for native compilation
-// - Renamed 'xdp_fw_prog' to 'xdp_main' for our skeleton code to work
-// - Replaced the 'tx_port' map of type BPF_MAP_TYPE_DEVMAP by returning the port directly
-// - Replaced the Linux headers with our equivalent ones.
-// - Replaced non-standard C constructs with their standard equivalents, such as using u8* instead of void* for pointers used in arithmetic
-// - Fixed C constructs that cause warnings, such as removing unused declarations
-// - Added an initialization function for the maps
-// No other changes were performed; comments are from the original authors.
-
 #define KBUILD_MODNAME "foo"
+#include <uapi/linux/bpf.h>
+#include <linux/in.h>
+#include <linux/if_ether.h>
+#include <linux/if_packet.h>
+#include <linux/if_vlan.h>
+#include <linux/ip.h>
+#include <linux/ipv6.h>
+#include <bpf/bpf_helpers.h>
 
-#include "os/skeleton/nf.h"
-#include "compat/bpf/map.h"
-#include "compat/bpf/xdp.h"
-#include "compat/linux/types.h"
-#include "compat/linux/if_ether.h"
-#include "compat/linux/inet.h"
-#include "compat/linux/ip.h"
-#include "compat/linux/udp.h"
-
-#define A_PORT  6
-#define B_PORT 7
-
-
-
-struct flow_ctx_table_key {
-	/*per-application */
-	__u16 ip_proto;
-	__u16 l4_src;
-	__u16 l4_dst;
-	__u32 ip_src;
-	__u32 ip_dst;
-
-};
-
-struct flow_ctx_table_leaf {
-	__u8 out_port;
-	__u16 in_port;
-//	flow_register_t flow_reg;
-};
+#include "xdp_fw_common.h"
 
 
 //#define DEBUG 1
@@ -55,7 +21,7 @@ struct flow_ctx_table_leaf {
 				##__VA_ARGS__);			\
 			})
 #else
-#define bpf_debug(...) { } while (0)
+#define bpf_debug(fmt, ...) { } while (0)
 #endif
 
 static inline void biflow(struct flow_ctx_table_key *flow_key){
@@ -74,7 +40,14 @@ static inline void biflow(struct flow_ctx_table_key *flow_key){
 
 }
 
-struct bpf_map_def flow_ctx_table = {
+struct bpf_map_def SEC("maps") tx_port = {
+	.type = BPF_MAP_TYPE_DEVMAP,
+	.key_size = sizeof(int),
+	.value_size = sizeof(int),
+	.max_entries = 10,
+};
+
+struct bpf_map_def SEC("maps") flow_ctx_table = {
 	.type = BPF_MAP_TYPE_HASH,
 	.key_size = sizeof(struct flow_ctx_table_key),
 	.value_size = sizeof(struct flow_ctx_table_leaf),
@@ -82,10 +55,12 @@ struct bpf_map_def flow_ctx_table = {
 };
 
 
-int xdp_main(struct xdp_md *ctx)
+SEC("xdp_fw")
+int xdp_fw_prog(struct xdp_md *ctx)
 {
-	u8* data_end = (u8*)ctx->data_end;
-	u8* data         = (u8*)ctx->data;
+	
+	void* data_end = (void*)(long)ctx->data_end;
+	void* data         = (void*)(long)ctx->data;
 	
 	struct flow_ctx_table_leaf new_flow = {0};
 	struct flow_ctx_table_key flow_key  = {0};
@@ -97,13 +72,17 @@ int xdp_main(struct xdp_md *ctx)
 
 	int ingress_ifindex;
 	uint64_t nh_off = 0;
+	u8 port_redirect = 0;
+	int ret = XDP_PASS;
+	u8 is_new_flow = 0;
+	int vport = 0;
 	/*  remember, to see printk 
 	 * sudo cat /sys/kernel/debug/tracing/trace_pipe
 	 */
 	bpf_debug("I'm in the pipeline\n");
 
-{
-	ethernet = (struct ethhdr*) data ;
+ethernet: {
+	ethernet = data ;
 	nh_off = sizeof(*ethernet);
 	if (data  + nh_off  > data_end)
 		goto EOP;
@@ -123,7 +102,7 @@ int xdp_main(struct xdp_md *ctx)
 ip: {
 	bpf_debug("I'm ip\n");
 	
-	ip = (struct iphdr*) (data + nh_off);
+	ip = data + nh_off;
 	nh_off +=sizeof(*ip);
 	if (data + nh_off  > data_end)
 		goto EOP;
@@ -137,7 +116,7 @@ ip: {
 
 l4: {
 	bpf_debug("I'm l4\n");
-	l4 = (struct udphdr*) (data + nh_off);
+	l4 = data + nh_off;
 	nh_off +=sizeof(*l4);
 	if (data + nh_off  > data_end)
 		goto EOP;
@@ -161,7 +140,7 @@ l4: {
 		flow_leaf = bpf_map_lookup_elem(&flow_ctx_table, &flow_key);
 			
 		if (flow_leaf)
-			return flow_leaf->out_port;
+			return bpf_redirect_map(&tx_port,flow_leaf->out_port, 0);
 		else 
 			return XDP_DROP;
 	} else {
@@ -173,7 +152,7 @@ l4: {
 			bpf_map_update_elem(&flow_ctx_table, &flow_key, &new_flow, BPF_ANY);
 		}
 		
-		return B_PORT;
+		return bpf_redirect_map(&tx_port, B_PORT, 0);
 	}
 
 
@@ -182,11 +161,6 @@ EOP:
 
 }
 
-char _license[] = "GPL";
 
-bool nf_init(uint16_t devices_count)
-{
-	(void) devices_count;
-	bpf_map_init(&flow_ctx_table);
-	return true;
-}
+
+char _license[] SEC("license") = "GPL";

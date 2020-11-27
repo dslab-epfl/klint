@@ -3,8 +3,8 @@
 # Allow the use of advanced globs in paths
 SHELL := /bin/bash -O extglob -O globstar -c
 
-# Latest GCC, hardcoded for reproducibility
-CC := gcc-9
+# GCC by default because why not
+CC ?= gcc
 
 # C17, latest POSIX with GNU extensions
 CFLAGS += -std=c17 -D_POSIX_C_SOURCE=200809L -D_GNU_SOURCE
@@ -13,6 +13,9 @@ CFLAGS += -std=c17 -D_POSIX_C_SOURCE=200809L -D_GNU_SOURCE
 CFLAGS += -O3
 CFLAGS += -march=native
 CFLAGS += -flto
+
+# Clang sometimes requires this
+CFLAGS += -fPIC
 
 # Don't emit unneeded stuff in the binary
 CFLAGS += -fno-asynchronous-unwind-tables
