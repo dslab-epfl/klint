@@ -57,21 +57,21 @@ handle_externals = {
   'lpm_lookup_elem': lpm.LpmLookupElem
 }
 
-def nf_init(nf_folder, devices_count):
+def nf_init(bin_path, devices_count):
   # subprocess.check_call(["make", "-f" "../Makefile.nf"], cwd=nf_folder)
   args = [devices_count]
-  sm = bin_exec.create_sim_manager(nf_folder + os.sep + "libnf.so", init_externals, "nf_init", *args)
+  sm = bin_exec.create_sim_manager(bin_path, init_externals, "nf_init", *args)
   sm.run()
   if len(sm.errored) > 0:
     sm.errored[0].reraise()
   return sm.deadended
 
-def nf_handle(nf_folder, state, devices_count):
+def nf_handle(bin_path, state, devices_count):
   packet = network.packet_init(state, devices_count)
   args = [packet]
   original_metadata_items = state.metadata.items_copy()
   config_items = state.metadata.get(config.ConfigMetadata, None, default=config.ConfigMetadata({})).items
-  sm = bin_exec.create_sim_manager(nf_folder + os.sep + "libnf.so", handle_externals, "nf_handle", *args, base_state=state)
+  sm = bin_exec.create_sim_manager(bin_path, handle_externals, "nf_handle", *args, base_state=state)
   sm.run()
   if len(sm.errored) > 0:
     sm.errored[0].reraise()
@@ -104,10 +104,10 @@ def nf_handle(nf_folder, state, devices_count):
 #    print("--------")
     yield (ended, state_input, state_output)
 
-def havoc_iter(nf_folder, state, devices_count):
+def havoc_iter(bin_path, state, devices_count):
     print("Running an iteration of handle, at " + str(datetime.now()) + "\n")
     original_state = state.copy()
-    handled_states = list(nf_handle(nf_folder, state, devices_count))
+    handled_states = list(nf_handle(bin_path, state, devices_count))
     for (s, _, _) in handled_states:
       print("State", id(s), "has", len(s.solver.constraints), "constraints")
       s.path.print(filter=lambda n: "Init" not in n and "Config" not in n)
@@ -126,9 +126,9 @@ def havoc_iter(nf_folder, state, devices_count):
     return (new_state, False)
 
 
-def execute(nf_folder):
+def execute(bin_path):
   devices_count = claripy.BVS('devices_count', 16)
-  for state in nf_init(nf_folder, devices_count):
+  for state in nf_init(bin_path, devices_count):
     # code to get the return value copied from angr's "Callable" implementation
     cc = angr.DEFAULT_CC[state.project.arch.name](state.project.arch)
     init_result = cc.get_return_val(state, stack_base=state.regs.sp - cc.STACKARG_SP_DIFF)
@@ -138,6 +138,6 @@ def execute(nf_folder):
       continue
     reached_fixpoint = False
     while not reached_fixpoint:
-      (state, reached_fixpoint) = havoc_iter(nf_folder, state, devices_count)
+      (state, reached_fixpoint) = havoc_iter(bin_path, state, devices_count)
     print("Done! at " + str(datetime.now()))
     return None

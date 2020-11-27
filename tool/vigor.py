@@ -59,16 +59,16 @@ def check_one(solver, spec_out, code_out):
   if solver.eval_upto(constraint, 3) != [True]:
     raise AssertionError("Not necessarily true: " + str(constraint))
 
-def check(nf_folder):
-  with open(nf_folder + os.sep + 'spec.py') as spec_file:
-    _ = spec_file.read()
+def check(bin_path):
+  # with open(os.path.split(bin_path)[0] + os.sep + "spec.py") as spec_file:
+  #   _ = spec_file.read()
 
   # spec_externals = {
   #   'send': spec_send,
   #   'end': spec_end
   # }
 
-  nf_executor.execute(nf_folder)
+  nf_executor.execute(bin_path)
   print("OK")
   #for (state_solver, state_input, state_output) in nf_results:
     # note: _asdict is named that way to avoid name clashes, we're not using a private method here
@@ -78,6 +78,13 @@ def check(nf_folder):
   #    check_one(state_solver, defs.NFOutput(**spec_output), state_output)
 
 nf_to_verify = "router"
+bin_name = "libnf.so"
+
 if len(sys.argv) == 2:
   nf_to_verify = sys.argv[1]
-check(f"{pathlib.Path(__file__).parent.absolute()}{os.sep + '..' + os.sep}nf{os.sep + nf_to_verify}")
+  # Special case for Rust binaries
+  if nf_to_verify == "rs-vigor-policer":
+    nf_to_verify = os.path.join(nf_to_verify, "target", "debug")  
+    bin_name = "librs_vigor_policer.so"
+
+check(os.path.join(pathlib.Path(__file__).parent.absolute(), "..", "nf", nf_to_verify, bin_name))

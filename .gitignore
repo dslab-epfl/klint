@@ -5,3 +5,7 @@ libnf.so
 
 # VSCode config
 .vscode/
+
+# Rust
+target/
+Cargo.lock
