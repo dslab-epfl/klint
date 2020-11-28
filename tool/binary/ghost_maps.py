@@ -266,6 +266,14 @@ class Map:
     def _asdict(self): # pretend we are a namedtuple so functions that expect one will work (e.g. utils.structural_eq)
         return {'meta': self.meta, '_length': self._length, '_invariants': self._invariants, '_known_items': self._known_items, '_previous': self._previous, '_filter': self._filter, '_map': self._map}
 
+
+# History stuff
+HistoryLength = namedtuple('HistoryLength', ['obj', 'result'])
+HistoryGet = namedtuple('HistoryGet', ['obj', 'key', 'result'])
+HistorySet = namedtuple('HistorySet', ['obj', 'key', 'value'])
+HistoryRemove = namedtuple('HistoryRemove', ['obj', 'key'])
+HistoryForall = namedtuple('HistoryForall', ['obj', 'pred', 'result'])
+
 class GhostMaps(SimStatePlugin):
     # === Public API ===
 
@@ -280,7 +288,9 @@ class GhostMaps(SimStatePlugin):
         return obj
 
     def length(self, obj):
-        return self[obj].length()
+        result = self[obj].length()
+        self.state.path.ghost_record(HistoryLength(obj, result))
+        return result
 
     def key_size(self, obj):
         return self[obj].meta.key_size
@@ -294,19 +304,23 @@ class GhostMaps(SimStatePlugin):
                         " (" + str(len(list(map.known_items(from_present=from_present)))) + " items, " + str(len(self.state.solver.constraints)) + " constraints)")
         result = map.get(self.state, key, value=value, from_present=from_present)
         LOGEND(self.state)
+        self.state.path.ghost_record(HistoryGet(obj, key, result))
         return result
 
     def set(self, obj, key, value):
         self.state.metadata.set(obj, self[obj].set(self.state, key, value), override=True)
+        self.state.path.ghost_record(HistorySet(obj, key, value))
 
     def remove(self, obj, key):
         self.state.metadata.set(obj, self[obj].remove(self.state, key), override=True)
+        self.state.path.ghost_record(HistoryRemove(obj, key))
 
     def forall(self, obj, pred, _known_only=False):
         map = self[obj]
         LOG(self.state, "forall " + map.meta.name + " ( " + str(len(self.state.solver.constraints)) + " constraints)")
         result = map.forall(self.state, pred, _known_only=_known_only)
         LOGEND(self.state)
+        self.state.path.ghost_record(HistoryForall(obj, pred, result))
         return result
 
     # === Havocing, to mimic BPF userspace ===
