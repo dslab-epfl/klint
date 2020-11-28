@@ -12,10 +12,8 @@ time_has_merge_func = False
 def get_current_time(state):
     existing = state.metadata.get_all(Time)
     if len(existing) != 0:
-        # how to handle it:
-        # - store all the times we've given
-        # - during spec matching, return those times at each call to the clock
-        raise SymbexException("Sorry, calling clock multiple times is not handled yet")
+        # TODO: Make sure this is OK? Should be cause the dchain wants <= and in general the time only has to be monotonic
+        return existing.keys()[0]
     time = claripy.BVS('time', bitsizes.int64_t)
     state.metadata.set(time, Time())
     return time

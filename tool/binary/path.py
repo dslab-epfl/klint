@@ -25,16 +25,18 @@ class ExternalWrapper(SimProcedure):
 
 
 class Path(SimStatePlugin):
-    def __init__(self, segments=None):
+    def __init__(self, segments=None, ghost_segments=None):
         SimStatePlugin.__init__(self)
         self.segments = segments or []
+        self.ghost_segments = ghost_segments or []
 
     @SimStatePlugin.memo
     def copy(self, memo):
-        return Path(segments=self.segments.copy())
+        return Path(segments=self.segments.copy(), ghost_segments=self.ghost_segments.copy())
 
     def merge(self, others, merge_conditions, common_ancestor=None):
         self.segments = [] if common_ancestor is None else common_ancestor.segments
+        self.ghost_segments = [] if common_ancestor is None else common_ancestor.ghost_segments
         return True
 
     @staticmethod
@@ -48,7 +50,13 @@ class Path(SimStatePlugin):
         (name, args) = self.segments.pop()
         self.segments.append((name, args, ret))
 
-    def print(self, filter=None):
+    def print(self):
         for (name, args, ret) in self.segments:
-            if filter is None or filter(name):
-                print("  " + name + "(" + ", ".join(map(str, args)) + ")" + ("" if ret is None else (" -> " + str(ret))))
+            print("  ", name, "(", ", ".join(map(str, args)) + ")", ("" if ret is None else (" -> " + str(ret))))
+
+    def ghost_record(self, value):
+        self.ghost_segments.append(value)
+
+    def ghost_print(self):
+        for value in self.ghost_segments:
+            print("  ", value)

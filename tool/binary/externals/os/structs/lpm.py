@@ -16,12 +16,13 @@ IP_LEN = bitsizes.uint32_t
 # TODO: Split allocation and fill-from-config
 class LpmAlloc(angr.SimProcedure):
     def run(self):
-        print(f"!!! lpm_alloc")
 
         # Postconditions
         result = self.state.memory.allocate_opaque("lpm")
-        table = self.state.maps.new_havoced(IP_LEN + bitsizes.uint8_t, bitsizes.uint16_t, claripy.BVS("lpm_table_length", 64), name="lpm_table")
+        table = self.state.maps.new(IP_LEN + bitsizes.uint8_t, bitsizes.uint16_t, name="lpm_table")
+        self.state.maps.havoc(table, claripy.BVS("lpm_table_length", 64), False)
         self.state.metadata.set(result, Lpm(table))
+        print(f"!!! lpm_alloc -> {result}")
         return result
 
 class LpmUpdateElem(angr.SimProcedure):

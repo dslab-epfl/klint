@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -11,11 +12,17 @@
 #include "os/structs/map2.h"
 #include "os/structs/pool.h"
 
+// just so we have it somewhere
+#define ETHERNET_MTU_ 1514
 
 // not the best place but they have to be somewhere so...
 #define __be16 uint16_t
 #define __be32 uint32_t
 #define __be64 uint64_t
+#define __sum8 uint8_t
+#define __sum16 uint16_t
+#define __sum32 uint32_t
+#define __sum64 uint64_t
 #define __u8 uint8_t
 #define __u16 uint16_t
 #define __u32 uint32_t
@@ -26,9 +33,13 @@
 #define u64 uint64_t
 
 // See compat/skeleton/xdp.h
-#define XDP_DROP -1
-#define XDP_TX -2
-#define XDP_PASS -3
+enum xdp_action {
+	XDP_ABORTED = 0,
+	XDP_DROP,
+	XDP_PASS,
+	XDP_TX,
+	XDP_REDIRECT,
+};
 
 struct xdp_md {
 // CHANGED from uint32_t to uintptr_t since we can't guarantee pointers will fit into 32 bits, unlike in BPF
@@ -39,6 +50,8 @@ struct xdp_md {
 	uint32_t ingress_ifindex;
 //	uint32_t rx_queue_index;
 //	uint32_t egress_ifindex;
+	// added: I don't want to make the adjusts more complex than they need to be
+	bool _adjust_used;
 };
 
 // just ignore this for now... but use the arguments to avoid triggering "unused parameter" warnings
@@ -46,28 +59,56 @@ struct xdp_md {
 
 static inline long bpf_xdp_adjust_head(struct xdp_md* xdp_md, int delta)
 {
+	if (xdp_md->_adjust_used) {
+		// crash
+		*((uint8_t*)0) = 0;
+	}
+	xdp_md->_adjust_used = true;
+
+	ptrdiff_t old_length = xdp_md->data_end - xdp_md->data;
 	if (delta >= 0) {
-		xdp_md->data += delta;
+		if (delta <= old_length) {
+			// easy, can always do
+			xdp_md->data += delta;
+		} else {
+			// can't adjust head further than tail
+			return -1;
+		}
 	} else {
-		ptrdiff_t old_length = xdp_md->data_end - xdp_md->data;
-		uint8_t* new_data = os_memory_alloc(1, old_length - delta);
-		memcpy(new_data - delta, (uint8_t*) xdp_md->data, old_length);
-		xdp_md->data = (uintptr_t) new_data;
-		xdp_md->data_end = (uintptr_t) new_data + old_length - delta;
+		if (delta >= -ETHERNET_MTU_) {
+			// OK, we have space
+			xdp_md->data += delta;
+		} else {
+			// can't adjust further than that
+			return -1;
+		}
 	}
 	return 0;
 }
 
 static inline long bpf_xdp_adjust_tail(struct xdp_md* xdp_md, int delta)
 {
-	if (delta >= 0) {
-		xdp_md->data_end -= delta;
+	if (xdp_md->_adjust_used) {
+		// crash
+		*((uint8_t*)0) = 0;
+	}
+	xdp_md->_adjust_used = true;
+
+	ptrdiff_t old_length = xdp_md->data_end - xdp_md->data;
+	if (delta <= 0) {
+		if (-delta <= old_length) {
+			xdp_md->data_end += delta;
+		} else {
+			// can't adjust tail earlier than head
+			return -1;
+		}
 	} else {
-		ptrdiff_t old_length = xdp_md->data_end - xdp_md->data;
-		uint8_t* new_data = os_memory_alloc(1, old_length - delta);
-		memcpy(new_data, (uint8_t*) xdp_md->data, old_length);
-		xdp_md->data = (uintptr_t) new_data;
-		xdp_md->data_end = (uintptr_t) new_data + old_length - delta;
+		if (old_length + delta <= ETHERNET_MTU_) {
+			xdp_md->data_end += delta;
+		} else {
+			// can't make a packet that big
+			return -1;
+		}
 	}
 	return 0;
 }
@@ -102,7 +143,6 @@ struct bpf_map_def {
 	struct os_map2* _map; // for _HASH
 	struct os_map* _raw_map; // for _LRU_HASH
 	struct os_pool* _pool; // for _LRU_HASH
-	time_t _counter; // for _LRU_HASH
 	uint8_t* _keys; // for _LRU_HASH
 	uint8_t* _values; // for _ARRAY and _LRU_HASH
 	void* _value_holder; // workaround since we cannot gain ownership of values within the map; works as long as code uses one lookup at a time
@@ -135,19 +175,17 @@ static inline void* bpf_map_lookup_elem(struct bpf_map_def* map, void* key)
 			return NULL;
 		}
 		case BPF_MAP_TYPE_ARRAY: {
-			size_t index = *((size_t*) key);
+			uint32_t index = *((uint32_t*) key);
 			if (index < map->max_entries) {
-				memcpy(map->_value_holder, map->_values + (index * map->value_size), map->value_size);
-				return map->_value_holder;
+				return map->_values + (index * map->value_size);
 			}
 			return NULL;
 		}
 		case BPF_MAP_TYPE_LRU_HASH: {
-			map->_counter++;
 			size_t index;
 			if (os_map_get(map->_raw_map, key, (void*) &index)) {
-				memcpy(map->_value_holder, map->_values + (index * map->value_size), map->value_size);
-				return map->_value_holder;
+				os_pool_refresh(map->_pool, os_clock_time(), index);
+				return map->_values + (index * map->value_size);
 			}
 			return NULL;
 		}
@@ -173,7 +211,7 @@ static inline long bpf_map_update_elem(struct bpf_map_def* map, void* key, void*
 			return 1 - os_map2_set(map->_map, key, value);
 		}
 		case BPF_MAP_TYPE_ARRAY: {
-			size_t index = *((size_t*) key);
+			uint32_t index = *((uint32_t*) key);
 			if (index < map->max_entries) {
 				memcpy(map->_values + (index * map->value_size), value, map->value_size);
 				return 0;
@@ -181,16 +219,21 @@ static inline long bpf_map_update_elem(struct bpf_map_def* map, void* key, void*
 			return -1;
 		}
 		case BPF_MAP_TYPE_LRU_HASH: {
-			map->_counter++;
+			time_t time = os_clock_time();
 			size_t index;
-			if (os_pool_expire(map->_pool, map->_counter, (void*) &index)) {
+			if (!os_pool_borrow(map->_pool, time, (void*) &index)) {
+				if (!os_pool_expire(map->_pool, time, (void*) &index)) {
+					return -1;
+				}
 				os_map_remove(map->_raw_map, map->_keys + (index * map->key_size));
-			}
-			if (!os_pool_borrow(map->_pool, map->_counter, (void*) &index)) {
-				return -1;
+
+				if (!os_pool_borrow(map->_pool, time, (void*) &index)) {
+					return -1; // cannot happen since we just expired...
+				}
 			}
 			memcpy(map->_keys + (index * map->key_size), key, map->key_size);
 			memcpy(map->_values + (index * map->value_size), value, map->value_size);
+			os_map_set(map->_raw_map, map->_keys + (index * map->key_size), (void*) index);
 			return 0;
 		}
 	}
@@ -227,8 +270,12 @@ static inline long bpf_map_delete_elem(struct bpf_map_def* map, void* key)
 
 // Not in the Linux definition, necessary for a standard native program
 // (we could lazily init in the lookup/update/delete functions but that would slow down processing)
-static inline void bpf_map_init(struct bpf_map_def* map)
+static inline void bpf_map_init(struct bpf_map_def* map, bool havoc)
 {
+	// Those have no prototypes elsewhere since they are only needed for havocing
+	void os_map2_havoc(struct os_map2* map);
+	void os_memory_havoc(void* ptr);
+
 	// Single-threaded so no need to specially handle PERCPU
 	if (map->type == BPF_MAP_TYPE_PERCPU_ARRAY) {
 		map->type = BPF_MAP_TYPE_ARRAY;
@@ -237,16 +284,32 @@ static inline void bpf_map_init(struct bpf_map_def* map)
 	switch (map->type) {
 		case BPF_MAP_TYPE_HASH:
 			map->_map = os_map2_alloc(map->key_size, map->value_size, map->max_entries);
+			map->_value_holder = os_memory_alloc(1, map->value_size);
+			if (havoc) {
+				os_map2_havoc(map->_map);
+				os_memory_havoc(map->_value_holder);
+			}
 			break;
 		case BPF_MAP_TYPE_ARRAY:
+			if (map->key_size != sizeof(uint32_t)) {
+				return; // we expect all maps to have 32-bit indexes
+			}
 			map->_values = os_memory_alloc(map->max_entries, map->value_size);
+			if (havoc) {
+				os_memory_havoc(map->_values);
+			}
 			break;
 		case BPF_MAP_TYPE_LRU_HASH:
+			// No havocing here, it would automatically be a bug
 			map->_raw_map = os_map_alloc(map->key_size, map->max_entries);
 			map->_pool = os_pool_alloc(map->max_entries);
 			map->_keys = os_memory_alloc(map->max_entries, map->key_size);
 			map->_values = os_memory_alloc(map->max_entries, map->value_size);
 			break;
+
+		case BPF_MAP_TYPE_ARRAY_OF_MAPS:
+		case BPF_MAP_TYPE_DEVMAP: {
+			return;
+		}
 	}
-	map->_value_holder = os_memory_alloc(1, map->value_size);
 }

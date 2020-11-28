@@ -117,6 +117,10 @@ class SegmentedMemory(SimMemory):
         self.segments.append((addr, count, size))
         return addr
 
+    def havoc(self, addr):
+        (base, index, offset) = self.base_index_offset(addr)
+        self.state.maps.havoc(base, None, True)
+
     def _count_size(self, addr):
         # Optimization: Try structurally matching first before invoking the solver
         result = next(((count, size) for (cand_addr, count, size) in self.segments if addr.structurally_match(cand_addr)), None)
@@ -151,7 +155,7 @@ class SegmentedMemory(SimMemory):
             if len(base) == 1:
                 base = base[0]
             else:
-                raise SymbexException("!= 1 candidate for base???")
+                raise SymbexException("!= 1 candidate for base??? are you symbolically indexing a global variable or something?")
             added = sum([a for a in addr.args if not a.structurally_match(base)])
 
             (_, size) = self._count_size(base)

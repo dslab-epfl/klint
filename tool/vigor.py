@@ -77,7 +77,7 @@ def check(bin_path):
       # ignore spec_pathcond, the outputs must match regardless of the spec structure
   #    check_one(state_solver, defs.NFOutput(**spec_output), state_output)
 
-nf_to_verify = "router"
+nf_to_verify = "vigor-policer"
 bin_name = "libnf.so"
 
 if len(sys.argv) == 2:

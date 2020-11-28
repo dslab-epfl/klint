@@ -35,6 +35,9 @@ init_externals = {
   'cht_alloc': cht.ChtAlloc,
   'lpm_alloc': lpm.LpmAlloc,
   'lpm_update_elem': lpm.LpmUpdateElem,
+  # unfortunately needed to mimic BPF userspace
+  'os_map2_havoc': map2.OsMap2Havoc,
+  'os_memory_havoc': memory.OsMemoryHavoc,
 }
 
 handle_externals = {
@@ -110,7 +113,8 @@ def havoc_iter(bin_path, state, devices_count):
     handled_states = list(nf_handle(bin_path, state, devices_count))
     for (s, _, _) in handled_states:
       print("State", id(s), "has", len(s.solver.constraints), "constraints")
-      s.path.print(filter=lambda n: "Init" not in n and "Config" not in n)
+      s.path.print()
+      s.path.ghost_print()
 
     print("Merging... at " + str(datetime.now()))
     other_states = [s for (s, _, _) in handled_states[1:]]

@@ -511,6 +511,9 @@ static inline int process_packet(void *data, __u64 off, void *data_end,
   data_stats->v1 += 1;
 
   if ((vip_info->flags & F_QUIC_VIP)) {
+// ADDED:
+    if (protocol != IPPROTO_UDP) { return XDP_DROP; }
+
     __u32 quic_stats_key = MAX_VIPS + QUIC_ROUTE_STATS;
     struct lb_stats* quic_stats = bpf_map_lookup_elem(&stats, &quic_stats_key);
     if (!quic_stats) {

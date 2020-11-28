@@ -21,7 +21,6 @@ class OsMapAlloc(angr.SimProcedure):
         # Casts
         key_size = cast.size_t(key_size)
         capacity = cast.size_t(capacity)
-        print("!!! os_map_alloc", key_size, capacity)
 
         # Symbolism assumptions
         if key_size.symbolic:
@@ -36,6 +35,7 @@ class OsMapAlloc(angr.SimProcedure):
         values = self.state.maps.new(key_size * 8, bitsizes.ptr, name="map_values") # key_size is in bytes
         addrs = self.state.maps.new(key_size * 8, bitsizes.ptr, name="map_addrs") # key_size is in bytes
         self.state.metadata.set(result, Map(key_size, capacity, values, addrs))
+        print("!!! os_map_alloc", key_size, capacity, "->", result)
         return result
 
 # bool os_map_get(struct os_map* map, void* key_ptr, void** out_value);

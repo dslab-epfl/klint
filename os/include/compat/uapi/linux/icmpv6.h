@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 
-#include "compat/linux/inet.h"
+#include "compat/endian.h"
 
 #define ICMPV6_DEST_UNREACH 1
 #define ICMPV6_PKT_TOOBIG 2

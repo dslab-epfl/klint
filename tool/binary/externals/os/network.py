@@ -10,7 +10,7 @@ from ... import utils
 from ...exceptions import SymbexException
 
 PACKET_MIN = 64 # the NIC will pad it if shorter
-PACKET_MTU = 1512 # 1500 (Ethernet spec) + 2xMAC
+PACKET_MTU = 1514 # 1500 (Ethernet spec) + 2xMAC + EtherType
 
 # For the packet layout, see os/include/os/network.h (not reproducing here to avoid getting out of sync with changes)
 
@@ -19,13 +19,15 @@ def packet_init(state, devices_count):
   length = claripy.BVS("packet_length", 16)
   state.add_constraints(length.UGE(PACKET_MIN), length.ULE(PACKET_MTU))
 
-  data_addr = state.memory.allocate(1, length, name="packet_data")
+  # Allocate 2*MTU so that BPF's adjust_head can adjust negatively
+  # TODO instead, memcpy should be an intrinsic, and then adjust_head can memcpy into an init-allocated buffer
+  data_addr = state.memory.allocate(1, 2 * PACKET_MTU, name="packet_data")
   device = claripy.BVS("packet_device", 16)
-  state.add_constraints(device.UGE(0), device.ULT(devices_count))
+  state.add_constraints(device.ULT(devices_count))
 
   # the packet is a bit weird because of all the reserved fields, we set them to fresh symbols
   packet_addr = state.memory.allocate(1, 42, name="packet")
-  state.mem[packet_addr].uint64_t = data_addr
+  state.mem[packet_addr].uint64_t = data_addr + PACKET_MTU
   state.memory.store(packet_addr + 8, claripy.BVS("packet_reserved[0-3]", 14 * 8))
   state.mem[packet_addr + 22].uint16_t = device
   state.memory.store(packet_addr + 24, claripy.BVS("packet_reserved[4-6]", 16 * 8))
@@ -73,7 +75,7 @@ class Transmit(angr.SimProcedure):
     metadata = self.state.metadata.get(NetworkMetadata, None, default=NetworkMetadata([]))
     metadata.transmitted.append((data, length, device, ether_header != 0, ipv4_header != 0, tcpudp_header != 0))
 
-    self.state.memory.take(100, data_addr, length)
+    self.state.memory.take(None, data_addr, None)
 
 class Flood(angr.SimProcedure):
   def run(self, packet):

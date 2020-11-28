@@ -153,10 +153,22 @@ class Map:
         # Return F
         return result
 
+    # Havocs the map contents, mutating the map, with the given optional max_length (otherwise uses the current one)
+    # Do not use unless you know what you're doing; this is intended for init only, to mimic an external program configuring a map
+    def havoc(self, state, max_length, is_array):
+        if max_length is not None:
+            self._length = claripy.BVS("havoced_length", max_length.size())
+            utils.add_constraints_and_check_sat(state, self._length.ULE(max_length))
+        if is_array:
+            self._invariants = [lambda st, i: (i.key < self._length) == i.present]
+        else:
+            self._invariants = []
+        self._known_items = []
+        self.ever_havoced = True
 
     # === Private API, also used by invariant inference ===
 
-    def __init__(self, meta, length, invariants, known_items, _previous=None, _filter=None, _map=None):
+    def __init__(self, meta, length, invariants, known_items, _previous=None, _filter=None, _map=None, ever_havoced=False):
         self.meta = meta
         self._length = length
         self._invariants = invariants
@@ -164,6 +176,7 @@ class Map:
         self._previous = _previous
         self._filter = _filter or (lambda i: True)
         self._map = _map or (lambda i: i)
+        self.ever_havoced = ever_havoced
 
     def invariant_conjunctions(self, from_present=True):
         if from_present or self._previous is None:
@@ -243,7 +256,7 @@ class Map:
         return self.__deepcopy__({})
 
     def __deepcopy__(self, memo):
-        result = Map(self.meta, self._length, copy.deepcopy(self._invariants, memo), copy.deepcopy(self._known_items, memo), copy.deepcopy(self._previous, memo), self._filter, self._map)
+        result = Map(self.meta, self._length, copy.deepcopy(self._invariants, memo), copy.deepcopy(self._known_items, memo), copy.deepcopy(self._previous, memo), self._filter, self._map, self.ever_havoced)
         memo[id(self)] = result
         return result
 
@@ -252,6 +265,14 @@ class Map:
 
     def _asdict(self): # pretend we are a namedtuple so functions that expect one will work (e.g. utils.structural_eq)
         return {'meta': self.meta, '_length': self._length, '_invariants': self._invariants, '_known_items': self._known_items, '_previous': self._previous, '_filter': self._filter, '_map': self._map}
+
+
+# History stuff
+HistoryLength = namedtuple('HistoryLength', ['obj', 'result'])
+HistoryGet = namedtuple('HistoryGet', ['obj', 'key', 'result'])
+HistorySet = namedtuple('HistorySet', ['obj', 'key', 'value'])
+HistoryRemove = namedtuple('HistoryRemove', ['obj', 'key'])
+HistoryForall = namedtuple('HistoryForall', ['obj', 'pred', 'result'])
 
 class GhostMaps(SimStatePlugin):
     # === Public API ===
@@ -266,13 +287,10 @@ class GhostMaps(SimStatePlugin):
         self.state.metadata.set(obj, Map.new(self.state, key_size, value_size, name, length, [lambda st, i: (i.key < length) == i.present]))
         return obj
 
-    def new_havoced(self, key_size, value_size, length, name="map"):
-        obj = self.state.memory.allocate_opaque(name)
-        self.state.metadata.set(obj, Map.new(self.state, key_size, value_size, name, length, []))
-        return obj
-
     def length(self, obj):
-        return self[obj].length()
+        result = self[obj].length()
+        self.state.path.ghost_record(HistoryLength(obj, result))
+        return result
 
     def key_size(self, obj):
         return self[obj].meta.key_size
@@ -286,20 +304,29 @@ class GhostMaps(SimStatePlugin):
                         " (" + str(len(list(map.known_items(from_present=from_present)))) + " items, " + str(len(self.state.solver.constraints)) + " constraints)")
         result = map.get(self.state, key, value=value, from_present=from_present)
         LOGEND(self.state)
+        self.state.path.ghost_record(HistoryGet(obj, key, result))
         return result
 
     def set(self, obj, key, value):
         self.state.metadata.set(obj, self[obj].set(self.state, key, value), override=True)
+        self.state.path.ghost_record(HistorySet(obj, key, value))
 
     def remove(self, obj, key):
         self.state.metadata.set(obj, self[obj].remove(self.state, key), override=True)
+        self.state.path.ghost_record(HistoryRemove(obj, key))
 
     def forall(self, obj, pred, _known_only=False):
         map = self[obj]
         LOG(self.state, "forall " + map.meta.name + " ( " + str(len(self.state.solver.constraints)) + " constraints)")
         result = map.forall(self.state, pred, _known_only=_known_only)
         LOGEND(self.state)
+        self.state.path.ghost_record(HistoryForall(obj, pred, result))
         return result
+
+    # === Havocing, to mimic BPF userspace ===
+
+    def havoc(self, obj, max_length, is_array):
+        self[obj].havoc(self.state, max_length, is_array)
 
 
     # === Private API, including for invariant inference ===
@@ -576,6 +603,10 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
     # Optimization: Ignore maps that have not changed at all, e.g. those that are de facto readonly after initialization
     objs = [o for o in objs if any(not utils.structural_eq(_ancestor_state.maps[o], st.maps[o]) for st in _states)]
 
+    # Optimization: If _all_ non-frac maps were havoced in the initial state, there are no invariants to find
+    if all(_ancestor_state.maps[o].ever_havoced or _ancestor_state.memory.get_obj_and_size_from_fracs_obj(o) != (None, None) for o in objs):
+        return []
+
     # Initialize the cache for fast read/write acces during invariant inference
     init_cache(objs)
 
@@ -660,6 +691,10 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
     return cross_results + length_results
 
 def maps_merge_one(states_to_merge, obj, ancestor_state):
+    # Optimization: Do not even consider maps that have not changed at all, e.g. those that are de facto readonly after initialization
+    if all(utils.structural_eq(ancestor_state.maps[obj], st.maps[obj]) for st in states_to_merge):
+        return (ancestor_state.maps[obj], False)
+
     print("Merging map", obj)
     # helper function to find constraints that hold on an expression in a state
     ancestor_variables = ancestor_state.solver.variables(claripy.And(*ancestor_state.solver.constraints))
@@ -679,10 +714,6 @@ def maps_merge_one(states_to_merge, obj, ancestor_state):
             if not constr.replace(expr, fake).structurally_match(constr) and constr_vars.difference(expr_vars).issubset(ancestor_variables):
                 results.append(constr)
         return results
-
-    # Optimization: Do not even consider maps that have not changed at all, e.g. those that are de facto readonly after initialization
-    if all(utils.structural_eq(ancestor_state.maps[obj], st.maps[obj]) for st in states_to_merge):
-        return (ancestor_state.maps[obj], False)
 
     flattened_states = [s.copy() for s in states_to_merge]
     for s in flattened_states:

@@ -6,6 +6,7 @@ import copy
 
 # Us
 from . import utils
+from .hash_dict import HashDict
 from .exceptions import SymbexException
 
 # Optimization: objects are compared structurally instead of with the solver, which might cause spurious failures
@@ -60,9 +61,9 @@ class Metadata(SimStatePlugin):
                 # Ignore any metadata class that was not already in the ancestor state
                 continue
             # Ignore any metadata key that was not already in the ancestor state
-            common_keys = [k for (k, v) in items if ancestor_state.metadata._get(cls, k) != []]
+            common_keys = ancestor_state.metadata.items[cls].keys()
 
-            merged_items[cls] = []
+            merged_items[cls] = HashDict()
             if cls in Metadata.merge_funcs:
                 across_results[cls] = Metadata.merge_funcs[cls][0]([self.state] + other_states, common_keys, ancestor_state)
                 # To check if we have reached a superset of the previous across_results, remove all values we now have
@@ -76,13 +77,13 @@ class Metadata(SimStatePlugin):
                 for key in common_keys:
                     (merged_value, has_changed) = Metadata.merge_funcs[cls][1]([self.state] + other_states, key, ancestor_state)
                     any_individual_changed = any_individual_changed or has_changed
-                    merged_items[cls].append((key, merged_value))
+                    merged_items[cls][key] = merged_value
             else:
                 # No merge function, keep all of the ones that are structurally equal, discard the others
                 for key in common_keys:
                     value = self.get(cls, key)
                     if all(utils.structural_eq(other.metadata.get(cls, key), value) for other in other_states):
-                        merged_items[cls].append((key, value))
+                        merged_items[cls][key] = value
 
         # As the doc states, fixpoint if all merges resulted in the old result and the across_results are a superset
         reached_fixpoint = not any_individual_changed and all(len(items) == 0 for items in across_previous_results.values())
@@ -114,58 +115,48 @@ class Metadata(SimStatePlugin):
     def items_copy(self): # for verification purposes
         return self.items.copy()
 
-    def _get(self, cls, key):
-        if cls not in self.items:
-            return []
-        return [(k, v) for (k, v) in self.items[cls] if (k.structurally_match(key) if k is not None else k is key)]
+    def _get_value(self, cls, key):
+        map = self.items.get(cls, None)
+        if map is None:
+            return None
+        return map[key]
 
 
     def get(self, cls, key, default=None):
-        results = self._get(cls, key)
-        if len(results) == 0:
+        value = self._get_value(cls, key)
+        if value is None:
             if default is None:
                 raise SymbexException(f"No metadata for key: {key} of class: {cls}")
             else:
                 self.set(key, default)
                 return default
 
-        if len(results) > 1:
-            raise SymbexException(f"More than one matching metadata of type {cls} for key: {key}")
-
-        return results[0][1]
+        return value
 
 
     def get_all(self, cls):
-        return self.items.get(cls, [])
+        return self.items.get(cls, HashDict())
 
 
     def set(self, key, value, override=False):
         cls = type(value)
-        results = self._get(cls, key)
-        if len(results) > 1:
-            raise SymbexException(f"More than one existing metadata of type {cls} for key: {key}")
-
-        has_already = len(results) == 1
-        if has_already:
+        existing = self._get_value(cls, key)
+        if existing is None:
             if override:
-                # Keep them in the same order! This makes the rest of the code easier to reason about
-                self.items[cls] = [((key, value) if k is results[0][0] else (k, v)) for (k, v) in self.items[cls]]
-                return
-            else:
-                raise SymbexException(f"There is already metadata of type {cls} for key: {key}, namely {results}")
-
-        if override and not has_already:
-            raise SymbexException(f"There is no metadata of type {cls} to override for key: {key}")
-
-        if cls not in self.items:
-            self.items[cls] = []
-
-        self.items[cls].append((key, value))
+                raise SymbexException(f"There is no metadata of type {cls} to override for key {key}")
+            map = self.items.get(cls, None)
+            if map is None:
+                map = HashDict()
+                self.items[cls] = map
+            map[key] = value
+        else:
+            if not override:
+                raise SymbexException(f"There is already metadata of type {cls} for key {key}, namely {existing}")
+            self.items[cls][key] = value
 
 
     def remove(self, cls, key):
-        self.items[cls] = [(k, v) for (k, v) in self.items[cls] if k is not key] # same comment as in set
-
+        del self.items[cls][key]
 
     def remove_all(self, cls):
         if cls in self.items:

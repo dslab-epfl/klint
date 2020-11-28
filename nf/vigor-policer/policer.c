@@ -14,8 +14,8 @@ struct policer_bucket {
 
 
 uint16_t wan_device;
-int64_t rate; // bytes/sec
-int64_t burst; // bytes
+int64_t rate;
+int64_t burst;
 uint64_t max_flows;
 uint32_t* addresses;
 struct policer_bucket* buckets;
@@ -52,9 +52,6 @@ bool nf_init(uint16_t devices_count)
 	buckets = os_memory_alloc(max_flows, sizeof(struct policer_bucket));
 	map = os_map_alloc(sizeof(uint32_t), max_flows);
 	chain = os_pool_alloc(max_flows);
-	if (map == 0 || chain == 0) {
-		return false;
-	}
 
 	return true;
 }
@@ -74,8 +71,8 @@ void nf_handle(struct os_net_packet* packet)
 		if (os_map_get(map, &(ipv4_header->dst_addr), (void*) &index)) {
 			os_pool_refresh(chain, time, index);
 			int64_t time_diff = time - buckets[index].time;
-			if (time_diff < burst * 1000000000l / rate) {
-				buckets[index].size += time_diff * rate / 1000000000l;
+			if (time_diff < burst / rate) {
+				buckets[index].size += time_diff * rate;
 				if (buckets[index].size > burst) {
 					buckets[index].size = burst;
 				}
