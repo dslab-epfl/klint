@@ -61,7 +61,6 @@ static mut MAP: *mut OsMap = null_mut();
 static mut POOL: *mut OsPool = null_mut();
 
 const ERR_BAD_C_STRING: &str = "String cannot be converted to C representation.";
-const BURST_FACTOR: i64 = 1000000000;
 
 #[no_mangle]
 pub unsafe extern "C" fn nf_init(devices_count: u16) -> bool {
@@ -130,8 +129,8 @@ pub unsafe extern "C" fn nf_handle(packet: *mut OsNetPacket) {
         ) {
             os_pool_refresh(POOL, time, index);
             let time_diff = time - (*BUCKETS.offset(index as isize)).time;
-            if time_diff < BURST * BURST_FACTOR / RATE {
-                (*BUCKETS.offset(index as isize)).size += time_diff * RATE / BURST_FACTOR;
+            if time_diff < BURST / RATE {
+                (*BUCKETS.offset(index as isize)).size += time_diff * RATE;
                 if (*BUCKETS.offset(index as isize)).size > BURST {
                     (*BUCKETS.offset(index as isize)).size = BURST;
                 }
