@@ -272,7 +272,7 @@ HistoryLength = namedtuple('HistoryLength', ['obj', 'result'])
 HistoryGet = namedtuple('HistoryGet', ['obj', 'key', 'result'])
 HistorySet = namedtuple('HistorySet', ['obj', 'key', 'value'])
 HistoryRemove = namedtuple('HistoryRemove', ['obj', 'key'])
-HistoryForall = namedtuple('HistoryForall', ['obj', 'pred', 'result'])
+HistoryForall = namedtuple('HistoryForall', ['obj', 'pred', 'pred_key', 'pred_value', 'result'])
 
 class GhostMaps(SimStatePlugin):
     # === Public API ===
@@ -320,7 +320,9 @@ class GhostMaps(SimStatePlugin):
         LOG(self.state, "forall " + map.meta.name + " ( " + str(len(self.state.solver.constraints)) + " constraints)")
         result = map.forall(self.state, pred, _known_only=_known_only)
         LOGEND(self.state)
-        self.state.path.ghost_record(HistoryForall(obj, pred, result))
+        record_key = claripy.BVS("record_key", map.meta.key_size)
+        record_value = claripy.BVS("record_value", map.meta.value_size)
+        self.state.path.ghost_record(HistoryForall(obj, pred(record_key, record_value), record_key, record_value, result))
         return result
 
     # === Havocing, to mimic BPF userspace ===
