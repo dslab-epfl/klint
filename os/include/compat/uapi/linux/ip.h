@@ -16,10 +16,10 @@
 struct iphdr {
 #ifdef IS_BIG_ENDIAN
 	uint8_t version: 4,
-	     ihl: 4;
+	        ihl: 4;
 #else
 	uint8_t ihl: 4,
-	     version: 4;
+	        version: 4;
 #endif
 	uint8_t tos;
 	uint16_t tot_len;

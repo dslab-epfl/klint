@@ -1,4 +1,4 @@
 #pragma once
 
-// https://stackoverflow.com/a/2100549/3311770
-#define IS_BIG_ENDIAN (!*(unsigned char *)&(uint16_t){1})
+// https://stackoverflow.com/a/4240257/3311770
+#define IS_BIG_ENDIAN (!(((union { unsigned x; unsigned char c; }){1}).c))

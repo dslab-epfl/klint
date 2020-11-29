@@ -381,7 +381,7 @@ def LOG(state, text):
     #print(level, "  " * level, text)
 def LOGEND(state):
     LOG_levels[id(state)] = LOG_levels[id(state)] - 1
-    
+
 # state args have a leading _ to ensure toe functions run concurrently don't accidentally touch them
 def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
     print(f"Cross-merge of maps starting. State count: {len(_states_to_merge)}")
@@ -423,9 +423,9 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                 if not utils.definitely_true(state.solver, sel2(items2.pop()) == candidate_func(state, it1, True)):
                     return False
             return True
-        
+
         candidate_func = None
-        
+
         for state in states:
             items1 = filter_present(state, o1)
             items2 = filter_present(state, o2)
@@ -463,7 +463,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
             else:
                 # Candidate failed :(
                 return None
-            
+
         # Our candidate has survived all states!
         return candidate_func
 
@@ -505,7 +505,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                 fake = claripy.BVS("fake", x1.args[1].size())
                 if not x2.replace(x1.args[1], fake).structurally_match(x2):
                     return lambda st, it, _, x1=x1, x2=x2: x2.replace(x1.args[1], claripy.Extract(x1.args[1].size() - 1, 0, sel1(it)))
-                    
+
             # if x1 is "(x..0) + n" where n is known from the ancestor and x2 contains "x"
             if x1.op == "__add__" and \
             len(x1.args) == 2 and \
@@ -552,7 +552,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
             #  then assume this is an invariant of M1 in the merged state.
             # We use maps directly to refer to the map state as it was in the ancestor, not during execution;
             # otherwise, get(M1, k) after remove(M2, k) might add has(M2, k) to the constraints, which is obviously false
-            
+
             # Try to find a FK
             (fk_is_cached, fk) = get_cached(o1, o2, "k")
             if not fk_is_cached:
@@ -572,18 +572,18 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                 states = [s.copy() for s in orig_states]
                 if all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk: Implies(fp(MapItem(k, v, None)), st.maps.get(o2, fk(st, MapItem(k, v, None), True))[1]), _known_only=not first_time)) for st in states):
                     to_cache.put([o1, o2, "p", [fp]]) # only put the working one, don't have us try a pointless one next time
-                    
+
                     # Logging
                     log_item = MapItem(claripy.BVS("K", ancestor_state.maps.key_size(o1)), claripy.BVS("V", ancestor_state.maps.value_size(o1)), None)
                     log_text = f"Inferred: when {o1} contains (K,V), if {fp(log_item)} then {o2} contains {fk(ancestor_state, log_item, True)}"
-                    
+
                     # Try to find a FV
                     (fv_is_cached, fv) = get_cached(o1, o2, "v")
                     if not fv_is_cached:
                         fv = find_f(orig_states, o1, o2, get_key, get_value, candidate_finders) \
                           or find_f(orig_states, o1, o2, get_value, get_value, candidate_finders)
                         to_cache.put([o1, o2, "v", fv])
-                    
+
                     states = [s.copy() for s in orig_states]
                     if fv and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk, fv=fv: Implies(fp(MapItem(k, v, None)), st.maps.get(o2, fk(st, MapItem(k, v, None), True))[0] == fv(st, MapItem(k, v, None), True)), _known_only=not first_time)) for st in states):
                         log_text += f"\n\tin addition, the value is {fv(ancestor_state, log_item, True)}"
@@ -596,7 +596,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                     else:
                         cross_key_inv = lambda st, i, o2, fp, fk: Implies(i.present, Implies(fp(i), st.maps.get(o2, fk(st, i, False), from_present=False)[1]))
                         results.put((ResultType.CROSS_KEY, [o1, o2], lambda state, maps, o2=o2, fp=fp, fk=fk: [maps[0].with_added_invariant(lambda st, i: cross_key_inv(st, i, o2, fp, fk)), maps[1]]))
-                   
+
                     print(log_text) # print it at once to avoid interleavings from threads
                     break # this might make us miss some stuff in theory? but that's sound; and in practice it doesn't
             else:
@@ -633,7 +633,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
     remaining_work = queue.Queue()
     for (o1, o2) in itertools.permutations(objs, 2):
         remaining_work.put((o1, o2))
-    
+
     # Multithreading disabled because it causes weird errors (maybe we're configuring angr wrong; we end up with a claripy mixin shared between threads)
     # and even segfaults (which look like z3 is accessed concurrently when it shouldn't be)
     thread_main(_ancestor_state.copy(), [s.copy() for s in _states])
@@ -696,6 +696,9 @@ def maps_merge_one(states_to_merge, obj, ancestor_state):
     # Optimization: Do not even consider maps that have not changed at all, e.g. those that are de facto readonly after initialization
     if all(utils.structural_eq(ancestor_state.maps[obj], st.maps[obj]) for st in states_to_merge):
         return (ancestor_state.maps[obj], False)
+
+    # Optimization: Drop states in which the map has not changed at all
+    states_to_merge = [st for st in states_to_merge if not utils.structural_eq(ancestor_state.maps[obj], st.maps[obj])]
 
     print("Merging map", obj)
     # helper function to find constraints that hold on an expression in a state

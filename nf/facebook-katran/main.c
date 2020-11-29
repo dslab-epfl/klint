@@ -44,7 +44,7 @@ bool nf_init(uint16_t devices_count)
 
 	bpf_map_init(&vip_map, true);
 	bpf_map_init(&lru_mapping, false); // is a map of maps; will lead to using fallback_cache as default
-	bpf_map_init(&fallback_cache, false); // managed by the BPF part
+	bpf_map_init(&fallback_cache, true); // havoc the cache so it looks like one of the maps that userspace put in lru_mapping
 	bpf_map_init(&ch_rings, true);
 	bpf_map_init(&reals, true);
 	bpf_map_init(&reals_stats, true);
