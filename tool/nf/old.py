@@ -1,6 +1,4 @@
-#!/usr/bin/env python
-
-# TODO this file is completely obsolete, I think? but it serves as a convenient way to run verification (see the end), so whatever
+# TODO pretty sure this file is obsolete, delete it?
 # TODO would be cleaner to unwrap everything during symbex... but recursively unwrapping stuff gets hairy
 
 # Standard/External libraries
@@ -10,10 +8,10 @@ import os
 import pathlib
 
 # Us
-import nf.defs as defs
-import nf.executor as nf_executor
-import python.executor as py_executor
-import python.symbex as py_symbex
+from . import defs
+from . import executor as nf_executor
+from python import executor as py_executor
+from python import symbex as py_symbex
 
 # TODO proper argument/state checking
 def spec_send(state, packet, device, **kwargs):
@@ -76,15 +74,3 @@ def check(bin_path):
   #  for (spec_pathcond, spec_output) in py_results:
       # ignore spec_pathcond, the outputs must match regardless of the spec structure
   #    check_one(state_solver, defs.NFOutput(**spec_output), state_output)
-
-nf_to_verify = "router"
-bin_name = "libnf.so"
-
-if len(sys.argv) == 2:
-  nf_to_verify = sys.argv[1]
-  # Special case for Rust binaries
-  if nf_to_verify == "rs-vigor-policer":
-    nf_to_verify = os.path.join(nf_to_verify, "target", "debug")  
-    bin_name = "librs_vigor_policer.so"
-
-check(os.path.join(pathlib.Path(__file__).parent.absolute(), "..", "nf", nf_to_verify, bin_name))
