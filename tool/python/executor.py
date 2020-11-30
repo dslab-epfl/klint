@@ -3,15 +3,14 @@
 # Us
 from . import symbex
 
-def execute(solver, spec_text, spec_args, spec_externals):
+def execute(solver, spec_text, spec_args, spec_external_names, spec_external_handler):
   state_box = [{}] # box it so we can pass the state around
   globals = {}
   for i, a in enumerate(spec_args):
     globals['__arg' + str(i)] = symbex.proxy(solver, a)
-  for name, method in spec_externals.items():
-    # avoid capturing the loop variable in the lambda...
-    def build_lambda(method): return lambda *args, **kwargs: method(state_box[0], *args, **kwargs)
-    globals[name] = build_lambda(method)
+  for name in spec_externals.items():
+    def build_lambda(name): return lambda *args, **kwargs: spec_external_handler(name, state_box[0], *args, **kwargs)
+    globals[name] = build_lambda(name)
 
   def run():
     state_box.clear()

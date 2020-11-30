@@ -70,7 +70,7 @@ class OsPoolBorrow(angr.SimProcedure):
             return claripy.BVV(0, bitsizes.bool)
         def case_false(state):
             print("!!! os_pool_borrow notfull", index)
-            utils.add_constraints_and_check_sat(state, claripy.Not(state.maps.get(poolp.items, index)[1]))
+            utils.add_constraints_and_check_sat(state, ~(state.maps.get(poolp.items, index)[1]))
             state.maps.set(poolp.items, index, time)
             return claripy.BVV(1, bitsizes.bool)
         return utils.fork_guarded(self, self.state.maps.length(poolp.items) == poolp.size, case_true, case_false)

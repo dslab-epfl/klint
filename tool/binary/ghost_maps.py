@@ -11,6 +11,7 @@ from collections import namedtuple
 from enum import Enum
 
 # Us
+from . import bitsizes
 from . import utils
 from .exceptions import SymbexException
 from .metadata import Metadata
@@ -77,8 +78,8 @@ class Map:
         utils.add_constraints_and_check_sat(state,
             # Add K = K' => (V = V' and P = P') to the path constraint for each item (K', V', P') in the map [from the present or the past],
             *[Implies(key == i.key, (value == i.value) & (present == i.present)) for i in known_items],
-            # Add UK => invariant(M)(K', V', P') to the path constraint [invariant in the present or the past]
-            Implies(unknown, self.invariant(from_present=from_present)(state, new_known_item)),
+            # Add UK => invariant(M)(K', V', P') to the path constraint
+            Implies(unknown, self.invariant()(state, new_known_item)),
             # Add L <= length(M) [in the present or the past]
             self.known_length(from_present=from_present) <= self.length(from_present=from_present)
         )
@@ -119,7 +120,7 @@ class Map:
             map=lambda i: MapItem(i.key, claripy.If(i.key == key, value, i.value), claripy.If(i.key == key, claripy.false, i.present))
         )
 
-    def forall(self, state, pred, _known_only=False):
+    def forall(self, state, pred):
         # Optimization: If the map is empty, the answer is always true
         if self.is_empty():
             return claripy.true
@@ -132,7 +133,7 @@ class Map:
         # Let F = ((P1 => pred(K1, V1)) and (P2 => pred(K2, V2)) and (...) and ((L < length(M)) => (invariant(M)(K', V', true) => pred(K', V'))))
         # Optimization: No need to even call the invariant if we're sure all items are known
         result = claripy.And(*[Implies(i.present, pred(i.key, i.value)) for i in self.known_items()])
-        if not _known_only and utils.can_be_false(state.solver, self.known_length() == self.length()):
+        if utils.can_be_false(state.solver, self.known_length() == self.length()):
             result &= Implies(
                           self.known_length() < self.length(),
                           Implies(
@@ -178,13 +179,13 @@ class Map:
         self._map = _map or (lambda i: i)
         self.ever_havoced = ever_havoced
 
-    def invariant_conjunctions(self, from_present=True):
-        if from_present or self._previous is None:
+    def invariant_conjunctions(self):
+        if self._previous is None:
             return self._invariants
-        return self._invariants + self._previous.invariant_conjunctions(from_present=False)
+        return self._invariants + self._previous.invariant_conjunctions()
 
-    def invariant(self, from_present=True):
-        return lambda st, i, invs=self.invariant_conjunctions(from_present): claripy.And(*[inv(st, i) for inv in invs])
+    def invariant(self):
+        return lambda st, i, invs=self.invariant_conjunctions(): claripy.And(*[inv(st, i) for inv in invs])
 
     def add_invariant(self, conjunction):
         self._invariants.append(conjunction)
@@ -218,7 +219,7 @@ class Map:
         return Map(
             self.meta,
             self._length + length_change,
-            self._invariants.copy(),
+            [], # no extra invariants, just use the ones in _previous
             items,
             _previous=self,
             _filter=filter,
@@ -268,6 +269,8 @@ class Map:
 
 
 # History stuff
+HistoryNew = namedtuple('HistoryNew', ['key_size', 'value_size', 'result'])
+HistoryNewArray = namedtuple('HistoryNewArray', ['key_size', 'value_size', 'length', 'result'])
 HistoryLength = namedtuple('HistoryLength', ['obj', 'result'])
 HistoryGet = namedtuple('HistoryGet', ['obj', 'key', 'result'])
 HistorySet = namedtuple('HistorySet', ['obj', 'key', 'value'])
@@ -277,19 +280,21 @@ HistoryForall = namedtuple('HistoryForall', ['obj', 'pred', 'pred_key', 'pred_va
 class GhostMaps(SimStatePlugin):
     # === Public API ===
 
-    def new(self, key_size, value_size, name="map", length_size=64):
+    def new(self, key_size, value_size, name="map"):
         obj = self.state.memory.allocate_opaque(name)
-        self.state.metadata.set(obj, Map.new(self.state, key_size, value_size, name, claripy.BVV(0, length_size), [lambda st, i: ~i.present]))
+        self.state.metadata.set(obj, Map.new(self.state, key_size, value_size, name, claripy.BVV(0, bitsizes.size_t), [lambda st, i: ~i.present]))
+        self.state.path.ghost_record(lambda: HistoryNew(key_size, value_size, obj))
         return obj
 
     def new_array(self, key_size, value_size, length, name="map"):
         obj = self.state.memory.allocate_opaque(name)
         self.state.metadata.set(obj, Map.new(self.state, key_size, value_size, name, length, [lambda st, i: (i.key < length) == i.present]))
+        self.state.path.ghost_record(lambda: HistoryNewArray(key_size, value_size, length, obj))
         return obj
 
     def length(self, obj):
         result = self[obj].length()
-        self.state.path.ghost_record(HistoryLength(obj, result))
+        self.state.path.ghost_record(lambda: HistoryLength(obj, result))
         return result
 
     def key_size(self, obj):
@@ -304,25 +309,25 @@ class GhostMaps(SimStatePlugin):
                         " (" + str(len(list(map.known_items(from_present=from_present)))) + " items, " + str(len(self.state.solver.constraints)) + " constraints)")
         result = map.get(self.state, key, value=value, from_present=from_present)
         LOGEND(self.state)
-        self.state.path.ghost_record(HistoryGet(obj, key, result))
+        self.state.path.ghost_record(lambda: HistoryGet(obj, key, result))
         return result
 
     def set(self, obj, key, value):
         self.state.metadata.set(obj, self[obj].set(self.state, key, value), override=True)
-        self.state.path.ghost_record(HistorySet(obj, key, value))
+        self.state.path.ghost_record(lambda: HistorySet(obj, key, value))
 
     def remove(self, obj, key):
         self.state.metadata.set(obj, self[obj].remove(self.state, key), override=True)
-        self.state.path.ghost_record(HistoryRemove(obj, key))
+        self.state.path.ghost_record(lambda: HistoryRemove(obj, key))
 
-    def forall(self, obj, pred, _known_only=False):
+    def forall(self, obj, pred):
         map = self[obj]
         LOG(self.state, "forall " + map.meta.name + " ( " + str(len(self.state.solver.constraints)) + " constraints)")
-        result = map.forall(self.state, pred, _known_only=_known_only)
+        result = map.forall(self.state, pred)
         LOGEND(self.state)
         record_key = claripy.BVS("record_key", map.meta.key_size)
         record_value = claripy.BVS("record_value", map.meta.value_size)
-        self.state.path.ghost_record(HistoryForall(obj, pred(record_key, record_value), record_key, record_value, result))
+        self.state.path.ghost_record(lambda: HistoryForall(obj, pred(record_key, record_value), record_key, record_value, result))
         return result
 
     # === Havocing, to mimic BPF userspace ===
@@ -387,7 +392,11 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
     print(f"Cross-merge of maps starting. State count: {len(_states_to_merge)}")
 
     _states = _states_to_merge + [_ancestor_state]
-    first_time = len(_cache) == 0
+
+    # Recording forall in particular is expensive
+    for s in _states:
+        s.path.ghost_disable()
+
     get_key = lambda i: i.key
     get_value = lambda i: i.value
     ancestor_variables = _ancestor_state.solver.variables(claripy.And(*_ancestor_state.solver.constraints))
@@ -529,12 +538,42 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                 return lambda st, it, _, const=const, sz=x2.size(): claripy.BVV(const, sz)
         return None
 
+    # Optimization: If _all_ non-frac maps were havoced in the initial state, there are no invariants to find
+    if all(_ancestor_state.maps[o].ever_havoced or _ancestor_state.memory.get_obj_and_size_from_fracs_obj(o) != (None, None) for o in objs):
+        return []
+
+    # Initialize the cache for fast read/write acces during invariant inference
+    init_cache(objs)
+
+    # List all candidate finders used by find_f
+    candidate_finders = [candidate_finder_1, candidate_finder_2, candidate_finder_3]
+
+    results = queue.Queue() # pairs: (ID, maps, lambda states, maps: returns None for no changes or maps to overwrite them)
+    to_cache = queue.Queue() # set_cached(...) will be called with all elements in there
+
+    # Invariant inference algorithm: if some property P holds in all states to merge and the ancestor state, optimistically assume it is part of the invariant
+    for o in objs:
+        # Step 1: Length variation.
+        # If the length may have changed in any state from the one in the ancestor state,
+        # replace the length with a fresh symbol
+        ancestor_length = _ancestor_state.maps.length(o)
+        for state in _states_to_merge:
+            if utils.can_be_false(state.solver, state.maps.length(o) == ancestor_length):
+                print("Length of map", o, " was changed; making it symbolic")
+                results.put((ResultType.LENGTH_VAR, [o], lambda st, ms: [ms[0].with_length(claripy.BVS("map_length", ms[0].length().size()))]))
+                break
+
     def thread_main(ancestor_state, orig_states):
         while True:
             try:
                 (o1, o2) = remaining_work.get(block=False)
             except queue.Empty:
                 return
+
+            # Optimization: Ignore maps that have not changed at all, e.g. those that are de facto readonly after initialization
+            orig_states = [s for s in orig_states if not utils.structural_eq(s.maps[o1], ancestor_state.maps[o1]) and not utils.structural_eq(s.maps[o2], ancestor_state.maps[o2])]
+            if len(orig_states) == 0:
+                continue
 
             # Step 2: Length relationships.
             # For each pair of maps (M1, M2),
@@ -543,7 +582,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
             if all(utils.definitely_true(st.solver, st.maps.length(o1) <= st.maps.length(o2)) for st in orig_states):
                 results.put((ResultType.LENGTH_LTE, [o1, o2], lambda st, ms: st.add_constraints(ms[0].length() <= ms[1].length())))
 
-            # Step 2: Map relationships.
+            # Step 3: Map relationships.
             # For each pair of maps (M1, M2),
             #  if there exist functions FP, FK such that in all states, forall(M1, (K,V): FP(K,V) => get(M2, FK(K, V)) == (_, true)),
             #  then assume this is an invariant of M1 in the merged state.
@@ -569,8 +608,8 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                 fps = find_f_constants(orig_states, o1, get_value)
 
             for fp in fps:
-                states = [s.copy() for s in orig_states]
-                if all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk: Implies(fp(MapItem(k, v, None)), st.maps.get(o2, fk(st, MapItem(k, v, None), True))[1]), _known_only=not first_time)) for st in states):
+                states = [s.copy() for s in orig_states] # avoid polluting states across attempts
+                if all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk: Implies(fp(MapItem(k, v, None)), st.maps.get(o2, fk(st, MapItem(k, v, None), True))[1]))) for st in states):
                     to_cache.put([o1, o2, "p", [fp]]) # only put the working one, don't have us try a pointless one next time
 
                     # Logging
@@ -580,12 +619,12 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                     # Try to find a FV
                     (fv_is_cached, fv) = get_cached(o1, o2, "v")
                     if not fv_is_cached:
-                        fv = find_f(orig_states, o1, o2, get_key, get_value, candidate_finders) \
-                          or find_f(orig_states, o1, o2, get_value, get_value, candidate_finders)
+                        fv = find_f(states, o1, o2, get_key, get_value, candidate_finders) \
+                          or find_f(states, o1, o2, get_value, get_value, candidate_finders)
                         to_cache.put([o1, o2, "v", fv])
 
                     states = [s.copy() for s in orig_states]
-                    if fv and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk, fv=fv: Implies(fp(MapItem(k, v, None)), st.maps.get(o2, fk(st, MapItem(k, v, None), True))[0] == fv(st, MapItem(k, v, None), True)), _known_only=not first_time)) for st in states):
+                    if fv and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk, fv=fv: Implies(fp(MapItem(k, v, None)), st.maps.get(o2, fk(st, MapItem(k, v, None), True))[0] == fv(st, MapItem(k, v, None), True)))) for st in states):
                         log_text += f"\n\tin addition, the value is {fv(ancestor_state, log_item, True)}"
                         # Python doesn't have multiline lambdas :/
                         def cross_val_inv(st, i, o2, fp, fk, fv):
@@ -601,34 +640,6 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                     break # this might make us miss some stuff in theory? but that's sound; and in practice it doesn't
             else:
                 to_cache.put([o1, o2, "p", []])
-
-    # Optimization: Ignore maps that have not changed at all, e.g. those that are de facto readonly after initialization
-    objs = [o for o in objs if any(not utils.structural_eq(_ancestor_state.maps[o], st.maps[o]) for st in _states)]
-
-    # Optimization: If _all_ non-frac maps were havoced in the initial state, there are no invariants to find
-    if all(_ancestor_state.maps[o].ever_havoced or _ancestor_state.memory.get_obj_and_size_from_fracs_obj(o) != (None, None) for o in objs):
-        return []
-
-    # Initialize the cache for fast read/write acces during invariant inference
-    init_cache(objs)
-
-    # List all candidate finders used by find_f
-    candidate_finders = [candidate_finder_1, candidate_finder_2, candidate_finder_3]
-
-    results = queue.Queue() # pairs: (ID, maps, lambda states, maps: returns None for no changes or maps to overwrite them)
-    to_cache = queue.Queue() # set_cached(...) will be called with all elements in there
-
-    # Invariant inference algorithm: if some property P holds in all states to merge and the ancestor state, optimistically assume it is part of the invariant
-    for o in objs:
-        # Step 1: Length variation.
-        # If the length may have changed in any state from the one in the ancestor state,
-        # replace the length with a fresh symbol
-        ancestor_length = _ancestor_state.maps.length(o)
-        for state in _states_to_merge:
-            if utils.can_be_false(state.solver, state.maps.length(o) == ancestor_length):
-                print("Length of map", o, " was changed; making it symbolic")
-                results.put((ResultType.LENGTH_VAR, [o], lambda st, ms: [ms[0].with_length(claripy.BVS("map_length", ms[0].length().size()))]))
-                break
 
     remaining_work = queue.Queue()
     for (o1, o2) in itertools.permutations(objs, 2):
@@ -669,7 +680,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
     # to avoid eliminating a lossless relationship in favor of a lossy one, and create a proper graph instead of relying on pairs.
     for (o1, o2) in itertools.combinations(objs, 2):
         if _ancestor_state.maps.key_size(o1) == _ancestor_state.maps.key_size(o2) and \
-            sum(1 for r in cross_results if r[1][0] is o1) == sum(1 for r in cross_results if r[1][0] is o2):
+           sum(1 for r in cross_results if r[1][0] is o1) == sum(1 for r in cross_results if r[1][0] is o2):
             states = [s.copy() for s in _orig_states]
             if all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st: st.maps.get(o2, k)[1])) for st in states):
                 to_remove  = [r for r in cross_results
@@ -736,7 +747,7 @@ def maps_merge_one(states_to_merge, obj, ancestor_state):
         for state in flattened_states:
             for item in state.maps[obj].known_items():
                 conj = conjunction(state, item)
-                if utils.definitely_false(state.solver, Implies(item.present, conj)):
+                if utils.can_be_false(state.solver, Implies(item.present, conj)):
                     changed = True
                     constraints = claripy.And(*find_constraints(state, item.key), *find_constraints(state, item.value))
                     print("Item", item, "in map", obj, "does not comply with invariant conjunction", conj, "; adding disjunction", constraints)
