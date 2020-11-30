@@ -11,6 +11,7 @@ from collections import namedtuple
 from enum import Enum
 
 # Us
+from . import bitsizes
 from . import utils
 from .exceptions import SymbexException
 from .metadata import Metadata
@@ -268,6 +269,8 @@ class Map:
 
 
 # History stuff
+HistoryNew = namedtuple('HistoryNew', ['key_size', 'value_size', 'result'])
+HistoryNewArray = namedtuple('HistoryNewArray', ['key_size', 'value_size', 'length', 'result'])
 HistoryLength = namedtuple('HistoryLength', ['obj', 'result'])
 HistoryGet = namedtuple('HistoryGet', ['obj', 'key', 'result'])
 HistorySet = namedtuple('HistorySet', ['obj', 'key', 'value'])
@@ -277,14 +280,16 @@ HistoryForall = namedtuple('HistoryForall', ['obj', 'pred', 'pred_key', 'pred_va
 class GhostMaps(SimStatePlugin):
     # === Public API ===
 
-    def new(self, key_size, value_size, name="map", length_size=64):
+    def new(self, key_size, value_size, name="map"):
         obj = self.state.memory.allocate_opaque(name)
-        self.state.metadata.set(obj, Map.new(self.state, key_size, value_size, name, claripy.BVV(0, length_size), [lambda st, i: ~i.present]))
+        self.state.metadata.set(obj, Map.new(self.state, key_size, value_size, name, claripy.BVV(0, bitsizes.size_t), [lambda st, i: ~i.present]))
+        self.state.path.ghost_record(lambda: HistoryNew(key_size, value_size, obj))
         return obj
 
     def new_array(self, key_size, value_size, length, name="map"):
         obj = self.state.memory.allocate_opaque(name)
         self.state.metadata.set(obj, Map.new(self.state, key_size, value_size, name, length, [lambda st, i: (i.key < length) == i.present]))
+        self.state.path.ghost_record(lambda: HistoryNewArray(key_size, value_size, length, obj))
         return obj
 
     def length(self, obj):
