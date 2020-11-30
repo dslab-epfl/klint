@@ -568,7 +568,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
             # Optimization: Ignore maps that have not changed at all, e.g. those that are de facto readonly after initialization
             orig_states = [s for s in orig_states if not utils.structural_eq(s.maps[o1], ancestor_state.maps[o1]) and not utils.structural_eq(s.maps[o2], ancestor_state.maps[o2])]
             if len(orig_states) == 0:
-                break
+                continue
 
             # Step 2: Length relationships.
             # For each pair of maps (M1, M2),
