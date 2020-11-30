@@ -17,10 +17,10 @@ uint16_t wan_device;
 int64_t rate;
 int64_t burst;
 uint64_t max_flows;
-uint32_t* addresses;
 struct policer_bucket* buckets;
+uint32_t* addresses;
 struct os_map* map;
-struct os_pool* chain;
+struct os_pool* pool;
 
 bool nf_init(uint16_t devices_count)
 {
@@ -48,10 +48,10 @@ bool nf_init(uint16_t devices_count)
 		return false;
 	}
 
-	addresses = os_memory_alloc(max_flows, sizeof(uint32_t));
 	buckets = os_memory_alloc(max_flows, sizeof(struct policer_bucket));
+	addresses = os_memory_alloc(max_flows, sizeof(uint32_t));
 	map = os_map_alloc(sizeof(uint32_t), max_flows);
-	chain = os_pool_alloc(max_flows);
+	pool = os_pool_alloc(max_flows);
 
 	return true;
 }
@@ -69,7 +69,7 @@ void nf_handle(struct os_net_packet* packet)
 		int64_t time = os_clock_time();
 		uint64_t index;
 		if (os_map_get(map, &(ipv4_header->dst_addr), (void*) &index)) {
-			os_pool_refresh(chain, time, index);
+			os_pool_refresh(pool, time, index);
 			int64_t time_diff = time - buckets[index].time;
 			if (time_diff < burst / rate) {
 				buckets[index].size += time_diff * rate;
@@ -93,11 +93,11 @@ void nf_handle(struct os_net_packet* packet)
 				return;
 			}
 
-			if (os_pool_expire(chain, time, &index)) {
+			if (os_pool_expire(pool, time, &index)) {
 				os_map_remove(map, &(addresses[index]));
 			}
 
-			if (os_pool_borrow(chain, time, &index)) {
+			if (os_pool_borrow(pool, time, &index)) {
 				addresses[index] = ipv4_header->dst_addr;
 				os_map_set(map, &(addresses[index]), (void*) index);
 				buckets[index].size = burst - packet->length;

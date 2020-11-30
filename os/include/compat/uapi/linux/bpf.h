@@ -8,9 +8,7 @@
 
 #include "os/clock.h"
 #include "os/memory.h"
-#include "os/structs/map.h"
 #include "os/structs/map2.h"
-#include "os/structs/pool.h"
 
 // just so we have it somewhere
 #define ETHERNET_MTU_ 1514
@@ -141,11 +139,8 @@ struct bpf_map_def {
 	uint32_t map_flags;
 	// The following are not in the original definition; but we use the fact that C initializers don't need to be complete so we can store stuff in the struct itself
 	struct os_map2* _map; // for _HASH
-	struct os_map* _raw_map; // for _LRU_HASH
-	struct os_pool* _pool; // for _LRU_HASH
-	uint8_t* _keys; // for _LRU_HASH
-	uint8_t* _values; // for _ARRAY and _LRU_HASH
-	void* _value_holder; // workaround since we cannot gain ownership of values within the map; works as long as code uses one lookup at a time
+	uint8_t* _values; // for _ARRAY
+	void* _value_holder; // for _HASH; workaround since we cannot gain ownership of values within the map; works as long as code uses one lookup at a time
 };
 
 // no need for typed stuff; but declare a struct because this macro is used with a ; at the end and that's illegal on its own
@@ -181,14 +176,6 @@ static inline void* bpf_map_lookup_elem(struct bpf_map_def* map, void* key)
 			}
 			return NULL;
 		}
-		case BPF_MAP_TYPE_LRU_HASH: {
-			size_t index;
-			if (os_map_get(map->_raw_map, key, (void*) &index)) {
-				os_pool_refresh(map->_pool, os_clock_time(), index);
-				return map->_values + (index * map->value_size);
-			}
-			return NULL;
-		}
 	}
 	return NULL;
 }
@@ -207,6 +194,9 @@ static inline long bpf_map_update_elem(struct bpf_map_def* map, void* key, void*
 
 	switch (map->type) {
 		case BPF_MAP_TYPE_HASH: {
+			if (os_map2_get(map->_map, key, map->_value_holder)) {
+				os_map2_remove(map->_map, key);
+			}
 			// equivalent to set ? 0 : -1, but lower number of paths in case the expression is ignored
 			return 1 - os_map2_set(map->_map, key, value);
 		}
@@ -217,24 +207,6 @@ static inline long bpf_map_update_elem(struct bpf_map_def* map, void* key, void*
 				return 0;
 			}
 			return -1;
-		}
-		case BPF_MAP_TYPE_LRU_HASH: {
-			time_t time = os_clock_time();
-			size_t index;
-			if (!os_pool_borrow(map->_pool, time, (void*) &index)) {
-				if (!os_pool_expire(map->_pool, time, (void*) &index)) {
-					return -1;
-				}
-				os_map_remove(map->_raw_map, map->_keys + (index * map->key_size));
-
-				if (!os_pool_borrow(map->_pool, time, (void*) &index)) {
-					return -1; // cannot happen since we just expired...
-				}
-			}
-			memcpy(map->_keys + (index * map->key_size), key, map->key_size);
-			memcpy(map->_values + (index * map->value_size), value, map->value_size);
-			os_map_set(map->_raw_map, map->_keys + (index * map->key_size), (void*) index);
-			return 0;
 		}
 	}
 	return -1;
@@ -254,15 +226,6 @@ static inline long bpf_map_delete_elem(struct bpf_map_def* map, void* key)
 			// does not make sense
 			return -1;
 		}
-		case BPF_MAP_TYPE_LRU_HASH: {
-			size_t index;
-			if (os_map_get(map->_raw_map, key, (void*) &index)) {
-				os_pool_return(map->_pool, index);
-				os_map_remove(map->_raw_map, map->_keys + (index * map->key_size));
-				return 0;
-			}
-			return -1;
-		}
 	}
 	return -1;
 }
@@ -279,6 +242,10 @@ static inline void bpf_map_init(struct bpf_map_def* map, bool havoc)
 	// Single-threaded so no need to specially handle PERCPU
 	if (map->type == BPF_MAP_TYPE_PERCPU_ARRAY) {
 		map->type = BPF_MAP_TYPE_ARRAY;
+	}
+	// Ignore LRU, only for Katran, but not observable anyway
+	if (map->type == BPF_MAP_TYPE_LRU_HASH) {
+		map->type = BPF_MAP_TYPE_HASH;
 	}
 
 	switch (map->type) {
@@ -298,13 +265,6 @@ static inline void bpf_map_init(struct bpf_map_def* map, bool havoc)
 			if (havoc) {
 				os_memory_havoc(map->_values);
 			}
-			break;
-		case BPF_MAP_TYPE_LRU_HASH:
-			// No havocing here, it would automatically be a bug
-			map->_raw_map = os_map_alloc(map->key_size, map->max_entries);
-			map->_pool = os_pool_alloc(map->max_entries);
-			map->_keys = os_memory_alloc(map->max_entries, map->key_size);
-			map->_values = os_memory_alloc(map->max_entries, map->value_size);
 			break;
 
 		case BPF_MAP_TYPE_ARRAY_OF_MAPS:
