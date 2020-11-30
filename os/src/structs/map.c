@@ -853,11 +853,6 @@ ensures map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs) &*&
       assert key_opts == cons(?key_optsh, ?key_optst);
       if (idx != 0) {
         map_values_reflects_keyopts_mem(key, idx - 1);
-        switch(key_optsh) {
-          case none:
-          case some(kohv):
-            // ghostmap_remove_preserves_other(map_values, kohv, key);
-        }
       }
       close map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs);
   }
@@ -877,11 +872,6 @@ ensures map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs) &*&
     case cons(kaddrsh, kaddrst):
       assert key_opts == cons(?key_optsh, ?key_optst);
       key_opts_has_not_implies_map_values_has_not(key);
-      switch (key_optsh) {
-        case none:
-        case some(kohv):
-          // ghostmap_remove_preserves_other(map_values, kohv, key);
-      }
   }
   close map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs);
 }
@@ -1126,7 +1116,6 @@ ensures map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs) &*&
           open map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs);
           assert values == cons(?valuesh, ?valuest);
           assert map_valuesaddrs(?kaddrst, key_optst, valuest, ?map_values_rest, ?map_addrs_rest);
-          // ghostmap_remove_preserves_other(map_values, kohv, key);
           map_values_has_not_implies_key_opts_has_not(map_values_rest, key_optst, key);
           close map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs);
       }
@@ -1244,20 +1233,7 @@ lemma void put_updates_valuesaddrs(size_t index, void* key_ptr, list<char> key, 
     case nil:
     case cons(key_optsh, key_optst):
       open map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs);
-      if (index == 0) {
-        // ghostmap_remove_cancels_set(map_values, key, value);
-        // ghostmap_remove_cancels_set(map_addrs, key, key_ptr);
-      } else {
-        switch(key_optsh) {
-          case none:
-          case some(kohv):
-            // ghostmap_remove_preserves_other(map_values, kohv, key);
-            // ghostmap_remove_preserves_other(map_addrs, kohv, key);
-            // ghostmap_set_remove_different_key_interchangeable(map_values, key, value, kohv);
-            // ghostmap_set_remove_different_key_interchangeable(map_addrs, key, key_ptr, kohv);
-            // ghostmap_set_preserves_other(map_values, key, value, kohv);
-            // ghostmap_set_preserves_other(map_addrs, key, key_ptr, kohv);
-        }
+      if (index != 0) {
         put_updates_valuesaddrs(index - 1, key_ptr, key, value);
       }
       ghostmap_set_new_preserves_distinct(map_values, key, value);
@@ -1488,10 +1464,6 @@ ensures key_opt_list(key_size, kaddrs, update(index, false, busybits), update(in
             ghostmap_remove_preserves_other(map_values, kohv, key);
             ghostmap_remove_preserves_other(map_addrs, kohv, key);
             map_drop_key(index - 1);
-            // ghostmap_remove_order_is_irrelevant(map_values, key, kohv);
-            // ghostmap_remove_order_is_irrelevant(map_addrs, key, kohv);
-            // ghostmap_remove_preserves_other(map_values, key, kohv);
-            // ghostmap_remove_preserves_other(map_addrs, key, kohv);
             close map_valuesaddrs(kaddrs, update(index, none, key_opts), values, ghostmap_remove(map_values, key), ghostmap_remove(map_addrs, key));
             close key_opt_list(key_size, kaddrs, update(index, false, busybits), update(index, none, key_opts));
         }
@@ -1535,7 +1507,6 @@ ensures map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs) &*&
           map_values_has_implies_key_opts_has(key);
         case some(kohv):
           if (kohv != key) {
-            // ghostmap_remove_preserves_other(map_values, kohv, key);
             map_values_has_implies_key_opts_has(key);
           }
       }
