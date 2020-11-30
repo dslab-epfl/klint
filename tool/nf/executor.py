@@ -114,7 +114,7 @@ def havoc_iter(bin_path, state, devices_count):
     for (s, _, _) in handled_states:
       print("State", id(s), "has", len(s.solver.constraints), "constraints")
       s.path.print()
-      s.path.ghost_print()
+      #s.path.ghost_print()
 
     print("Merging... at " + str(datetime.now()))
     other_states = [s for (s, _, _) in handled_states[1:]]
