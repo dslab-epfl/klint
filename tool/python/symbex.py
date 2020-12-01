@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # Lightweight symbex, see https://hoheinzollern.files.wordpress.com/2008/04/seer1.pdf
 # This implementation assumes a 'solver' object with a method 'eval_upto(formula, max_vals_count, extra_constraints=[]) -> [vals]'
 

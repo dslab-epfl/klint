@@ -2,7 +2,7 @@
 
 # Standard/External libraries
 import os
-import pathlib
+from pathlib import Path
 import sys
 
 # Us
@@ -20,7 +20,9 @@ if nf_to_verify == "rs-vigor-policer":
     nf_to_verify = os.path.join(nf_to_verify, "target", "debug")  
     bin_name = "librs_vigor_policer.so"
 
-states, devices_count = nf_executor.execute(os.path.join(pathlib.Path(__file__).parent.absolute(), "..", "nf", nf_to_verify, bin_name))
+spec = (Path(__file__).parent / ".." / "nf" / nf_to_verify / "spec.py").read_text()
+
+states, devices_count = nf_executor.execute(os.path.join(Path(__file__).parent.absolute(), "..", "nf", nf_to_verify, bin_name))
 
 for state in states:
-    verif_executor.verify(state, devices_count, None)
+    verif_executor.verify(state, devices_count, spec)

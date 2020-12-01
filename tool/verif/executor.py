@@ -1,14 +1,22 @@
 import inspect
+import os
+from pathlib import Path
 
 from .defs import *
 from binary import utils
 from binary.externals.os import config as os_config # the metadata decl should probably not be in there; oh well
 from binary.externals.os import network as os_network # the metadata decl should probably not be in there; oh well
+from python import executor as py_executor
+
 
 # allows e.g. "x = Expando(); x.a = 42" without predefining 'a'
 class Expando:
     def __str__(self):
         return ", ".join([f"{a}: {v}" for (a, v) in inspect.getmembers(self) if "__" not in a])
+
+
+predefs_text = Path(os.path.dirname(os.path.realpath(__file__)) + "/spec_predefs.py").read_text()
+
 
 def get_packet(state):
     meta = state.metadata.get_unique(os_network.NetworkMetadata)
@@ -51,7 +59,21 @@ def get_packet(state):
 def get_config(state):
     return state.metadata.get_unique(os_config.ConfigMetadata) or os_config.ConfigMetadata([])
 
+
+def handle_externals(name, py_state, *args, **kwargs):
+    pass
+
+
 def verify(state, devices_count, spec): # TODO why do we have to move the devices_count around like that? :/
-    print(get_packet(state))
-    print(get_config(state))
-    print()
+    packet = get_packet(state)
+    config = get_config(state)
+    full_spec = predefs_text + "\n\n\n" + spec
+
+    py_executor.execute(
+        solver=state.solver,
+        spec_text=full_spec,
+        spec_fun_name="spec",
+        spec_args=[packet, config, devices_count],
+        spec_external_names=[],
+        spec_external_handler=handle_externals
+    )
