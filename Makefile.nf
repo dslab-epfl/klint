@@ -24,7 +24,9 @@ endif
 # Disable standard includes then add them back, so that ours are preferred
 CFLAGS += -nostdinc -isystem $(shell $(CC) --print-file-name=include) -isystem /usr/local/include -isystem /usr/include/x86_64-linux-gnu -isystem /usr/include
 
+ifndef NO_DEFAULT_TARGET
 # TODO: this should have dependency tracking, proper targets, and stuff
 compile:
 	@$(CC) $(SRCS) $(CFLAGS) -shared -o lib$(LIB).so
 	@$(STRIP) $(STRIPFLAGS) lib$(LIB).so
+endif

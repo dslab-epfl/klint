@@ -1,9 +1,14 @@
-use std::ffi::CString;
 use std::mem::size_of;
 use std::os::raw::c_char;
 use std::ptr::null_mut;
 mod defs;
 use defs::*;
+
+macro_rules! cstr {
+  ($s:expr) => (
+      concat!($s, "\0") as *const str as *const [c_char] as *const c_char
+  );
+}
 
 extern "C" {
     // OS API
@@ -58,38 +63,34 @@ static mut BUCKETS: *mut PolicerBucket = null_mut();
 static mut MAP: *mut OsMap = null_mut();
 static mut POOL: *mut OsPool = null_mut();
 
-const ERR_BAD_C_STRING: &str = "String cannot be converted to C representation.";
-
 #[no_mangle]
 pub unsafe extern "C" fn nf_init(devices_count: u16) -> bool {
     if devices_count != 2 {
         return false;
     }
     WAN_DEVICE = {
-        let device =
-            os_config_get_u16(CString::new("wan device").expect(ERR_BAD_C_STRING).as_ptr());
+        let device = os_config_get_u16(cstr!("wan device"));
         if device >= devices_count {
             return false;
         }
         device
     };
     RATE = {
-        let rate = os_config_get_u64(CString::new("rate").expect(ERR_BAD_C_STRING).as_ptr()) as i64;
+        let rate = os_config_get_u64(cstr!("rate")) as i64;
         if rate <= 0 {
             return false;
         }
         rate
     };
     BURST = {
-        let burst =
-            os_config_get_u64(CString::new("burst").expect(ERR_BAD_C_STRING).as_ptr()) as i64;
+        let burst = os_config_get_u64(cstr!("burst")) as i64;
         if burst <= 0 {
             return false;
         }
         burst
     };
     MAX_FLOWS = {
-        let max_flows = os_config_get_u64(CString::new("burst").expect(ERR_BAD_C_STRING).as_ptr());
+        let max_flows = os_config_get_u64(cstr!("burst"));
         if max_flows == 0 || max_flows > (usize::MAX / 16 - 2) as u64 {
             return false;
         }
