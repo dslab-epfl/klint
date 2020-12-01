@@ -137,6 +137,14 @@ class Metadata(SimStatePlugin):
     def get_all(self, cls):
         return self.items.get(cls, HashDict())
 
+    def get_unique(self, cls):
+        all = self.get_all(cls)
+        if len(all) == 0:
+            return None
+        if len(all) == 1:
+            return all.values()[0]
+        raise SymbexException(f"No unique metadata for type {cls}")
+
 
     def set(self, key, value, override=False):
         cls = type(value)

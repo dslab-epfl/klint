@@ -30,6 +30,6 @@ void nf_handle(struct os_net_packet* packet)
 	uint32_t out_prefix;
 	uint8_t out_prefixlen;
 	if (lpm_lookup_elem(lpm, ipv4_header->dst_addr, &dst_device, &out_prefix, &out_prefixlen)) {
-		os_net_transmit(packet, dst_device, ether_header, ipv4_header, NULL);
+		os_net_transmit(packet, dst_device, ether_header, NULL, NULL);
 	}
 }

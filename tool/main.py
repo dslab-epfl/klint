@@ -7,6 +7,7 @@ import sys
 
 # Us
 import nf.executor as nf_executor
+import verif.executor as verif_executor
 
 nf_to_verify = "router"
 
@@ -20,4 +21,6 @@ if nf_to_verify == "rs-vigor-policer":
     bin_name = "librs_vigor_policer.so"
 
 states, devices_count = nf_executor.execute(os.path.join(pathlib.Path(__file__).parent.absolute(), "..", "nf", nf_to_verify, bin_name))
-print(states, devices_count)
+
+for state in states:
+    verif_executor.verify(state, devices_count, None)
