@@ -647,6 +647,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
 
     # Multithreading disabled because it causes weird errors (maybe we're configuring angr wrong; we end up with a claripy mixin shared between threads)
     # and even segfaults (which look like z3 is accessed concurrently when it shouldn't be)
+    # See https://github.com/angr/angr/issues/938
     thread_main(_ancestor_state.copy(), [s.copy() for s in _states])
     """threads = []
     for n in range(os.cpu_count()): # os.sched_getaffinity(0) would be better (get the CPUs we might be restricted to) but is not available on Win and OSX
