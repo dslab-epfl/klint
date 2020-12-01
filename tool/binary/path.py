@@ -67,6 +67,16 @@ class Path(SimStatePlugin):
         self.ghost_index = self.ghost_index + 1
         return result
 
+    def ghost_free(self, classes):
+        while self.ghost_index < len(self.ghost_segments):
+            if type(self.ghost_segments[self.ghost_index]) in classes:
+                self.ghost_index = self.ghost_index + 1
+            else:
+                break
+
+    def ghost_get_remaining(self):
+        return self.ghost_segments[self.ghost_index:]
+
 
     def print(self):
         for (name, args, ret) in self.segments:

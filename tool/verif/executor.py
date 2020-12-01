@@ -1,4 +1,3 @@
-import angr
 import claripy
 from datetime import datetime
 import inspect
@@ -6,19 +5,22 @@ import os
 from pathlib import Path
 
 from .defs import *
+from .memory_simple import SimpleMemory
 from .replay import *
 from binary import bitsizes
 from binary import utils
 from binary.externals.os import config as os_config
 from binary.externals.os import network as os_network
 from binary.externals.os import structs as os_structs
+from binary.ghost_maps import *
 from python import executor as py_executor
 
 class VerificationException(Exception): pass
 
 class SpecPacket:
-    def __init__(self, state, data, length, device):
+    def __init__(self, state, data_addr, data, length, device):
         self._state = state
+        self._data_addr = data_addr
         self.data = data
         self.length = length
         self.device = device
@@ -61,10 +63,14 @@ class SpecPacket:
         raise VerificationException("May or may not be TCP/UDP; this case isn't handled yet")
 
 
+def init_network_if_needed(state):
+    if current_state.metadata.get_unique(os_network.NetworkMetadata) is None:
+        os_network.packet_init(current_state, current_devices_count)
+
 def get_packet(state):
     meta = state.metadata.get_unique(os_network.NetworkMetadata)
     data = meta.received
-    return SpecPacket(state, data, meta.received_length, meta.received_device)
+    return SpecPacket(state, meta.received_addr, data, meta.received_length, meta.received_device)
 
 def get_config(state):
     return state.metadata.get_unique(os_config.ConfigMetadata) or os_config.ConfigMetadata([])
@@ -82,24 +88,22 @@ def get_size(size):
 
 def ptr_alloc(state, size):
     size = get_size(size)
-    result = claripy.BVV(state.heap.malloc(size // 8), bitsizes.size_t)
-    state.globals[result] = size
-    return result
+    return state.memory.allocate_stack(size)
 
 def ptr_read(state, ptr, size=None):
-    if size is None:
-        size = state.globals[ptr]
-    else:
-        size = get_size(size)
+    if size is not None:
+        size = get_size(size) // 8
     # size is None -> we allocated it in ptr_alloc
-    return state.memory.load(ptr, size // 8, endness=state.arch.memory_endness)
+    return state.memory.load(ptr, size, endness=state.arch.memory_endness)
 
 
 # === Spec packet helpers === #
 
 def transmit(state, packet, device):
+    global current_state
     global current_outputs
     current_outputs.append((packet.data, packet.length, device))
+    current_state.memory.take(None, packet._data_addr, None) # mimic what the real transmit does
 
 externals = {
     # Spec helpers
@@ -117,11 +121,9 @@ def handle_externals(name, py_state, *args, **kwargs):
 
     ext = externals[name]
     if inspect.isclass(ext): # it's a SimProcedure
-        # Very hacky: init the packet at the right time
+        # HACK: init the packet at the right time
         if "alloc" not in name:
-            if 'packet_init_done' not in current_state.globals:
-                os_network.packet_init(current_state, current_devices_count)
-                current_state.globals['packet_init_done'] = True
+            init_network_if_needed(current_state)
         ext_inst = ext()
         ext_inst.state = current_state
         result = ext_inst.run(*args)
@@ -152,13 +154,9 @@ def verify(state, devices_count, spec): # TODO why do we have to move the device
     global current_outputs
     current_outputs = []
 
-    # Add a concrete heap so we can allocate stuff outside of ghost maps, for ptr_* helpers,
-    # and globals so we can store metadata about them
-    state.register_plugin("heap", angr.state_plugins.heap.heap_ptmalloc.SimHeapPTMalloc())
-    state.register_plugin("globals", angr.state_plugins.globals.SimStateGlobals())
     # Set up the replaying plugins
     state.symbol_factory = SymbolFactoryReplayPlugin(state.symbol_factory)
-    state.memory = MemoryAllocateOpaqueReplayPlugin(state.memory)
+    state.memory = SimpleMemory(MemoryAllocateOpaqueReplayPlugin(state.memory.abstract_memory)) # extract the abstract one to ensure we do not need the concrete one
     state.maps = GhostMapReplayPlugin(state)
     # Remove metadata, since replaying will add it back
     state.metadata.clear()
@@ -171,6 +169,13 @@ def verify(state, devices_count, spec): # TODO why do we have to move the device
         spec_external_names=externals.keys(),
         spec_external_handler=handle_externals
     )
+
+    # in case it wasn't done during the execution (see HACK above)
+    init_network_if_needed(current_state)
+
+    current_state.path.ghost_free([RecordGet])
+    if len(current_state.path.ghost_get_remaining()):
+        raise VerificationException(f"There are operations remaining: {current_state.path.ghost_get_remaining()}")
 
     if len(expected_outputs) != len(current_outputs):
         raise VerificationException(f"Expected {len(expected_outputs)} packets but got {len(current_outputs)}")
