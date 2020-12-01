@@ -8,50 +8,67 @@ class SolverFailedException(Exception): pass
 class SolverMismatchException(Exception): pass
 
 class BoolProxy:
-  def __init__(self, solver, formula):
-    self.solver = solver
-    self.formula = formula
-  def __bool__(self):
-    global __path__, __pathcondition__
+    def __init__(self, solver, formula):
+        self.solver = solver
+        self.formula = formula
 
-    outcomes = self.solver.eval_upto(self.formula, 3, extra_constraints=__pathcondition__) # ask for 3 just in case something goes wrong; we want 1 or 2
+    def __bool__(self):
+        global __path__, __pathcondition__
 
-    if len(outcomes) == 0: raise SolverFailedException()
-    if len(outcomes) == 1: return outcomes[0]
-    if len(outcomes)  > 2: raise SolverFailedException()
+        outcomes = self.solver.eval_upto(self.formula, 3, extra_constraints=__pathcondition__) # ask for 3 just in case something goes wrong; we want 1 or 2
 
-    branch = True
-    if len(__path__) > len (__pathcondition__):
-      branch = __path__[len(__pathcondition__)]
-    else:
-      __path__.append(branch)
+        if len(outcomes) == 0: raise SolverFailedException()
+        if len(outcomes) == 1: return outcomes[0]
+        if len(outcomes)  > 2: raise SolverFailedException()
 
-    __pathcondition__.append(self.formula if branch else ~self.formula)
-    return branch
+        branch = True
+        if len(__path__) > len (__pathcondition__):
+            branch = __path__[len(__pathcondition__)]
+        else:
+            __path__.append(branch)
+
+        __pathcondition__.append(self.formula if branch else ~self.formula)
+        return branch
+
 
 class ValueProxy:
-  def __init__(self, solver, wrapped):
-    self.solver = solver
-    self.wrapped = wrapped
-  def __eq__(self, other): # self == other
-    other_val = other
-    if isinstance(other, ValueProxy):
-      if self.solver != other.solver: raise SolverMismatchException()
-      other_val = other.wrapped
-    return BoolProxy(self.solver, self.wrapped == other_val)
-  def __req__(self, other): # other == self
-    return self.__eq__(other)
-  def __getitem__(self, key): # self[key]
-    return ValueProxy(self.solver, self.wrapped.__getitem__(key))
-  def __getattr__(self, name): # self.name
-    return ValueProxy(self.solver, getattr(self.wrapped, name))
-  def __repr__(self): # str(self)
-    return self.wrapped.__repr__()
+    def __init__(self, solver, wrapped):
+        if wrapped is None:
+            raise "Oh no, this should never happen"
+        self.solver = solver
+        self.wrapped = wrapped
+
+    def __eq__(self, other): # self == other
+        other_val = other
+        if isinstance(other, ValueProxy):
+            if self.solver != other.solver: raise SolverMismatchException()
+            other_val = other.wrapped
+        return BoolProxy(self.solver, self.wrapped == other_val)
+
+    def __req__(self, other): # other == self
+        return self.__eq__(other)
+
+    def __getitem__(self, key): # self[key]
+        to_wrap = self.wrapped.__getitem__(key)
+        if to_wrap is None:
+            return None
+        return ValueProxy(self.solver, to_wrap)
+
+    def __getattr__(self, name): # self.name
+        to_wrap = getattr(self.wrapped, name)
+        if to_wrap is None:
+            return None
+        return ValueProxy(self.solver, to_wrap)
+
+    def __str__(self):
+        return self.wrapped.__str__()
+
+    def __repr__(self):
+        return self.wrapped.__repr__()
 
 
 def proxy(solver, obj):
-  return ValueProxy(solver, obj)
-
+    return ValueProxy(solver, obj)
 
 def symbex(run_func, report_func):
   global __path__, __pathcondition__

@@ -1,11 +1,15 @@
+import angr
+from datetime import datetime
 import inspect
 import os
 from pathlib import Path
 
 from .defs import *
+from binary import bitsizes
 from binary import utils
-from binary.externals.os import config as os_config # the metadata decl should probably not be in there; oh well
-from binary.externals.os import network as os_network # the metadata decl should probably not be in there; oh well
+from binary.externals.os import config as os_config
+from binary.externals.os import network as os_network
+from binary.externals.os import structs as os_structs
 from python import executor as py_executor
 
 
@@ -13,6 +17,9 @@ from python import executor as py_executor
 class Expando:
     def __str__(self):
         return ", ".join([f"{a}: {v}" for (a, v) in inspect.getmembers(self) if "__" not in a])
+
+    def __repr__(self):
+        return str(self)
 
 
 predefs_text = Path(os.path.dirname(os.path.realpath(__file__)) + "/spec_predefs.py").read_text()
@@ -60,8 +67,50 @@ def get_config(state):
     return state.metadata.get_unique(os_config.ConfigMetadata) or os_config.ConfigMetadata([])
 
 
-def handle_externals(name, py_state, *args, **kwargs):
+def get_size(size):
+    if isinstance(size, str):
+        return getattr(bitsizes, size)
+    return size
+
+
+# === Spec ptr helpers === #
+
+def ptr_alloc(state, size):
+    size = get_size(size)
+    result = state.heap.malloc(size // 8)
+    state.globals[result] = size
+    return result
+
+def ptr_read(state, ptr, size=None):
+    # size is None -> we allocated it in ptr_alloc
+    return state.memory.load(ptr, size or state.globals[ptr], endness=state.arch.memory_endness)
+
+
+# === Spec packet helpers === #
+
+def transmit(state, packet, device):
     pass
+
+externals = {
+    # Spec helpers
+    "ptr_alloc": ptr_alloc,
+    "ptr_read": ptr_read,
+    "transmit": transmit,
+    # Contracts
+    "lpm_alloc": os_structs.lpm.LpmAlloc,
+    "lpm_lookup_elem": os_structs.lpm.LpmLookupElem
+}
+
+def handle_externals(name, py_state, *args, **kwargs):
+    global current_state
+
+    ext = externals[name]
+    if isinstance(ext, angr.SimProcedure):
+        ext_inst = ext()
+        ext_inst.state = current_state
+        return ext_inst.run(*args)
+    else:
+        return ext(current_state, *args)
 
 
 def verify(state, devices_count, spec): # TODO why do we have to move the devices_count around like that? :/
@@ -69,11 +118,21 @@ def verify(state, devices_count, spec): # TODO why do we have to move the device
     config = get_config(state)
     full_spec = predefs_text + "\n\n\n" + spec
 
+    global current_state
+    current_state = state
+
+    # Add a concrete heap so we can allocate stuff outside of ghost maps, for ptr_* helpers,
+    # and globals so we can store metadata about them
+    state.register_plugin("heap", angr.state_plugins.heap.heap_ptmalloc.SimHeapPTMalloc())
+    state.register_plugin("globals", angr.state_plugins.globals.SimStateGlobals())
+
     py_executor.execute(
         solver=state.solver,
         spec_text=full_spec,
         spec_fun_name="spec",
         spec_args=[packet, config, devices_count],
-        spec_external_names=[],
+        spec_external_names=externals.keys(),
         spec_external_handler=handle_externals
     )
+
+    print("NF verif done! at", datetime.now())
