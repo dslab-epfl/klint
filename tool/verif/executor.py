@@ -14,60 +14,63 @@ from binary.externals.os import network as os_network
 from binary.externals.os import structs as os_structs
 from python import executor as py_executor
 
+class VerificationException(Exception): pass
 
-# allows e.g. "x = Expando(); x.a = 42" without predefining 'a'
-class Expando:
-    def __str__(self):
-        return ", ".join([f"{a}: {v}" for (a, v) in inspect.getmembers(self) if "__" not in a])
+class SpecPacket:
+    def __init__(self, state, data, length, device):
+        self._state = state
+        self.data = data
+        self.length = length
+        self.device = device
 
-    def __repr__(self):
-        return str(self)
+    @property
+    def ether(self):
+        return EthernetHeader(
+            dst=self.data[6*8-1:0],
+            src=self.data[12*8-1:6*8],
+            type=self.data[14*8-1:12*8]
+        )
 
+    @property
+    def ipv4(self):
+        if self.ether is None:
+            return None
+        is_ipv4 = self.ether.type == 0x0008 # TODO should explicitly handle endianness here (we're in LE)
+        if utils.definitely_true(self._state.solver, is_ipv4):
+            return IPv4Header(
+                protocol=self.data[24*8-1:23*8],
+                src=self.data[30*8-1:26*8],
+                dst=self.data[34*8-1:30*8]
+            )
+        elif utils.definitely_false(self._state.solver, is_ipv4):
+            return None
+        raise VerificationException("May or may not be IPv4; this case isn't handled yet")
 
-predefs_text = Path(os.path.dirname(os.path.realpath(__file__)) + "/spec_predefs.py").read_text()
+    @property
+    def tcpudp(self):
+        if self.ipv4 is None:
+            return None
+        is_tcpudp = (self.ipv4.protocol == 6) | (self.ipv4.protocol == 17)
+        if utils.definitely_true(self._state.solver, is_tcpudp):
+            return TcpUdpHeader(
+                src=self.data[36*8-1:34*8],
+                dst=self.data[38*8-1:36*8]
+            )
+        elif utils.definitely_false(self._state.solver, is_tcpudp):
+            return None
+        raise VerificationException("May or may not be TCP/UDP; this case isn't handled yet")
 
 
 def get_packet(state):
     meta = state.metadata.get_unique(os_network.NetworkMetadata)
     data = meta.received
-
-    # For now we only add attributes if we're sure they exist or not
-    # The "proper" way to do it would be to also dynamically add them if the spec constrains the path condition...oh well
-    packet = Expando()
-    packet.device=meta.received_device
-    packet.length=meta.received_length
-
-    # For now packets are always Ethernet so no need to check anything
-    packet.ether = EthernetHeader(
-        dst=data[6*8-1:0],
-        src=data[12*8-1:6*8],
-        type=data[14*8-1:12*8]
-    )
-
-    is_ipv4 = packet.ether.type == 0x0008 # TODO should explicitly handle endianness here (we're in LE)
-    if utils.definitely_true(state.solver, is_ipv4):
-        packet.ipv4 = IPv4Header(
-            protocol=data[24*8-1:23*8],
-            src=data[30*8-1:26*8],
-            dst=data[34*8-1:30*8]
-        )
-        is_tcpudp = (packet.ipv4.protocol == 6) | (packet.ipv4.protocol == 17)
-        if utils.definitely_true(state.solver, is_tcpudp):
-            packet.tcpudp = TcpUdpHeader(
-                src=data[36*8-1:34*8],
-                dst=data[38*8-1:36*8]
-            )
-        elif utils.definitely_false(state.solver, is_tcpudp):
-            packet.tcpudp = None
-    elif utils.definitely_false(state.solver, is_ipv4):
-        packet.ipv4 = None
-        packet.tcpudp = None
-
-    return packet
+    return SpecPacket(state, data, meta.received_length, meta.received_device)
 
 def get_config(state):
     return state.metadata.get_unique(os_config.ConfigMetadata) or os_config.ConfigMetadata([])
 
+def get_outputs(state):
+    return state.metadata.get_unique(os_network.NetworkMetadata).transmitted
 
 def get_size(size):
     if isinstance(size, str):
@@ -84,14 +87,19 @@ def ptr_alloc(state, size):
     return result
 
 def ptr_read(state, ptr, size=None):
+    if size is None:
+        size = state.globals[ptr]
+    else:
+        size = get_size(size)
     # size is None -> we allocated it in ptr_alloc
-    return state.memory.load(ptr, size or state.globals[ptr], endness=state.arch.memory_endness)
+    return state.memory.load(ptr, size // 8, endness=state.arch.memory_endness)
 
 
 # === Spec packet helpers === #
 
 def transmit(state, packet, device):
-    pass
+    global current_outputs
+    current_outputs.append((packet.data, packet.length, device))
 
 externals = {
     # Spec helpers
@@ -127,6 +135,12 @@ def handle_externals(name, py_state, *args, **kwargs):
 def verify(state, devices_count, spec): # TODO why do we have to move the devices_count around like that? :/
     packet = get_packet(state)
     config = get_config(state)
+    expected_outputs = get_outputs(state)
+
+    if 'predefs_text' not in globals():
+        global predefs_text
+        predefs_text = Path(os.path.dirname(os.path.realpath(__file__)) + "/spec_predefs.py").read_text()
+
     full_spec = predefs_text + "\n\n\n" + spec
 
     global current_state
@@ -134,6 +148,9 @@ def verify(state, devices_count, spec): # TODO why do we have to move the device
 
     global current_devices_count
     current_devices_count = devices_count
+
+    global current_outputs
+    current_outputs = []
 
     # Add a concrete heap so we can allocate stuff outside of ghost maps, for ptr_* helpers,
     # and globals so we can store metadata about them
@@ -154,5 +171,19 @@ def verify(state, devices_count, spec): # TODO why do we have to move the device
         spec_external_names=externals.keys(),
         spec_external_handler=handle_externals
     )
+
+    if len(expected_outputs) != len(current_outputs):
+        raise VerificationException(f"Expected {len(expected_outputs)} packets but got {len(current_outputs)}")
+
+    # TODO should sort or something if pkts don't match, but for now we always have 1
+    if len(expected_outputs) > 1:
+        raise VerificationException("Sorry, haven't implemented matching for >1 packet yet")
+
+    if len(expected_outputs) == 1:
+        expected_packet = expected_outputs[0]
+        actual_packet = current_outputs[0]
+        for (exp_part, act_part) in zip(expected_packet, actual_packet):
+            if utils.can_be_false(state.solver, exp_part == act_part):
+                raise VerificationException(f"{act_part} may not always be {exp_part}")
 
     print("NF verif done! at", datetime.now())

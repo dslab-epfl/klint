@@ -77,7 +77,7 @@ class Transmit(angr.SimProcedure):
             raise SymbexException("Precondition failed: tcpudp_header is NULL or valid")
 
         metadata = self.state.metadata.get_unique(NetworkMetadata)
-        metadata.transmitted.append((data, length, device, ether_header != 0, ipv4_header != 0, tcpudp_header != 0))
+        metadata.transmitted.append((data, length, device)) #, ether_header != 0, ipv4_header != 0, tcpudp_header != 0))
 
         self.state.memory.take(None, data_addr, None)
 
@@ -90,4 +90,4 @@ class Flood(angr.SimProcedure):
         length = packet_get_length(self.state, packet)
 
         metadata = self.state.metadata.get_unique(NetworkMetadata)
-        metadata.transmitted.append((data, length, None, None, None, None))
+        metadata.transmitted.append((data, length, None)) #, None, None, None))
