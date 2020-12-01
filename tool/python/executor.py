@@ -7,7 +7,8 @@ def execute(solver, spec_text, spec_fun_name, spec_args, spec_external_names, sp
     for i, a in enumerate(spec_args):
         globals['__arg' + str(i)] = symbex.proxy(solver, a)
     for name in spec_external_names:
-        def build_lambda(name): return lambda *args, **kwargs: spec_external_handler(name, state_box[0], *args, **kwargs)
+        def build_lambda(name):
+            return lambda *args, **kwargs: spec_external_handler(name, state_box[0], *[symbex.unproxy(a) for a in args], **{symbex.unproxy(k): symbex.unproxy(v) for (k, v) in kwargs.items()})
         globals[name] = build_lambda(name)
 
     full_spec_text = spec_text + '\n\n\n' + spec_fun_name + '(' + ','.join(['__arg' + str(i) for (i, a) in enumerate(spec_args)]) + ')' + '\n'

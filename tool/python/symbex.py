@@ -70,6 +70,11 @@ class ValueProxy:
 def proxy(solver, obj):
     return ValueProxy(solver, obj)
 
+def unproxy(obj):
+    if isinstance(obj, ValueProxy):
+        return obj.wrapped
+    return obj
+
 def symbex(run_func, report_func):
   global __path__, __pathcondition__
   while True:

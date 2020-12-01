@@ -5,13 +5,15 @@ from binary import utils
 class ReplayException(Exception): pass
 
 def expect(state, expected):
-    actual = state.path.ghost_dequeue()
-    if type(expected) == type(actual):
-        ed = expected._asdict()
-        ad = actual._asdict()
-        if all(ed[k] is None or utils.structural_eq(ed[k], ad[k]) for k in ed.keys()):
-            return actual
-    raise ReplayException(f"Expected {expected} but got {actual}")
+    while True:
+        actual = state.path.ghost_dequeue()
+        if type(expected) == type(actual):
+            ed = expected._asdict()
+            ad = actual._asdict()
+            if all(ed[k] is None or utils.structural_eq(ed[k], ad[k]) for k in ed.keys()):
+                return actual
+        if not isinstance(actual, RecordGet):
+            raise ReplayException(f"Expected {expected} but got {actual}")
     
 class MemoryAllocateOpaqueReplayPlugin:
     def __init__(self, wrapped):
