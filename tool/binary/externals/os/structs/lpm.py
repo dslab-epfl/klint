@@ -41,14 +41,14 @@ class LpmUpdateElem(angr.SimProcedure):
         return claripy.BVV(1, bitsizes.bool)
 
 class LpmLookupElem(angr.SimProcedure):
-    def run(self, lpm, prefix, out_value, out_prefix, out_prefixlen):
+    def run(self, lpm, key, out_value, out_prefix, out_prefixlen):
         # Casts
         lpm = cast.ptr(lpm)
-        prefix = cast.uint32_t(prefix)
+        key = cast.uint32_t(key)
         out_value = cast.ptr(out_value)
         out_prefix = cast.ptr(out_prefix)
         out_prefixlen = cast.ptr(out_prefixlen)
-        print(  f"!!! lpm_lookup_elem [lpm: {lpm}, prefix: {prefix}, " +
+        print(  f"!!! lpm_lookup_elem [lpm: {lpm}, key: {key}, " +
                 f"out_value: {out_value}, out_prefix: {out_prefix}, out_prefixlen: {out_prefixlen}]")
 
         # Symbolism assumptions
@@ -64,16 +64,16 @@ class LpmLookupElem(angr.SimProcedure):
         self.state.memory.store(out_prefix, out_prefix_bv, endness=self.state.arch.memory_endness)
         self.state.memory.store(out_prefixlen, out_prefixlen_bv, endness=self.state.arch.memory_endness)
 
-        def forall_fun(key, value):
-            key_prefix = key[39:8]
-            key_prefixlen = key[7:0]
+        def forall_fun(k, v):
+            k_prefix = k[39:8]
+            k_prefixlen = k[7:0]
             # For each entry in the map, either:
             # the entry's prefix length is shorter (=> lower priority), or
-            shorter_prefix = key_prefixlen < out_prefixlen_bv
-            # the prefixes don't match (=> no match), or
-            no_match = claripy.LShR(key_prefix, (IP_LEN - key_prefixlen).zero_extend(24)) != claripy.LShR(out_prefix_bv, (IP_LEN - out_prefixlen_bv).zero_extend(24))
+            shorter_prefix = k_prefixlen < out_prefixlen_bv
+            # the entry's prefix does not match the input key (=> no match), or
+            no_match = claripy.LShR(k_prefix, (IP_LEN - k_prefixlen).zero_extend(24)) != claripy.LShR(key, (IP_LEN - k_prefixlen).zero_extend(24))
             # the entry corresponds to the returned value (=> match)
-            match = (key == out_prefix_bv.concat(out_prefixlen_bv))
+            match = (k == out_prefix_bv.concat(out_prefixlen_bv))
             return shorter_prefix | no_match | match
         utils.add_constraints_and_check_sat(self.state, self.state.maps.forall(lpmp.table, forall_fun))
 

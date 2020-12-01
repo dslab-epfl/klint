@@ -84,7 +84,7 @@ def havoc_iter(bin_path, state, devices_count):
     for s in handled_states:
         print("State", id(s), "has", len(s.solver.constraints), "constraints")
         s.path.print()
-        s.path.ghost_print()
+        #s.path.ghost_print()
 
     print("Merging... at " + str(datetime.now()))
     opaque_metadata_value = handled_states[0].metadata.notify_impending_merge(handled_states[1:], original_state)
