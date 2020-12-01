@@ -9,7 +9,7 @@ from .exceptions import SymbexException
 def read_str(state, ptr):
   result = ""
   while True:
-    char = state.mem[ptr].uint8_t.resolved
+    char = state.memory.load(ptr, 1)
     if char.symbolic:
       raise SymbexException("Trying to read a symbolic string!")
     char = state.solver.eval_one(char, cast_to=int)

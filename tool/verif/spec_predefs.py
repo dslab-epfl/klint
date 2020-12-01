@@ -3,7 +3,7 @@
 class GhostArray:
     def __init__(self, length, type):
         self._type = type
-        self._size = type_get_size(type)
+        self._size = type_size(type)
         self._addr = os_memory_alloc(length, self._size)
 
     def __getitem__(self, index):
@@ -12,7 +12,7 @@ class GhostArray:
 
 class GhostExpiringSet:
     def __init__(self, max_capacity, type):
-        self._value_size = type_get_size(type)
+        self._value_size = type_size(type)
         self._values = os_memory_alloc(max_capacity, self._value_size)
         self._map = os_map_alloc(self._value_size, max_capacity)
         self._pool = os_pool_alloc(max_capacity)

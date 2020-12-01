@@ -14,7 +14,7 @@ from enum import Enum
 from . import bitsizes
 from . import utils
 from .exceptions import SymbexException
-from .metadata import Metadata
+from .metadata import MetadataPlugin
 
 # Helper function to make expressions clearer
 def Implies(a, b):
@@ -277,7 +277,7 @@ RecordSet = namedtuple('RecordSet', ['obj', 'key', 'value'])
 RecordRemove = namedtuple('RecordRemove', ['obj', 'key'])
 RecordForall = namedtuple('RecordForall', ['obj', 'pred', 'pred_key', 'pred_value', 'result'])
 
-class GhostMaps(SimStatePlugin):
+class GhostMapsPlugin(SimStatePlugin):
     # === Public API ===
 
     def new(self, key_size, value_size, name="map"):
@@ -340,11 +340,11 @@ class GhostMaps(SimStatePlugin):
 
     def __init__(self):
         SimStatePlugin.__init__(self)
-        Metadata.set_merge_funcs(Map, maps_merge_across, maps_merge_one)
+        MetadataPlugin.set_merge_funcs(Map, maps_merge_across, maps_merge_one)
 
     @SimStatePlugin.memo
     def copy(self, memo):
-        return GhostMaps()
+        return GhostMapsPlugin()
 
     def merge(self, others, merge_conditions, common_ancestor=None):
         return True

@@ -7,16 +7,24 @@ import sys
 
 # Us
 import nf.executor as nf_executor
+import verif.persistence as verif_persist
 import verif.executor as verif_executor
 
 nf_to_verify = "router"
-
 if len(sys.argv) >= 2:
     nf_to_verify = sys.argv[1]
 
-spec = (Path(__file__).parent / ".." / "nf" / nf_to_verify / "spec.py").read_text()
+use_cached_results = False
+if len(sys.argv) >= 3 and sys.argv[2] == "use-cache":
+    use_cached_results = True
 
-states, devices_count = nf_executor.execute(os.path.join(Path(__file__).parent.absolute(), "..", "nf", nf_to_verify, "libnf.so"))
+nf_root_folder = os.path.join(Path(__file__).parent.absolute(), "..", "nf", nf_to_verify)
+cached_data_path =  os.path.join(nf_root_folder, "symbex.result")
 
-for state in states:
-    verif_executor.verify(state, devices_count, spec)
+if not use_cached_results:
+    states, devices_count = nf_executor.execute(os.path.join(nf_root_folder, "libnf.so"))
+    verif_persist.dump_data(states, devices_count, cached_data_path)
+
+spec = (Path(nf_root_folder) / "spec.py").read_text()
+for data in verif_persist.load_data(cached_data_path):
+    verif_executor.verify(data, spec)

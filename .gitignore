@@ -1,11 +1,10 @@
+# Compilation output
 libnf.so
+# Cached symbolic execution result
+symbex.result
 
 # Python environment path file 
 .env
 
 # VSCode config
 .vscode/
-
-# Rust
-target/
-Cargo.lock

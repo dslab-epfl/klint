@@ -5,6 +5,7 @@ import claripy
 from collections import namedtuple
 
 # Us
+from ... import bitsizes
 from ... import cast
 from ... import utils
 from ...exceptions import SymbexException
@@ -17,16 +18,16 @@ NetworkMetadata = namedtuple('NetworkMetadata', ['received', 'received_addr', 'r
 # For the packet layout, see os/include/os/network.h (not reproducing here to avoid getting out of sync with changes)
 
 def packet_get_data_addr(state, packet_addr):
-    return state.mem[packet_addr].uint64_t.resolved
+    return state.memory.load(packet_addr, bitsizes.size_t // 8, endness=state.arch.memory_endness)
 
 def packet_get_data(state, packet_addr):
-    return state.memory.load(packet_get_data_addr(state, packet_addr), PACKET_MTU, endness=archinfo.Endness.LE)
+    return state.memory.load(packet_get_data_addr(state, packet_addr), PACKET_MTU , endness=state.arch.memory_endness)
 
 def packet_get_device(state, packet_addr):
-    return state.mem[packet_addr + 22].uint16_t.resolved
+    return state.memory.load(packet_addr + 22, bitsizes.uint16_t // 8, endness=state.arch.memory_endness)
 
 def packet_get_length(state, packet_addr):
-    return state.mem[packet_addr + 40].uint16_t.resolved
+    return state.memory.load(packet_addr + 40, bitsizes.uint16_t // 8, endness=state.arch.memory_endness)
 
 
 # Returns packet_addr
@@ -43,11 +44,11 @@ def packet_init(state, devices_count):
 
     # the packet is a bit weird because of all the reserved fields, we set them to fresh symbols
     packet_addr = state.memory.allocate(1, 42, name="packet")
-    state.mem[packet_addr].uint64_t = data_addr + PACKET_MTU
-    state.memory.store(packet_addr + 8, state.symbol_factory.BVS("packet_reserved[0-3]", 14 * 8))
-    state.mem[packet_addr + 22].uint16_t = packet_device
-    state.memory.store(packet_addr + 24, state.symbol_factory.BVS("packet_reserved[4-6]", 16 * 8))
-    state.mem[packet_addr + 40].uint16_t = packet_length
+    state.memory.store(packet_addr, data_addr + PACKET_MTU, endness=state.arch.memory_endness)
+    state.memory.store(packet_addr + 8, state.symbol_factory.BVS("packet_reserved[0-3]", 14 * 8), endness=state.arch.memory_endness)
+    state.memory.store(packet_addr + 22, packet_device, endness=state.arch.memory_endness)
+    state.memory.store(packet_addr + 24, state.symbol_factory.BVS("packet_reserved[4-6]", 16 * 8), endness=state.arch.memory_endness)
+    state.memory.store(packet_addr + 40, packet_length, endness=state.arch.memory_endness)
 
     # attach to packet_addr just because we need something to attach to... TODO it'd be nice to have statewide metadata
     state.metadata.set(packet_addr, NetworkMetadata(packet_get_data(state, packet_addr), data_addr, packet_device, packet_length, []))
