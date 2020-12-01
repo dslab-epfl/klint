@@ -1,17 +1,20 @@
-extern crate libc;
-use libc::{c_void, size_t};
-use std::ffi::CString;
 use std::mem::size_of;
 use std::os::raw::c_char;
 use std::ptr::null_mut;
 mod defs;
 use defs::*;
 
+macro_rules! cstr {
+  ($s:expr) => (
+      concat!($s, "\0") as *const str as *const [c_char] as *const c_char
+  );
+}
+
 extern "C" {
     // OS API
     fn os_config_get_u16(name: *const c_char) -> u16;
     fn os_config_get_u64(name: *const c_char) -> u64;
-    fn os_memory_alloc(count: size_t, size: size_t) -> *mut c_void;
+    fn os_memory_alloc(count: usize, size: usize) -> *mut u8;
     fn os_clock_time() -> TimeT;
     fn os_net_transmit(
         packet: *mut OsNetPacket,
@@ -22,18 +25,18 @@ extern "C" {
     );
 
     // Map API
-    fn os_map_alloc(key_size: size_t, capacity: size_t) -> *mut OsMap;
-    fn os_map_get(map: *mut OsMap, key_ptr: *mut c_void, out_value: *mut *mut c_void) -> bool;
-    fn os_map_set(map: *mut OsMap, key_ptr: *mut c_void, value: *mut c_void);
-    fn os_map_remove(map: *mut OsMap, key_ptr: *mut c_void);
+    fn os_map_alloc(key_size: usize, capacity: usize) -> *mut OsMap;
+    fn os_map_get(map: *mut OsMap, key_ptr: *mut u8, out_value: *mut *mut u8) -> bool;
+    fn os_map_set(map: *mut OsMap, key_ptr: *mut u8, value: *mut u8);
+    fn os_map_remove(map: *mut OsMap, key_ptr: *mut u8);
 
     // Pool API
-    fn os_pool_alloc(size: size_t) -> *mut OsPool;
-    fn os_pool_borrow(pool: *mut OsPool, time: TimeT, out_index: *mut size_t) -> bool;
-    // fn os_pool_return(pool: *mut OsPool, index: size_t);
-    fn os_pool_refresh(pool: *mut OsPool, time: TimeT, index: size_t);
-    // fn os_pool_used(pool: *mut OsPool, index: size_t, out_time: *mut TimeT) -> bool;
-    fn os_pool_expire(pool: *mut OsPool, time: TimeT, out_index: *mut size_t) -> bool;
+    fn os_pool_alloc(size: usize) -> *mut OsPool;
+    fn os_pool_borrow(pool: *mut OsPool, time: TimeT, out_index: *mut usize) -> bool;
+    // fn os_pool_return(pool: *mut OsPool, index: usize);
+    fn os_pool_refresh(pool: *mut OsPool, time: TimeT, index: usize);
+    // fn os_pool_used(pool: *mut OsPool, index: usize, out_time: *mut TimeT) -> bool;
+    fn os_pool_expire(pool: *mut OsPool, time: TimeT, out_index: *mut usize) -> bool;
 }
 
 #[repr(C)]
@@ -60,48 +63,44 @@ static mut BUCKETS: *mut PolicerBucket = null_mut();
 static mut MAP: *mut OsMap = null_mut();
 static mut POOL: *mut OsPool = null_mut();
 
-const ERR_BAD_C_STRING: &str = "String cannot be converted to C representation.";
-
 #[no_mangle]
 pub unsafe extern "C" fn nf_init(devices_count: u16) -> bool {
     if devices_count != 2 {
         return false;
     }
     WAN_DEVICE = {
-        let device =
-            os_config_get_u16(CString::new("wan device").expect(ERR_BAD_C_STRING).as_ptr());
+        let device = os_config_get_u16(cstr!("wan device"));
         if device >= devices_count {
             return false;
         }
         device
     };
     RATE = {
-        let rate = os_config_get_u64(CString::new("rate").expect(ERR_BAD_C_STRING).as_ptr()) as i64;
+        let rate = os_config_get_u64(cstr!("rate")) as i64;
         if rate <= 0 {
             return false;
         }
         rate
     };
     BURST = {
-        let burst =
-            os_config_get_u64(CString::new("burst").expect(ERR_BAD_C_STRING).as_ptr()) as i64;
+        let burst = os_config_get_u64(cstr!("burst")) as i64;
         if burst <= 0 {
             return false;
         }
         burst
     };
     MAX_FLOWS = {
-        let max_flows = os_config_get_u64(CString::new("burst").expect(ERR_BAD_C_STRING).as_ptr());
+        let max_flows = os_config_get_u64(cstr!("burst"));
         if max_flows == 0 || max_flows > (usize::MAX / 16 - 2) as u64 {
             return false;
         }
         max_flows
     };
-    ADDRESSES = os_memory_alloc(MAX_FLOWS as size_t, size_of::<u32>() as size_t) as *mut u32;
-    BUCKETS = os_memory_alloc(MAX_FLOWS as size_t, size_of::<PolicerBucket>() as size_t)
+    ADDRESSES = os_memory_alloc(MAX_FLOWS as usize, size_of::<u32>() as usize) as *mut u32;
+    BUCKETS = os_memory_alloc(MAX_FLOWS as usize, size_of::<PolicerBucket>() as usize)
         as *mut PolicerBucket;
-    MAP = os_map_alloc(size_of::<u32>(), MAX_FLOWS as size_t);
-    POOL = os_pool_alloc(MAX_FLOWS as size_t);
+    MAP = os_map_alloc(size_of::<u32>(), MAX_FLOWS as usize);
+    POOL = os_pool_alloc(MAX_FLOWS as usize);
     if MAP == null_mut() || POOL == null_mut() {
         return false;
     }
@@ -124,8 +123,8 @@ pub unsafe extern "C" fn nf_handle(packet: *mut OsNetPacket) {
         let mut index: usize = 0;
         if os_map_get(
             MAP,
-            (&mut (*ipv4_header).dst_addr as *mut u32) as *mut c_void,
-            (&mut index as *mut usize) as *mut *mut c_void,
+            (&mut (*ipv4_header).dst_addr as *mut u32) as *mut u8,
+            (&mut index as *mut usize) as *mut *mut u8,
         ) {
             os_pool_refresh(POOL, time, index);
             let time_diff = time - (*BUCKETS.offset(index as isize)).time;
@@ -151,16 +150,16 @@ pub unsafe extern "C" fn nf_handle(packet: *mut OsNetPacket) {
                 return;
             }
 
-            if os_pool_expire(POOL, time, &mut index as *mut size_t) {
-                os_map_remove(MAP, ADDRESSES.offset(index as isize) as *mut c_void);
+            if os_pool_expire(POOL, time, &mut index as *mut usize) {
+                os_map_remove(MAP, ADDRESSES.offset(index as isize) as *mut u8);
             }
 
-            if os_pool_borrow(POOL, time, &mut index as *mut size_t) {
+            if os_pool_borrow(POOL, time, &mut index as *mut usize) {
                 *ADDRESSES.offset(index as isize) = (*ipv4_header).dst_addr;
                 os_map_set(
                     MAP,
-                    ADDRESSES.offset(index as isize) as *mut c_void,
-                    (&mut index as *mut usize) as *mut c_void,
+                    ADDRESSES.offset(index as isize) as *mut u8,
+                    (&mut index as *mut usize) as *mut u8,
                 );
                 (*BUCKETS.offset(index as isize)).size = BURST - (*packet).length as i64;
                 (*BUCKETS.offset(index as isize)).time = time;
