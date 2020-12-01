@@ -28,27 +28,25 @@ def packet_get_device(state, packet_addr):
 def packet_get_length(state, packet_addr):
     return state.mem[packet_addr + 40].uint16_t.resolved
 
-# Pre-initialize so replays go smoothly
-packet_length = claripy.BVS("packet_length", 16)
-packet_device = claripy.BVS("packet_device", 16)
-packet_reserved_0 = claripy.BVS("packet_reserved[0-3]", 14 * 8)
-packet_reserved_1 = claripy.BVS("packet_reserved[4-6]", 16 * 8)
 
 # Returns packet_addr
 def packet_init(state, devices_count):
+    packet_length = state.symbol_factory.BVS("packet_length", 16)
     state.add_constraints(packet_length.UGE(PACKET_MIN), packet_length.ULE(PACKET_MTU))
 
     # Allocate 2*MTU so that BPF's adjust_head can adjust negatively
     # TODO instead, memcpy should be an intrinsic, and then adjust_head can memcpy into an init-allocated buffer
     data_addr = state.memory.allocate(1, 2 * PACKET_MTU, name="packet_data")
+
+    packet_device = state.symbol_factory.BVS("packet_device", 16)
     state.add_constraints(packet_device.ULT(devices_count))
 
     # the packet is a bit weird because of all the reserved fields, we set them to fresh symbols
     packet_addr = state.memory.allocate(1, 42, name="packet")
     state.mem[packet_addr].uint64_t = data_addr + PACKET_MTU
-    state.memory.store(packet_addr + 8, packet_reserved_0)
+    state.memory.store(packet_addr + 8, state.symbol_factory.BVS("packet_reserved[0-3]", 14 * 8))
     state.mem[packet_addr + 22].uint16_t = packet_device
-    state.memory.store(packet_addr + 24, packet_reserved_1)
+    state.memory.store(packet_addr + 24, state.symbol_factory.BVS("packet_reserved[4-6]", 16 * 8))
     state.mem[packet_addr + 40].uint16_t = packet_length
 
     # attach to packet_addr just because we need something to attach to... TODO it'd be nice to have statewide metadata

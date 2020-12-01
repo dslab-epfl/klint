@@ -116,7 +116,10 @@ def handle_externals(name, py_state, *args, **kwargs):
                 current_state.globals['packet_init_done'] = True
         ext_inst = ext()
         ext_inst.state = current_state
-        return ext_inst.run(*args)
+        result = ext_inst.run(*args)
+        if result.size() == bitsizes.bool and not result.symbolic:
+            return not result.structurally_match(claripy.BVV(0, bitsizes.bool))
+        return result
     else:
         return ext(current_state, *args)
 
@@ -137,6 +140,7 @@ def verify(state, devices_count, spec): # TODO why do we have to move the device
     state.register_plugin("heap", angr.state_plugins.heap.heap_ptmalloc.SimHeapPTMalloc())
     state.register_plugin("globals", angr.state_plugins.globals.SimStateGlobals())
     # Set up the replaying plugins
+    state.symbol_factory = SymbolFactoryReplayPlugin(state.symbol_factory)
     state.memory = MemoryAllocateOpaqueReplayPlugin(state.memory)
     state.maps = GhostMapReplayPlugin(state)
     # Remove metadata, since replaying will add it back

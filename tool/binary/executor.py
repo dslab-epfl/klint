@@ -5,12 +5,13 @@ import angr
 from angr.sim_state import SimState
 
 # Us
-from .plugin_dummy import DummyPlugin
+from .exceptions import SymbexException
 from .ghost_maps import GhostMaps
 from .memory_split import SplitMemory
 from .metadata import Metadata
 from .path import Path
-from .exceptions import SymbexException
+from .plugin_dummy import DummyPlugin
+from .symbol_factory import SymbolFactoryPlugin
 
 # Disable logs we don't care about
 import logging
@@ -122,6 +123,7 @@ def create_sim_manager(binary, ext_funcs, main_func_name, *main_func_args, base_
   SimState.register_default("sym_memory", SplitMemory) # SimState translates "sym_memory" to "memory" under standard options
   SimState.register_default("maps", GhostMaps)
   SimState.register_default("path", Path)
+  SimState.register_default("symbol_factory", SymbolFactoryPlugin)
 
   proj = angr.Project(binary, auto_load_libs=False, use_sim_procedures=False, engine=CustomEngine)
   for (fname, fproc) in ext_funcs.items():

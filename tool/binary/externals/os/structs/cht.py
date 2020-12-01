@@ -61,7 +61,7 @@ class ChtFindPreferredAvailableBackend(angr.SimProcedure):
             raise SymbexException("Precondition does not hold.")
 
         # Postconditions
-        backend = claripy.BVS("backend", bitsizes.size_t)
+        backend = self.state.symbol_factory.BVS("backend", bitsizes.size_t)
         def case_true(state):
             print("!!! cht_find_preferred_available_backend: did not find available backend")
             return claripy.BVV(0, bitsizes.bool)

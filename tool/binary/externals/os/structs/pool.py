@@ -62,7 +62,7 @@ class OsPoolBorrow(angr.SimProcedure):
         _ = self.state.memory.load(out_index, bitsizes.size_t // 8)
 
         # Postconditions
-        index = claripy.BVS("index", bitsizes.size_t)
+        index = self.state.symbol_factory.BVS("index", bitsizes.size_t)
         self.state.add_constraints(index < poolp.size)
         self.state.memory.store(out_index, index, endness=self.state.arch.memory_endness)
         def case_true(state):
@@ -188,7 +188,7 @@ class OsPoolExpire(angr.SimProcedure):
         self.state.memory.load(out_index, bitsizes.size_t // 8)
 
         # Postconditions
-        index = claripy.BVS('index', bitsizes.size_t)
+        index = self.state.symbol_factory.BVS('index', bitsizes.size_t)
         self.state.add_constraints(index < poolp.size)
         self.state.memory.store(out_index, index, endness=self.state.arch.memory_endness)
         def case_true(state):

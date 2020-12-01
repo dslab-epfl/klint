@@ -13,7 +13,18 @@ def expect(state, expected):
             if all(ed[k] is None or utils.structural_eq(ed[k], ad[k]) for k in ed.keys()):
                 return actual
         if not isinstance(actual, RecordGet):
-            raise ReplayException(f"Expected {expected} but got {actual}")
+            raise ReplayException(f"Replay: expected {expected} but got {actual}")
+
+
+class SymbolFactoryReplayPlugin:
+    def __init__(self, wrapped):
+        self.wrapped = wrapped
+
+    def BVS(self, name, size):
+        (actual_name, result) = self.wrapped.dequeue()
+        if actual_name == name:
+            return result
+        raise ReplayException(f"BVS replay: expected {name} but got {actual_name}")
     
 class MemoryAllocateOpaqueReplayPlugin:
     def __init__(self, wrapped):
@@ -64,7 +75,7 @@ class GhostMapReplayPlugin:
         record = expect(self.state, RecordForall(obj, None, None, None, None))
         if pred(record.pred_key, record.pred_value).structurally_match(record.pred):
             return record.result
-        raise ReplayException(f"Bad forall, expected {record.pred} but got {pred(record.pred_key, record.pred_value)}")
+        raise ReplayException(f"Forall replay: expected {record.pred} but got {pred(record.pred_key, record.pred_value)}")
 
     def havoc(self, obj, max_length, is_array):
         pass # ignore for now...

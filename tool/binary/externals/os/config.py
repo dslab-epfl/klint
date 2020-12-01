@@ -25,7 +25,7 @@ class ConfigU(angr.SimProcedure):
     metadata = self.state.metadata.get(ConfigMetadata, None, default=ConfigMetadata({}))
 
     if py_name not in metadata.items:
-      value = claripy.BVS(py_name, self.size())
+      value = claripy.BVS(py_name, self.size()) # not using symbol_factory since this is not replayed
       metadata.items[py_name] = value
 
     value = metadata.items[py_name]

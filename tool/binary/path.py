@@ -40,6 +40,7 @@ class Path(SimStatePlugin):
         self.segments = [] if common_ancestor is None else common_ancestor.segments
         self.ghost_segments = [] if common_ancestor is None else common_ancestor.ghost_segments
         self.ghost_enabled = True # re-enable regardless
+        self.ghost_index = 0
         return True
 
     @staticmethod
