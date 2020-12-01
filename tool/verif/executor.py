@@ -1,10 +1,12 @@
 import angr
+import claripy
 from datetime import datetime
 import inspect
 import os
 from pathlib import Path
 
 from .defs import *
+from .replay import *
 from binary import bitsizes
 from binary import utils
 from binary.externals.os import config as os_config
@@ -77,7 +79,7 @@ def get_size(size):
 
 def ptr_alloc(state, size):
     size = get_size(size)
-    result = state.heap.malloc(size // 8)
+    result = claripy.BVV(state.heap.malloc(size // 8), bitsizes.size_t)
     state.globals[result] = size
     return result
 
@@ -103,9 +105,15 @@ externals = {
 
 def handle_externals(name, py_state, *args, **kwargs):
     global current_state
+    global current_devices_count
 
     ext = externals[name]
-    if isinstance(ext, angr.SimProcedure):
+    if inspect.isclass(ext): # it's a SimProcedure
+        # Very hacky: init the packet at the right time
+        if "alloc" not in name:
+            if 'packet_init_done' not in current_state.globals:
+                os_network.packet_init(current_state, current_devices_count)
+                current_state.globals['packet_init_done'] = True
         ext_inst = ext()
         ext_inst.state = current_state
         return ext_inst.run(*args)
@@ -121,10 +129,18 @@ def verify(state, devices_count, spec): # TODO why do we have to move the device
     global current_state
     current_state = state
 
+    global current_devices_count
+    current_devices_count = devices_count
+
     # Add a concrete heap so we can allocate stuff outside of ghost maps, for ptr_* helpers,
     # and globals so we can store metadata about them
     state.register_plugin("heap", angr.state_plugins.heap.heap_ptmalloc.SimHeapPTMalloc())
     state.register_plugin("globals", angr.state_plugins.globals.SimStateGlobals())
+    # Set up the replaying plugins
+    state.memory = MemoryAllocateOpaqueReplayPlugin(state.memory)
+    state.maps = GhostMapReplayPlugin(state)
+    # Remove metadata, since replaying will add it back
+    state.metadata.clear()
 
     py_executor.execute(
         solver=state.solver,

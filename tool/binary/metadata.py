@@ -169,3 +169,6 @@ class Metadata(SimStatePlugin):
     def remove_all(self, cls):
         if cls in self.items:
             del self.items[cls]
+
+    def clear(self):
+        self.items = {}

@@ -30,6 +30,7 @@ class Path(SimStatePlugin):
         self.segments = segments or []
         self.ghost_segments = ghost_segments or []
         self.ghost_enabled = ghost_enabled
+        self.ghost_index = 0
 
     @SimStatePlugin.memo
     def copy(self, memo):
@@ -45,6 +46,7 @@ class Path(SimStatePlugin):
     def wrap(external):
         return ExternalWrapper(external)
     
+
     def begin_record(self, name, args):
         self.segments.append((name, args))
 
@@ -52,16 +54,22 @@ class Path(SimStatePlugin):
         (name, args) = self.segments.pop()
         self.segments.append((name, args, ret))
 
-    def print(self):
-        for (name, args, ret) in self.segments:
-            print("  ", name, "(", ", ".join(map(str, args)) + ")", ("" if ret is None else (" -> " + str(ret))))
-
     def ghost_record(self, value_factory):
         if self.ghost_enabled:
             self.ghost_segments.append(value_factory())
 
     def ghost_disable(self):
         self.ghost_enabled = False
+
+    def ghost_dequeue(self):
+        result = self.ghost_segments[self.ghost_index]
+        self.ghost_index = self.ghost_index + 1
+        return result
+
+
+    def print(self):
+        for (name, args, ret) in self.segments:
+            print("  ", name, "(", ", ".join(map(str, args)) + ")", ("" if ret is None else (" -> " + str(ret))))
 
     def ghost_print(self):
         for value in self.ghost_segments:

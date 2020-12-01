@@ -268,14 +268,14 @@ class Map:
         return {'meta': self.meta, '_length': self._length, '_invariants': self._invariants, '_known_items': self._known_items, '_previous': self._previous, '_filter': self._filter, '_map': self._map}
 
 
-# History stuff
-HistoryNew = namedtuple('HistoryNew', ['key_size', 'value_size', 'result'])
-HistoryNewArray = namedtuple('HistoryNewArray', ['key_size', 'value_size', 'length', 'result'])
-HistoryLength = namedtuple('HistoryLength', ['obj', 'result'])
-HistoryGet = namedtuple('HistoryGet', ['obj', 'key', 'result'])
-HistorySet = namedtuple('HistorySet', ['obj', 'key', 'value'])
-HistoryRemove = namedtuple('HistoryRemove', ['obj', 'key'])
-HistoryForall = namedtuple('HistoryForall', ['obj', 'pred', 'pred_key', 'pred_value', 'result'])
+# Recording stuff
+RecordNew = namedtuple('RecordNew', ['key_size', 'value_size', 'result'])
+RecordNewArray = namedtuple('RecordNewArray', ['key_size', 'value_size', 'length', 'result'])
+RecordLength = namedtuple('RecordLength', ['obj', 'result'])
+RecordGet = namedtuple('RecordGet', ['obj', 'key', 'result'])
+RecordSet = namedtuple('RecordSet', ['obj', 'key', 'value'])
+RecordRemove = namedtuple('RecordRemove', ['obj', 'key'])
+RecordForall = namedtuple('RecordForall', ['obj', 'pred', 'pred_key', 'pred_value', 'result'])
 
 class GhostMaps(SimStatePlugin):
     # === Public API ===
@@ -283,18 +283,18 @@ class GhostMaps(SimStatePlugin):
     def new(self, key_size, value_size, name="map"):
         obj = self.state.memory.allocate_opaque(name)
         self.state.metadata.set(obj, Map.new(self.state, key_size, value_size, name, claripy.BVV(0, bitsizes.size_t), [lambda st, i: ~i.present]))
-        self.state.path.ghost_record(lambda: HistoryNew(key_size, value_size, obj))
+        self.state.path.ghost_record(lambda: RecordNew(key_size, value_size, obj))
         return obj
 
     def new_array(self, key_size, value_size, length, name="map"):
         obj = self.state.memory.allocate_opaque(name)
         self.state.metadata.set(obj, Map.new(self.state, key_size, value_size, name, length, [lambda st, i: (i.key < length) == i.present]))
-        self.state.path.ghost_record(lambda: HistoryNewArray(key_size, value_size, length, obj))
+        self.state.path.ghost_record(lambda: RecordNewArray(key_size, value_size, length, obj))
         return obj
 
     def length(self, obj):
         result = self[obj].length()
-        self.state.path.ghost_record(lambda: HistoryLength(obj, result))
+        self.state.path.ghost_record(lambda: RecordLength(obj, result))
         return result
 
     def key_size(self, obj):
@@ -309,16 +309,16 @@ class GhostMaps(SimStatePlugin):
                         " (" + str(len(list(map.known_items(from_present=from_present)))) + " items, " + str(len(self.state.solver.constraints)) + " constraints)")
         result = map.get(self.state, key, value=value, from_present=from_present)
         LOGEND(self.state)
-        self.state.path.ghost_record(lambda: HistoryGet(obj, key, result))
+        self.state.path.ghost_record(lambda: RecordGet(obj, key, result))
         return result
 
     def set(self, obj, key, value):
         self.state.metadata.set(obj, self[obj].set(self.state, key, value), override=True)
-        self.state.path.ghost_record(lambda: HistorySet(obj, key, value))
+        self.state.path.ghost_record(lambda: RecordSet(obj, key, value))
 
     def remove(self, obj, key):
         self.state.metadata.set(obj, self[obj].remove(self.state, key), override=True)
-        self.state.path.ghost_record(lambda: HistoryRemove(obj, key))
+        self.state.path.ghost_record(lambda: RecordRemove(obj, key))
 
     def forall(self, obj, pred):
         map = self[obj]
@@ -327,7 +327,7 @@ class GhostMaps(SimStatePlugin):
         LOGEND(self.state)
         record_key = claripy.BVS("record_key", map.meta.key_size)
         record_value = claripy.BVS("record_value", map.meta.value_size)
-        self.state.path.ghost_record(lambda: HistoryForall(obj, pred(record_key, record_value), record_key, record_value, result))
+        self.state.path.ghost_record(lambda: RecordForall(obj, pred(record_key, record_value), record_key, record_value, result))
         return result
 
     # === Havocing, to mimic BPF userspace ===

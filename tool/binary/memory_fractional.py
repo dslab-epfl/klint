@@ -14,6 +14,7 @@ from . import bitsizes
 from . import utils
 
 Facts = namedtuple('Facts', ['fractions', 'size'])
+RecordAllocateOpaque = namedtuple('RecordAllocateOpaque', ['name', 'result'])
 
 
 # Supports loads and stores, as well as allocate and take/give; all methods take sizes in bytes
@@ -85,6 +86,7 @@ class FractionalMemory(SimMemory):
     def allocate_opaque(self, name):
         result = claripy.BVS(name + "_opaque", bitsizes.ptr)
         self.state.add_constraints(result != 0)
+        self.state.path.ghost_record(lambda: RecordAllocateOpaque(name, result))
         return result
 
     def take(self, fraction, ptr, size): # fraction == None -> take all; size == None -> take all
