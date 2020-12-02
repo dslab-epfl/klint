@@ -33,43 +33,41 @@ def MapGet(map, key, value_size):
 claripy.operations.leaf_operations.add("MapHas")
 claripy.operations.leaf_operations.add("MapGet")
 
-# Replaces objs put as temporary parameters of Map* with the corresponding replacements (use state.maps as replacements to get the maps of a state from objs)
-def expand_map_ast_objs(expr, dict):
-    def leaf_op(leaf):
+def eval_map_ast_core(expr, replace_dict, has_handler, get_handler):
+    # claripy.ast.Base.replace_dict needs a dict with .cache_key (to do something similar to our HashDict)
+    replace_dict = {k.cache_key: v for (k,v) in replace_dict.items()}
+    def replacer(leaf):
         if not isinstance(leaf, claripy.ast.Base):
             return leaf
-        if leaf.op == "MapHas" or leaf.op == "MapGet":
-            return leaf.make_like(leaf.op, [dict[leaf.args[0]]] + [leaf_op(a) for a in leaf.args[1:]])
+        if leaf.op == "MapHas":
+            return has_handler(leaf, replacer)
+        if leaf.op == "MapGet":
+            return get_handler(leaf, replacer)
         if leaf.op in claripy.operations.leaf_operations:
-            return leaf
-        return leaf.replace_dict({}, leaf_operation=leaf_op)
-    return leaf_op(expr)
+            return replace_dict.get(leaf.cache_key, leaf)
+        return leaf.replace_dict(replace_dict, leaf_operation=replacer)
+    return replacer(expr)
+
+# Replaces objs put as temporary parameters of Map* with the corresponding replacements (use state.maps as replacements to get the maps of a state from objs)
+def expand_map_ast_objs(expr, dict):
+    def map_handler(ast, replacer):
+        return ast.make_like(ast.op, [dict[ast.args[0]]] + [replacer(a) for a in ast.args[1:]])
+    return eval_map_ast_core(expr, {}, map_handler, map_handler)
 
 def eval_map_ast(state, expr, replace_dict={}):
-    def replace(ast):
-        if not isinstance(ast, claripy.ast.Base):
-            return ast
-        def replace_leaf(leaf):
-            # can't just use replace_dict on leaf since it's a leaf
-            return leaf.make_like(leaf.op, [replace(a) for a in leaf.args])
-        def leaf_op(leaf):
-            if leaf.op == "MapHas":
-                if leaf.args[2] is None: # args[2] is value
-                    return replace_leaf(leaf.args[0].get(state, leaf.args[1])[1])
-                result = leaf.args[0].get(state, leaf.args[1], value=leaf.args[2])
-                return replace_leaf(result[1] & (result[0] == leaf.args[2]))
-            if leaf.op == "MapGet":
-                return replace_leaf(leaf.args[0].get(state, leaf.args[1])[0])
-            return leaf
-        # need to use .cache_key for keys with .replace_dict, unlike .replace
-        return ast.replace_dict({k.cache_key: v for (k,v) in replace_dict.items()}, leaf_operation=leaf_op)
-    return replace(expr)
+    def has_handler(ast, replacer):
+        if ast.args[2] is None: # args[2] is value
+            return ast.args[0].get(state, replacer(ast.args[1]))[1]
+        replaced_value = replacer(ast.args[2])
+        result = ast.args[0].get(state, replacer(ast.args[1]), value=replaced_value)
+        return result[1] & (result[0] == replaced_value)
+    def get_handler(ast, replacer):
+        return ast.args[0].get(state, replacer(ast.args[1]))[0]
+    return eval_map_ast_core(expr, replace_dict, has_handler, get_handler)
 
 class MapInvariant:
     @staticmethod
     def new(meta, expr_factory):
-        # explicit_name means claripy uses exactly that name, no suffixing with a counter value as usual
-        # (so these values are not unique, thus should not leak to the outside)
         key = claripy.BVS("KEY", meta.key_size, explicit_name=True)
         value = claripy.BVS("VALUE", meta.value_size, explicit_name=True)
         present = claripy.BoolS("PRESENT", explicit_name=True)
@@ -120,9 +118,7 @@ class Map:
         return Map.new(key_size, value_size, name, _invariants=[lambda i: (i.key < length) == i.present], _length=length)
 
     def length(self):
-        if self._previous is None:
-            return self._length
-        return self._previous.length()
+        return self._length
 
     def get(self, state, key, value=None):
         # Optimization: If the map is empty, the answer is always false
@@ -297,10 +293,8 @@ class Map:
             list(self.known_items())
         )
 
-    def with_length(self, new_length):
-        result = self.__copy__()
-        result._length = new_length
-        return result
+    def set_length(self, new_length):
+        self._length = new_length
 
     def is_empty(self):
         l = self.length()
@@ -675,7 +669,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                     to_cache.put([o1, o2, "p", [fp]]) # only put the working one, don't have us try a pointless one next time
 
                     # Logging
-                    log_item = MapItem(claripy.BVS("K", ancestor_state.maps.key_size(o1)), claripy.BVS("V", ancestor_state.maps.value_size(o1)), None)
+                    log_item = MapItem(claripy.BVS("K", ancestor_state.maps.key_size(o1), explicit_name=True), claripy.BVS("V", ancestor_state.maps.value_size(o1), explicit_name=True), None)
                     log_text = f"Inferred: when {o1} contains (K,V), if {fp(log_item)} then {o2} contains {fk(log_item)}"
 
                     # Try to find a FV
