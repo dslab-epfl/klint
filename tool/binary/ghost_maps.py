@@ -258,8 +258,9 @@ class Map:
         self._invariants = invariants
         self._known_items = known_items
         self._previous = _previous
-        self._filter = _filter or (lambda i: True)
-        self._map = _map or (lambda i: i)
+        # Do not use defaults for _filter and _map so that flattened maps can be serialized easily (i.e., without referring to lambdas)
+        self._filter = _filter
+        self._map = _map
         self.ever_havoced = ever_havoced
 
     def version(self):
@@ -283,7 +284,7 @@ class Map:
         return result
 
     def known_items(self):
-        return self._known_items + list(map(self._map, filter(self._filter, () if self._previous is None else self._previous.known_items())))
+        return self._known_items + list(map(self._map or (lambda i: i), filter(self._filter or (lambda i: True), () if self._previous is None else self._previous.known_items())))
 
     def add_item(self, item):
         if self._previous is None:
@@ -409,6 +410,10 @@ class GhostMapsPlugin(SimStatePlugin):
     def havoc(self, obj, max_length, is_array):
         self[obj].havoc(self.state, max_length, is_array)
 
+    # === Get all, for exporting ===
+
+    def get_all(self):
+        return list(self.state.metadata.get_all(Map))
 
     # === Private API, including for invariant inference ===
 
@@ -548,18 +553,6 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
         return [lambda i: claripy.true] + [lambda i, c=c: sel(i) == claripy.BVV(c, sel(i).size()) for c in constants if c is not None]
 
     def candidate_finder_1(state, o1, o2, sel1, sel2, it1, it2):
-        # The ugliest one first: if o1 is a "fractions" obj, check if the corresponding value in the corresponding obj is equal to x2.reversed
-        if sel1 is get_key:
-            # note that orig_size is in bytes, but x2.size() is in bits!
-            orig_o1, orig_size = state.memory.get_obj_and_size_from_fracs_obj(o1)
-            x2 = sel2(it2)
-            if orig_o1 is not None and orig_o1 is not o2 and utils.definitely_true(state.solver, orig_size * 8 == x2.size()):
-                (orig_x1v, orig_x1p) = state.maps.get(orig_o1, it1.key)
-                if utils.definitely_true(state.solver, orig_x1p & (orig_x1v == x2.reversed)):
-                    return lambda it, orig_o1=orig_o1, x2size=x2.size(): MapGet(orig_o1, it.key, x2size).reversed
-        return None
-
-    def candidate_finder_2(state, o1, o2, sel1, sel2, it1, it2):
         x1 = sel1(it1)
         x2 = sel2(it2)
         if x1.size() == x2.size():
@@ -595,13 +588,25 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                     return lambda it, x1=x1: claripy.Extract(x1.size() - 1, x1.args[0].args[1].size(), sel1(it) - x1.args[1]).zero_extend(x1.args[0].args[1].size())
         return None
 
-    def candidate_finder_3(state, o1, o2, sel1, sel2, it1, it2):
+    def candidate_finder_2(state, o1, o2, sel1, sel2, it1, it2):
         x2 = sel2(it2)
         if sel2 is get_value:
             const = utils.get_if_constant(state.solver, x2)
-            if const is not None:
-                # A constant is a possible function
+            if const is not None and utils.can_be_false(state.solver, state.maps.forall(o2, lambda k, v: v == const)):
+                # A constant is a possible function, but not if all values are that constant (which is often true for fractions arrays)
                 return lambda it, const=const, sz=x2.size(): claripy.BVV(const, sz)
+        return None
+
+    def candidate_finder_3(state, o1, o2, sel1, sel2, it1, it2):
+        # The ugliest one: if o1 is a "fractions" obj, check if the corresponding value in the corresponding obj is equal to x2.reversed
+        if sel1 is get_key:
+            # note that orig_size is in bytes, but x2.size() is in bits!
+            orig_o1, orig_size = state.memory.get_obj_and_size_from_fracs_obj(o1)
+            x2 = sel2(it2)
+            if orig_o1 is not None and orig_o1 is not o2 and utils.definitely_true(state.solver, orig_size * 8 == x2.size()):
+                (orig_x1v, orig_x1p) = state.maps.get(orig_o1, it1.key)
+                if utils.definitely_true(state.solver, orig_x1p & (orig_x1v == x2.reversed)):
+                    return lambda it, orig_o1=orig_o1, x2size=x2.size(): MapGet(orig_o1, it.key, x2size).reversed
         return None
 
     # Optimization: If _all_ non-frac maps were havoced in the initial state, there are no invariants to find
@@ -658,11 +663,13 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
             # We use maps directly to refer to the map state as it was in the ancestor, not during execution;
             # otherwise, get(M1, k) after remove(M2, k) might add has(M2, k) to the constraints, which is obviously false
 
+            states = [s.copy() for s in orig_states] # avoid polluting states across attempts
+
             # Try to find a FK
             (fk_is_cached, fk) = get_cached(o1, o2, "k")
             if not fk_is_cached:
-                fk = find_f(orig_states, o1, o2, get_key, get_key, candidate_finders) \
-                  or find_f(orig_states, o1, o2, get_value, get_key, candidate_finders)
+                fk = find_f(states, o1, o2, get_key, get_key, candidate_finders) \
+                  or find_f(states, o1, o2, get_value, get_key, candidate_finders)
                 to_cache.put([o1, o2, "k", fk])
             if not fk:
                 # No point in continuing if we couldn't find a FK
@@ -671,10 +678,9 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
             # Try to find a few FPs
             (fps_is_cached, fps) = get_cached(o1, o2, "p")
             if not fps_is_cached:
-                fps = find_f_constants(orig_states, o1, get_value)
+                fps = find_f_constants(states, o1, get_value)
 
             for fp in fps:
-                states = [s.copy() for s in orig_states] # avoid polluting states across attempts
                 if all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk: Implies(fp(MapItem(k, v, None)), MapHas(o2, fk(MapItem(k, v, None)))))) for st in states):
                     to_cache.put([o1, o2, "p", [fp]]) # only put the working one, don't have us try a pointless one next time
 
@@ -689,14 +695,12 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                           or find_f(states, o1, o2, get_value, get_value, candidate_finders)
                         to_cache.put([o1, o2, "v", fv])
 
-                    states = [s.copy() for s in orig_states]
                     if fv and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk, fv=fv: \
                                                                                              Implies(fp(MapItem(k, v, None)), MapHas(o2, fk(MapItem(k, v, None)), value=fv(MapItem(k, v, None)))))) for st in states):
                         log_text += f"\n\tin addition, the value is {fv(log_item)}"
                         results.put((ResultType.CROSS_VAL, [o1, o2],
                                      lambda state, maps, o2=o2, fp=fp, fk=fk, fv=fv: maps[0].add_invariant(lambda i: freeze_map_ast_versions(Implies(i.present, Implies(fp(i), MapHas(o2, fk(i), value=fv(i)))), 0))))
                     else:
-                        # !!! TODO !!! move the candidate finder 1 to last position since it's the most compute intensive (calls map get)
                         results.put((ResultType.CROSS_KEY, [o1, o2],
                                      lambda state, maps, o2=o2, fp=fp, fk=fk: maps[0].add_invariant(lambda i: freeze_map_ast_versions(Implies(i.present, Implies(fp(i), MapHas(o2, fk(i)))), 0))))
 
