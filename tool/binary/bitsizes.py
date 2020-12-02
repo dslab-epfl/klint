@@ -11,3 +11,4 @@ bool = 8
 int64_t = 64
 ptr = 64
 size_t = uint64_t
+time_t = int64_t

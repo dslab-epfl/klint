@@ -1,6 +1,6 @@
 # === SPEC PREDEFS === #
 
-class GhostArray:
+class Array:
     def __init__(self, length, type):
         self._type = type
         self._size = type_size(type)
@@ -10,7 +10,7 @@ class GhostArray:
         return ptr_read(self._addr + (index * self._size), self._type)
 
 
-class GhostExpiringSet:
+class ExpiringSet:
     def __init__(self, max_capacity, type):
         self._value_size = type_size(type)
         self._values = os_memory_alloc(max_capacity, self._value_size)
@@ -22,7 +22,8 @@ class GhostExpiringSet:
         has = os_map_get(self._map, item, index_ptr)
         if has:
             os_pool_refresh(self._pool, time, ptr_read(index_ptr))
-        return has
+            return self._values + (ptr_read(index_ptr) * self._value_size)
+        return None
 
     def try_add(self, item, time):
         index_ptr = ptr_alloc("size_t")
