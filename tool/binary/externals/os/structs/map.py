@@ -32,8 +32,8 @@ class OsMapAlloc(angr.SimProcedure):
 
         # Postconditions
         result = self.state.memory.allocate_opaque("os_map")
-        values = self.state.maps.new(key_size * 8, bitsizes.ptr, name="map_values") # key_size is in bytes
-        addrs = self.state.maps.new(key_size * 8, bitsizes.ptr, name="map_addrs") # key_size is in bytes
+        values = self.state.maps.new(key_size * 8, bitsizes.ptr, "map_values") # key_size is in bytes
+        addrs = self.state.maps.new(key_size * 8, bitsizes.ptr, "map_addrs") # key_size is in bytes
         self.state.metadata.set(result, Map(key_size, capacity, values, addrs))
         print("!!! os_map_alloc", key_size, capacity, "->", result)
         return result

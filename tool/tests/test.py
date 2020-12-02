@@ -30,7 +30,7 @@ class Tests(unittest.TestCase):
     def test_set_then_get(self):
         state = empty_state()
     
-        map = state.maps.new(8, 16)
+        map = state.maps.new(8, 16, "test")
     
         k = claripy.BVS("K", 8)
         v = claripy.BVS("V", 16)

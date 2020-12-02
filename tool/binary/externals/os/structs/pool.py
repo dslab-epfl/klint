@@ -27,7 +27,7 @@ class OsPoolAlloc(angr.SimProcedure):
 
         # Postconditions
         result = self.state.memory.allocate_opaque("os_pool")
-        items = self.state.maps.new(bitsizes.size_t, bitsizes.int64_t, name="pool_items")
+        items = self.state.maps.new(bitsizes.size_t, bitsizes.int64_t, "pool_items")
         self.state.metadata.set(result, Pool(size, items))
         print("!!! os_pool_alloc", size, "->", result)
         return result

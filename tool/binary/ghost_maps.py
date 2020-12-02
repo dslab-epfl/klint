@@ -33,6 +33,38 @@ def MapGet(map, key, value_size):
 claripy.operations.leaf_operations.add("MapHas")
 claripy.operations.leaf_operations.add("MapGet")
 
+# Replaces objs put as temporary parameters of Map* with the corresponding replacements (use state.maps as replacements to get the maps of a state from objs)
+def expand_map_ast_objs(expr, dict):
+    def leaf_op(leaf):
+        if not isinstance(leaf, claripy.ast.Base):
+            return leaf
+        if leaf.op == "MapHas" or leaf.op == "MapGet":
+            return leaf.make_like(leaf.op, [dict[leaf.args[0]]] + [leaf_op(a) for a in leaf.args[1:]])
+        if leaf.op in claripy.operations.leaf_operations:
+            return leaf
+        return leaf.replace_dict({}, leaf_operation=leaf_op)
+    return leaf_op(expr)
+
+def eval_map_ast(state, expr, replace_dict={}):
+    def replace(ast):
+        if not isinstance(ast, claripy.ast.Base):
+            return ast
+        def replace_leaf(leaf):
+            # can't just use replace_dict on leaf since it's a leaf
+            return leaf.make_like(leaf.op, [replace(a) for a in leaf.args])
+        def leaf_op(leaf):
+            if leaf.op == "MapHas":
+                if leaf.args[2] is None: # args[2] is value
+                    return replace_leaf(leaf.args[0].get(state, leaf.args[1])[1])
+                result = leaf.args[0].get(state, leaf.args[1], value=leaf.args[2])
+                return replace_leaf(result[1] & (result[0] == leaf.args[2]))
+            if leaf.op == "MapGet":
+                return replace_leaf(leaf.args[0].get(state, leaf.args[1])[0])
+            return leaf
+        # need to use .cache_key for keys with .replace_dict, unlike .replace
+        return ast.replace_dict({k.cache_key: v for (k,v) in replace_dict.items()}, leaf_operation=leaf_op)
+    return replace(expr)
+
 class MapInvariant:
     @staticmethod
     def new(meta, expr_factory):
@@ -50,23 +82,8 @@ class MapInvariant:
         self.value = value
         self.present = present
 
-    def __call__(self, state, item,):
-        def replace(ast):
-            def replace_leaf(leaf):
-                # can't just use replace_dict on leaf since it's a leaf
-                return leaf.make_like(leaf.op, [replace(a) for a in leaf.args])
-            def leaf_op(leaf):
-                if leaf.op == "MapHas":
-                    if leaf.args[2] is None: # args[2] is value
-                        return replace_leaf(leaf.args[0].get(leaf.args[1])[1])
-                    result = leaf.args[0].get(leaf.args[1], value=leaf.args[2])
-                    return replace_leaf(result[1] & (result[0] == leaf.args[2]))
-                if leaf.op == "MapGet":
-                    return replace_leaf(leaf.args[0].get(leaf.args[1])[0])
-                return leaf
-            # need to use .cache_key for keys with .replace_dict, unlike .replace
-            return ast.replace_dict({self.key.cache_key: item.key, self.value.cache_key: item.value, self.present.cache_key: item.present}, leaf_operation=leaf_op)
-        return replace(self.expr)
+    def __call__(self, state, item):
+        return eval_map_ast(state, self.expr, replace_dict={self.key: item.key, self.value: item.value, self.present: item.present})
 
 
 class Map:
@@ -84,15 +101,19 @@ class Map:
         key_size = to_int(key_size, "key_size")
         value_size = to_int(value_size, "value_size")
 
-        if _length is None:
-            _length = claripy.BVV(0, bitsizes.size_t)
-        if _invariants is None:
-            _invariants = [lambda i: ~i.present]
-
         name = name + "_" + str(_name_counter[0])
         _name_counter[0] = _name_counter[0] + 1
 
-        return Map(MapMeta(name, key_size, value_size), _length, _invariants, [])
+        if _length is None:
+            _length = claripy.BVV(0, bitsizes.size_t)
+
+        result = Map(MapMeta(name, key_size, value_size), _length, [], [])
+        if _invariants is None:
+            result.add_invariant(lambda i: ~i.present)
+        else:
+            for inv in _invariants:
+                result.add_invariant(inv)
+        return result
     
     @staticmethod
     def new_array(key_size, value_size, length, name):
@@ -185,13 +206,13 @@ class Map:
         # Let L be the number of known items whose presence bit is set
         # Let F = ((P1 => pred(K1, V1)) and (P2 => pred(K2, V2)) and (...) and ((L < length(M)) => (invariant(M)(K', V', true) => pred(K', V'))))
         # Optimization: No need to even call the invariant if we're sure all items are known
-        result = claripy.And(*[Implies(i.present, pred(i.key, i.value)) for i in self.known_items()])
+        result = claripy.And(*[Implies(i.present, eval_map_ast(state, pred(i.key, i.value))) for i in self.known_items()])
         if utils.can_be_false(state.solver, self.known_length() == self.length()):
             result &= Implies(
                           self.known_length() < self.length(),
                           Implies(
                               self.invariant()(state, MapItem(test_key, test_value, claripy.true)),
-                              pred(test_key, test_value)
+                              eval_map_ast(state, pred(test_key, test_value))
                           )
                       )
 
@@ -246,7 +267,7 @@ class Map:
     def add_invariant(self, expr_factory):
         self._invariants.append(MapInvariant.new(self.meta, expr_factory))
 
-    def set_invariant_conjunctions(self, new_invariant_conjunctions):
+    def with_invariant_conjunctions(self, new_invariant_conjunctions):
         result = self.__copy__()
         result._invariants = new_invariant_conjunctions
         return result
@@ -463,12 +484,12 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
             for it1 in items1:
                 # @TODO Here we could loop over all items in items2 at each iteration, to maximize our chance of
                 # satisfying the candidate. Of course that would increase execution-time...
-                if utils.can_be_false(state.solver, sel2(items2.pop()) == candidate_func(it1)):
+                if utils.can_be_false(state.solver, sel2(items2.pop()) == eval_map_ast(state, expand_map_as_objs(candidate_func(it1), state.maps))):
                     return False
             return True
 
         candidate_func = None
-        candidate_func_arrays = None
+        candidate_func_arrays = []
 
         for state in states:
             items1 = filter_present(state, o1)
@@ -512,7 +533,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                 return None
 
         # Our candidate has survived all states!
-        return candidate_func
+        return candidate_func, candidate_func_arrays
 
     # Helper function to find FP
     def find_f_constants(states, o, sel):
@@ -528,7 +549,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
             if orig_o1 is not None and orig_o1 is not o2 and utils.definitely_true(state.solver, orig_size * 8 == x2.size()):
                 (orig_x1v, orig_x1p) = state.maps.get(orig_o1, it1.key)
                 if utils.definitely_true(state.solver, orig_x1p & (orig_x1v == x2.reversed)):
-                    return ((lambda it, orig_o1=orig_o1: MapGet(orig_o1, it.key).reversed), [orig_o1])
+                    return ((lambda it, orig_o1=orig_o1, x2size=x2.size(): MapGet(orig_o1, it.key, x2size).reversed), [orig_o1])
         return None
 
     def candidate_finder_2(state, o1, o2, sel1, sel2, it1, it2):
@@ -636,7 +657,10 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                 fk = find_f(orig_states, o1, o2, get_key, get_key, candidate_finders) \
                   or find_f(orig_states, o1, o2, get_value, get_key, candidate_finders)
                 to_cache.put([o1, o2, "k", fk])
-            if not fk:
+            if fk:
+                fkobjs = fk[1]
+                fk = fk[0]
+            else:
                 # No point in continuing if we couldn't find a FK
                 continue
 
@@ -647,7 +671,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
 
             for fp in fps:
                 states = [s.copy() for s in orig_states] # avoid polluting states across attempts
-                if all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk: Implies(fp(MapItem(k, v, None)), MapHas(st.maps[o2], fk(MapItem(k, v, None)))))) for st in states):
+                if all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk: expand_map_ast_objs(Implies(fp(MapItem(k, v, None)), MapHas(o2, fk(MapItem(k, v, None)))), st.maps))) for st in states):
                     to_cache.put([o1, o2, "p", [fp]]) # only put the working one, don't have us try a pointless one next time
 
                     # Logging
@@ -660,17 +684,22 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                         fv = find_f(states, o1, o2, get_key, get_value, candidate_finders) \
                           or find_f(states, o1, o2, get_value, get_value, candidate_finders)
                         to_cache.put([o1, o2, "v", fv])
+                    if fv is not None:
+                        fvobjs = fv[1]
+                        fv = fv[0]
 
                     states = [s.copy() for s in orig_states]
-                    if fv and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk, fv=fv: Implies(fp(MapItem(k, v, None)), MapHas(st.maps[o2], fk(MapItem(k, v, None)), value=fv(MapItem(k, v, None)))))) for st in states):
+                    if fv and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk, fv=fv: \
+                                                                                             expand_map_ast_objs(Implies(fp(MapItem(k, v, None)), MapHas(o2, fk(MapItem(k, v, None)), value=fv(MapItem(k, v, None)))), st.maps))) for st in states):
                         log_text += f"\n\tin addition, the value is {fv(log_item)}"
-                        results.put((ResultType.CROSS_VAL, [o1, o2],
-                                     lambda state, maps, o2=o2, fp=fp, fk=fk, fv=fv: maps[0].add_invariant(lambda i, m1=maps[1]: Implies(i.present, Implies(fp(i), MapHas(m1, fk(i), value=fv(i)))))))
+                        all_objs = [o1, o2] + fkobjs + fvobjs
+                        results.put((ResultType.CROSS_VAL, all_objs,
+                                     lambda state, maps, all_objs=all_objs, o2=o2, fp=fp, fk=fk, fv=fv: maps[0].add_invariant(lambda i: expand_map_ast_objs(Implies(i.present, Implies(fp(i), MapHas(o2, fk(i), value=fv(i)))), {all_objs[i]: maps[i] for i in range(len(maps))}))))
                     else:
-                        # !!! TODO !!! check if "fv is not None" is ever true here, otherwise do a single check with fk + fv...
-                        # !!! TODO !!! also move the candidate finder 1 to last position since it's the most compute intensive (calls map get)
-                        results.put((ResultType.CROSS_KEY, [o1, o2],
-                                     lambda state, maps, o2=o2, fp=fp, fk=fk: maps[0].add_invariant(lambda i, m1=maps[1]: Implies(i.present, Implies(fp(i), MapHas(m1, fk(i)))))))
+                        # !!! TODO !!! move the candidate finder 1 to last position since it's the most compute intensive (calls map get)
+                        all_objs = [o1, o2] + fkobjs
+                        results.put((ResultType.CROSS_KEY, all_objs,
+                                     lambda state, maps, all_objs=all_objs, o2=o2, fp=fp, fk=fk: maps[0].add_invariant(lambda i: expand_map_ast_objs(Implies(i.present, Implies(fp(i), MapHas(o2, fk(i)))), {all_objs[i]: maps[i] for i in range(len(maps))}))))
 
                     print(log_text) # print it at once to avoid interleavings from threads
                     break # this might make us miss some stuff in theory? but that's sound; and in practice it doesn't

@@ -19,7 +19,7 @@ class LpmAlloc(angr.SimProcedure):
 
         # Postconditions
         result = self.state.memory.allocate_opaque("lpm")
-        table = self.state.maps.new(IP_LEN + bitsizes.uint8_t, bitsizes.uint16_t, name="lpm_table")
+        table = self.state.maps.new(IP_LEN + bitsizes.uint8_t, bitsizes.uint16_t, "lpm_table")
         self.state.maps.havoc(table, self.state.symbol_factory.BVS("lpm_table_length", 64), False)
         self.state.metadata.set(result, Lpm(table))
         print(f"!!! lpm_alloc -> {result}")

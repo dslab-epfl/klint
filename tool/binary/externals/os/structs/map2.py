@@ -47,7 +47,7 @@ class OsMap2Alloc(angr.SimProcedure):
 
         # Postconditions
         result = self.state.memory.allocate_opaque("os_map2")
-        items = self.state.maps.new(key_size * 8, value_size * 8, name="map_items") # key_size and value_size are in bytes
+        items = self.state.maps.new(key_size * 8, value_size * 8, "map_items") # key_size and value_size are in bytes
         self.state.metadata.set(result, Map(key_size, value_size, capacity, items))
         print("!!! os_map2_alloc", key_size, value_size, capacity, "->", result)
         return result
