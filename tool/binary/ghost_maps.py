@@ -83,6 +83,9 @@ class MapInvariant:
     def __call__(self, state, item):
         return eval_map_ast(state, self.expr, replace_dict={self.key: item.key, self.value: item.value, self.present: item.present})
 
+    def with_disjunction(self, expr_factory):
+        return MapInvariant(self.expr | expr_factory(MapItem(self.key, self.value, self.present)), self.key, self.value, self.present)
+
 
 class Map:
     # === Public API ===
@@ -268,11 +271,14 @@ class Map:
         result._invariants = new_invariant_conjunctions
         return result
 
-    def known_items(self, _next=None):
+    def known_items(self):
         return self._known_items + list(map(self._map, filter(self._filter, () if self._previous is None else self._previous.known_items())))
 
     def add_item(self, item):
-        self._known_items.append(item)
+        if self._previous is None:
+            self._known_items.append(item)
+        else:
+            self._previous.add_item(item)
 
     def with_items_layer(self, items, length_change, filter, map):
         return Map(
@@ -811,8 +817,7 @@ def maps_merge_one(states_to_merge, obj, ancestor_state):
                     changed = True
                     constraints = claripy.And(*find_constraints(state, item.key), *find_constraints(state, item.value))
                     print("Item", item, "in map", obj, "does not comply with invariant conjunction", conj, "; adding disjunction", constraints)
-                    conjunction = lambda st, i, oldc=conjunction, oldi=item, cs=constraints: \
-                                  oldc(st, i) | cs.replace(oldi.key, i.key).replace(oldi.value, i.value)
+                    conjunction = conjunction.with_disjunction(lambda i, oldi=item, cs=constraints: cs.replace(oldi.key, i.key).replace(oldi.value, i.value))
         invariant_conjs.append(conjunction)
 
     return (ancestor_state.maps[obj].flatten().with_invariant_conjunctions(invariant_conjs), changed)
