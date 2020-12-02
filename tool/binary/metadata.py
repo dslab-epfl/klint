@@ -16,7 +16,7 @@ class MetadataPlugin(SimStatePlugin):
     merge_funcs = {}
 
     # func_across takes as input ([states], [objs], ancestor_state)
-    #                and returns [(ID, [objs], lambda (state, [meta]): None or [meta] to overwrite)]
+    #                and returns [(ID, [objs], lambda (state, [meta]): None)]
     #                fixed-point if the returned [(ID, [objs])] is a superset of the previous one
     # func_one takes as input ([states], obj, ancestor_state)
     #             and returns (meta, has_changed)
@@ -97,10 +97,7 @@ class MetadataPlugin(SimStatePlugin):
         for (cls, items) in across_results.items():
             for (_, objs, func) in items:
                 vals = [self.get(cls, obj) for obj in objs]
-                new_vals = func(self.state, vals)
-                if new_vals is not None:
-                    for (obj, new_val) in zip(objs, new_vals):
-                        self.set(obj, new_val, override=True)
+                func(self.state, vals)
 
         return reached_fixpoint
 
