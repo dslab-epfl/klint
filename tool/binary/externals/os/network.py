@@ -5,6 +5,7 @@ import claripy
 from collections import namedtuple
 
 # Us
+from ... import bitsizes
 from ... import cast
 from ... import utils
 from ...exceptions import SymbexException
@@ -12,21 +13,21 @@ from ...exceptions import SymbexException
 PACKET_MIN = 64 # the NIC will pad it if shorter
 PACKET_MTU = 1514 # 1500 (Ethernet spec) + 2xMAC + EtherType
 
-NetworkMetadata = namedtuple('NetworkMetadata', ['received', 'received_device', 'received_length', 'transmitted'])
+NetworkMetadata = namedtuple('NetworkMetadata', ['received', 'received_addr', 'received_device', 'received_length', 'transmitted'])
 
 # For the packet layout, see os/include/os/network.h (not reproducing here to avoid getting out of sync with changes)
 
 def packet_get_data_addr(state, packet_addr):
-    return state.mem[packet_addr].uint64_t.resolved
+    return state.memory.load(packet_addr, bitsizes.size_t // 8, endness=state.arch.memory_endness)
 
 def packet_get_data(state, packet_addr):
-    return state.memory.load(packet_get_data_addr(state, packet_addr), PACKET_MTU, endness=archinfo.Endness.LE)
+    return state.memory.load(packet_get_data_addr(state, packet_addr), PACKET_MTU , endness=state.arch.memory_endness)
 
 def packet_get_device(state, packet_addr):
-    return state.mem[packet_addr + 22].uint16_t.resolved
+    return state.memory.load(packet_addr + 22, bitsizes.uint16_t // 8, endness=state.arch.memory_endness)
 
 def packet_get_length(state, packet_addr):
-    return state.mem[packet_addr + 40].uint16_t.resolved
+    return state.memory.load(packet_addr + 40, bitsizes.uint16_t // 8, endness=state.arch.memory_endness)
 
 
 # Returns packet_addr
@@ -43,14 +44,14 @@ def packet_init(state, devices_count):
 
     # the packet is a bit weird because of all the reserved fields, we set them to fresh symbols
     packet_addr = state.memory.allocate(1, 42, name="packet")
-    state.mem[packet_addr].uint64_t = data_addr + PACKET_MTU
-    state.memory.store(packet_addr + 8, state.symbol_factory.BVS("packet_reserved[0-3]", 14 * 8))
-    state.mem[packet_addr + 22].uint16_t = packet_device
-    state.memory.store(packet_addr + 24, state.symbol_factory.BVS("packet_reserved[4-6]", 16 * 8))
-    state.mem[packet_addr + 40].uint16_t = packet_length
+    state.memory.store(packet_addr, data_addr + PACKET_MTU, endness=state.arch.memory_endness)
+    state.memory.store(packet_addr + 8, state.symbol_factory.BVS("packet_reserved[0-3]", 14 * 8), endness=state.arch.memory_endness)
+    state.memory.store(packet_addr + 22, packet_device, endness=state.arch.memory_endness)
+    state.memory.store(packet_addr + 24, state.symbol_factory.BVS("packet_reserved[4-6]", 16 * 8), endness=state.arch.memory_endness)
+    state.memory.store(packet_addr + 40, packet_length, endness=state.arch.memory_endness)
 
     # attach to packet_addr just because we need something to attach to... TODO it'd be nice to have statewide metadata
-    state.metadata.set(packet_addr, NetworkMetadata(packet_get_data(state, packet_addr), packet_device, packet_length, []))
+    state.metadata.set(packet_addr, NetworkMetadata(packet_get_data(state, packet_addr), data_addr, packet_device, packet_length, []))
 
     return packet_addr
 
@@ -85,9 +86,11 @@ class Flood(angr.SimProcedure):
     def run(self, packet):
         packet = cast.ptr(packet)
 
-        _ = packet_get_data_addr(self.state, packet)
+        data_addr = packet_get_data_addr(self.state, packet)
         data = packet_get_data(self.state, packet)
         length = packet_get_length(self.state, packet)
 
         metadata = self.state.metadata.get_unique(NetworkMetadata)
         metadata.transmitted.append((data, length, None)) #, None, None, None))
+
+        self.state.memory.take(None, data_addr, None)

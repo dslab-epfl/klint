@@ -52,10 +52,6 @@ class OsPoolBorrow(angr.SimProcedure):
         out_index = cast.ptr(out_index)
         print("!!! os_pool_borrow", pool, time, out_index)
 
-        # Symbolism assumptions
-        if out_index.symbolic:
-            raise SymbexException("out_index cannot be symbolic") 
-
         # Preconditions
         poolp = self.state.metadata.get(Pool, pool)
         clock.assert_is_current_time(self.state, time) # equivalent to the "upperbounded" precondition; TODO improve this
@@ -140,10 +136,6 @@ class OsPoolUsed(angr.SimProcedure):
         out_time = cast.ptr(out_time)
         print("!!! os_pool_used", pool, index, out_time)
 
-        # Symbolism assumptions
-        if out_time.symbolic:
-            raise SymbexException("out_time cannot be symbolic")
-
         # Preconditions
         poolp = self.state.metadata.get(Pool, pool)
         if utils.can_be_false(self.state.solver, index < poolp.size):
@@ -178,10 +170,6 @@ class OsPoolExpire(angr.SimProcedure):
         time = cast.int64_t(time)
         out_index = cast.ptr(out_index)
         print("!!! os_pool_expire", pool, time, out_index)
-
-        # Symbolism assumptions
-        if out_index.symbolic:
-            raise SymbexException("out_index cannot be symbolic") 
 
         # Preconditions
         poolp = self.state.metadata.get(Pool, pool)

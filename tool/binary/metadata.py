@@ -12,7 +12,7 @@ from .exceptions import SymbexException
 # Optimization: objects are compared structurally instead of with the solver, which might cause spurious failures
 # (this does not work unless ghost maps are doing the "use existing items if possible in get" optimization)
 
-class Metadata(SimStatePlugin):
+class MetadataPlugin(SimStatePlugin):
     merge_funcs = {}
 
     # func_across takes as input ([states], [objs], ancestor_state)
@@ -27,9 +27,9 @@ class Metadata(SimStatePlugin):
     # metadata of that class is kept if it is structurally equal in all states and discarded otherwise
     @staticmethod
     def set_merge_funcs(cls, func_across, func_one):
-        if cls in Metadata.merge_funcs and Metadata.merge_funcs[cls] != (func_across, func_one):
+        if cls in MetadataPlugin.merge_funcs and MetadataPlugin.merge_funcs[cls] != (func_across, func_one):
             raise SymbexException("Cannot change merge functions once set")
-        Metadata.merge_funcs[cls] = (func_across, func_one)
+        MetadataPlugin.merge_funcs[cls] = (func_across, func_one)
 
 
     def __init__(self, items=None, merge_across_results=None):
@@ -40,7 +40,7 @@ class Metadata(SimStatePlugin):
 
     @SimStatePlugin.memo
     def copy(self, memo):
-        return Metadata(items=copy.deepcopy(self.items), merge_across_results=copy.deepcopy(self.merge_across_results))
+        return MetadataPlugin(items=copy.deepcopy(self.items), merge_across_results=copy.deepcopy(self.merge_across_results))
 
 
     # HACK: For merging to work correctly, immediately before calling:
@@ -64,8 +64,8 @@ class Metadata(SimStatePlugin):
             common_keys = ancestor_state.metadata.items[cls].keys()
 
             merged_items[cls] = HashDict()
-            if cls in Metadata.merge_funcs:
-                across_results[cls] = Metadata.merge_funcs[cls][0]([self.state] + other_states, common_keys, ancestor_state)
+            if cls in MetadataPlugin.merge_funcs:
+                across_results[cls] = MetadataPlugin.merge_funcs[cls][0]([self.state] + other_states, common_keys, ancestor_state)
                 # To check if we have reached a superset of the previous across_results, remove all values we now have
                 for (id, objs, _) in across_results[cls]:
                     if cls in across_previous_results:
@@ -75,7 +75,7 @@ class Metadata(SimStatePlugin):
                             pass # was not in across_previous_results[cls], that's OK
                 # Merge individual values, keeping track of whether any of them changed
                 for key in common_keys:
-                    (merged_value, has_changed) = Metadata.merge_funcs[cls][1]([self.state] + other_states, key, ancestor_state)
+                    (merged_value, has_changed) = MetadataPlugin.merge_funcs[cls][1]([self.state] + other_states, key, ancestor_state)
                     any_individual_changed = any_individual_changed or has_changed
                     merged_items[cls][key] = merged_value
             else:

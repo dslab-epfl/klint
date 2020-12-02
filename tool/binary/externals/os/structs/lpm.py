@@ -51,10 +51,6 @@ class LpmLookupElem(angr.SimProcedure):
         print(  f"!!! lpm_lookup_elem [lpm: {lpm}, key: {key}, " +
                 f"out_value: {out_value}, out_prefix: {out_prefix}, out_prefixlen: {out_prefixlen}]")
 
-        # Symbolism assumptions
-        if out_value.symbolic or out_prefix.symbolic or out_prefixlen.symbolic:
-            raise SymbexException("Out parameters cannot be symbolic")
-
         # Postconditions
         lpmp = self.state.metadata.get(Lpm, lpm)
         out_value_bv = self.state.symbol_factory.BVS("out_value", bitsizes.uint16_t)

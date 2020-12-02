@@ -17,11 +17,17 @@ def expect(state, expected):
 
 
 class SymbolFactoryReplayPlugin:
-    def __init__(self, wrapped):
-        self.wrapped = wrapped
+    def __init__(self, history):
+        self.history = history
+        self.index = 0
+
+    def dequeue(self):
+        result = self.history[self.index]
+        self.index = self.index + 1
+        return result
 
     def BVS(self, name, size):
-        (actual_name, result) = self.wrapped.dequeue()
+        (actual_name, result) = self.dequeue()
         if actual_name == name:
             return result
         raise ReplayException(f"BVS replay: expected {name} but got {actual_name}")
@@ -34,9 +40,9 @@ class MemoryAllocateOpaqueReplayPlugin:
         return getattr(self.wrapped, name)
 
     def allocate_opaque(self, name):
-        return expect(self.state, RecordAllocateOpaque(name, None)).result
+        return expect(self.wrapped.state, RecordAllocateOpaque(name, None)).result
 
-class GhostMapReplayPlugin:
+class GhostMapsReplayPlugin:
     def __init__(self, state):
         self.state = state
         self.metas = {}

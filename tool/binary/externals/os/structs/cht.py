@@ -49,10 +49,6 @@ class ChtFindPreferredAvailableBackend(angr.SimProcedure):
         print(  f"!!! cht_find_preferred_available_backend [obj: {obj}, obj_size: {obj_size}, " +
                 f"active_backends: {active_backends}, chosen_backend: {chosen_backend}]" )
 
-        # Symbolism assumptions
-        if chosen_backend.symbolic:
-            raise SymbexException("chosen_backend cannot be symbolic")
-
         # Preconditions
         cht = self.state.metadata.get(Cht, cht)
         active_backends = self.state.metadata.get(Pool, active_backends)

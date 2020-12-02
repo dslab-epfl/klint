@@ -24,7 +24,7 @@ class ExternalWrapper(SimProcedure):
         return ret
 
 
-class Path(SimStatePlugin):
+class PathPlugin(SimStatePlugin):
     def __init__(self, segments=None, ghost_segments=None, ghost_enabled=True):
         SimStatePlugin.__init__(self)
         self.segments = segments or []
@@ -34,7 +34,7 @@ class Path(SimStatePlugin):
 
     @SimStatePlugin.memo
     def copy(self, memo):
-        return Path(segments=self.segments.copy(), ghost_segments=self.ghost_segments.copy(), ghost_enabled=self.ghost_enabled)
+        return PathPlugin(segments=self.segments.copy(), ghost_segments=self.ghost_segments.copy(), ghost_enabled=self.ghost_enabled)
 
     def merge(self, others, merge_conditions, common_ancestor=None):
         self.segments = [] if common_ancestor is None else common_ancestor.segments
@@ -66,6 +66,13 @@ class Path(SimStatePlugin):
         result = self.ghost_segments[self.ghost_index]
         self.ghost_index = self.ghost_index + 1
         return result
+
+    def ghost_free(self, classes):
+        while self.ghost_index < len(self.ghost_segments) and type(self.ghost_segments[self.ghost_index]) in classes:
+            self.ghost_index = self.ghost_index + 1
+
+    def ghost_get_remaining(self):
+        return self.ghost_segments[self.ghost_index:]
 
 
     def print(self):

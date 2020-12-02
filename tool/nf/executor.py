@@ -8,7 +8,7 @@ import os
 # Us
 import binary.executor as bin_exec
 import binary.utils as utils
-from binary.ghost_maps import GhostMaps
+from binary.ghost_maps import GhostMapsPlugin
 from binary.externals.os import clock
 from binary.externals.os import config
 from binary.externals.os import debug

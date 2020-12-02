@@ -6,10 +6,10 @@ from angr.sim_state import SimState
 
 # Us
 from .exceptions import SymbexException
-from .ghost_maps import GhostMaps
+from .ghost_maps import GhostMapsPlugin
 from .memory_split import SplitMemory
-from .metadata import Metadata
-from .path import Path
+from .metadata import MetadataPlugin
+from .path import PathPlugin
 from .plugin_dummy import DummyPlugin
 from .symbol_factory import SymbolFactoryPlugin
 
@@ -119,16 +119,16 @@ def create_sim_manager(binary, ext_funcs, main_func_name, *main_func_args, base_
   # No explicit heap (we use our memory's "allocate" instead)
   SimState.register_default("heap", DummyPlugin)
   # Our plugins
-  SimState.register_default("metadata", Metadata)
+  SimState.register_default("metadata", MetadataPlugin)
   SimState.register_default("sym_memory", SplitMemory) # SimState translates "sym_memory" to "memory" under standard options
-  SimState.register_default("maps", GhostMaps)
-  SimState.register_default("path", Path)
+  SimState.register_default("maps", GhostMapsPlugin)
+  SimState.register_default("path", PathPlugin)
   SimState.register_default("symbol_factory", SymbolFactoryPlugin)
 
   proj = angr.Project(binary, auto_load_libs=False, use_sim_procedures=False, engine=CustomEngine)
   for (fname, fproc) in ext_funcs.items():
     if proj.loader.find_symbol(fname) is not None:
-      proj.hook_symbol(fname, Path.wrap(fproc()))
+      proj.hook_symbol(fname, PathPlugin.wrap(fproc()))
   main_func = proj.loader.find_symbol(main_func_name)
   # Not sure if this is needed but let's do it just in case, to make sure we don't change the base state
   base_state = base_state.copy() if base_state is not None else None
