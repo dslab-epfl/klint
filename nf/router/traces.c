@@ -1,3 +1,6 @@
+#include <stdbool.h>
+#include <stdint.h>
+
 //@ #include "proof/ghost_map.gh"
 
 /*
@@ -11,9 +14,10 @@ State 140656413748336 has 27 constraints
     HistoryNewArray(key_size=64, value_size=336, length=<BV64 0x1>, result=<BV64 packet_addr_opaque_14_64>)
     HistoryNewArray(key_size=64, value_size=8, length=<BV64 0x1>, result=<BV64 packetfracs_addr_opaque_15_64>)
     HistoryForall(obj=<BV64 packetfracs_addr_opaque_15_64>, pred=<Bool record_value_19_8 == 100>, pred_key=<BV64 record_key_18_64>, pred_value=<BV8 record_value_19_8>, result=<Bool packetfracs_addr_4_test_key_16_64 >= 0x1 || packetfracs_addr_4_test_value_17_8 == 100>)
+    
     HistoryGet(obj=<BV64 packetfracs_addr_opaque_15_64>, key=<BV64 0x0>, result=(<BV8 packetfracs_addr_4_value_20_8>, <Bool BoolS(packetfracs_addr_4_present_21_-1)>))
-
     HistoryGet(obj=<BV64 packet_addr_opaque_14_64>, key=<BV64 0x0>, result=(<BV336 packet_addr_3_value_22_336>, <Bool BoolS(packet_addr_3_present_23_-1)>))
+   
     HistorySet(obj=<BV64 packet_addr_opaque_14_64>, key=<BV64 0x0>, value=<BV336 packet_addr_3_value_22_336[335:64] .. packet_data_addr_opaque_7_64 + 0x5ea>)
     HistoryGet(obj=<BV64 packetfracs_addr_opaque_15_64>, key=<BV64 0x0>, result=(<BV8 packetfracs_addr_4_value_20_8>, <Bool BoolS(packetfracs_addr_4_present_21_-1)>))
     HistoryGet(obj=<BV64 packet_addr_opaque_14_64>, key=<BV64 0x0>, result=(<BV336 packet_addr_3_value_22_336[335:64] .. packet_data_addr_opaque_7_64 + 0x5ea>, <Bool True>))
@@ -33,31 +37,64 @@ State 140656413748336 has 27 constraints
     HistoryGet(obj=<BV64 packet_data_addr_opaque_7_64>, key=<BV64 0x0>, result=(<BV24224 packet_data_addr_1_value_61_24224>, <Bool BoolS(packet_data_addr_1_present_62_-1)>))
 */
 
+bool any_bool()
+//@ requires true;
+//@ ensures true;
+{
+    return false;
+}
+
+uint8_t any_uint8_t()
+//@ requires true;
+//@ ensures true;
+{
+    return 0;
+}
+
 /*@
-    fixpoint bool forall_fix(int key, int value) {
-        return value == 100;
-    }
+	fixpoint bool forall_fix(int key, int value) {
+		return value == 100;
+	}
 @*/
 
-void not_ipv4_over_ethernet() {
-    /*@
-    list<pair<int, int> > lpm_table_opaque_3_64 = nil;
-    list<pair<int, int> > packet_data_addr_opaque_7_64 = nil;
-    list<pair<int, int> > packet_datafracs_addr_opaque_8_64 = nil;
-    assume(ghostmap_forall(packet_datafracs_addr_opaque_8_64, forall_fix) == ???);
+void not_ipv4_over_ethernet()
+//@ requires true;
+//@ ensures true;
+{
+    //@ list<pair<int, int> > lpm_table_opaque_3_64 = nil;
+    //@ list<pair<int, int> > packet_data_addr_opaque_7_64 = nil;
+    //@ list<pair<int, int> > packet_datafracs_addr_opaque_8_64 = nil;
+    int packet_datafracs_addr_2_test_key_9_64;
+    int packet_datafracs_addr_2_test_value_10_8;
+    //@ assume(ghostmap_forall(packet_datafracs_addr_opaque_8_64, forall_fix) == (packet_datafracs_addr_2_test_key_9_64 >= 0x1 || packet_datafracs_addr_2_test_value_10_8 == 100));
 
-    list<pair<int, int> > packet_addr_opaque_14_64 = nil;
-    list<pair<int, int> > packetfracs_addr_opaque_15_64 = nil;
-    assume(ghostmap_forall(packetfracs_addr_opaque_15_64, forall_fix) == ???);
+    //@ list<pair<int, int> > packet_addr_opaque_14_64 = nil;
+    //@ list<pair<int, int> > packetfracs_addr_opaque_15_64 = nil;
+    int packetfracs_addr_4_test_key_16_64;
+    int packetfracs_addr_4_test_value_17_8;
+    //@ assume(ghostmap_forall(packetfracs_addr_opaque_15_64, forall_fix) == (packetfracs_addr_4_test_key_16_64 >= 0x1 || packetfracs_addr_4_test_value_17_8 == 100));
 
-    // int packetfracs_addr_4_value_20_8;
-    // switch(ghostmap_get(packetfracs_addr_opaque_15_64, 0)) {
-    //     case none:
-    //     case some(value):
-    //         packetfracs_addr_4_value_20_8 = value;
-    // }
+    bool packetfracs_addr_4_present_21_1;
+    uint8_t packetfracs_addr_4_value_20_8;
+    if (packetfracs_addr_4_present_21_1)
+    {
+        //@ assume (ghostmap_get(packetfracs_addr_opaque_15_64, 0) == some(packetfracs_addr_4_value_20_8));
+    }
+    else
+    {
+        //@ assume (ghostmap_get(packetfracs_addr_opaque_15_64, 0) == none);
+    }
 
-    @*/
+    bool packet_addr_3_present_23_1;
+    int packet_addr_3_value_22_336; 
+    if (packet_addr_3_value_22_336) {
+        //@ assume (ghostmap_get(packet_addr_opaque_14_64, 0) == some(packet_addr_3_value_22_336));
+    } else {
+        //@ assume (ghostmap_get(packet_addr_opaque_14_64, 0) == none);
+    }
+
+    // //@ assume (ghostmap_set(packet_addr_opaque_14_64, 0, packet_addr_3_value_22_336 ))
+    //@ assert (false);
 }
 
 /*
@@ -97,8 +134,8 @@ State 140656413500464 has 30 constraints
     HistoryGet(obj=<BV64 lpm_table_opaque_3_64>, key=<BV40 out_prefix_68_32 .. out_prefixlen_69_8>, result=(<BV16 lpm_table_0_value_74_16>, <Bool BoolS(lpm_table_0_present_75_-1)>))
 */
 
-void lpm_lookup_fail() {
-
+void lpm_lookup_fail()
+{
 }
 
 /*
@@ -149,6 +186,6 @@ State 140656413149744 has 30 constraints
     HistorySet(obj=<BV64 packet_datafracs_addr_opaque_8_64>, key=<BV64 0x0>, value=<BV8 0>)
 */
 
-void lpm_lookup_success() {
-
+void lpm_lookup_success()
+{
 }
