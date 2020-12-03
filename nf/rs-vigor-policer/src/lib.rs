@@ -10,48 +10,10 @@ macro_rules! cstr {
   );
 }
 
-extern "C" {
-    // OS API
-    fn os_config_get_u16(name: *const c_char) -> u16;
-    fn os_config_get_u64(name: *const c_char) -> u64;
-    fn os_memory_alloc(count: usize, size: usize) -> *mut u8;
-    fn os_clock_time() -> TimeT;
-    fn os_net_transmit(
-        packet: *mut OsNetPacket,
-        device: u16,
-        ether_header: *mut OsNetEtherHeader,
-        ipv4_header: *mut OsNetIPv4Header,
-        tcpudp_header: *mut OsNetTcpUdpHeader,
-    );
-
-    // Map API
-    fn os_map_alloc(key_size: usize, capacity: usize) -> *mut OsMap;
-    fn os_map_get(map: *mut OsMap, key_ptr: *mut u8, out_value: *mut *mut u8) -> bool;
-    fn os_map_set(map: *mut OsMap, key_ptr: *mut u8, value: *mut u8);
-    fn os_map_remove(map: *mut OsMap, key_ptr: *mut u8);
-
-    // Pool API
-    fn os_pool_alloc(size: usize) -> *mut OsPool;
-    fn os_pool_borrow(pool: *mut OsPool, time: TimeT, out_index: *mut usize) -> bool;
-    // fn os_pool_return(pool: *mut OsPool, index: usize);
-    fn os_pool_refresh(pool: *mut OsPool, time: TimeT, index: usize);
-    // fn os_pool_used(pool: *mut OsPool, index: usize, out_time: *mut TimeT) -> bool;
-    fn os_pool_expire(pool: *mut OsPool, time: TimeT, out_index: *mut usize) -> bool;
-}
-
 #[repr(C)]
 pub struct PolicerBucket {
     size: i64,
     time: TimeT,
-}
-
-#[repr(C)]
-pub struct OsMap {
-    _private: [u8; 0],
-}
-#[repr(C)]
-pub struct OsPool {
-    _private: [u8; 0],
 }
 
 static mut WAN_DEVICE: u16 = 0;
@@ -90,20 +52,17 @@ pub unsafe extern "C" fn nf_init(devices_count: u16) -> bool {
         burst
     };
     MAX_FLOWS = {
-        let max_flows = os_config_get_u64(cstr!("burst"));
+        let max_flows = os_config_get_u64(cstr!("max flows"));
         if max_flows == 0 || max_flows > (usize::MAX / 16 - 2) as u64 {
             return false;
         }
         max_flows
     };
     ADDRESSES = os_memory_alloc(MAX_FLOWS as usize, size_of::<u32>() as usize) as *mut u32;
-    BUCKETS = os_memory_alloc(MAX_FLOWS as usize, size_of::<PolicerBucket>() as usize)
-        as *mut PolicerBucket;
+    BUCKETS = os_memory_alloc(MAX_FLOWS as usize, size_of::<PolicerBucket>() as usize) as *mut PolicerBucket;
     MAP = os_map_alloc(size_of::<u32>(), MAX_FLOWS as usize);
     POOL = os_pool_alloc(MAX_FLOWS as usize);
-    if MAP == null_mut() || POOL == null_mut() {
-        return false;
-    }
+
     true
 }
 
