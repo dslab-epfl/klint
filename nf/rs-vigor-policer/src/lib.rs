@@ -118,7 +118,7 @@ pub unsafe extern "C" fn nf_handle(packet: *mut OsNetPacket) {
                 os_map_set(
                     MAP,
                     ADDRESSES.offset(index as isize) as *mut u8,
-                    (&mut index as *mut usize) as *mut u8,
+                    index as *mut u8,
                 );
                 (*BUCKETS.offset(index as isize)).size = BURST - (*packet).length as i64;
                 (*BUCKETS.offset(index as isize)).time = time;

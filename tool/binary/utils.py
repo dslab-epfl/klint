@@ -36,7 +36,7 @@ def definitely_false(solver, cond):
   return not can_be_true(solver, cond)
 
 def get_if_constant(solver, expr):
-  sols = solver.eval_upto(expr, 2, cast_to=int)
+  sols = solver.eval_upto(expr, 2)
   if len(sols) == 0:
     raise SymbexException("Could not evaluate: " + str(expr))
   if len(sols) == 1:
