@@ -2,6 +2,9 @@
 #include <stdint.h>
 
 //@ #include "proof/ghost_map.gh"
+//@ #include "bitops.gh"
+//@ #include "nat.gh"
+//@ #include "listutils.gh"
 
 /*
 State 140656413748336 has 27 constraints
@@ -14,10 +17,8 @@ State 140656413748336 has 27 constraints
     HistoryNewArray(key_size=64, value_size=336, length=<BV64 0x1>, result=<BV64 packet_addr_opaque_14_64>)
     HistoryNewArray(key_size=64, value_size=8, length=<BV64 0x1>, result=<BV64 packetfracs_addr_opaque_15_64>)
     HistoryForall(obj=<BV64 packetfracs_addr_opaque_15_64>, pred=<Bool record_value_19_8 == 100>, pred_key=<BV64 record_key_18_64>, pred_value=<BV8 record_value_19_8>, result=<Bool packetfracs_addr_4_test_key_16_64 >= 0x1 || packetfracs_addr_4_test_value_17_8 == 100>)
-    
     HistoryGet(obj=<BV64 packetfracs_addr_opaque_15_64>, key=<BV64 0x0>, result=(<BV8 packetfracs_addr_4_value_20_8>, <Bool BoolS(packetfracs_addr_4_present_21_-1)>))
     HistoryGet(obj=<BV64 packet_addr_opaque_14_64>, key=<BV64 0x0>, result=(<BV336 packet_addr_3_value_22_336>, <Bool BoolS(packet_addr_3_present_23_-1)>))
-   
     HistorySet(obj=<BV64 packet_addr_opaque_14_64>, key=<BV64 0x0>, value=<BV336 packet_addr_3_value_22_336[335:64] .. packet_data_addr_opaque_7_64 + 0x5ea>)
     HistoryGet(obj=<BV64 packetfracs_addr_opaque_15_64>, key=<BV64 0x0>, result=(<BV8 packetfracs_addr_4_value_20_8>, <Bool BoolS(packetfracs_addr_4_present_21_-1)>))
     HistoryGet(obj=<BV64 packet_addr_opaque_14_64>, key=<BV64 0x0>, result=(<BV336 packet_addr_3_value_22_336[335:64] .. packet_data_addr_opaque_7_64 + 0x5ea>, <Bool True>))
@@ -37,23 +38,9 @@ State 140656413748336 has 27 constraints
     HistoryGet(obj=<BV64 packet_data_addr_opaque_7_64>, key=<BV64 0x0>, result=(<BV24224 packet_data_addr_1_value_61_24224>, <Bool BoolS(packet_data_addr_1_present_62_-1)>))
 */
 
-bool any_bool()
-//@ requires true;
-//@ ensures true;
-{
-    return false;
-}
-
-uint8_t any_uint8_t()
-//@ requires true;
-//@ ensures true;
-{
-    return 0;
-}
-
 /*@
-	fixpoint bool forall_fix(int key, int value) {
-		return value == 100;
+	fixpoint bool forall_fix(list<bool> key, list<bool> value) {
+		return int_of_bits(0, value) == 100;
 	}
 @*/
 
@@ -61,15 +48,16 @@ void not_ipv4_over_ethernet()
 //@ requires true;
 //@ ensures true;
 {
-    //@ list<pair<int, int> > lpm_table_opaque_3_64 = nil;
-    //@ list<pair<int, int> > packet_data_addr_opaque_7_64 = nil;
-    //@ list<pair<int, int> > packet_datafracs_addr_opaque_8_64 = nil;
+    //@ list<pair<list<bool>, list<bool> > > lpm_table_opaque_3_64 = nil;
+    //@ list<pair<list<bool>, list<bool> > > packet_data_addr_opaque_7_64 = nil;
+    //@ list<pair<list<bool>, list<bool> > > packet_datafracs_addr_opaque_8_64 = nil;
+    //@ list<pair<list<bool>, list<bool> > > packet_addr_opaque_14_64 = nil;
+    //@ list<pair<list<bool>, list<bool> > > packetfracs_addr_opaque_15_64 = nil;
+
     int packet_datafracs_addr_2_test_key_9_64;
     int packet_datafracs_addr_2_test_value_10_8;
     //@ assume(ghostmap_forall(packet_datafracs_addr_opaque_8_64, forall_fix) == (packet_datafracs_addr_2_test_key_9_64 >= 0x1 || packet_datafracs_addr_2_test_value_10_8 == 100));
 
-    //@ list<pair<int, int> > packet_addr_opaque_14_64 = nil;
-    //@ list<pair<int, int> > packetfracs_addr_opaque_15_64 = nil;
     int packetfracs_addr_4_test_key_16_64;
     int packetfracs_addr_4_test_value_17_8;
     //@ assume(ghostmap_forall(packetfracs_addr_opaque_15_64, forall_fix) == (packetfracs_addr_4_test_key_16_64 >= 0x1 || packetfracs_addr_4_test_value_17_8 == 100));
@@ -78,23 +66,36 @@ void not_ipv4_over_ethernet()
     uint8_t packetfracs_addr_4_value_20_8;
     if (packetfracs_addr_4_present_21_1)
     {
-        //@ assume (ghostmap_get(packetfracs_addr_opaque_15_64, 0) == some(packetfracs_addr_4_value_20_8));
+        //@ assume (ghostmap_get(packetfracs_addr_opaque_15_64, snd(bits_of_int(0, N64))) == some(snd(bits_of_int(packetfracs_addr_4_value_20_8, N8))));
     }
     else
     {
-        //@ assume (ghostmap_get(packetfracs_addr_opaque_15_64, 0) == none);
+        //@ assume (ghostmap_get(packetfracs_addr_opaque_15_64, snd(bits_of_int(0, N64))) == none);
     }
 
-    bool packet_addr_3_present_23_1;
-    int packet_addr_3_value_22_336; 
-    if (packet_addr_3_value_22_336) {
-        //@ assume (ghostmap_get(packet_addr_opaque_14_64, 0) == some(packet_addr_3_value_22_336));
-    } else {
-        //@ assume (ghostmap_get(packet_addr_opaque_14_64, 0) == none);
+    bool packet_datafracs_addr_2_present_60_1;
+    uint8_t packet_datafracs_addr_2_value_59_8;
+    if (packet_datafracs_addr_2_present_60_1)
+    {
+        //@ assume (ghostmap_get(packet_datafracs_addr_opaque_8_64, snd(bits_of_int(0, N64))) == some(snd(bits_of_int(packet_datafracs_addr_2_value_59_8, N8))));
+    }
+    else
+    {
+        //@ assume (ghostmap_get(packet_datafracs_addr_opaque_8_64, snd(bits_of_int(0, N64))) == none);
     }
 
-    // //@ assume (ghostmap_set(packet_addr_opaque_14_64, 0, packet_addr_3_value_22_336 ))
-    //@ assert (false);
+    bool packet_data_addr_1_present_62_1;
+    int packet_data_addr_1_value_61_24224; // @TODO Actually a bitvector of length 24224. How do we store this ?
+    if (packet_data_addr_1_present_62_1)
+    {
+        //@ assume (ghostmap_get(packet_data_addr_opaque_7_64, snd(bits_of_int(0, N64))) == some(snd(bits_of_int(packet_data_addr_1_value_61_24224, nat_of_int(24224)))));
+    }
+    else
+    {
+        //@ assume (ghostmap_get(packet_data_addr_opaque_7_64, snd(bits_of_int(0, N64))) == none);
+    }
+
+    //@ assert (true);
 }
 
 /*
@@ -134,8 +135,86 @@ State 140656413500464 has 30 constraints
     HistoryGet(obj=<BV64 lpm_table_opaque_3_64>, key=<BV40 out_prefix_68_32 .. out_prefixlen_69_8>, result=(<BV16 lpm_table_0_value_74_16>, <Bool BoolS(lpm_table_0_present_75_-1)>))
 */
 
+/*@
+	fixpoint bool forall_lpm(int out_prefix, int out_prefixlen, list<bool> key, list<bool> value) {
+        // shorter prefix || no_match || match
+        return int_of_bits(0, take(8, key)) < out_prefixlen || int_of_bits(0, drop(40 - int_of_bits(0, take(8, key)), key)) == int_of_bits(0, drop(40 - out_prefixlen, snd(bits_of_int(out_prefix, N32)))) || int_of_bits(0, key) == ((out_prefix * pow_nat(2, N8)) + out_prefixlen);
+    }
+@*/
+
 void lpm_lookup_fail()
+//@ requires true;
+//@ ensures true;
 {
+    //@ list<pair<list<bool>, list<bool> > > lpm_table_opaque_3_64 = nil;
+    //@ list<pair<list<bool>, list<bool> > > packet_data_addr_opaque_7_64 = nil;
+    //@ list<pair<list<bool>, list<bool> > > packet_datafracs_addr_opaque_8_64 = nil;
+    //@ list<pair<list<bool>, list<bool> > > packet_addr_opaque_14_64 = nil;
+    //@ list<pair<list<bool>, list<bool> > > packetfracs_addr_opaque_15_64 = nil;
+
+    int packet_datafracs_addr_2_test_key_9_64;
+    int packet_datafracs_addr_2_test_value_10_8;
+    //@ assume(ghostmap_forall(packet_datafracs_addr_opaque_8_64, forall_fix) == (packet_datafracs_addr_2_test_key_9_64 >= 0x1 || packet_datafracs_addr_2_test_value_10_8 == 100));
+
+    int packetfracs_addr_4_test_key_16_64;
+    int packetfracs_addr_4_test_value_17_8;
+    //@ assume(ghostmap_forall(packetfracs_addr_opaque_15_64, forall_fix) == (packetfracs_addr_4_test_key_16_64 >= 0x1 || packetfracs_addr_4_test_value_17_8 == 100));
+
+    bool packetfracs_addr_4_present_21_1;
+    uint8_t packetfracs_addr_4_value_20_8;
+    if (packetfracs_addr_4_present_21_1)
+    {
+        //@ assume (ghostmap_get(packetfracs_addr_opaque_15_64, snd(bits_of_int(0, N64))) == some(snd(bits_of_int(packetfracs_addr_4_value_20_8, N8))));
+    }
+    else
+    {
+        //@ assume (ghostmap_get(packetfracs_addr_opaque_15_64, snd(bits_of_int(0, N64))) == none);
+    }
+
+    bool packet_datafracs_addr_2_present_60_1;
+    uint8_t packet_datafracs_addr_2_value_59_8;
+    if (packet_datafracs_addr_2_present_60_1)
+    {
+        //@ assume (ghostmap_get(packet_datafracs_addr_opaque_8_64, snd(bits_of_int(0, N64))) == some(snd(bits_of_int(packet_datafracs_addr_2_value_59_8, N8))));
+    }
+    else
+    {
+        //@ assume (ghostmap_get(packet_datafracs_addr_opaque_8_64, snd(bits_of_int(0, N64))) == none);
+    }
+
+    bool packet_data_addr_1_present_62_1;
+    int packet_data_addr_1_value_61_24224; // @TODO Actually a bitvector of length 24224. How do we store this ?
+    if (packet_data_addr_1_present_62_1)
+    {
+        //@ assume (ghostmap_get(packet_data_addr_opaque_7_64, snd(bits_of_int(0, N64))) == some(snd(bits_of_int(packet_data_addr_1_value_61_24224, nat_of_int(24224)))));
+    }
+    else
+    {
+        //@ assume (ghostmap_get(packet_data_addr_opaque_7_64, snd(bits_of_int(0, N64))) == none);
+    }
+
+    int out_prefix_68_32;
+    int out_prefixlen_69_8;
+    int havoced_length_5_64;
+    int lpm_table_0_test_key_70_40;
+    //@ list<bool> key = snd(bits_of_int(lpm_table_0_test_key_70_40, nat_of_int(40)));
+    //@ bool shorter_prefix = int_of_bits(0, take(8, key)) < out_prefixlen_69_8;
+    //@ bool no_match = int_of_bits(0, drop(40 - int_of_bits(0, take(8, key)), key)) == int_of_bits(0, drop(40 - out_prefixlen_69_8, snd(bits_of_int(out_prefix_68_32, N32))));
+    //@ bool match = int_of_bits(0, key) == ((out_prefix_68_32 * pow_nat(2, N8)) + out_prefixlen_69_8);
+    //@ assume(ghostmap_forall(lpm_table_opaque_3_64, (forall_lpm)(out_prefix_68_32, out_prefixlen_69_8)) == (0 >= havoced_length_5_64 || shorter_prefix || no_match || match));
+
+    bool lpm_table_0_present_75_1;
+    uint16_t lpm_table_0_value_74_16;
+    if (lpm_table_0_present_75_1)
+    {
+        //@ assume (ghostmap_get(lpm_table_opaque_3_64, snd(bits_of_int(0, N64))) == some(snd(bits_of_int(lpm_table_0_value_74_16, N16))));
+    }
+    else
+    {
+        //@ assume (ghostmap_get(lpm_table_opaque_3_64, snd(bits_of_int(0, N64))) == none);
+    }
+
+    //@ assert (true);
 }
 
 /*
@@ -187,5 +266,78 @@ State 140656413149744 has 30 constraints
 */
 
 void lpm_lookup_success()
+//@ requires true;
+//@ ensures true;
 {
+    //@ list<pair<list<bool>, list<bool> > > lpm_table_opaque_3_64 = nil;
+    //@ list<pair<list<bool>, list<bool> > > packet_data_addr_opaque_7_64 = nil;
+    //@ list<pair<list<bool>, list<bool> > > packet_datafracs_addr_opaque_8_64 = nil;
+    //@ list<pair<list<bool>, list<bool> > > packet_addr_opaque_14_64 = nil;
+    //@ list<pair<list<bool>, list<bool> > > packetfracs_addr_opaque_15_64 = nil;
+
+    int packet_datafracs_addr_2_test_key_9_64;
+    int packet_datafracs_addr_2_test_value_10_8;
+    //@ assume(ghostmap_forall(packet_datafracs_addr_opaque_8_64, forall_fix) == (packet_datafracs_addr_2_test_key_9_64 >= 0x1 || packet_datafracs_addr_2_test_value_10_8 == 100));
+
+    int packetfracs_addr_4_test_key_16_64;
+    int packetfracs_addr_4_test_value_17_8;
+    //@ assume(ghostmap_forall(packetfracs_addr_opaque_15_64, forall_fix) == (packetfracs_addr_4_test_key_16_64 >= 0x1 || packetfracs_addr_4_test_value_17_8 == 100));
+
+    bool packetfracs_addr_4_present_21_1;
+    uint8_t packetfracs_addr_4_value_20_8;
+    if (packetfracs_addr_4_present_21_1)
+    {
+        //@ assume (ghostmap_get(packetfracs_addr_opaque_15_64, snd(bits_of_int(0, N64))) == some(snd(bits_of_int(packetfracs_addr_4_value_20_8, N8))));
+    }
+    else
+    {
+        //@ assume (ghostmap_get(packetfracs_addr_opaque_15_64, snd(bits_of_int(0, N64))) == none);
+    }
+
+    bool packet_datafracs_addr_2_present_60_1;
+    uint8_t packet_datafracs_addr_2_value_59_8;
+    if (packet_datafracs_addr_2_present_60_1)
+    {
+        //@ assume (ghostmap_get(packet_datafracs_addr_opaque_8_64, snd(bits_of_int(0, N64))) == some(snd(bits_of_int(packet_datafracs_addr_2_value_59_8, N8))));
+    }
+    else
+    {
+        //@ assume (ghostmap_get(packet_datafracs_addr_opaque_8_64, snd(bits_of_int(0, N64))) == none);
+    }
+
+    bool packet_data_addr_1_present_62_1;
+    int packet_data_addr_1_value_61_24224; // @TODO Actually a bitvector of length 24224. How do we store this ?
+    if (packet_data_addr_1_present_62_1)
+    {
+        //@ assume (ghostmap_get(packet_data_addr_opaque_7_64, snd(bits_of_int(0, N64))) == some(snd(bits_of_int(packet_data_addr_1_value_61_24224, nat_of_int(24224)))));
+    }
+    else
+    {
+        //@ assume (ghostmap_get(packet_data_addr_opaque_7_64, snd(bits_of_int(0, N64))) == none);
+    }
+
+    int out_prefix_68_32;
+    int out_prefixlen_69_8;
+    int havoced_length_5_64;
+    int lpm_table_0_test_key_70_40;
+    //@ list<bool> key = snd(bits_of_int(lpm_table_0_test_key_70_40, nat_of_int(40)));
+    //@ bool shorter_prefix = int_of_bits(0, take(8, key)) < out_prefixlen_69_8;
+    //@ bool no_match = int_of_bits(0, drop(40 - int_of_bits(0, take(8, key)), key)) == int_of_bits(0, drop(40 - out_prefixlen_69_8, snd(bits_of_int(out_prefix_68_32, N32))));
+    //@ bool match = int_of_bits(0, key) == ((out_prefix_68_32 * pow_nat(2, N8)) + out_prefixlen_69_8);
+    //@ assume(ghostmap_forall(lpm_table_opaque_3_64, (forall_lpm)(out_prefix_68_32, out_prefixlen_69_8)) == (0 >= havoced_length_5_64 || shorter_prefix || no_match || match));
+
+    bool lpm_table_0_present_75_1;
+    uint16_t lpm_table_0_value_74_16;
+    if (lpm_table_0_present_75_1)
+    {
+        //@ assume (ghostmap_get(lpm_table_opaque_3_64, snd(bits_of_int(0, N64))) == some(snd(bits_of_int(lpm_table_0_value_74_16, N16))));
+    }
+    else
+    {
+        //@ assume (ghostmap_get(lpm_table_opaque_3_64, snd(bits_of_int(0, N64))) == none);
+    }
+
+    //@ ghostmap_set(packet_datafracs_addr_opaque_8_64, snd(bits_of_int(0, N64)), snd(bits_of_int(0, N8)));
+
+    //@ assert (true);
 }
