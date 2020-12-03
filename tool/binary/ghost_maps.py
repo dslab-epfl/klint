@@ -48,9 +48,9 @@ def eval_map_ast_core(expr, replace_dict, has_handler, get_handler):
         return leaf.replace_dict(replace_dict, leaf_operation=replacer)
     return replacer(expr)
 
-def freeze_map_ast_versions(expr, version):
+def freeze_map_ast_versions(state, expr):
     def map_handler(ast, replacer):
-        return ast.make_like(ast.op, [replacer(a) for a in ast.args[0:len(ast.args)-1]] + [version])
+        return ast.make_like(ast.op, [replacer(a) for a in ast.args[0:len(ast.args)-1]] + [state.maps[ast.args[0]].version()])
     return eval_map_ast_core(expr, {}, map_handler, map_handler)
 
 def eval_map_ast(state, expr, replace_dict={}):
@@ -66,11 +66,12 @@ def eval_map_ast(state, expr, replace_dict={}):
 
 class MapInvariant:
     @staticmethod
-    def new(meta, expr_factory):
+    def new(state, meta, expr_factory):
         key = claripy.BVS("KEY", meta.key_size, explicit_name=True)
         value = claripy.BVS("VALUE", meta.value_size, explicit_name=True)
         present = claripy.BoolS("PRESENT", explicit_name=True)
         expr = expr_factory(MapItem(key, value, present))
+        expr = freeze_map_ast_versions(state, expr)
         return MapInvariant(expr, key, value, present)
 
     def __init__(self, expr, key, value, present):
@@ -82,15 +83,15 @@ class MapInvariant:
     def __call__(self, state, item):
         return eval_map_ast(state, self.expr, replace_dict={self.key: item.key, self.value: item.value, self.present: item.present})
 
-    def with_disjunction(self, expr_factory):
-        return MapInvariant(self.expr | expr_factory(MapItem(self.key, self.value, self.present)), self.key, self.value, self.present)
+    def with_expr(self, expr_factory):
+        return MapInvariant(expr_factory(self.expr, MapItem(self.key, self.value, self.present)), self.key, self.value, self.present)
 
 
 class Map:
     # === Public API ===
 
     @staticmethod
-    def new(key_size, value_size, name, _invariants=None, _length=None, _name_counter=[0]): # use a list for the counter as a byref equivalent
+    def new(state, key_size, value_size, name, _invariants=None, _length=None, _name_counter=[0]): # use a list for the counter as a byref equivalent
         def to_int(n, name):
             if isinstance(n, int):
                 return n
@@ -109,15 +110,15 @@ class Map:
 
         result = Map(MapMeta(name, key_size, value_size), _length, [], [])
         if _invariants is None:
-            result.add_invariant(lambda i: ~i.present)
+            result.add_invariant(state, lambda i: ~i.present)
         else:
             for inv in _invariants:
-                result.add_invariant(inv)
+                result.add_invariant(state, inv)
         return result
     
     @staticmethod
-    def new_array(key_size, value_size, length, name):
-        return Map.new(key_size, value_size, name, _invariants=[lambda i: (i.key < length) == i.present], _length=length)
+    def new_array(state, key_size, value_size, length, name):
+        return Map.new(state, key_size, value_size, name, _invariants=[lambda i: (i.key < length) == i.present], _length=length)
 
     def length(self):
         return self._length
@@ -201,6 +202,8 @@ class Map:
         )
 
     def forall(self, state, pred):
+        # NOTE !!! pred is a MapInvariant here, we already did present=>pred in GhostMapsPlugin.forall
+
         # Optimization: If the map is empty, the answer is always true
         if self.is_empty():
             return claripy.true
@@ -208,17 +211,18 @@ class Map:
         # Let K' be a fresh symbolic key and V' a fresh symbolic value
         test_key = claripy.BVS(self.meta.name + "_test_key", self.meta.key_size)
         test_value = claripy.BVS(self.meta.name + "_test_value", self.meta.value_size)
+        test_item = MapItem(test_key, test_value, claripy.true)
 
         # Let L be the number of known items whose presence bit is set
         # Let F = ((P1 => pred(K1, V1)) and (P2 => pred(K2, V2)) and (...) and ((L < length(M)) => (invariant(M)(K', V', true) => pred(K', V'))))
         # Optimization: No need to even call the invariant if we're sure all items are known
-        result = claripy.And(*[Implies(i.present, eval_map_ast(state, freeze_map_ast_versions(pred(i.key, i.value), self.version()))) for i in self.known_items()])
+        result = claripy.And(*[pred(state, i) for i in self.known_items()])
         if utils.can_be_false(state.solver, self.known_length() == self.length()):
             result &= Implies(
                           self.known_length() < self.length(),
                           Implies(
-                              self.invariant()(state, MapItem(test_key, test_value, claripy.true)),
-                              eval_map_ast(state, freeze_map_ast_versions(pred(test_key, test_value), self.version()))
+                              self.invariant()(state, test_item),
+                              pred(state, test_item)
                           )
                       )
 
@@ -229,7 +233,7 @@ class Map:
             return claripy.false
 
         # MUTATE the map's invariant by adding F => (P => pred(K, V))
-        self.add_invariant(lambda i, ver=self.version(): Implies(result, Implies(i.present, freeze_map_ast_versions(pred(i.key, i.value), ver))))
+        self.add_invariant(state, pred.with_expr(lambda e, i: Implies(result, e)))
 
         # Return F
         return result
@@ -241,7 +245,7 @@ class Map:
             self._length = claripy.BVS("havoced_length", max_length.size())
             utils.add_constraints_and_check_sat(state, self._length.ULE(max_length))
         if is_array:
-            self._invariants = [MapInvariant.new(self.meta, lambda i, length=self._length: (i.key < length) == i.present)]
+            self._invariants = [MapInvariant.new(state, self.meta, lambda i, length=self._length: (i.key < length) == i.present)]
         else:
             self._invariants = []
         self._known_items = []
@@ -275,8 +279,11 @@ class Map:
     def invariant(self):
         return lambda st, i, invs=self.invariant_conjunctions(): claripy.And(*[inv(st, i) for inv in invs])
 
-    def add_invariant(self, expr_factory):
-        self._invariants.append(MapInvariant.new(self.meta, expr_factory))
+    def add_invariant(self, state, inv):
+        if isinstance(inv, MapInvariant):
+            self._invariants.append(inv)
+        else:
+            self._invariants.append(MapInvariant.new(state, self.meta, inv))
 
     def with_invariant_conjunctions(self, new_invariant_conjunctions):
         result = self.__copy__()
@@ -350,20 +357,20 @@ RecordLength = namedtuple('RecordLength', ['obj', 'result'])
 RecordGet = namedtuple('RecordGet', ['obj', 'key', 'result'])
 RecordSet = namedtuple('RecordSet', ['obj', 'key', 'value'])
 RecordRemove = namedtuple('RecordRemove', ['obj', 'key'])
-RecordForall = namedtuple('RecordForall', ['obj', 'pred', 'pred_key', 'pred_value', 'result'])
+RecordForall = namedtuple('RecordForall', ['obj', 'pred', 'result'])
 
 class GhostMapsPlugin(SimStatePlugin):
     # === Public API ===
 
     def new(self, key_size, value_size, name):
         obj = self.state.memory.allocate_opaque(name)
-        self.state.metadata.set(obj, Map.new(key_size, value_size, name))
+        self.state.metadata.set(obj, Map.new(self.state, key_size, value_size, name))
         self.state.path.ghost_record(lambda: RecordNew(key_size, value_size, obj))
         return obj
 
     def new_array(self, key_size, value_size, length, name):
         obj = self.state.memory.allocate_opaque(name)
-        self.state.metadata.set(obj, Map.new_array(key_size, value_size, length, name))
+        self.state.metadata.set(obj, Map.new_array(self.state, key_size, value_size, length, name))
         self.state.path.ghost_record(lambda: RecordNewArray(key_size, value_size, length, obj))
         return obj
 
@@ -397,12 +404,13 @@ class GhostMapsPlugin(SimStatePlugin):
 
     def forall(self, obj, pred):
         map = self[obj]
+        pred = MapInvariant.new(self.state, map.meta, (lambda i, old_pred=pred: Implies(i.present, old_pred(i.key, i.value))))
         LOG(self.state, "forall " + map.meta.name + " ( " + str(len(self.state.solver.constraints)) + " constraints)")
         result = map.forall(self.state, pred)
         LOGEND(self.state)
         record_key = claripy.BVS("record_key", map.meta.key_size)
         record_value = claripy.BVS("record_value", map.meta.value_size)
-        self.state.path.ghost_record(lambda: RecordForall(obj, pred(record_key, record_value), record_key, record_value, result))
+        self.state.path.ghost_record(lambda: RecordForall(obj, pred, result))
         return result
 
     # === Havocing, to mimic BPF userspace ===
@@ -699,10 +707,10 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                                                                                              Implies(fp(MapItem(k, v, None)), MapHas(o2, fk(MapItem(k, v, None)), value=fv(MapItem(k, v, None)))))) for st in states):
                         log_text += f"\n\tin addition, the value is {fv(log_item)}"
                         results.put((ResultType.CROSS_VAL, [o1, o2],
-                                     lambda state, maps, o2=o2, fp=fp, fk=fk, fv=fv: maps[0].add_invariant(lambda i: freeze_map_ast_versions(Implies(i.present, Implies(fp(i), MapHas(o2, fk(i), value=fv(i)))), 0))))
+                                     lambda state, maps, o2=o2, fp=fp, fk=fk, fv=fv: maps[0].add_invariant(state, lambda i: Implies(i.present, Implies(fp(i), MapHas(o2, fk(i), value=fv(i)))))))
                     else:
                         results.put((ResultType.CROSS_KEY, [o1, o2],
-                                     lambda state, maps, o2=o2, fp=fp, fk=fk: maps[0].add_invariant(lambda i: freeze_map_ast_versions(Implies(i.present, Implies(fp(i), MapHas(o2, fk(i)))), 0))))
+                                     lambda state, maps, o2=o2, fp=fp, fk=fk: maps[0].add_invariant(state, lambda i: Implies(i.present, Implies(fp(i), MapHas(o2, fk(i)))))))
 
                     print(log_text) # print it at once to avoid interleavings from threads
                     break # this might make us miss some stuff in theory? but that's sound; and in practice it doesn't
@@ -841,7 +849,7 @@ def maps_merge_one(states_to_merge, obj, ancestor_state):
                     changed = True
                     constraints = claripy.And(*find_constraints(state, item.key), *find_constraints(state, item.value))
                     print("Item", item, "in map", obj, "does not comply with invariant conjunction", conj, "; adding disjunction", constraints)
-                    conjunction = conjunction.with_disjunction(lambda i, oldi=item, cs=constraints: cs.replace(oldi.key, i.key).replace(oldi.value, i.value))
+                    conjunction = conjunction.with_expr(lambda e, i, oldi=item, cs=constraints: e | cs.replace(oldi.key, i.key).replace(oldi.value, i.value))
         invariant_conjs.append(conjunction)
 
     return (ancestor_state.maps[obj].flatten().with_invariant_conjunctions(invariant_conjs), changed)
