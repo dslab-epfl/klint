@@ -87,6 +87,13 @@ class MetadataPlugin(SimStatePlugin):
 
         # As the doc states, fixpoint if all merges resulted in the old result and the across_results are a superset
         reached_fixpoint = not any_individual_changed and all(len(items) == 0 for items in across_previous_results.values())
+        if not reached_fixpoint:
+            print("### No fixpoint yet, because:")
+            if any_individual_changed:
+                print("### - Individual items changed")
+            for items in across_previous_results.values():
+                if len(items) != 0:
+                    print("### - Invariants were removed: " + str(items))
         return (merged_items, across_results, reached_fixpoint)
 
     def notify_completed_merge(self, opaque_value):

@@ -600,8 +600,8 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
         x2 = sel2(it2)
         if sel2 is get_value:
             const = utils.get_if_constant(state.solver, x2)
-            if const is not None and utils.can_be_false(state.solver, state.maps.forall(o2, lambda k, v: v == const)):
-                # A constant is a possible function, but not if all values are that constant (which is often true for fractions arrays)
+            if const is not None:
+                # A constant is a possible function
                 return lambda it, const=const, sz=x2.size(): claripy.BVV(const, sz)
         return None
 
@@ -760,7 +760,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
     # Optimization: Remove likely pointless inferences.
     # If two maps M1, M2 have the same length > 0, and neither was subject to a length change, remove any CROSS_KEY and LENGTH_VAR invariants between them;
     # they are likely arrays so those are pointless. (CROSS_VAL is still important however)
-    changed_lengths = {os[0].cache_key for (type, os, _) in length_results if type == ResultType.LENGTH_VAR}
+    """changed_lengths = {os[0].cache_key for (type, os, _) in length_results if type == ResultType.LENGTH_VAR}
     for (o1, o2) in itertools.combinations(objs, 2):
         if all(utils.definitely_true(st.solver, (st.maps.length(o1) != 0) & (st.maps.length(o1) == st.maps.length(o2))) for st in _orig_states) and \
            o1.cache_key not in changed_lengths and \
@@ -776,7 +776,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
             for r in removed_cross:
                 # Don't even cache it, it won't magically become useful later
                 clear_cached(r[1][0], r[1][1])
-                print(f"Discarding likely pointless inference {r[0]} between {r[1]}")
+                print(f"Discarding likely pointless inference {r[0]} between {r[1]}")"""
 
     # Optimization: Remove redundant inferences.
     # That is, for pairs (M1, M2) of maps whose keys are the same in all states and which lead to the same number of inferences,
@@ -787,16 +787,13 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
         if _ancestor_state.maps.key_size(o1) == _ancestor_state.maps.key_size(o2) and \
            sum(1 for r in cross_results if r[1][0] is o1) == sum(1 for r in cross_results if r[1][0] is o2):
             states = [s.copy() for s in _orig_states]
-            if all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st: st.maps.get(o2, k)[1])) for st in states):
-                cross_results, removed_1 = remove_results(
+            if all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v: MapHas(o2, k))) for st in states):
+                cross_results, removed = remove_results(
                     cross_results,
-                    lambda r: r[1][1] is o2 and any(r2[1][1] is o1 and r2[1][0] is r[1][0] for r2 in cross_results)
+                    lambda r: (r[1][0] is o2 and any(r2[1][0] is o1 and r2[1][1] is r[1][1] for r2 in cross_results)) \
+                           or (r[1][1] is o2 and any(r2[1][1] is o1 and r2[1][0] is r[1][0] for r2 in cross_results))
                 )
-                cross_results, removed_2 = remove_results(
-                    cross_results,
-                    lambda r: r[1][0] is o2 and any(r2[1][0] is o1 and r2[1][1] is r[1][1] for r2 in cross_results)
-                )
-                for r in removed_1 + removed_2:
+                for r in removed:
                     print(f"Discarding redundant inference {r[0]} between {r[1]}")
 
     return cross_results + length_results
