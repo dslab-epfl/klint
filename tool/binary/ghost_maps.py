@@ -84,6 +84,9 @@ class MapInvariant:
     def __call__(self, state, item):
         return eval_map_ast(state, self.expr, replace_dict={self.key: item.key, self.value: item.value, self.present: item.present})
 
+    def __eq__(self, other):
+        return self.expr.structurally_match(other.expr)
+
     def __repr__(self):
         return str(self.expr)
 
@@ -108,6 +111,9 @@ class MapInvariant:
 
     def with_expr(self, expr_factory):
         return MapInvariant(expr_factory(self.expr, MapItem(self.key, self.value, self.present)), self.key, self.value, self.present)
+
+    def with_latest_map_versions(self, state):
+        return MapInvariant(freeze_map_ast_versions(state, self.expr), self.key, self.value, self.present)
 
 
 class Map:
@@ -832,7 +838,10 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
     return cross_results + length_results
 
 def maps_merge_one(states_to_merge, obj, ancestor_state):
-    # Optimization: Do not even consider maps that have not changed at all, e.g. those that are de facto readonly after initialization
+    # Do not even consider maps that have not changed at all, e.g. those that are de facto readonly after initialization
+    # This is not an optimization, if we don't check this we'll end up havocing the contents of e.g. a "state" struct
+    # in theory this could be fine if we collected constraints about it like "the first 64 bits are the pointer to another struct"
+    # but we don't, so.
     if all(utils.structural_eq(ancestor_state.maps[obj], st.maps[obj]) for st in states_to_merge):
         return (ancestor_state.maps[obj], False)
 
@@ -864,13 +873,13 @@ def maps_merge_one(states_to_merge, obj, ancestor_state):
     # for each known item in any state,
     #  if the conjunction may not hold on that item assuming the item is present,
     #  find constraints that do hold and add them as a disjunction to the conjunction.
-
+    # except this is done on the latest map versions... i.e. we take invs designed for v0 and apply them to vNow; not sure how to best phrase this
     invariant_conjs = []
     changed = False
     for conjunction in ancestor_state.maps[obj].invariant_conjunctions():
         for state in states_to_merge:
             for item in state.maps[obj].known_items(exclude_get=True):
-                conj = conjunction(state, item)
+                conj = conjunction.with_latest_map_versions(state)(state, item)
                 if utils.can_be_false(state.solver, Implies(item.present, conj)):
                     changed = True
                     constraints = claripy.And(*find_constraints(state, item.key), *find_constraints(state, item.value))
