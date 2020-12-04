@@ -500,15 +500,11 @@ def LOG(state, text):
 def LOGEND(state):
     LOG_levels[id(state)] = LOG_levels[id(state)] - 1
 
-# state args have a leading _ to ensure toe functions run concurrently don't accidentally touch them
+# state args have a leading _ to ensure that functions run concurrently don't accidentally touch them
 def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
     print(f"Cross-merge of maps starting. State count: {len(_states_to_merge)}")
 
     _states = _states_to_merge + [_ancestor_state]
-
-    # Recording forall in particular is expensive
-    for s in _states:
-        s.path.ghost_disable()
 
     get_key = lambda i: i.key
     get_value = lambda i: i.value
@@ -665,6 +661,10 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
     to_cache = queue.Queue() # set_cached(...) will be called with all elements in there
 
     # Invariant inference algorithm: if some property P holds in all states to merge and the ancestor state, optimistically assume it is part of the invariant
+
+    # Optimization: Ignore maps that have not changed at all
+    objs = [o for o in objs if any(st.maps[o].version() != _ancestor_state.maps[o].version() for st in _states_to_merge)]
+
     for o in objs:
         # Step 1: Length variation.
         # If the length may have changed in any state from the one in the ancestor state,

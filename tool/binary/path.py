@@ -25,21 +25,19 @@ class ExternalWrapper(SimProcedure):
 
 
 class PathPlugin(SimStatePlugin):
-    def __init__(self, segments=None, ghost_segments=None, ghost_enabled=True):
+    def __init__(self, segments=None, ghost_segments=None):
         SimStatePlugin.__init__(self)
         self.segments = segments or []
         self.ghost_segments = ghost_segments or []
-        self.ghost_enabled = ghost_enabled
         self.ghost_index = 0
 
     @SimStatePlugin.memo
     def copy(self, memo):
-        return PathPlugin(segments=self.segments.copy(), ghost_segments=self.ghost_segments.copy(), ghost_enabled=self.ghost_enabled)
+        return PathPlugin(segments=self.segments.copy(), ghost_segments=self.ghost_segments.copy())
 
     def merge(self, others, merge_conditions, common_ancestor=None):
         self.segments = [] if common_ancestor is None else common_ancestor.segments
         self.ghost_segments = [] if common_ancestor is None else common_ancestor.ghost_segments
-        self.ghost_enabled = True # re-enable regardless
         self.ghost_index = 0
         return True
 
@@ -56,11 +54,7 @@ class PathPlugin(SimStatePlugin):
         self.segments.append((name, args, ret))
 
     def ghost_record(self, value_factory):
-        if self.ghost_enabled:
-            self.ghost_segments.append(value_factory())
-
-    def ghost_disable(self):
-        self.ghost_enabled = False
+        self.ghost_segments.append(value_factory())
 
     def ghost_dequeue(self):
         result = self.ghost_segments[self.ghost_index]

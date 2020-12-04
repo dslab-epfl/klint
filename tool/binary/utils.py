@@ -1,7 +1,6 @@
 # Standard/External libraries
 import angr
 import claripy
-import inspect
 
 # Us
 from .exceptions import SymbexException
@@ -119,7 +118,7 @@ def structural_eq(a, b):
         return True
     if a is None or b is None:
         return False
-    if isinstance(a, claripy.ast.base.Base) and isinstance(b, claripy.ast.base.Base):
+    if isinstance(a, claripy.ast.Base) and isinstance(b, claripy.ast.Base):
         return a.structurally_match(b)
     if hasattr(a, '_asdict') and hasattr(b, '_asdict'): # namedtuple
         ad = a._asdict()
@@ -131,20 +130,15 @@ def structural_eq(a, b):
         return a == b # no point in doing it the complicated way
     if hasattr(a, '__iter__') and hasattr(b, '__iter__') and hasattr(a, '__len__') and hasattr(b, '__len__'):
         return len(a) == len(b) and all(structural_eq(ai, bi) for (ai, bi) in zip(a, b))
-    #if callable(a) and callable(b):
-    #    # Basic equality for lambdas, assumes no side-effects (disabled for now; the assumption should hold but let's not accidentally forget it as this isn't needed anyway)
-    #    counter = 0
-    #    for (am, bm) in zip(inspect.getmembers(a), inspect.getmembers(b)):
-    #        if am[0] == '__code__' or am[0] == '__defaults__':
-    #            counter = counter + 1
-    #            if am[1] != bm[1]:
-    #                return False
-    #            if counter == 2:
-    #                return True
-    #    return False
     return a == b
 
 def add_constraints_and_check_sat(state, *constraints, **kwargs):
+    if True: # debug
+        for c in constraints:
+            state.add_constraints(c, **kwargs)
+            if not state.satisfiable():
+                raise angr.errors.SimUnsatError("UNSAT after adding constraint")
+        return
     state.add_constraints(*constraints, **kwargs)
     if not state.satisfiable():
         raise angr.errors.SimUnsatError("UNSAT after adding constraints")
