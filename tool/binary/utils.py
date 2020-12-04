@@ -31,8 +31,8 @@ def definitely_true(solver, cond):
 def definitely_false(solver, cond):
   return not can_be_true(solver, cond)
 
-def get_if_constant(solver, expr):
-  sols = solver.eval_upto(expr, 2)
+def get_if_constant(solver, expr, **kwargs):
+  sols = solver.eval_upto(expr, 2, **kwargs)
   if len(sols) == 0:
     raise SymbexException("Could not evaluate: " + str(expr))
   if len(sols) == 1:
@@ -57,7 +57,7 @@ def get_exact_match(solver, item, candidates, assumptions=[], selector=lambda i:
     for cand in candidates:
         if item.structurally_match(selector(cand)):
             return cand
-    # TODO: new_int() ; then item == selector(cand0) -> new_int == 0 ... and get_if_constant
+
     for cand in candidates:
         if definitely_true(solver, ~claripy.And(*assumptions) | (item == selector(cand))):
             return cand
@@ -130,7 +130,7 @@ def structural_eq(a, b):
     return a == b
 
 def add_constraints_and_check_sat(state, *constraints, **kwargs):
-    if True: # debug
+    if False: # debug
         for c in constraints:
             state.add_constraints(c, **kwargs)
             if not state.satisfiable():
