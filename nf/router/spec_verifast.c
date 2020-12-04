@@ -1,4 +1,4 @@
-#include "os/network.h"
+#include "os/network_verifast.h"
 
 //@ #include "proof/ghost_map.gh"
 //@ #include "bitops.gh"
@@ -8,7 +8,7 @@
 /*@
 
     fixpoint bool matches(list<bool> route, list<bool> ip) {
-        return drop(32 - take(8, route), drop(8, route)) == drop(32 - take(8, route), ip);
+        return drop(32 - int_of_bits(0, take(8, route)), drop(8, route)) == drop(32 - int_of_bits(0, take(8, route)), ip);
     }
 
     fixpoint bool lpm(list<bool> dst_ip, list<bool> dst_length, list<bool> dst_device, list<bool> route, list<bool> device) {
@@ -31,32 +31,32 @@ void spec() {
     uint8_t dst_length;
     uint16_t dst_device;
         
-    /*@
-        // table = Map(Route, Device)
-        list< pair< list<bool>, list<bool> > > table;
+    
+    // table = Map(Route, Device)
+    //@ list< pair< list<bool>, list<bool> > > table;
 
-        // IPv4 over Ethernet only
-        assert (ether_header_present || !packet_is_sent);
-        assert (ipv4_header_present || !packet_is_sent);
+    // IPv4 over Ethernet only
+    //@ assert (ether_header_present || !packet_is_sent);
+    //@ assert (ipv4_header_present || !packet_is_sent);
+    
+    // IP header validation
+    // TODO: need to add checksum validation
+    //@ assert (ipv4_header->time_to_live != 0 || !packet_is_sent);
+    //@ assert (ipv4_header->version == 4 || !packet_is_sent);
+    //@ assert (ipv4_header->ihl >= 20 || !packet_is_sent);
+    //@ assert (ipv4_header->total_length >= ipv4_header.ihl || !packet_is_sent);
+
+    /*@ if (packet_is_sent) {
+         list<bool> b_dst_route = snd(bits_of_int(dst_route, N32));
+         list<bool> b_dst_length = snd(bits_of_int(dst_length, N8));
+         list<bool> b_dst_device = snd(bits_of_int(dst_device, N16));
+         list<bool> route = append(b_dst_route, b_dst_length);
+         list<bool> dst_ip = snd(bits_of_int(ipv4_header->dst_addr, N32));
         
-        // IP header validation
-        // TODO: need to add checksum validation
-        assert (ipv4_header->time_to_live != 0 || !packet_is_sent);
-        assert (ipv4_header->version == 4 || !packet_is_sent);
-        assert (ipv4_header->ihl >= 20 || !packet_is_sent);
-        assert (ipv4_header->total_length >= ipv4_header.ihl || !packet_is_sent);
+         assert (ghostmap_get(table, route) == some(b_dst_device));
+         assert (true == matches(route, dst_ip));
+         assert (true == ghostmap_forall(table, (lpm)(dst_ip, b_dst_length, b_dst_device)));
+     } @*/
 
-        if (packet_is_sent) {
-            list<bool> b_dst_route = snd(bits_of_int(dst_route, N32));
-            list<bool> b_dst_length = snd(bits_of_int(dst_length, N8));
-            list<bool> b_dst_device = snd(bits_of_int(dst_device, N16));
-            list<bool> route = append(b_dst_route, b_dst_length);
-            list<bool> dst_ip = snd(bits_of_int(ipv4_header->dst_addr, N32));
-            
-            assert (ghostmap_get(table, route) == some(b_dst_device));
-            assert (true == matches(route, dst_ip));
-            assert (true == ghostmap_forall(table, (lpm)(dst_ip, b_dst_length, b_dst_device)));
-        }
-
-    @*/
+    
 }
