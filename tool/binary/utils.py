@@ -25,9 +25,6 @@ def can_be_true(solver, cond):
 def can_be_false(solver, cond):
   return solver.satisfiable(extra_constraints=[~cond])
 
-def can_be_true_or_false(solver, cond):
-  return can_be_true(solver, cond) and can_be_false(solver, cond)
-
 def definitely_true(solver, cond):
   return not can_be_false(solver, cond)
 
@@ -42,7 +39,7 @@ def get_if_constant(solver, expr):
       return sols[0]
   return None
 
-def get_exact_match(solver, item, candidates, selector=lambda i: i):
+def get_exact_match(solver, item, candidates, assumptions=[], selector=lambda i: i):
     # at one point this exact pattern, even after calling solver.simplify, caused the solver to hang...
     # but simplifying this way (which is correct; (0#4 .. x) * 0x10 / 0x10 == (0#4 .. x)) made it go through
     # the structurally_match path, which is all good
@@ -60,9 +57,9 @@ def get_exact_match(solver, item, candidates, selector=lambda i: i):
     for cand in candidates:
         if item.structurally_match(selector(cand)):
             return cand
-
+    # TODO: new_int() ; then item == selector(cand0) -> new_int == 0 ... and get_if_constant
     for cand in candidates:
-        if definitely_true(solver, item == selector(cand)):
+        if definitely_true(solver, ~claripy.And(*assumptions) | (item == selector(cand))):
             return cand
 
     return None

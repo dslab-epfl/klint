@@ -15,6 +15,7 @@ from . import utils
 from .exceptions import SymbexException
 from .metadata import MetadataPlugin
 
+
 # Helper function to make expressions clearer
 def Implies(a, b):
     return ~a | b
@@ -53,15 +54,17 @@ def freeze_map_ast_versions(state, expr):
         return ast.make_like(ast.op, [replacer(a) for a in ast.args[0:len(ast.args)-1]] + [state.maps[ast.args[0]].version()])
     return eval_map_ast_core(expr, {}, map_handler, map_handler)
 
-def eval_map_ast(state, expr, replace_dict={}):
+def eval_map_ast(state, expr, replace_dict={}, conditions=[]):
     def has_handler(ast, replacer):
-        if ast.args[2] is None: # args[2] is value
-            return state.maps.get(ast.args[0], replacer(ast.args[1]), version=ast.args[2])[1]
+        replaced_key = replacer(ast.args[1])
         replaced_value = replacer(ast.args[2])
-        result = state.maps.get(ast.args[0], replacer(ast.args[1]), value=replaced_value, version=ast.args[3])
+        if replaced_value is None:
+            return state.maps.get(ast.args[0], replaced_key, conditions=conditions, version=ast.args[2])[1]
+        result = state.maps.get(ast.args[0], replaced_key, value=replaced_value, conditions=conditions, version=ast.args[3])
         return result[1] & (result[0] == replaced_value)
     def get_handler(ast, replacer):
-        return state.maps.get(ast.args[0], replacer(ast.args[1]), version=ast.args[2])[0]
+        replaced_key = replacer(ast.args[1])
+        return state.maps.get(ast.args[0], replaced_key, conditions=conditions, version=ast.args[2])[0]
     return eval_map_ast_core(expr, replace_dict, has_handler, get_handler)
 
 
@@ -81,8 +84,8 @@ class MapInvariant:
         self.value = value
         self.present = present
 
-    def __call__(self, state, item):
-        return eval_map_ast(state, self.expr, replace_dict={self.key: item.key, self.value: item.value, self.present: item.present})
+    def __call__(self, state, item, conditions=[]):
+        return eval_map_ast(state, self.expr, replace_dict={self.key: item.key, self.value: item.value, self.present: item.present}, conditions=[item.present] + conditions)
 
     def __eq__(self, other):
         return self.expr.structurally_match(other.expr)
@@ -152,50 +155,51 @@ class Map:
     def length(self):
         return self._length
 
-    def get(self, state, key, value=None, version=None):
+    def get(self, state, key, value=None, conditions=[], version=None):
         if version is not None:
             to_call = self
             self_ver = self.version()
             while version < self_ver:
                 to_call = to_call._previous
                 version = version + 1
-            return to_call.get(state, key, value=value)
+            return to_call.get(state, key, value=value, conditions=conditions) # TODO edit self instead?
 
         # Optimization: If the map is empty, the answer is always false
         if self.is_empty():
             return (claripy.BVS(self.meta.name + "_bad_value", self.meta.value_size), claripy.false)
 
-        # If the map contains an item (K', V', P') such that K' = K, then return (V', P') [so that invariants can reference each other]
+        # If the map contains an item (K', V', P') such that K' = K, then return (V', P') [assuming the condition]
         known_items = self.known_items()
-        matching_item = utils.get_exact_match(state.solver, key, known_items, selector=lambda i: i.key)
+        matching_item = utils.get_exact_match(state.solver, key, known_items, assumptions=conditions, selector=lambda i: i.key)
         if matching_item is not None:
             return (matching_item.value, matching_item.present)
-
-        # Let V be a fresh symbolic value [or use the hint]
-        if value is None or not value.symbolic:
-            value = claripy.BVS(self.meta.name + "_value", self.meta.value_size)
-
-        # Let P be a fresh symbolic presence bit
-        present = claripy.BoolS(self.meta.name + "_present")
 
         # Let UK be And(K != K') for each key K' in the map's known items
         unknown = claripy.And(*[key != i.key for i in known_items])
 
-        # MUTATE the map's known items by adding (K, V, P)
-        new_known_item = MapItem(key, value, present)
-        self.add_item(new_known_item)
+        # Let V be a fresh symbolic value [or the hint]
+        if value is None:
+            value = claripy.BVS(self.meta.name + "_value", self.meta.value_size)
+        elif conditions:
+            value = claripy.If(claripy.And(*conditions), value, claripy.BVS(self.meta.name + "_other_value", self.meta.value_size))
+
+        # Let P be a fresh symbolic presence bit [or the existing condition]
+        # MUTATE the map's known items by adding (K, V, P) [conditioned]
+        present = claripy.BoolS(self.meta.name + "_present")
+        new_item = MapItem(key, value, present)
+        self.add_item(new_item)
 
         utils.add_constraints_and_check_sat(state,
             # Add K = K' => (V = V' and P = P') to the path constraint for each known item (K', V', P') in the map,
-            *[Implies(key == i.key, (value == i.value) & (present == i.present)) for i in known_items],
-            # Add UK => invariant(M)(K', V', P') to the path constraint
-            Implies(unknown, self.invariant()(state, new_known_item)),
+            *[Implies(new_item.key == i.key, (new_item.value == i.value) & (new_item.present == i.present)) for i in known_items],
+            # Add UK => invariant(M)(K', V', P') to the path constraint [conditioned]
+            Implies(unknown, claripy.And(*[inv(state, new_item, conditions=conditions) for inv in self.invariant_conjunctions()])),
             # Add L <= length(M)
             self.known_length() <= self.length()
         )
 
         # Return (V, P)
-        return (value, present)
+        return (new_item.value, new_item.present)
 
     def set(self, state, key, value):
         # Let P be get(M, K) != None
@@ -239,7 +243,7 @@ class Map:
 
         # Let K' be a fresh symbolic key and V' a fresh symbolic value
         # Let L be the number of known items whose presence bit is set
-        # Let F = ((P1 => pred(K1, V1)) and (P2 => pred(K2, V2)) and (...) and ((L < length(M)) => (invariant(M)(K', V', true) => pred(K', V'))))
+        # Let F = ((P1 => pred(K1, V1)) and (P2 => pred(K2, V2)) and (...) and ((L < length(M)) => (invariant(M)(K', V', P') => (P' => pred(K', V')))))
         # Optimization: Exclude items resulting from a call to 'get', they will be implicitly tested through the map's invariant
         result = claripy.And(*[pred(state, i) for i in self.known_items(exclude_get=True)])
         # Optimization: No need to go further if we already have an invariant known to imply the predicate
@@ -248,7 +252,8 @@ class Map:
                 return result
         test_key = claripy.BVS(self.meta.name + "_test_key", self.meta.key_size)
         test_value = claripy.BVS(self.meta.name + "_test_value", self.meta.value_size)
-        test_item = MapItem(test_key, test_value, claripy.true)
+        test_present = claripy.BoolS(self.meta.name + "_test_present")
+        test_item = MapItem(test_key, test_value, test_present)
         # Optimization: (AND(invs) => pred) is equivalent to OR(inv=>pred)
         # Thus we can test the conjunctions one by one and stop if we find one that is definitely true
         # We expect this to be the common case due to invariant inference
@@ -309,9 +314,6 @@ class Map:
         if self._previous is None:
             return self._invariants
         return self._invariants + self._previous.invariant_conjunctions()
-
-    def invariant(self):
-        return lambda st, i, invs=self.invariant_conjunctions(): claripy.And(*[inv(st, i) for inv in invs])
 
     def add_invariant_conjunction(self, state, inv):
         if isinstance(inv, MapInvariant):
@@ -422,11 +424,12 @@ class GhostMapsPlugin(SimStatePlugin):
     def value_size(self, obj):
         return self[obj].meta.value_size
 
-    def get(self, obj, key, value=None, version=None):
+    def get(self, obj, key, value=None, conditions=[], version=None):
         map = self[obj]
-        LOG(self.state, "GET " + map.meta.name + f" version: {version} " + (" key: " + str(key)) + ((" value: " + str(value)) if value is not None else "") + \
+        LOG(self.state, "GET " + str(obj) + f" version: {version} " + (" key: " + str(key)) + ((" value: " + str(value)) if value is not None else "") + \
+            ((" cond: " + str(conditions)) if conditions else "")  + \
                         " (" + str(len(list(map.known_items()))) + " items, " + str(len(self.state.solver.constraints)) + " constraints)")
-        result = map.get(self.state, key, value=value, version=version)
+        result = map.get(self.state, key, value=value, conditions=conditions, version=version)
         LOGEND(self.state)
         self.state.path.ghost_record(lambda: RecordGet(obj, key, result))
         return result
@@ -442,7 +445,7 @@ class GhostMapsPlugin(SimStatePlugin):
     def forall(self, obj, pred):
         map = self[obj]
         pred = MapInvariant.new(self.state, map.meta, (lambda i, old_pred=pred: Implies(i.present, old_pred(i.key, i.value))))
-        LOG(self.state, "forall " + map.meta.name + " ( " + str(len(self.state.solver.constraints)) + " constraints)")
+        LOG(self.state, "forall " + str(obj) + " ( " + str(len(self.state.solver.constraints)) + " constraints)")
         result = map.forall(self.state, pred)
         LOGEND(self.state)
         record_key = claripy.BVS("record_key", map.meta.key_size)
@@ -496,7 +499,7 @@ def LOG(state, text):
     else:
         level = 1
     LOG_levels[id(state)] = level + 1
-    #print(level, "  " * level, text)
+    print(level, "  " * level, text)
 def LOGEND(state):
     LOG_levels[id(state)] = LOG_levels[id(state)] - 1
 
