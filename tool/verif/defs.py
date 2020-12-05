@@ -12,6 +12,10 @@ EthernetHeader = namedtuple(
 IPv4Header = namedtuple(
     "Ipv4Header", [
         # TODO other fields - don't care for now
+        "version",
+        "ihl",
+        "total_length",
+        "time_to_live",
         "protocol",
         "src",
         "dst"

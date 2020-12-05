@@ -45,9 +45,6 @@ class ValueProxy:
             other_val = other.wrapped
         return BoolProxy(self.solver, self.wrapped == other_val)
 
-    def __req__(self, other): # other == self
-        return self.__eq__(other)
-
     def __getitem__(self, key): # self[key]
         to_wrap = self.wrapped.__getitem__(key)
         if to_wrap is None:

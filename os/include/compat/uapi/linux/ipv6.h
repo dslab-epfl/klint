@@ -2,8 +2,6 @@
 
 #include <stdint.h>
 
-#include "compat/endian.h"
-
 
 struct in6_addr {
 	union {
@@ -17,13 +15,8 @@ struct in6_addr {
 } __packed;
 
 struct ipv6hdr {
-#ifdef IS_BIG_ENDIAN
 	uint8_t version : 4,
-	     priority : 4;
-#else
-	uint8_t priority : 4,
-	     version : 4;
-#endif
+	        priority : 4;
 	uint8_t flow_lbl[3];
 	uint16_t payload_len;
 	uint8_t nexthdr;

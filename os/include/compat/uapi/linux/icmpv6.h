@@ -37,19 +37,11 @@ struct icmp6hdr {
 		} u_nd_advt;
 		struct icmpv6_nd_ra {
 			uint8_t hop_limit;
-#ifdef IS_BIG_ENDIAN
-			uint8_t managed : 1,
-			     other : 1,
-			     home_agent : 1,
-			     router_pref : 2,
-			     reserved : 3;
-#else
 			uint8_t reserved : 3,
 			     router_pref : 2,
 			     home_agent : 1,
 			     other : 1,
 			     managed : 1;
-#endif
 			uint16_t rt_lifetime;
 		} u_nd_ra;
 	} icmp6_dataun;

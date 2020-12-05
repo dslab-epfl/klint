@@ -26,6 +26,26 @@ void nf_handle(struct os_net_packet* packet)
 		return;
 	}
 
+	if (ipv4_header->version != 4) {
+		os_debug("Not IPv4");
+		return;
+	}
+
+	if (ipv4_header->ihl < 5) { // = 20 bytes
+		os_debug("IPv4 header too short");
+		return;
+	}
+
+	if (ipv4_header->total_length < (ipv4_header->ihl * 4)) {
+		os_debug("Total length too short");
+		return;
+	}
+
+	if (ipv4_header->time_to_live == 0) {
+		os_debug("Packet lifetime is over");
+		return;
+	}
+
 	uint16_t dst_device;
 	uint32_t out_prefix;
 	uint8_t out_prefixlen;

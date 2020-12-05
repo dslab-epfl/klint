@@ -2,8 +2,6 @@
 
 #include <stdint.h>
 
-#include "compat/endian.h"
-
 
 #define IPPROTO_ICMP 1
 #define IPPROTO_IPIP 4
@@ -14,13 +12,8 @@
 #define IPPROTO_ICMPV6 58
 
 struct iphdr {
-#ifdef IS_BIG_ENDIAN
-	uint8_t version: 4,
-	        ihl: 4;
-#else
 	uint8_t ihl: 4,
 	        version: 4;
-#endif
 	uint8_t tos;
 	uint16_t tot_len;
 	uint16_t id;

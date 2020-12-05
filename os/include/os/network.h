@@ -35,13 +35,8 @@ struct os_net_ether_header
 // IPv4 header
 struct os_net_ipv4_header
 {
-#ifdef IS_LITTLE_ENDIAN_
-	uint8_t  ihl : 4,
-	         version : 4;
-#else
 	uint8_t  version : 4,
 	         ihl : 4;
-#endif
 	uint8_t  type_of_service;
 	uint16_t total_length;
 	uint16_t packet_id;
