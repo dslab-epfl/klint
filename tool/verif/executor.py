@@ -16,10 +16,15 @@ from python import executor as py_executor
 
 
 class SpecMap:
-    def __init__(self, map, key_type, value_type):
+    def __init__(self, state, map, key_type, value_type):
+        self._state = state
         self._map = map
         self._key_type = key_type
         self._value_type = value_type
+
+    def forall(self, pred):
+        pred = MapInvariant.new(self._state, self._map.meta, lambda i: (~i.present | pred(type_cast(self._state, i.key, self._key_type), type_cast(self._state, i.value, self._value_type)))._value)
+        return ValueProxy(self._state, self._map.forall(self._state, pred))
 
 def map_new(state, key_type, value_type):
     key_size = type_size(state, key_type) * 8
@@ -30,7 +35,7 @@ def map_new(state, key_type, value_type):
         raise VerificationException("No such map.")
     if len(candidates) > 1:
         raise VerificationException("Picking a candidate isn't implemented yet, sorry.")
-    return SpecMap(candidates[0], key_type, value_type)
+    return SpecMap(state, candidates[0], key_type, value_type)
 
 
 externals = {

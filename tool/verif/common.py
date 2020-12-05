@@ -12,43 +12,6 @@ from binary.memory_fractional import FractionalMemory
 class VerificationException(Exception): pass
 
 
-class TypeProxy:
-    def __init__(self, state, value, type):
-        self._state = state
-        self._value = value
-        self._type = type
-
-    def __getattr__(self, name):
-        if name[0] == "_":
-            return super().__getattr__(name, value)
-        if name in self._type:
-            offset = 0
-            for (k, v) in self._type.items(): # Python preserves insertion order from 3.7 (3.6 for CPython)
-                if k == name:
-                    return self._value[type_size(self._state, v)+offset:offset]
-                offset = offset + type_size(self._state, v)
-        raise VerificationException(f"idk what to do about attr '{name}'")
-
-    def __setattr__(self, name, value):
-        if name[0] == "_":
-            return super().__setattr__(name, value)
-        raise "TODO"
-
-def type_size(state, type):
-    if isinstance(type, str):
-        return getattr(bitsizes, type) // 8
-    if isinstance(type, dict):
-        return sum([type_size(state, v) for v in type.values()])
-    raise VerificationException(f"idk what to do with type '{type}'")
-
-def type_cast(state, value, type):
-    if isinstance(type, str):
-        return value # already cast
-    if isinstance(type, dict):
-        return TypeProxy(state, value, type)
-    raise VerificationException(f"idk what to do with type '{type}'")
-
-
 class ValueProxy:
     def __init__(self, state, value):
         assert value is not None
@@ -101,6 +64,22 @@ class ValueProxy:
             raise "TODO"
         return result
 
+    def __len__(self):
+        pass
+
+    def __invert__(self):
+        return ValueProxy(self._state, ~self._value)
+    
+    def __and__(self, other):
+        return self._op(other, "__and__")
+    def __rand__(self, other):
+        return self._op(other, "__and__")
+    
+    def __or__(self, other):
+        return self._op(other, "__or__")
+    def __ror__(self, other):
+        return self._op(other, "__or__")
+
     def __eq__(self, other):
         return self._op(other, "__eq__")
 
@@ -118,9 +97,58 @@ class ValueProxy:
 
     def __ge__(self, other):
         return self._op(other, "UGE")
-
+    
     def __mul__(self, other):
         return self._op(other, "__mul__")
+    def __rmul__(self, other):
+        return self._op(other, "__mul__")
+    
+    def __rshift__(self, other):
+        return self._op(other, "__rshift__")
+    def __rrshift__(self, other):
+        return self._op(other, "__rshift__")
+    
+    def __lshift__(self, other):
+        return self._op(other, "__lshift__")
+    def __rlshift__(self, other):
+        return self._op(other, "__lshift__")
+
+
+class TypeProxy:
+    def __init__(self, state, value, type):
+        self._state = state
+        self._value = value
+        self._type = type
+
+    def __getattr__(self, name):
+        if name[0] == "_":
+            return super().__getattr__(name, value)
+        if name in self._type:
+            offset = 0
+            for (k, v) in self._type.items(): # Python preserves insertion order from 3.7 (3.6 for CPython)
+                if k == name:
+                    return ValueProxy(self._state, self._value[(type_size(self._state, v)+offset)*8-1:offset*8])
+                offset = offset + type_size(self._state, v)
+        raise VerificationException(f"idk what to do about attr '{name}'")
+
+    def __setattr__(self, name, value):
+        if name[0] == "_":
+            return super().__setattr__(name, value)
+        raise "TODO"
+
+def type_size(state, type):
+    if isinstance(type, str):
+        return getattr(bitsizes, type) // 8
+    if isinstance(type, dict):
+        return sum([type_size(state, v) for v in type.values()])
+    raise VerificationException(f"idk what to do with type '{type}'")
+
+def type_cast(state, value, type):
+    if isinstance(type, str):
+        return value # already cast
+    if isinstance(type, dict):
+        return TypeProxy(state, value, type)
+    raise VerificationException(f"idk what to do with type '{type}'")
 
 
 class SpecPacket:

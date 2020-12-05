@@ -51,13 +51,12 @@ def spec(packet, config, transmitted_packet):
 
 
     # === §5.2.4.3 Next Hop Address === #
-
     if transmitted_packet is None:
-        assert table.forall(lambda k, v: not matches(k, packet.ipv4.dst))
+        assert table.forall(lambda k, v: ~matches(k, packet.ipv4.dst))
     else:
         assert exists(
             Route,
-            lambda r: transmitted_packet.device == table.get(r) and
-                      matches(dst_route, packet.ipv4.dst) and
-                      table.forall(lambda k, v: implies(matches(k, packet.ipv4.dst), k.length <= r.length))
+            lambda r: transmitted_packet.device == table.get(r) &
+                      matches(dst_route, packet.ipv4.dst) &
+                      table.forall(lambda k, v: ~matches(k, packet.ipv4.dst) | (k.length <= r.length))
         )
