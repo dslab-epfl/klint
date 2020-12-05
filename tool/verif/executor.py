@@ -52,6 +52,7 @@ def handle_externals(name, *args, **kwargs):
     else:
         return ext(current_state, *args)
 
+
 def verify(data, spec):
     global current_state
     current_state = create_angr_state(data.constraints)
@@ -59,12 +60,24 @@ def verify(data, spec):
 
     packet = SpecPacket(current_state, data.network)
 
-    py_executor.execute(
+    transmitted_packet = None
+    if data.network.transmitted:
+        if len(data.network.transmitted) > 1:
+            raise "TODO support symbolic packets as ORs of all of them"
+        transmitted_packet = data.network.transmitted[0]
+
+    result = py_executor.execute(
         spec_text=spec,
         spec_fun_name="spec",
-        spec_args=[packet, data.config], # TODO: add device count somewhere... maybe make it an attr (not item) of config
+        spec_args=[packet, data.config, transmitted_packet], # TODO: add device count somewhere... maybe make it an attr (not item) of config
         spec_external_names=externals.keys(),
         spec_external_handler=handle_externals
     )
+
+    if result is not None and not result:
+        raise VerificationException("Spec returned False")
+
+    if data.network.transmitted and not got_transmitted_packet:
+        raise VerificationException("There is a packet but the spec says there should not be")
 
     print("NF verif done! at", datetime.now())
