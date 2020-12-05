@@ -286,7 +286,7 @@ class Map:
         if is_array:
             self._invariants = [MapInvariant.new(state, self.meta, lambda i, length=self._length: (i.key < length) == i.present)]
         else:
-            self._invariants = []
+            self._invariants = [MapInvariant.new(state, self.meta, lambda i: claripy.true)]
         self._known_items = []
         self.ever_havoced = True
 
