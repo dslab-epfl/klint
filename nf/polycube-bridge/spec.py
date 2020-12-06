@@ -14,8 +14,3 @@ def spec(packet, config, transmitted_packet):
     # note: an Ethernet address is a group address if the least significant bit of its first octet is set to 1
     db = Map(typeof(packet.ether.src), ...)
     assert ~db.has(packet.ether.src) | ((packet.ether.src & 0x01_00_00_00_00_00) == 0)
-
-
-    # === §7.9.2 Dynamic Filtering Entries === #
-    # "No more than one Dynamic Filtering Entry shall be created in the Filtering Database for a given MAC Address."
-    # This one is implicit from the declaration of 'db' above
