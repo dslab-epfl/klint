@@ -72,8 +72,8 @@ class OsMap2Get(angr.SimProcedure):
 
         # Preconditions
         mapp = self.state.metadata.get(Map, map)
-        key = self.state.memory.load(key_ptr, mapp.key_size)
-        _ = self.state.memory.load(out_value_ptr, mapp.value_size)
+        key = self.state.memory.load(key_ptr, mapp.key_size, endness=self.state.arch.memory_endness)
+        self.state.memory.load(out_value_ptr, mapp.value_size, endness=self.state.arch.memory_endness)
         print("!!! os_map2_get key", key)
 
         # Postconditions
@@ -105,8 +105,8 @@ class OsMap2Set(angr.SimProcedure):
 
         # Preconditions
         mapp = self.state.metadata.get(Map, map)
-        key = self.state.memory.load(key_ptr, mapp.key_size)
-        value = self.state.memory.load(value_ptr, mapp.value_size)
+        key = self.state.memory.load(key_ptr, mapp.key_size, endness=self.state.arch.memory_endness)
+        value = self.state.memory.load(value_ptr, mapp.value_size, endness=self.state.arch.memory_endness)
         if utils.can_be_false(self.state.solver, claripy.Not(self.state.maps.get(mapp.items, key)[1])):
             raise SymbexException("Precondition does not hold: ghostmap_get(items, key) == none")
         print("!!! os_map2_set key/value", key, value)
@@ -135,7 +135,7 @@ class OsMap2Remove(angr.SimProcedure):
 
         # Preconditions
         mapp = self.state.metadata.get(Map, map)
-        key = self.state.memory.load(key_ptr, mapp.key_size)
+        key = self.state.memory.load(key_ptr, mapp.key_size, endness=self.state.arch.memory_endness)
         if utils.can_be_false(self.state.solver, self.state.maps.get(mapp.items, key)[1]):
             raise SymbexException("Precondition does not hold: ghostmap_get(items, key) != none")
         print("!!! os_map2_remove key", key)

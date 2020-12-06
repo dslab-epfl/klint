@@ -52,7 +52,7 @@ class ChtFindPreferredAvailableBackend(angr.SimProcedure):
         # Preconditions
         cht = self.state.metadata.get(Cht, cht)
         active_backends = self.state.metadata.get(Pool, active_backends)
-        self.state.memory.load(chosen_backend, bitsizes.size_t // 8)
+        self.state.memory.load(chosen_backend, bitsizes.size_t // 8, endness=self.state.arch.memory_endness)
         if utils.can_be_false(self.state.solver, cht.backend_capacity <= active_backends.size):
             raise SymbexException("Precondition does not hold.")
 

@@ -141,12 +141,38 @@ def type_size(state, type):
     raise VerificationException(f"idk what to do with type '{type}'")
 
 
-class SpecPacket:
-    def __init__(self, state, data, length, device):
+class SpecFloodedDevice:
+    def __init__(self, state, orig_device):
         self._state = state
-        self.data = data
-        self.length = length
-        self.device = device
+        self._orig_device = orig_device
+
+    def __contains__(self, item):
+        return ValueProxy(self._state, ValueProxy.extract(item) != self._orig_device)
+
+class SpecSingleDevice:
+    def __init__(self, state, device):
+        self._state = state
+        self._device = device
+
+    def __contains__(self, item):
+        return ValueProxy(self._state, ValueProxy.extract(item) == self._device)
+
+class SpecPacket:
+    def __init__(self, state, data, length, devices):
+        self._state = state
+        self.data = data # TODO should be accessible by specs, though we don't need it for now
+        self.length = ValueProxy(self._state, length)
+        self._devices = devices
+
+    @property
+    def device(self):
+        if isinstance(self._devices, SpecSingleDevice):
+            return ValueProxy(self._state, self._devices._device)
+        raise VerificationException("The packet was sent on multiple devices")
+
+    @property
+    def devices(self):
+        return self._devices
 
     @property
     def ether(self):

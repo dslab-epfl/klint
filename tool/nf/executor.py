@@ -13,6 +13,7 @@ from binary.externals.os import clock
 from binary.externals.os import config
 from binary.externals.os import debug
 from binary.externals.os import memory
+from binary.externals.os import memcpy
 from binary.externals.os import network
 from binary.externals.os.structs import map
 from binary.externals.os.structs import map2
@@ -35,7 +36,7 @@ init_externals = {
     'lpm_update_elem': lpm.LpmUpdateElem,
     # unfortunately needed to mimic BPF userspace
     'os_map2_havoc': map2.OsMap2Havoc,
-    'os_memory_havoc': memory.OsMemoryHavoc,
+    'os_memory_havoc': memory.OsMemoryHavoc
 }
 
 handle_externals = {
@@ -55,7 +56,9 @@ handle_externals = {
     'os_pool_used': pool.OsPoolUsed,
     'os_pool_expire': pool.OsPoolExpire,
     'cht_find_preferred_available_backend': cht.ChtFindPreferredAvailableBackend,
-    'lpm_lookup_elem': lpm.LpmLookupElem
+    'lpm_lookup_elem': lpm.LpmLookupElem,
+    # whyyy
+    'memcpy': memcpy.Memcpy
 }
 
 def nf_init(bin_path, devices_count):

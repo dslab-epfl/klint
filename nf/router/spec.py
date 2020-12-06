@@ -7,6 +7,7 @@ Device = "uint16_t"
 def matches(route, ip):
     return (route.dest >> route.length) == (ip >> route.length)
 
+# RFC 1812 "Requirements for IP Version 4 Routers"
 def spec(packet, config, transmitted_packet):
     table = Map(Route, Device)
 

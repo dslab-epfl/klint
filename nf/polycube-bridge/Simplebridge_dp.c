@@ -79,6 +79,7 @@ int handle_rx(struct CTXTYPE *ctx,
   } else {
     entry->port = in_ifc;
     entry->timestamp = now;
+    bpf_map_update_elem(&fwdtable, &src_key, &entry, BPF_ANY);
   }
 
   // FORWARDING PHASE: select interface(s) to send the packet

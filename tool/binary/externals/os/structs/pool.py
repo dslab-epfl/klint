@@ -55,7 +55,7 @@ class OsPoolBorrow(angr.SimProcedure):
         # Preconditions
         poolp = self.state.metadata.get(Pool, pool)
         clock.assert_is_current_time(self.state, time) # equivalent to the "upperbounded" precondition; TODO improve this
-        _ = self.state.memory.load(out_index, bitsizes.size_t // 8)
+        self.state.memory.load(out_index, bitsizes.size_t // 8, endness=self.state.arch.memory_endness)
 
         # Postconditions
         index = self.state.symbol_factory.BVS("index", bitsizes.size_t)
@@ -140,7 +140,7 @@ class OsPoolUsed(angr.SimProcedure):
         poolp = self.state.metadata.get(Pool, pool)
         if utils.can_be_false(self.state.solver, index < poolp.size):
             raise SymbexException("Precondition does not hold: index < size")
-        self.state.memory.load(out_time, bitsizes.int64_t // 8)
+        self.state.memory.load(out_time, bitsizes.int64_t // 8, endness=self.state.arch.memory_endness)
 
         # Postconditions
         def case_has(state, time):
@@ -173,7 +173,7 @@ class OsPoolExpire(angr.SimProcedure):
 
         # Preconditions
         poolp = self.state.metadata.get(Pool, pool)
-        self.state.memory.load(out_index, bitsizes.size_t // 8)
+        self.state.memory.load(out_index, bitsizes.size_t // 8, endness=self.state.arch.memory_endness)
 
         # Postconditions
         index = self.state.symbol_factory.BVS('index', bitsizes.size_t)

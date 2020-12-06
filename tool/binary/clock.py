@@ -21,7 +21,7 @@ def get_current_time(state):
     old_time = existing.keys()[0]
     new_time = claripy.BVS('new_time', bitsizes.int64_t)
     state.add_constraints(new_time.SGE(old_time))
-    state.metadata.clear_all(Time)
+    state.metadata.remove_all(Time)
     state.metadata.set(new_time, Time())
     return new_time
 

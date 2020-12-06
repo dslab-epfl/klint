@@ -84,13 +84,15 @@ def verify(data, spec):
     current_state.maps = data.maps
     current_state.path = data.path # useful for debugging
 
-    packet = SpecPacket(current_state, data.network.received, data.network.received_length, data.network.received_device)
+    packet = SpecPacket(current_state, data.network.received, data.network.received_length, SpecSingleDevice(current_state, data.network.received_device))
 
     transmitted_packet = None
     if data.network.transmitted:
         if len(data.network.transmitted) > 1:
-            raise "TODO support symbolic packets as ORs of all of them"
-        transmitted_packet = SpecPacket(current_state, data.network.transmitted[0][0], data.network.transmitted[0][1], data.network.transmitted[0][2])
+            raise "TODO support multiple transmitted packets"
+        tx_dev_int = data.network.transmitted[0][2]
+        transmitted_device = SpecFloodedDevice(current_state, data.network.received_device) if tx_dev_int is None else SpecSingleDevice(current_state, tx_dev_int) 
+        transmitted_packet = SpecPacket(current_state, data.network.transmitted[0][0], data.network.transmitted[0][1], transmitted_device)
 
     result = py_executor.execute(
         spec_text=spec,
