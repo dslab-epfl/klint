@@ -8,7 +8,7 @@ StateData = namedtuple('StateData', ['maps', 'path', 'constraints', 'network', '
 
 def dump_data(states, devices_count, path): # TODO why do we have to move the devices_count around like that? :/
     data = [StateData(
-        maps = [(k, v.flatten()) for (k, v) in state.maps.get_all()],
+        maps = [(k, v.flatten(keep_known_items=True)) for (k, v) in state.maps.get_all()],
         path = state.path,
         constraints = state.solver.constraints,
         network = state.metadata.get_unique(os_network.NetworkMetadata),

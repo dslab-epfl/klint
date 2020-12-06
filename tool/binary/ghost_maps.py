@@ -349,12 +349,12 @@ class Map:
             _map=map
         )
 
-    def flatten(self):
+    def flatten(self, keep_known_items=False):
         return Map(
             self.meta,
             self._length,
             self.invariant_conjunctions(),
-            []
+            self.known_items() if keep_known_items else [] # useful for exporting data without also exporting _map/_filter which are lambdas
         )
 
     def set_length(self, new_length):

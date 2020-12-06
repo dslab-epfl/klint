@@ -21,7 +21,7 @@ RecordAllocateOpaque = namedtuple('RecordAllocateOpaque', ['name', 'result'])
 # Handles endness, but stores data as LE instead of BE for x86 convenience;
 # to do this, we reverse on store if BE is requested, and always reverse on load since SimMemory will reverse again if LE is requested
 class FractionalMemory(SimMemory):
-    FRACS_NAME = "fracs"
+    FRACS_NAME = "_fracs"
 
     def __init__(self, memory_id='', memory=None, fractions_memory=None, endness=None):
         SimMemory.__init__(self, endness=endness, abstract_backer=None, stack_region_map=None, generic_region_map=None)

@@ -17,8 +17,14 @@ class VerificationException(Exception): pass
 
 class ValueProxy:
     @staticmethod
-    def extract(value):
-        return value._value
+    def extract(value, type=None):
+        result = value._value
+        if type is None:
+            return result
+        else:
+            size = type_size(type) * 8 # TODO in general need to figure out whether having type_size be in bits would be easier...
+            assert size >= result.size(), "the actual type should have a size at least that of the result's"
+            return result.zero_extend(size - result.size())
 
     def __init__(self, state, value, type=None):
         assert value is not None
@@ -26,6 +32,11 @@ class ValueProxy:
         self._state = state
         self._value = value
         self._type = type
+        if self._type is not None:
+            size = type_size(self._type)
+            assert size <= self._value.size(), "the actual type should have a size at most that of the result's"
+            if size < self._value.size():
+                self._value = self._value[size-1:0]
 
     def __getattr__(self, name):
         if name == "_raw":
@@ -39,8 +50,8 @@ class ValueProxy:
                 offset = 0
                 for (k, v) in self._type.items(): # Python preserves insertion order from 3.7 (3.6 for CPython)
                     if k == name:
-                        return ValueProxy(self._state, self._value[(type_size(self._state, v)+offset)*8-1:offset*8], type=v)
-                    offset = offset + type_size(self._state, v)
+                        return ValueProxy(self._state, self._value[(type_size(v)+offset)*8-1:offset*8], type=v)
+                    offset = offset + type_size(v)
 
         # Do not expose Claripy attrs such as "length"
         if not isinstance(self._value, claripy.ast.Base) and hasattr(self._value, name):
@@ -82,7 +93,7 @@ class ValueProxy:
     def __bool__(self):
         result = utils.get_if_constant(self._state.solver, self._value)
         if result is None:
-            raise "TODO"
+            raise VerificationException("Could not prove: " + str(self._value))
         return result
 
 
@@ -133,11 +144,13 @@ class ValueProxy:
         return self._op(other, "__lshift__")
 
 
-def type_size(state, type):
+def type_size(type):
+    if isinstance(type, int):
+        return type // 8
     if isinstance(type, str):
         return getattr(bitsizes, type) // 8
     if isinstance(type, dict):
-        return sum([type_size(state, v) for v in type.values()])
+        return sum([type_size(v) for v in type.values()])
     raise VerificationException(f"idk what to do with type '{type}'")
 
 
