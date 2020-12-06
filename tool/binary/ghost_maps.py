@@ -448,8 +448,6 @@ class GhostMapsPlugin(SimStatePlugin):
         LOG(self.state, "forall " + str(obj) + " ( " + str(len(self.state.solver.constraints)) + " constraints)")
         result = map.forall(self.state, pred)
         LOGEND(self.state)
-        record_key = claripy.BVS("record_key", map.meta.key_size)
-        record_value = claripy.BVS("record_value", map.meta.value_size)
         self.state.path.ghost_record(lambda: RecordForall(obj, pred, result))
         return result
 

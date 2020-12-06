@@ -12,10 +12,7 @@ from binary.memory_fractional import FractionalMemory
 class VerificationException(Exception): pass
 
 
-# TODO: Merge TypeProxy/ValueProxy
-#       Figure out why the "no packet => not match" case doesn't work
-#       Finish the router
-#       Then do the bridge, try to get the Polycube one to verify + the Vigor one if possible
+# TODO: Then do the bridge, try to get the Polycube one to verify + the Vigor one if possible
 #       And maybe just make up something for the policer...
 
 class ValueProxy:
@@ -23,19 +20,33 @@ class ValueProxy:
     def extract(value):
         return value._value
 
-    def __init__(self, state, value):
+    def __init__(self, state, value, type=None):
         assert value is not None
         assert not isinstance(value, ValueProxy)
         self._state = state
         self._value = value
+        self._type = type
 
     def __getattr__(self, name):
         if name == "_raw":
             return self._value
+
         if name[0] == "_":
             return super().__getattr__(name, value)
-        result = getattr(self._value, name)
-        return ValueProxy(self._state, result)
+
+        if isinstance(self._type, dict):
+            if name in self._type:
+                offset = 0
+                for (k, v) in self._type.items(): # Python preserves insertion order from 3.7 (3.6 for CPython)
+                    if k == name:
+                        return ValueProxy(self._state, self._value[(type_size(self._state, v)+offset)*8-1:offset*8], type=v)
+                    offset = offset + type_size(self._state, v)
+
+        # Do not expose Claripy attrs such as "length"
+        if not isinstance(self._value, claripy.ast.Base) and hasattr(self._value, name):
+            return ValueProxy(self._state, getattr(self._value, name))
+
+        raise VerificationException(f"idk what to do about attr '{name}'")
 
     def __setattr__(self, name, value):
         if name[0] == "_":
@@ -46,6 +57,9 @@ class ValueProxy:
         return self._value.__repr__()
 
     def _op(self, other, op):
+        if isinstance(self._type, dict):
+            raise VerificationException("Cannot perform ops on a composite type")
+
         # We live in the magical world where nothing ever overflows... almost, we still live in QF_BV, let's use 128 bits to be safe
         BITSIZE = 128
 
@@ -95,16 +109,16 @@ class ValueProxy:
         return self._op(other, "__ne__")
 
     def __lt__(self, other):
-        return self._op(other, "ULT") # TODO: signedness of {L/G}{E/T} and rshift
+        return self._op(other, "__lt__") # TODO: signedness of {L/G}{E/T} and rshift
 
     def __le__(self, other):
-        return self._op(other, "ULE")
+        return self._op(other, "__le__")
 
     def __gt__(self, other):
-        return self._op(other, "UGT")
+        return self._op(other, "__gt__")
 
     def __ge__(self, other):
-        return self._op(other, "UGE")
+        return self._op(other, "__ge__")
     
     def __mul__(self, other):
         return self._op(other, "__mul__")
@@ -122,40 +136,11 @@ class ValueProxy:
         return self._op(other, "__lshift__")
 
 
-class TypeProxy:
-    def __init__(self, state, value, type):
-        self._state = state
-        self._value = value
-        self._type = type
-
-    def __getattr__(self, name):
-        if name[0] == "_":
-            return super().__getattr__(name, value)
-        if name in self._type:
-            offset = 0
-            for (k, v) in self._type.items(): # Python preserves insertion order from 3.7 (3.6 for CPython)
-                if k == name:
-                    return ValueProxy(self._state, self._value[(type_size(self._state, v)+offset)*8-1:offset*8])
-                offset = offset + type_size(self._state, v)
-        raise VerificationException(f"idk what to do about attr '{name}'")
-
-    def __setattr__(self, name, value):
-        if name[0] == "_":
-            return super().__setattr__(name, value)
-        raise "TODO"
-
 def type_size(state, type):
     if isinstance(type, str):
         return getattr(bitsizes, type) // 8
     if isinstance(type, dict):
         return sum([type_size(state, v) for v in type.values()])
-    raise VerificationException(f"idk what to do with type '{type}'")
-
-def type_cast(state, value, type):
-    if isinstance(type, str):
-        return value # already cast
-    if isinstance(type, dict):
-        return TypeProxy(state, value, type)
     raise VerificationException(f"idk what to do with type '{type}'")
 
 

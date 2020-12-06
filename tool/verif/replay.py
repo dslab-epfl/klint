@@ -123,7 +123,7 @@ def ptr_read(state, ptr, type=None):
     result = state.memory.load(ptr, size, endness=state.arch.memory_endness)
     if type is None:
         return result
-    return type_cast(result, type)
+    return ValueProxy(state, result, type)
 
 def transmit(state, packet, device):
     global current_outputs

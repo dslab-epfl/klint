@@ -23,10 +23,13 @@ class SpecMap:
         self._value_type = value_type
 
     def get(self, key):
-        return TypeProxy(self._state, ValueProxy(self._state, self._map.get(self._state, ValueProxy.extract(key))), self._value_type)
+        (value, present) = self._map.get(self._state, ValueProxy.extract(key))
+        if utils.definitely_false(self._state.solver, present):
+            raise VerificationException("Spec called get but element is definitely not there")
+        return ValueProxy(self._state, value, self._value_type)
 
     def forall(self, pred):
-        pred = MapInvariant.new(self._state, self._map.meta, lambda i: ValueProxy.extract(~i.present | pred(type_cast(self._state, i.key, self._key_type), type_cast(self._state, i.value, self._value_type))))
+        pred = MapInvariant.new(self._state, self._map.meta, lambda i: ValueProxy.extract(~i.present | pred(ValueProxy(self._state, i.key, self._key_type), ValueProxy(self._state, i.value, self._value_type))))
         return ValueProxy(self._state, self._map.forall(self._state, pred))
 
     @property
@@ -47,8 +50,8 @@ def map_new(state, key_type, value_type):
 
 
 def exists(state, type, func):
-    value = type_cast(state, claripy.BVS("exists_value", type_size(state, type) * 8), type)
-    return utils.can_be_true(state.solver, ValueProxy(state, func(value)))
+    value = ValueProxy(state, claripy.BVS("exists_value", type_size(state, type) * 8), type)
+    return utils.can_be_true(state.solver, ValueProxy.extract(func(value)))
 
 
 externals = {
@@ -93,7 +96,7 @@ def verify(data, spec):
         spec_external_handler=handle_externals
     )
 
-    if result is not None and not result:
-        raise VerificationException("Spec returned False")
+    if result is not None:
+        raise VerificationException("Spec returned something, it should not")
 
     print("NF verif done! at", datetime.now())
