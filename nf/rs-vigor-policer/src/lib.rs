@@ -12,13 +12,13 @@ macro_rules! cstr {
 
 #[repr(C)]
 pub struct PolicerBucket {
-    size: i64,
+    size: u64,
     time: TimeT,
 }
 
 static mut WAN_DEVICE: u16 = 0;
-static mut RATE: i64 = 0;
-static mut BURST: i64 = 0;
+static mut RATE: u64 = 0;
+static mut BURST: u64 = 0;
 static mut MAX_FLOWS: u64 = 0;
 static mut ADDRESSES: *mut u32 = null_mut();
 static mut BUCKETS: *mut PolicerBucket = null_mut();
@@ -37,20 +37,13 @@ pub unsafe extern "C" fn nf_init(devices_count: u16) -> bool {
         }
         device
     };
-    RATE = {
-        let rate = os_config_get_u64(cstr!("rate")) as i64;
-        if rate <= 0 {
-            return false;
-        }
-        rate
-    };
-    BURST = {
-        let burst = os_config_get_u64(cstr!("burst")) as i64;
-        if burst <= 0 {
-            return false;
-        }
-        burst
-    };
+
+    RATE = os_config_get_u64(cstr!("rate"));
+    if RATE == 0 { return false; }
+
+    BURST = os_config_get_u64(cstr!("burst"));
+    if BURST == 0 { return false; }
+
     MAX_FLOWS = {
         let max_flows = os_config_get_u64(cstr!("max flows"));
         if max_flows == 0 || max_flows > (usize::MAX / 16 - 2) as u64 {
@@ -86,7 +79,7 @@ pub unsafe extern "C" fn nf_handle(packet: *mut OsNetPacket) {
             (&mut index as *mut usize) as *mut *mut u8,
         ) {
             os_pool_refresh(POOL, time, index);
-            let time_diff = time - (*BUCKETS.offset(index as isize)).time;
+            let time_diff = (time - (*BUCKETS.offset(index as isize)).time) as u64;
             if time_diff < BURST / RATE {
                 (*BUCKETS.offset(index as isize)).size += time_diff * RATE;
                 if (*BUCKETS.offset(index as isize)).size > BURST {
@@ -97,14 +90,14 @@ pub unsafe extern "C" fn nf_handle(packet: *mut OsNetPacket) {
             }
             (*BUCKETS.offset(index as isize)).time = time;
 
-            if (*BUCKETS.offset(index as isize)).size > (*packet).length as i64 {
-                (*BUCKETS.offset(index as isize)).size -= (*packet).length as i64;
+            if (*BUCKETS.offset(index as isize)).size > (*packet).length as u64 {
+                (*BUCKETS.offset(index as isize)).size -= (*packet).length as u64;
             } else {
                 // Packet too big
                 return;
             }
         } else {
-            if (*packet).length as i64 > BURST {
+            if (*packet).length as u64 > BURST {
                 // Unknown flow, length greater than burst
                 return;
             }
@@ -120,7 +113,7 @@ pub unsafe extern "C" fn nf_handle(packet: *mut OsNetPacket) {
                     ADDRESSES.offset(index as isize) as *mut u8,
                     index as *mut u8,
                 );
-                (*BUCKETS.offset(index as isize)).size = BURST - (*packet).length as i64;
+                (*BUCKETS.offset(index as isize)).size = BURST - (*packet).length as u64;
                 (*BUCKETS.offset(index as isize)).time = time;
             } else {
                 // No more space
