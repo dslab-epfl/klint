@@ -139,8 +139,7 @@ struct bpf_map_def {
 	uint32_t map_flags;
 	// The following are not in the original definition; but we use the fact that C initializers don't need to be complete so we can store stuff in the struct itself
 	struct os_map2* _map; // for _HASH
-	uint8_t* _values; // for _ARRAY
-	void* _value_holder; // for _HASH; workaround since we cannot gain ownership of values within the map; works as long as code uses one lookup at a time
+	uint8_t* _values; // for _ARRAY; also as a workaround for _HASH since we cannot gain ownership of values within the map; works as long as code uses one lookup at a time
 };
 
 // no need for typed stuff; but declare a struct because this macro is used with a ; at the end and that's illegal on its own
@@ -164,8 +163,8 @@ static inline void* bpf_map_lookup_elem(struct bpf_map_def* map, void* key)
 	// "Perform a lookup in map for an entry associated to key. Return Map value associated to key, or NULL if no entry was found."
 	switch (map->type) {
 		case BPF_MAP_TYPE_HASH: {
-			if (os_map2_get(map->_map, key, map->_value_holder)) {
-				return map->_value_holder;
+			if (os_map2_get(map->_map, key, map->_values)) {
+				return map->_values;
 			}
 			return NULL;
 		}
@@ -194,7 +193,7 @@ static inline long bpf_map_update_elem(struct bpf_map_def* map, void* key, void*
 
 	switch (map->type) {
 		case BPF_MAP_TYPE_HASH: {
-			if (os_map2_get(map->_map, key, map->_value_holder)) {
+			if (os_map2_get(map->_map, key, map->_values)) {
 				os_map2_remove(map->_map, key);
 			}
 			// equivalent to set ? 0 : -1, but lower number of paths in case the expression is ignored
@@ -251,10 +250,10 @@ static inline void bpf_map_init(struct bpf_map_def* map, bool havoc)
 	switch (map->type) {
 		case BPF_MAP_TYPE_HASH:
 			map->_map = os_map2_alloc(map->key_size, map->value_size, map->max_entries);
-			map->_value_holder = os_memory_alloc(1, map->value_size);
+			map->_values = os_memory_alloc(map->max_entries, map->value_size);
 			if (havoc) {
 				os_map2_havoc(map->_map);
-				os_memory_havoc(map->_value_holder);
+				os_memory_havoc(map->_values);
 			}
 			break;
 		case BPF_MAP_TYPE_ARRAY:
