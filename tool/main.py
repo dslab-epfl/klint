@@ -10,7 +10,7 @@ import nf.executor as nf_executor
 import verif.persistence as verif_persist
 import verif.executor as verif_executor
 
-nf_to_verify = "router"
+nf_to_verify = "polycube-bridge"
 if len(sys.argv) >= 2:
     nf_to_verify = sys.argv[1]
 

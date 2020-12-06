@@ -4,11 +4,12 @@ import pickle
 from binary.externals.os import config as os_config
 from binary.externals.os import network as os_network
 
-StateData = namedtuple('StateData', ['maps', 'constraints', 'network', 'config', 'devices_count', 'ghost_history', 'symbol_history'])
+StateData = namedtuple('StateData', ['maps', 'path', 'constraints', 'network', 'config', 'devices_count', 'ghost_history', 'symbol_history'])
 
 def dump_data(states, devices_count, path): # TODO why do we have to move the devices_count around like that? :/
     data = [StateData(
         maps = [(k, v.flatten()) for (k, v) in state.maps.get_all()],
+        path = state.path,
         constraints = state.solver.constraints,
         network = state.metadata.get_unique(os_network.NetworkMetadata),
         config = (state.metadata.get_unique(os_config.ConfigMetadata) or os_config.ConfigMetadata([])).items,

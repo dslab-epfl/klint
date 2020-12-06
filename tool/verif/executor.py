@@ -82,6 +82,7 @@ def verify(data, spec):
     global current_state
     current_state = create_angr_state(data.constraints)
     current_state.maps = data.maps
+    current_state.path = data.path # useful for debugging
 
     packet = SpecPacket(current_state, data.network.received, data.network.received_length, data.network.received_device)
 
