@@ -1,5 +1,6 @@
 # Compilation output
 libnf.so
+
 # Cached symbolic execution result
 symbex.result
 

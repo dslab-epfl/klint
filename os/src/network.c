@@ -27,19 +27,15 @@
 #define MAX_DEVICES 10
 
 uint16_t devices_count;
-struct ether_addr device_addrs[MAX_DEVICES];
-struct ether_addr endpoint_addrs[MAX_DEVICES];
+struct rte_ether_addr device_addrs[MAX_DEVICES];
+struct rte_ether_addr endpoint_addrs[MAX_DEVICES];
 
 
 static void os_net_init_device(unsigned device, struct rte_mempool* mbuf_pool)
 {
 	int ret;
 
-	struct rte_eth_conf device_conf = {
-		.rxmode = {
-			.hw_strip_crc = 1
-		}
-	};
+	struct rte_eth_conf device_conf = {0};
 	ret = rte_eth_dev_configure(device, 1, 1, &device_conf);
 	if (ret != 0) {
 		fail("Couldn't configure device %u: %d", device, ret);
@@ -67,7 +63,7 @@ static void os_net_init_device(unsigned device, struct rte_mempool* mbuf_pool)
 
 	rte_eth_macaddr_get(device, &(device_addrs[device]));
 	// TODO have some configuration for the endpoints
-	endpoint_addrs[device] = (struct ether_addr){.addr_bytes = {device}};
+	endpoint_addrs[device] = (struct rte_ether_addr){.addr_bytes = {device}};
 }
 
 
@@ -81,7 +77,7 @@ int os_net_init(int argc, char** argv)
 	if (ret < 0) {
 		fail("Error with DPDK init: %d", ret);
 	}
-	devices_count = rte_eth_dev_count();
+	devices_count = rte_eth_dev_count_avail();
 	if (devices_count > MAX_DEVICES) {
 		fail("Too many devices, please increase MAX_DEVICES");
 	}
@@ -104,7 +100,7 @@ int os_net_init(int argc, char** argv)
 
 uint16_t os_net_devices_count(void)
 {
-	return rte_eth_dev_count();
+	return rte_eth_dev_count_avail();
 }
 
 struct os_net_packet* os_net_receive(uint16_t device)
@@ -132,8 +128,8 @@ void os_net_transmit(struct os_net_packet* packet, uint16_t device,
                      struct os_net_tcpudp_header* tcpudp_header)
 {
 	if (ether_header != NULL) {
-		memcpy(&(ether_header->src_addr), &(device_addrs[device]), sizeof(struct ether_addr));
-		memcpy(&(ether_header->dst_addr), &(endpoint_addrs[device]), sizeof(struct ether_addr));
+		memcpy(&(ether_header->src_addr), &(device_addrs[device]), sizeof(struct rte_ether_addr));
+		memcpy(&(ether_header->dst_addr), &(endpoint_addrs[device]), sizeof(struct rte_ether_addr));
 	}
 
 	if (ipv4_header != NULL) {
@@ -142,11 +138,11 @@ void os_net_transmit(struct os_net_packet* packet, uint16_t device,
 
 		if (tcpudp_header != NULL) {
 			if (ipv4_header->next_proto_id == IPPROTO_TCP) {
-				struct tcp_hdr *tcp_header = (struct tcp_hdr*) tcpudp_header;
+				struct rte_tcp_hdr *tcp_header = (struct rte_tcp_hdr*) tcpudp_header;
 				tcp_header->cksum = 0; // Assumed by checksum calculation
 				tcp_header->cksum = rte_ipv4_udptcp_cksum((void*) ipv4_header, tcp_header);
 			} else if(ipv4_header->next_proto_id == IPPROTO_UDP) {
-				struct udp_hdr *udp_header = (struct udp_hdr*) tcpudp_header;
+				struct rte_udp_hdr *udp_header = (struct rte_udp_hdr*) tcpudp_header;
 				udp_header->dgram_cksum = 0; // Assumed by checksum calculation
 				udp_header->dgram_cksum = rte_ipv4_udptcp_cksum((void*) ipv4_header, udp_header);
 			}

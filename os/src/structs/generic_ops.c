@@ -3,7 +3,7 @@
 #include <string.h>
 #include <nmmintrin.h>
 
-#include "os/generic_ops.h"
+#include "generic_ops.h"
 
 bool generic_eq(void* a, void* b, size_t obj_size)
 //@ requires [?f1]chars(a, obj_size, ?ac) &*& [?f2]chars(b, obj_size, ?bc);

@@ -1422,7 +1422,7 @@ lemma void stitched_is_update<t>(list<t> lst, int index, t value)
 }
 @*/
 
-void os_map2_set(struct os_map2* map, void* key_ptr, void* value_ptr)
+bool os_map2_set(struct os_map2* map, void* key_ptr, void* value_ptr)
 /*@ requires mapp2(map, ?key_size, ?value_size, ?capacity, ?items) &*&
              [?kf]chars(key_ptr, key_size, ?key) &*&
              [?vf]chars(value_ptr, value_size, ?value) &*&
@@ -1489,7 +1489,7 @@ void os_map2_set(struct os_map2* map, void* key_ptr, void* value_ptr)
       //@ stitched_is_update(keys_lst, index, key);
       //@ stitched_is_update(values_lst, index, value);
       //@ close mapp2(map, key_size, value_size, capacity, new_items);
-      return;
+      return true;
     }
     size_t chn = map->chains[index];
     //@ buckets_keys_chns_same_len(buckets);
@@ -1536,6 +1536,7 @@ void os_map2_set(struct os_map2* map, void* key_ptr, void* value_ptr)
   //@ by_loop_for_all(key_opts, cell_busy, start, real_capacity, nat_of_int(real_capacity));
   //@ full_size(key_opts);
   //@ assert false;
+  return false;
 }
 
 
