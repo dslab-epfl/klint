@@ -1,6 +1,6 @@
 PolicerBucket = {
-    "time": "time_t",
-    "size": "uint64_t"
+    "size": "uint64_t",
+    "time": "time_t"
 }
 
 def spec(packet, config, devices_count):

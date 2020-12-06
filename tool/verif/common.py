@@ -27,8 +27,9 @@ class ValueProxy:
             return result.zero_extend(size - result.size())
 
     def __init__(self, state, value, type=None):
-        assert value is not None
-        assert not isinstance(value, ValueProxy)
+        assert value is not None, "oops None"
+        assert value is not NotImplemented, "oops NotImplemented"
+        assert not isinstance(value, ValueProxy), "oops recursion"
         self._state = state
         self._value = value
         self._type = type

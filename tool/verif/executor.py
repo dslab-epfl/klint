@@ -51,9 +51,10 @@ def map_new(state, key_type, value_type):
     if len(candidates) == 0:
         # TODO padding can mess things up, ideally this should do candidate_size >= desired_size and then truncate
         raise VerificationException("No such map.")
-    if len(candidates) > 1:
-        raise VerificationException("Picking a candidate isn't implemented yet, sorry.")
-    return SpecMap(state, candidates[0], key_type, value_type)
+    candidate = candidates[state.choice_index]
+    state.choice_index = state.choice_index + 1
+    state.choice_remaining = len(candidates) > state.choice_index
+    return SpecMap(state, candidate, key_type, value_type)
 
 
 def exists(state, type, func):
@@ -105,17 +106,26 @@ def verify(data, spec):
         transmitted_device = SpecFloodedDevice(current_state, data.network.received_device) if tx_dev_int is None else SpecSingleDevice(current_state, tx_dev_int) 
         transmitted_packet = SpecPacket(current_state, data.network.transmitted[0][0], data.network.transmitted[0][1], transmitted_device)
 
-    try:
-        result = py_executor.execute(
-            spec_text=spec,
-            spec_fun_name="spec",
-            spec_args=[packet, data.config, transmitted_packet], # TODO: add device count somewhere... maybe make it an attr (not item) of config
-            spec_external_names=externals.keys(),
-            spec_external_handler=handle_externals
-        )
-        if result is not None:
-            raise VerificationException("Spec returned something, it should not")
-    except VerificationException as e:
-        print("NF verif failed:", e)
-    else:
-        print("NF verif done! at", datetime.now())
+    current_state.choice_index = 0 # TODO support multiple maps
+    current_state.choice_remaining = False
+    current_state.choice_errors = []
+
+    while True:
+        try:
+            result = py_executor.execute(
+                spec_text=spec,
+                spec_fun_name="spec",
+                spec_args=[packet, data.config, transmitted_packet], # TODO: add device count somewhere... maybe make it an attr (not item) of config
+                spec_external_names=externals.keys(),
+                spec_external_handler=handle_externals
+            )
+            if result is not None:
+                raise VerificationException("Spec returned something, it should not")
+        except VerificationException as e:
+            current_state.choice_errors.append(str(e))
+            if not current_state.choice_remaining:
+                print("NF verif failed:", "\n".join(current_state.choice_errors))
+                break
+        else:
+            print("NF verif done! at", datetime.now())
+            break

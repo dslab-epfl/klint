@@ -32,7 +32,9 @@ class ConfigU(angr.SimProcedure):
     value = metadata.items[py_name]
 
     # Not sure why this is necessary. TODO investigate. Endness in angr seems hard to get in general...
-    if self.state.arch.memory_endness == archinfo.Endness.LE:
+    # the 16 is particularly weird but really, the comparison to a device needs .reversed to make sense
+    # while the policer burst (u64) should not have it
+    if self.state.arch.memory_endness == archinfo.Endness.LE and self.size() == 16:
         value = value.reversed
 
     return value

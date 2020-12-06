@@ -7,3 +7,9 @@ def spec(packet, config, transmitted_packet):
     # Only packets from the WAN device should be policed
     if packet.device != config["wan device"]:
         assert transmitted_packet is not None
+        return
+
+    # New flows cannot begin with an overly large packet since they'd already exceed their budget
+    table = Map(typeof(packet.ipv4.dst), ...)
+    if ~table.has(packet.ipv4.dst) & (packet.length > config["burst"]):
+        assert transmitted_packet is None
