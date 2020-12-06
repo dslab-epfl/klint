@@ -30,7 +30,7 @@ SRCS-y += $(shell echo $(SELF_DIR)/src/**/*.c)
 CFLAGS += -I$(SELF_DIR)/../config/include
 
 # Build with the libnf
-LDFLAGS += $(SELF_DIR)/../$(NF)/libnf.so
+LDFLAGS += $(SELF_DIR)/../nf/$(NF)/libnf.so
 
 # Build with the libconfig
 LDFLAGS += $(SELF_DIR)/../config/libconfig.so
