@@ -697,7 +697,8 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
             # For each pair of maps (M1, M2),
             #   if length(M1) <= length(M2) across all states,
             #   then assume this holds in the merged state
-            if all(utils.definitely_true(st.solver, st.maps.length(o1) <= st.maps.length(o2)) for st in orig_states):
+            #   except if length(M2) because then it's rather pointless
+            if all(utils.definitely_true(st.solver, (st.maps.length(o1) <= st.maps.length(o2)) & (st.maps.length(o2) != 1)) for st in orig_states):
                 results.put((ResultType.LENGTH_LTE, [o1, o2], lambda st, ms: st.add_constraints(ms[0].length() <= ms[1].length())))
 
             # Step 3: Map relationships.
@@ -853,21 +854,25 @@ def maps_merge_one(states_to_merge, obj, ancestor_state):
     print("Merging map", obj)
     # helper function to find constraints that hold on an expression in a state
     ancestor_variables = ancestor_state.solver.variables(claripy.And(*ancestor_state.solver.constraints))
-    def find_constraints(state, expr):
+    def find_constraints(state, expr, replacement):
         # If the expression is constant or constrained to be, return that
         const = utils.get_if_constant(state.solver, expr)
         if const is not None:
-            return [expr == const]
+            return [replacement == const]
         # Otherwise, find constraints that contain the expression, but ignore those that also contain variables not in the ancestor
         # This might miss stuff due to transitive constraints,
         # but it's sound since having overly lax invariants can only over-approximate
-        fake = claripy.BVS("fake", expr.size())
         expr_vars = state.solver.variables(expr)
         results = []
         for constr in state.solver.constraints:
             constr_vars = state.solver.variables(constr)
-            if not constr.replace(expr, fake).structurally_match(constr) and constr_vars.difference(expr_vars).issubset(ancestor_variables):
-                results.append(constr)
+            if not constr.replace(expr, replacement).structurally_match(constr) and constr_vars.difference(expr_vars).issubset(ancestor_variables):
+                results.append(constr.replace(expr, replacement))
+        # Also, if the item is always 0 in places, remember that.
+        # Or at least remember the beginning, that's enough for a prototype.
+        # This is because some programmers use variables that are too wide, e.g. their skeleton has the device as an u16 but they cast to an u32
+        if expr.op == "Concat" and expr.args[0].structurally_match(claripy.BVV(0, expr.args[0].size())):
+            results.append(replacement[expr.size()-1:expr.size()-expr.args[0].size()] == 0)
         return results
 
     # Oblivion algorithm: "forget" known items by integrating them into the unknown items invariant
@@ -884,9 +889,10 @@ def maps_merge_one(states_to_merge, obj, ancestor_state):
                 conj = conjunction.with_latest_map_versions(state)(state, item)
                 if utils.can_be_false(state.solver, Implies(item.present, conj)):
                     changed = True
-                    constraints = claripy.And(*find_constraints(state, item.key), *find_constraints(state, item.value))
-                    print("Item", item, "in map", obj, "does not comply with invariant conjunction", conj, "; adding disjunction", constraints)
-                    conjunction = conjunction.with_expr(lambda e, i, oldi=item, cs=constraints: e | cs.replace(oldi.key, i.key).replace(oldi.value, i.value))
+                    conjunction = conjunction.with_expr(
+                        lambda e, i, oldi=item, state=state: e | claripy.And(*find_constraints(state, oldi.key, i.key), *find_constraints(state, oldi.value, i.value))
+                    )
+                    print("Item", item, "in map", obj, "does not comply with invariant conjunction", conj)
         invariant_conjs.append(conjunction)
 
     return (ancestor_state.maps[obj].flatten().with_invariant_conjunctions(invariant_conjs), changed)
