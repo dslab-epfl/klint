@@ -1,35 +1,16 @@
-# TODO rewrite
+# IEEE 802.1D
+def spec(packet, config, transmitted_packet):
 
-from state import dyn_emap, stat_emap, dyn_vals
-EXP_TIME = 10 * 1000
+    # === §7.7.1 Active topology enforcement === #
+    # "Each Port is selected as a potential transmission Port if, and only if [...] The Port considered for transmission is not the Port on which the frame was received [...]"
+    if transmitted_packet is not None:
+        assert ~(packet.device in transmitted_packet.devices)
 
-h = pop_header(ether, on_mismatch=([],[]))
 
-dyn_emap.expire_all(now - EXP_TIME)
-
-if dyn_emap.has(h.saddr):
-    dyn_emap.refresh_idx(dyn_emap.get(h.saddr), now)
-else:
-    if not dyn_emap.full():
-        idx = the_index_allocated
-        dyn_emap.add(h.saddr, idx, now)
-        dyn_vals.set(idx, DynamicValuec(received_on_port))
-
-static_key = StaticKeyc(h.daddr, received_on_port)
-if stat_emap.has(static_key):
-    output_port = stat_emap.get(static_key)
-    if output_port == -2 or output_port == received_on_port:
-        return ([],[])
-    else:
-        return ([output_port], [ether(h)])
-else:
-    if dyn_emap.has(h.daddr):
-        idx = dyn_emap.get(h.daddr)
-        forward_to = dyn_vals.get(idx)
-        if (forward_to.output_port == received_on_port):
-            return ([],[])
-        else:
-            return ([forward_to.output_port], [ether(h)])
-    else:
-        return ([1-received_on_port], [ether(h)]) # broadcast, TODO: generalize
-
+    # === §7.8 The Learning Process === #
+    # "The Learning Process shall create or update a Dynamic Filtering Entry (7.9, 7.9.2) in the Filtering Database, 
+    #  associating the MAC Address in the source address field of the frame with the receiving Port, if and only if [...] 
+    #  The source address field of the frame denotes a specific end station (i.e., is not a group address)"
+    # note: an Ethernet address is a group address if the least significant bit of its first octet is set to 1
+    db = Map(typeof(packet.ether.src), ...)
+    assert ~db.has(packet.ether.src) | ((packet.ether.src & 0x01_00_00_00_00_00) == 0)

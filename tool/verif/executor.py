@@ -45,15 +45,21 @@ class SpecMap:
 def map_new(state, key_type, value_type):
     key_size = type_size(key_type) * 8
     value_size = ... if value_type is ... else type_size(value_type) * 8
-    candidates = [m for (o, m) in state.maps if m.meta.key_size >= key_size and ((value_size is ...) or (m.meta.value_size == value_size))]
+    candidates = [m for m in state.maps if m.meta.key_size >= key_size and ((value_size is ...) or (m.meta.value_size == value_size))]
     # Ignore maps that the user did not declare
     candidates = [m for m in candidates if "allocated_" not in m.meta.name and "packet_" not in m.meta.name]
     if len(candidates) == 0:
         # TODO padding can mess things up, ideally this should do candidate_size >= desired_size and then truncate
         raise VerificationException("No such map.")
-    candidate = candidates[state.choice_index]
-    state.choice_index = state.choice_index + 1
-    state.choice_remaining = len(candidates) > state.choice_index
+
+    exact_candidates = [m for m in candidates if m.meta.key_size == key_size]
+    if exact_candidates:
+        candidates = exact_candidates
+
+    global current_choices
+    candidate = candidates[current_choices.index]
+    current_choices.index = current_choices.index + 1
+    current_choices.remaining = len(candidates) > current_choices.index
     return SpecMap(state, candidate, key_type, value_type)
 
 
@@ -90,27 +96,45 @@ def handle_externals(name, *args, **kwargs):
         return ext(current_state, *args)
 
 
+class SpecMaps:
+    def __init__(self, state, maps):
+        self._state = state
+        self._maps = {o.cache_key: m for (o, m) in maps}
+
+    def __getattr__(self, name):
+        if name[0] == "_":
+            return super().__getattr__(self, name)
+        return lambda o, *args, **kwargs: getattr(self._maps[o.cache_key], name)(self._state, *args, **kwargs)
+
+    def __iter__(self):
+        return self._maps.values().__iter__()
+
+
+class SpecChoices: pass
+
 def verify(data, spec):
-    global current_state
-    current_state = create_angr_state(data.constraints)
-    current_state.maps = data.maps
-    current_state.path = data.path # useful for debugging
-
-    packet = SpecPacket(current_state, data.network.received, data.network.received_length, SpecSingleDevice(current_state, data.network.received_device))
-
-    transmitted_packet = None
-    if data.network.transmitted:
-        if len(data.network.transmitted) > 1:
-            raise "TODO support multiple transmitted packets"
-        tx_dev_int = data.network.transmitted[0][2]
-        transmitted_device = SpecFloodedDevice(current_state, data.network.received_device) if tx_dev_int is None else SpecSingleDevice(current_state, tx_dev_int) 
-        transmitted_packet = SpecPacket(current_state, data.network.transmitted[0][0], data.network.transmitted[0][1], transmitted_device)
-
-    current_state.choice_index = 0 # TODO support multiple maps
-    current_state.choice_remaining = False
-    current_state.choice_errors = []
+    global current_choices
+    current_choices = SpecChoices()
+    current_choices.index = 0 # TODO support multiple maps
+    current_choices.remaining = False
+    current_choices.errors = []
 
     while True:
+        global current_state
+        current_state = create_angr_state(data.constraints)
+        current_state.maps = SpecMaps(current_state, data.maps)
+        current_state.path = data.path # useful for debugging
+
+        packet = SpecPacket(current_state, data.network.received, data.network.received_length, SpecSingleDevice(current_state, data.network.received_device))
+
+        transmitted_packet = None
+        if data.network.transmitted:
+            if len(data.network.transmitted) > 1:
+                raise "TODO support multiple transmitted packets"
+            tx_dev_int = data.network.transmitted[0][2]
+            transmitted_device = SpecFloodedDevice(current_state, data.network.received_device) if tx_dev_int is None else SpecSingleDevice(current_state, tx_dev_int) 
+            transmitted_packet = SpecPacket(current_state, data.network.transmitted[0][0], data.network.transmitted[0][1], transmitted_device)
+
         try:
             result = py_executor.execute(
                 spec_text=spec,
@@ -122,9 +146,9 @@ def verify(data, spec):
             if result is not None:
                 raise VerificationException("Spec returned something, it should not")
         except VerificationException as e:
-            current_state.choice_errors.append(str(e))
-            if not current_state.choice_remaining:
-                print("NF verif failed:", "\n".join(current_state.choice_errors))
+            current_choices.errors.append(str(e))
+            if not current_choices.remaining:
+                print("NF verif failed:\n  ", "\n  ".join(current_choices.errors))
                 break
         else:
             print("NF verif done! at", datetime.now())
