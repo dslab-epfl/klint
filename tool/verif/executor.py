@@ -53,10 +53,13 @@ def exists(state, type, func):
     value = ValueProxy(state, claripy.BVS("exists_value", type_size(state, type) * 8), type)
     return utils.can_be_true(state.solver, ValueProxy.extract(func(value)))
 
+def ipv4_checksum(state, header):
+    return header.checksum # TODO
 
 externals = {
     "Map": map_new,
-    "exists": exists
+    "exists": exists,
+    "ipv4_checksum": ipv4_checksum
 }
 
 def handle_externals(name, *args, **kwargs):

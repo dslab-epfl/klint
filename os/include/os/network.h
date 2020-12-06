@@ -82,6 +82,14 @@ static inline bool os_net_get_tcpudp_header(struct os_net_ipv4_header* ipv4_head
 }
 
 
+// Compute the checksum of an IPv4 packet
+static inline bool os_net_ipv4_checksum_valid(struct os_net_ipv4_header* header)
+{
+	(void) header;
+	return true; // TODO
+}
+
+
 // Transmit the given packet on the given device
 // Precondition: tcpudp_header != NULL  -->  ipv4_header != NULL
 // TODO: would be nice to get rid of NULL here :/

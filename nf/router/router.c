@@ -31,13 +31,18 @@ void nf_handle(struct os_net_packet* packet)
 		return;
 	}
 
-	if (ipv4_header->ihl < 5) { // = 20 bytes
+	if (ipv4_header->ihl < 5) { // ihl is in units of 4 bytes
 		os_debug("IPv4 header too short");
 		return;
 	}
 
 	if (ipv4_header->total_length < (ipv4_header->ihl * 4)) {
 		os_debug("Total length too short");
+		return;
+	}
+
+	if (!os_net_ipv4_checksum_valid(ipv4_header)) {
+		os_debug("Bad packet checksum");
 		return;
 	}
 

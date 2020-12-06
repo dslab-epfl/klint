@@ -169,6 +169,7 @@ class SpecPacket:
                 total_length=self.data[start+4*8-1:start+2*8],
                 time_to_live=self.data[start+9*8-1:start+8*8],
                 protocol=self.data[start+10*8-1:start+9*8],
+                checksum=self.data[start+12*8-1:start+10*8],
                 src=self.data[start+16*8-1:start+10*8],
                 dst=self.data[start+20*8-1:start+16*8]
             ))

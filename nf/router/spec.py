@@ -18,8 +18,7 @@ def spec(packet, config, transmitted_packet):
          # Ensure the packet is actually IP
          packet.ipv4 is None or
          # (2): The IP checksum must be correct
-         # TODO add an ip checksum feature (just return a symbol and put it in the metadata as "the checksum of...")
-         #packet.ipv4.checksum != ipv4_checksum(packet.ipv4) or
+         packet.ipv4.checksum != ipv4_checksum(packet.ipv4) or
          # (3): The IP version number must be 4
          packet.ipv4.version != 4 or
          # (4): The IP header length must be >= 20 bytes

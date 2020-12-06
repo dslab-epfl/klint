@@ -17,6 +17,7 @@ IPv4Header = namedtuple(
         "total_length",
         "time_to_live",
         "protocol",
+        "checksum",
         "src",
         "dst"
     ]
