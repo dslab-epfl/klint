@@ -90,7 +90,7 @@ class OsMapSet(angr.SimProcedure):
         # Preconditions
         mapp = self.state.metadata.get(Map, map)
         key = self.state.memory.load(key_ptr, mapp.key_size, endness=self.state.arch.memory_endness)
-        self.state.memory.take(25, key_ptr, mapp.key_size, endness=self.state.arch.memory_endness)
+        self.state.memory.take(25, key_ptr, mapp.key_size)
         if utils.can_be_false(self.state.solver, self.state.maps.length(mapp.values) < mapp.capacity):
             raise SymbexException("Precondition does not hold: length(values) < capacity")
         if utils.can_be_false(self.state.solver, claripy.Not(self.state.maps.get(mapp.values, key)[1])):

@@ -630,15 +630,15 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
         return None
 
     def candidate_finder_othermap(state, o1, o2, sel1, sel2, it1, it2):
-        # The ugliest one: if o1 is a "fractions" obj, check if the corresponding value in the corresponding obj is equal to x2.reversed
+        # The ugliest one: if o1 is a "fractions" obj, check if the corresponding value in the corresponding obj is equal to x2
         if sel1 is get_key:
             # note that orig_size is in bytes, but x2.size() is in bits!
             orig_o1, orig_size = state.memory.get_obj_and_size_from_fracs_obj(o1)
             x2 = sel2(it2)
             if orig_o1 is not None and orig_o1 is not o2 and utils.definitely_true(state.solver, orig_size * 8 == x2.size()):
                 (orig_x1v, orig_x1p) = state.maps.get(orig_o1, it1.key)
-                if utils.definitely_true(state.solver, orig_x1p & (orig_x1v == x2.reversed)):
-                    return lambda it, orig_o1=orig_o1, x2size=x2.size(): MapGet(orig_o1, it.key, x2size).reversed
+                if utils.definitely_true(state.solver, orig_x1p & (orig_x1v == x2)):
+                    return lambda it, orig_o1=orig_o1, x2size=x2.size(): MapGet(orig_o1, it.key, x2size)
         return None
 
     def candidate_finder_constant(state, o1, o2, sel1, sel2, it1, it2):
@@ -697,8 +697,8 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
             # For each pair of maps (M1, M2),
             #   if length(M1) <= length(M2) across all states,
             #   then assume this holds in the merged state
-            #   except if length(M2) because then it's rather pointless
-            if all(utils.definitely_true(st.solver, (st.maps.length(o1) <= st.maps.length(o2)) & (st.maps.length(o2) != 1)) for st in orig_states):
+            if all(utils.definitely_true(st.solver, st.maps.length(o1) <= st.maps.length(o2)) for st in orig_states):
+                print("Inferred: Length of", o1, "is always <= that of", o2)
                 results.put((ResultType.LENGTH_LTE, [o1, o2], lambda st, ms: st.add_constraints(ms[0].length() <= ms[1].length())))
 
             # Step 3: Map relationships.
