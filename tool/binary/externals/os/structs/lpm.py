@@ -60,24 +60,23 @@ class LpmLookupElem(angr.SimProcedure):
         self.state.memory.store(out_prefix, out_prefix_bv, endness=self.state.arch.memory_endness)
         self.state.memory.store(out_prefixlen, out_prefixlen_bv, endness=self.state.arch.memory_endness)
 
-        def forall_fun(k, v):
-            k_prefix = k[39:8]
-            k_prefixlen = k[7:0]
-            # For each entry in the map, either:
-            # the entry's prefix length is shorter (=> lower priority), or
-            shorter_prefix = k_prefixlen < out_prefixlen_bv
-            # the entry's prefix does not match the input key (=> no match), or
-            no_match = claripy.LShR(k_prefix, (IP_LEN - k_prefixlen).zero_extend(24)) != claripy.LShR(key, (IP_LEN - k_prefixlen).zero_extend(24))
-            # the entry corresponds to the returned value (=> match)
-            match = (k == out_prefix_bv.concat(out_prefixlen_bv))
-            return shorter_prefix | no_match | match
-        utils.add_constraints_and_check_sat(self.state, self.state.maps.forall(lpmp.table, forall_fun))
-
-        def case_has(state, value):
-            print("!!! lpm_lookup_elem: lookup success")
-            return claripy.BVV(1, bitsizes.bool)
-        def case_not(state):
-            print("!!! lpm_lookup_elem: lookup fail")
+        def matches(route):
+            prefix = route[39:8]
+            length = route[7:0].zero_extend(24)
+            return prefix.LShR(length) == key.LShR(length)
+        
+        def case_none(state):
+            print("!!! lpm_lookup_elem: none")
             return claripy.BVV(0, bitsizes.bool)
+        def case_some(state):
+            print("!!! lpm_lookup_elem: some")
+            (value, has) = self.state.maps.get(lpmp.table, out_prefix_bv.concat(out_prefixlen_bv))
+            utils.add_constraints_and_check_sat(
+                self.state, 
+                self.state.maps.forall(lpmp.table, lambda k, v: ~matches(k) | (k[7:0] <= out_prefixlen_bv)),
+                has,
+                value == out_value_bv
+            )
+            return claripy.BVV(1, bitsizes.bool)
 
-        return utils.fork_guarded_has(self, lpmp.table, out_prefix_bv.concat(out_prefixlen_bv), case_has, case_not)
+        return utils.fork_guarded(self, self.state.maps.forall(lpmp.table, lambda k, v: ~matches(k)), case_none, case_some)

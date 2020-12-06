@@ -57,6 +57,6 @@ def spec(packet, config, transmitted_packet):
         assert exists(
             Route,
             lambda r: transmitted_packet.device == table.get(r) &
-                      matches(dst_route, packet.ipv4.dst) &
+                      matches(r, packet.ipv4.dst) &
                       table.forall(lambda k, v: ~matches(k, packet.ipv4.dst) | (k.length <= r.length))
         )

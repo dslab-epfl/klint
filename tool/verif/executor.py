@@ -22,9 +22,17 @@ class SpecMap:
         self._key_type = key_type
         self._value_type = value_type
 
+    def get(self, key):
+        return TypeProxy(self._state, ValueProxy(self._state, self._map.get(self._state, ValueProxy.extract(key))), self._value_type)
+
     def forall(self, pred):
-        pred = MapInvariant.new(self._state, self._map.meta, lambda i: (~i.present | pred(type_cast(self._state, i.key, self._key_type), type_cast(self._state, i.value, self._value_type)))._value)
+        pred = MapInvariant.new(self._state, self._map.meta, lambda i: ValueProxy.extract(~i.present | pred(type_cast(self._state, i.key, self._key_type), type_cast(self._state, i.value, self._value_type))))
         return ValueProxy(self._state, self._map.forall(self._state, pred))
+
+    @property
+    def length(self):
+        return ValueProxy(self._state, self._map.length())
+
 
 def map_new(state, key_type, value_type):
     key_size = type_size(state, key_type) * 8
@@ -38,8 +46,14 @@ def map_new(state, key_type, value_type):
     return SpecMap(state, candidates[0], key_type, value_type)
 
 
+def exists(state, type, func):
+    value = type_cast(state, claripy.BVS("exists_value", type_size(state, type) * 8), type)
+    return utils.can_be_true(state.solver, ValueProxy(state, func(value)))
+
+
 externals = {
-    "Map": map_new
+    "Map": map_new,
+    "exists": exists
 }
 
 def handle_externals(name, *args, **kwargs):
@@ -63,13 +77,13 @@ def verify(data, spec):
     current_state = create_angr_state(data.constraints)
     current_state.maps = data.maps
 
-    packet = SpecPacket(current_state, data.network)
+    packet = SpecPacket(current_state, data.network.received, data.network.received_length, data.network.received_device)
 
     transmitted_packet = None
     if data.network.transmitted:
         if len(data.network.transmitted) > 1:
             raise "TODO support symbolic packets as ORs of all of them"
-        transmitted_packet = data.network.transmitted[0]
+        transmitted_packet = SpecPacket(current_state, data.network.transmitted[0][0], data.network.transmitted[0][1], data.network.transmitted[0][2])
 
     result = py_executor.execute(
         spec_text=spec,
@@ -81,8 +95,5 @@ def verify(data, spec):
 
     if result is not None and not result:
         raise VerificationException("Spec returned False")
-
-    if data.network.transmitted and not got_transmitted_packet:
-        raise VerificationException("There is a packet but the spec says there should not be")
 
     print("NF verif done! at", datetime.now())

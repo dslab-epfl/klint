@@ -12,7 +12,17 @@ from binary.memory_fractional import FractionalMemory
 class VerificationException(Exception): pass
 
 
+# TODO: Merge TypeProxy/ValueProxy
+#       Figure out why the "no packet => not match" case doesn't work
+#       Finish the router
+#       Then do the bridge, try to get the Polycube one to verify + the Vigor one if possible
+#       And maybe just make up something for the policer...
+
 class ValueProxy:
+    @staticmethod
+    def extract(value):
+        return value._value
+
     def __init__(self, state, value):
         assert value is not None
         assert not isinstance(value, ValueProxy)
@@ -64,8 +74,6 @@ class ValueProxy:
             raise "TODO"
         return result
 
-    def __len__(self):
-        pass
 
     def __invert__(self):
         return ValueProxy(self._state, ~self._value)
@@ -87,7 +95,7 @@ class ValueProxy:
         return self._op(other, "__ne__")
 
     def __lt__(self, other):
-        return self._op(other, "ULT") # TODO: signedness...
+        return self._op(other, "ULT") # TODO: signedness of {L/G}{E/T} and rshift
 
     def __le__(self, other):
         return self._op(other, "ULE")
@@ -104,9 +112,9 @@ class ValueProxy:
         return self._op(other, "__mul__")
     
     def __rshift__(self, other):
-        return self._op(other, "__rshift__")
+        return self._op(other, "LShR")
     def __rrshift__(self, other):
-        return self._op(other, "__rshift__")
+        return self._op(other, "LShR")
     
     def __lshift__(self, other):
         return self._op(other, "__lshift__")
@@ -152,12 +160,11 @@ def type_cast(state, value, type):
 
 
 class SpecPacket:
-    def __init__(self, state, network_meta):
+    def __init__(self, state, data, length, device):
         self._state = state
-        self._data_addr = network_meta.received_addr
-        self.data = network_meta.received
-        self.length = network_meta.received_length
-        self.device = network_meta.received_device
+        self.data = data
+        self.length = length
+        self.device = device
 
     @property
     def ether(self):
