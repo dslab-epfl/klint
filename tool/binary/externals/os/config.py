@@ -1,5 +1,6 @@
 # Standard/External libraries
 import angr
+import archinfo
 import claripy
 from collections import namedtuple
 
@@ -12,7 +13,7 @@ ConfigMetadata = namedtuple('ConfigMetadata', ['items'])
 
 class ConfigU(angr.SimProcedure):
   def size(self):
-    return 8
+    raise "please override"
 
   def run(self, name):
     name = cast.ptr(name)
@@ -29,6 +30,10 @@ class ConfigU(angr.SimProcedure):
       metadata.items[py_name] = value
 
     value = metadata.items[py_name]
+
+    # Not sure why this is necessary. TODO investigate. Endness in angr seems hard to get in general...
+    if self.state.arch.memory_endness == archinfo.Endness.LE:
+        value = value.reversed
 
     return value
 

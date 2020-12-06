@@ -231,10 +231,6 @@ class SpecPacket:
         raise VerificationException("May or may not be TCP/UDP; this case isn't handled yet")
 
 
-class SpecConfig:
-    pass
-
-
 class _SpecState: pass # just so we can add stuff to it
 
 def create_angr_state(constraints): 

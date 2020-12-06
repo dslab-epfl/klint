@@ -1,39 +1,9 @@
-PolicerBucket = {
-    "time": "time_t",
-    "size": "uint64_t"
-}
-
-def spec(packet, config, devices_count):
-    buckets = Array(config["max flows"], PolicerBucket)
-    addresses = ExpiringSet(config["max flows"], "uint32_t")
-
-    if devices_count != 2:
+def spec(packet, config, transmitted_packet):
+    # The policer is at a network boundary and should thus reject non-IP packets
+    if packet.ipv4 is None:
+        assert transmitted_packet is None
         return
 
-    if packet.ether is None or packet.ipv4 is None:
-        return
-
-    if packet.device == config["wan device"]:
-        index = addresses.get(packet.ipv4.dst)
-        if index is None:
-            if packet.length <= config["burst"] and addresses.try_add(packet.ipv4.dst):
-                buckets[index].size = burst - packet.length
-                buckets[index].time = time()
-            else:
-                return
-        else:
-            time_diff = time - buckets[index].time
-            if time_diff < config["burst"] / config["rate"]:
-                buckets[index].size += time_diff * config["rate"]
-                if buckets[index].size > burst:
-                    buckets[index].size = burst
-            else:
-                buckets[index].size = burst;
-
-            buckets[index].time = time()
-
-            if buckets[index].size <= packet.length:
-                return
-            buckets[index].size -= packet.length
-
-    transmit(packet, 1 - packet.device)
+    # Only packets from the WAN device should be policed
+    if packet.device != config["wan device"]:
+        assert transmitted_packet is not None
