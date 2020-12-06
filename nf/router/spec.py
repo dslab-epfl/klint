@@ -1,6 +1,6 @@
 Route = {
-    "dest": "uint32_t",
-    "length": "uint8_t"
+    "length": "uint8_t",
+    "dest": "uint32_t"
 }
 Device = "uint16_t"
 
@@ -49,6 +49,6 @@ def spec(packet, config, transmitted_packet):
         assert exists(
             Route,
             lambda r: (transmitted_packet.device == table.get(r)) &
-                      matches(r, packet.ipv4.dst) &
-                      table.forall(lambda k, v: ~matches(k, packet.ipv4.dst) | (k.length <= r.length))
+                      matches(r, packet.ipv4.dst) & # (1) Basic Match
+                      table.forall(lambda k, v: ~matches(k, packet.ipv4.dst) | (k.length <= r.length)) # (2) Longest Match
         )

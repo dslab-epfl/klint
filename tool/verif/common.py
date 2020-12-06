@@ -60,9 +60,6 @@ class ValueProxy:
         if isinstance(self._type, dict):
             raise VerificationException("Cannot perform ops on a composite type")
 
-        # We live in the magical world where nothing ever overflows... almost, we still live in QF_BV, let's use 128 bits to be safe
-        BITSIZE = 128
-
         other_value = other
         self_value = self._value
 
@@ -73,11 +70,11 @@ class ValueProxy:
             other_value = int(other_value)
         if not isinstance(other_value, claripy.ast.Base):
             if isinstance(other_value, int):
-                other_value = claripy.BVV(other_value, BITSIZE)
+                other_value = claripy.BVV(other_value, max(8, self_value.size())) # 8 bits minimum
 
         if isinstance(self_value, claripy.ast.BV):
-            self_value = self_value.zero_extend(BITSIZE - self_value.size())
-            other_value = other_value.zero_extend(BITSIZE - other_value.size())
+            self_value = self_value.zero_extend(max(0, other_value.size() - self_value.size()))
+            other_value = other_value.zero_extend(max(0, self_value.size() - other_value.size()))
 
         return ValueProxy(self._state, getattr(self_value, op)(other_value))
 
