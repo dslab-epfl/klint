@@ -48,7 +48,6 @@ def spec(packet, config, transmitted_packet):
     else:
         assert exists(
             Route,
-            lambda r: (transmitted_packet.device == table.get(r)) &
-                      matches(r, packet.ipv4.dst) & # (1) Basic Match
-                      table.forall(lambda k, v: ~matches(k, packet.ipv4.dst) | (k.length <= r.length)) # (2) Longest Match
+            lambda r: matches(r, packet.ipv4.dst) & # (1) Basic Match
+                      table.forall(lambda k, v: ~matches(k, packet.ipv4.dst) | (k.length < r.length) | (v == transmitted_packet.device)) # (2) Longest Match
         )

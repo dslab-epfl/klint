@@ -56,6 +56,7 @@ class LpmLookupElem(angr.SimProcedure):
         out_value_bv = self.state.symbol_factory.BVS("out_value", bitsizes.uint16_t)
         out_prefix_bv = self.state.symbol_factory.BVS("out_prefix", IP_LEN)
         out_prefixlen_bv = self.state.symbol_factory.BVS("out_prefixlen", bitsizes.uint8_t)
+        out_route = out_prefix_bv.concat(out_prefixlen_bv)
         self.state.memory.store(out_value, out_value_bv, endness=self.state.arch.memory_endness)
         self.state.memory.store(out_prefix, out_prefix_bv, endness=self.state.arch.memory_endness)
         self.state.memory.store(out_prefixlen, out_prefixlen_bv, endness=self.state.arch.memory_endness)
@@ -70,13 +71,13 @@ class LpmLookupElem(angr.SimProcedure):
             return claripy.BVV(0, bitsizes.bool)
         def case_some(state):
             print("!!! lpm_lookup_elem: some")
-            (value, has) = state.maps.get(lpmp.table, out_prefix_bv.concat(out_prefixlen_bv))
+            (value, has) = state.maps.get(lpmp.table, out_route)
             utils.add_constraints_and_check_sat(
                 state,
-                state.maps.forall(lpmp.table, lambda k, v: ~matches(k) | (k[7:0] <= out_prefixlen_bv)),
+                state.maps.forall(lpmp.table, lambda k, v: ~matches(k) | (k[7:0] < out_prefixlen_bv) | (v == out_value_bv)),
                 has,
                 value == out_value_bv,
-                matches(out_prefix_bv.concat(out_prefixlen_bv))
+                matches(out_route)
             )
             return claripy.BVV(1, bitsizes.bool)
 
