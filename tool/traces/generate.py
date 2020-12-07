@@ -32,6 +32,7 @@ class ProofBuilder(object):
         self.ghost_maps: Dict[str, Record] = {}
         self.symbols: Dict[str, int] = {}
         self.state: SimState = create_angr_state(state.constraints)
+        print(state.constraints)
 
         # Iterate over records and create the proof as we go
         for record in state.ghost_history:
@@ -90,7 +91,7 @@ class ProofBuilder(object):
                 if opand.name not in self.symbols:
                     if opand.name in self.ghost_maps:
                         # Actually a ghostmap, replace token with previously created bitvector
-                        opand.name = f"simple_memloc_{opand.name}"
+                        opand.name = f"addr_{opand.name}"
                     else:
                         self.add_symbol(opand.name, opand.bit_width)
 
@@ -131,13 +132,10 @@ class ProofBuilder(object):
         self.append_to_proof(
             f"//@ list<pair<list<bool>, list<bool> > > {result};")
 
-        # Ghostmaps that represent a simple memory location might be used down the line inside expressions
-        # We create a bitvector to represent their unique entry
+        # Ghostmaps which represent a simple memory location might be used down the line inside expressions as a memory address
+        # We create a bitvector to represent this address
         if record.length.args[0] == 1:
-            self.append_to_proof(
-                f"//@ list<bool> simple_memloc_{result};",
-                f"//@ assume (ghostmap_get({result}, snd(bits_of_int(0, N64))) == some(simple_memloc_{result}));",
-            )
+            self.append_to_proof(f"//@ list<bool> addr_{result};")
 
     def _handle_record_length(self, record: RecordLength) -> None:
         pass
