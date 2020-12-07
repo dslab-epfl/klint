@@ -19,5 +19,4 @@ def spec(packet, config, transmitted_packet):
     # === §7.9.5 Querying the Filtering Database === #
     # No quote here, the spec just alludes to this in many places
     if ~db.has(packet.ether.dst):
-        assert ~(packet.device in transmitted_packet.devices)
         assert transmitted_packet.devices.length == config.devices_count - 1

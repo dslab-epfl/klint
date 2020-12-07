@@ -35,14 +35,7 @@ bool nf_init(uint16_t devices_count)
 	devices = os_memory_alloc(capacity, sizeof(uint16_t));
 
 	map = os_map_alloc(sizeof(os_net_ether_addr_t), capacity);
-	if (map == 0) {
-		return false;
-	}
-
 	allocator = os_pool_alloc(capacity);
-	if (allocator == 0) {
-		return false;
-	}
 
 	return true;
 }
@@ -65,14 +58,13 @@ void nf_handle(struct os_net_packet* packet)
 			os_map_remove(map, &(addresses[index]));
 		}
 		if (os_pool_borrow(allocator, time, &index)) {
-			memcpy(addresses[index], ether_header->src_addr, sizeof(os_net_ether_addr_t));
+			memcpy(addresses[index], ether_header->src_addr, sizeof(ether_header->src_addr));
 			devices[index] = packet->device;
 			os_map_set(map, &(addresses[index]), (void*) index);
 		}
 	} // It's OK if we can't get nor add, we can forward the packet anyway
 
-	int64_t dst_time;
-	if(os_map_get(map, &(ether_header->dst_addr), (void*) &index) && os_pool_used(allocator, index, &dst_time) && time - expiration_time <= dst_time) {
+	if(os_map_get(map, &(ether_header->dst_addr), (void*) &index)) {
 		if (devices[index] != packet->device) {
 			os_net_transmit(packet, devices[index], 0, 0, 0);
 		}
