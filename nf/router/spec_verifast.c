@@ -47,16 +47,16 @@ void spec() {
     //@ assert (ipv4_header->total_length >= ipv4_header.ihl || !packet_is_sent);
 
     /*@ if (packet_is_sent) {
-         list<bool> b_dst_route = snd(bits_of_int(dst_route, N32));
-         list<bool> b_dst_length = snd(bits_of_int(dst_length, N8));
-         list<bool> b_dst_device = snd(bits_of_int(dst_device, N16));
-         list<bool> route = append(b_dst_route, b_dst_length);
-         list<bool> dst_ip = snd(bits_of_int(ipv4_header->dst_addr, N32));
-        
-         assert (ghostmap_get(table, route) == some(b_dst_device));
-         assert (true == matches(route, dst_ip));
-         assert (true == ghostmap_forall(table, (lpm)(dst_ip, b_dst_length, b_dst_device)));
-     } @*/
+        list<bool> b_dst_route = snd(bits_of_int(dst_route, N32));
+        list<bool> b_dst_length = snd(bits_of_int(dst_length, N8));
+        list<bool> b_dst_device = snd(bits_of_int(dst_device, N16));
+        list<bool> route = append(b_dst_route, b_dst_length);
+        list<bool> dst_ip = snd(bits_of_int(ipv4_header->dst_addr, N32));
+    
+        assert (ghostmap_get(table, route) == some(b_dst_device));
+        assert (true == matches(route, dst_ip));
+        assert (true == ghostmap_forall(table, (lpm)(dst_ip, b_dst_length, b_dst_device)));
+    } @*/
 
     
 }
