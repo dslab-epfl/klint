@@ -13,3 +13,6 @@ CFLAGS += -Wno-unused-label -Wno-unused-variable
 
 # The code calls macros without providing any args for the variadic parameter, illegal in ISO C
 CFLAGS += -std=gnu17
+
+# The code structs need padding
+CFLAGS += -Wno-padded

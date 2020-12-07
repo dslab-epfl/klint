@@ -50,6 +50,7 @@ struct xdp_md {
 //	uint32_t egress_ifindex;
 	// added: I don't want to make the adjusts more complex than they need to be
 	bool _adjust_used;
+	uint8_t _padding[3];
 };
 
 // just ignore this for now... but use the arguments to avoid triggering "unused parameter" warnings
@@ -132,10 +133,10 @@ enum bpf_map_type {
 
 // This should be in bpf_helpers.h, but having it here is much more convenient
 struct bpf_map_def {
-	uint32_t type;
 	size_t key_size;
 	size_t value_size;
 	size_t max_entries;
+	uint32_t type;
 	uint32_t map_flags;
 	// The following are not in the original definition; but we use the fact that C initializers don't need to be complete so we can store stuff in the struct itself
 	struct os_map2* _map; // for _HASH

@@ -39,6 +39,7 @@ struct lpm
   uint16_t *lpm_24;
   uint16_t *lpm_long;
   uint16_t lpm_long_index;
+  uint8_t _padding[6];
 };
 
 /*@ predicate table(struct lpm* t, dir_24_8 dir); @*/
