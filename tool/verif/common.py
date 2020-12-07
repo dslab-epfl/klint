@@ -34,7 +34,7 @@ class ValueProxy:
         self._value = value
         self._type = type
         if self._type is not None:
-            size = type_size(self._type)
+            size = type_size(self._type) * 8
             assert size <= self._value.size(), "the actual type should have a size at most that of the result's"
             if size < self._value.size():
                 self._value = self._value[size-1:0]
