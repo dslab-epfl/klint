@@ -4,6 +4,7 @@ from angr import SimState
 import sys
 import claripy
 import re
+import traceback
 
 # Us
 from verif.persistence import load_data, StateData
@@ -23,7 +24,7 @@ class TraceProofException(Exception):
     pass
 
 
-class ProofBuilder(object):
+class Proof(object):
 
     # === Public API ===
 
@@ -32,16 +33,20 @@ class ProofBuilder(object):
         self.ghost_maps: Dict[str, Record] = {}
         self.symbols: Dict[str, int] = {}
         self.state: SimState = create_angr_state(state.constraints)
-        print(state.constraints)
 
         # Iterate over records and create the proof as we go
         for record in state.ghost_history:
-            if type(record) in HANDLERS:
-                # print(record)
-                HANDLERS[type(record)](self, record)
-            else:
-                pass
-                # print(f"IGNORED: {record}")
+            try:
+                if type(record) in HANDLERS:
+                    # print(record)
+                    HANDLERS[type(record)](self, record)
+                else:
+                    pass
+                    # print(f"IGNORED: {record}")
+            except Exception as e:
+                print(f"\n{record}\n failed to be parsed.")
+                print(traceback.format_exc())
+                sys.exit()
 
     def append_to_proof(self, *proof: List[str]) -> None:
         for p in proof:
@@ -52,71 +57,50 @@ class ProofBuilder(object):
         self.symbols[symbol_name] = bit_width
         self.append_to_proof(f"//@ list<bool> {symbol_name};")
 
-    def parse_expression(self, bv: claripy.BV) -> str:
-        splitted: List[str] = str(bv)[1:-1].split(" ")
-        final_bit_width: int = int(splitted[0][2:])
-        tokens: List[str] = splitted[1:]
+    def parse_expression(self, bv: claripy.BV, as_scalar: bool = False) -> str:
+        def add_symbol_if_not_exists(symbol: claripy.BV) -> str:
+            name: str = helpers.sanitize_name(symbol.args[0])
+            if name not in self.symbols:
+                if name in self.ghost_maps:
+                    # Actually a ghostmap, replace token with previously created bitvector
+                    name = f"addr_{name}"
+                else:
+                    self.add_symbol(name, helpers.get_bv_bit_width(name))
+            return name
 
-        # Parse operands
-        operands: List[OperandToken] = []
-        for i in range(0, len(tokens), 2):
-            t = tokens[i]
-            if SCALAR_PATTERN_DEC.match(t):
-                operands.append(ScalarToken(int(t)))
-            elif SCALAR_PATTERN_HEX.match(t):
-                operands.append(ScalarToken(int(t, 16)))
-            elif BV_SLICE_PATTERN.match(t):
-                operands.append(BVSliceToken(t))
-            elif BV_PATTERN.match(t):
-                operands.append(BVToken(t))
-            else:
-                raise TraceProofException(f"Can't parse symbol {t}.")
+        expr: str = ""
 
-        # Parse operators
-        operators: List[OperatorToken] = []
-        for i in range(1, len(tokens), 2):
-            t = tokens[i]
-            if t == CONCAT:
-                operators.append(ConcatToken())
-            elif t == ADD:
-                operators.append(AddToken())
-            elif t == SUBTRACT:
-                operators.append(SubtractToken())
-            else:
-                raise TraceProofException(f"Can't parse operator {t}.")
+        if bv.op == "BVV":
+            if as_scalar: # Avoid complexifying the VeriFast expression
+                return str(bv.args[0])
+            expr = f"snd(bits_of_int({bv.args[0]}, {helpers.nat_of_int(bv.length)}))"
 
-        # Declare VeriFast variables for all new operands that are symbols
-        for opand in operands:
-            if issubclass(type(opand), OperandTokenSymbol):
-                if opand.name not in self.symbols:
-                    if opand.name in self.ghost_maps:
-                        # Actually a ghostmap, replace token with previously created bitvector
-                        opand.name = f"addr_{opand.name}"
-                    else:
-                        self.add_symbol(opand.name, opand.bit_width)
+        elif bv.op == "BVS":
+            expr = add_symbol_if_not_exists(bv)
 
-        # === Create equivalent VeriFast expression ===
+        elif bv.op == "Extract":
+            slice_msb, slice_lsb, sliced_bv = bv.args
+            name: str = add_symbol_if_not_exists(sliced_bv)
+            expr = f"chunk({name}, {slice_lsb}, {slice_msb + 1})"
 
-        # First operand must always be a symbol
-        if not issubclass(type(operands[0]), OperandTokenSymbol):
-            if len(operands) == 1 and issubclass(type(operands[0]), ScalarToken):
-                return f"snd(bits_of_int({operands[0].value}, {helpers.nat_of_int(final_bit_width)}))"
-            else:
-                raise TraceProofException(
-                    f"Incorrect type for {operands[0]}: expected subclass of {OperandTokenSymbol}")
+        elif bv.op == "Concat":
+            subexprs: List[str] = [
+                self.parse_expression(arg) for arg in bv.args]
+            expr = subexprs[0]
+            for sub in subexprs[1:]:
+                expr = f"append({expr}, {sub})"
 
-        # Iteratively construct the expression
-        expr: str = operands[0].to_verifast_syntax()
-        acc_bit_width: int = operands[0].bit_width
-        for i in range(0, len(operators)):
-            expr, acc_bit_width = operators[i].to_verifast_syntax(
-                expr, operands[i + 1], acc_bit_width)
+        elif bv.op == "__add__":
+            subexprs: List[str] = [self.parse_expression(arg, as_scalar=True) for arg in bv.args]
+            expr = " + ".join(subexprs)
+            if as_scalar: # Avoid complexifying the VeriFast expression
+                return expr
+            expr = f"snd(bits_of_int({expr}, {helpers.nat_of_int(bv.length)}))"
 
-        if acc_bit_width != final_bit_width:
-            raise TraceProofException(
-                f"Expected symbol of length {final_bit_width}, but got {acc_bit_width}")
+        else:
+            raise TraceProofException(f"Unknown operator {bv.op}.")
 
-        return expr
+        return f"int_of_bits(0, {expr})" if as_scalar else expr
 
     # === Protected API ===
 
@@ -138,7 +122,10 @@ class ProofBuilder(object):
             self.append_to_proof(f"//@ list<bool> addr_{result};")
 
     def _handle_record_length(self, record: RecordLength) -> None:
-        pass
+        ghostmap: str = helpers.extract_name(record.obj)
+        length_expr: str = self.parse_expression(record.result)
+        self.append_to_proof(
+            f"//@ assume (length({ghostmap}) == {length_expr});")
 
     def _handle_record_get(self, record: RecordGet) -> None:
         ghostmap: str = helpers.extract_name(record.obj)
@@ -168,135 +155,46 @@ class ProofBuilder(object):
         self.append_to_proof(f"//@ ghostmap_remove({ghostmap}, {key_expr});")
 
     def _handle_record_forall(self, record: RecordForall) -> None:
-        pass
+        ghostmap: str = helpers.extract_name(record.obj)
+        if definitely_true(self.state.solver, record.result):
+            self.append_to_proof(
+                f"//@ assume (true == ghostmap_forall({ghostmap}, ???);")
+        elif definitely_false(self.state.solver, record.result):
+            self.append_to_proof(
+                f"//@ assume (false == ghostmap_forall({ghostmap}, ???);")
+        else:
+            raise TraceProofException(
+                "What do we do here ? Is this even possible ?")
 
 
-HANDLERS: Dict[object, Callable[[ProofBuilder, Record, StateData], None]] = {
-    RecordNew: ProofBuilder._handle_record_new,
-    RecordNewArray: ProofBuilder._handle_record_new_array,
-    RecordLength: ProofBuilder._handle_record_length,
-    RecordGet: ProofBuilder._handle_record_get,
-    RecordSet: ProofBuilder._handle_record_set,
-    RecordRemove: ProofBuilder._handle_record_remove,
-    RecordForall: ProofBuilder._handle_record_forall,
+HANDLERS: Dict[object, Callable[[Proof, Record, StateData], None]] = {
+    RecordNew: Proof._handle_record_new,
+    RecordNewArray: Proof._handle_record_new_array,
+    RecordLength: Proof._handle_record_length,
+    RecordGet: Proof._handle_record_get,
+    RecordSet: Proof._handle_record_set,
+    RecordRemove: Proof._handle_record_remove,
+    RecordForall: Proof._handle_record_forall,
 }
 
-BV_SLICE_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_-]*\[[0-9]+:[0-9]+\]$")
-BV_PATTERN = re.compile(r"^[A-Za-z]")
-SCALAR_PATTERN_DEC = re.compile(r"^[0-9]+$")
-SCALAR_PATTERN_HEX = re.compile(r"^0x[0-9a-f]+$")
-
-CONCAT = ".."
-ADD = "+"
-SUBTRACT = "-"
-
-# === TOKENS FOR PARSING ===
-
-
-class Token(ABC):
-    pass
-
-# --- OPERANDS ---
-
-
-class OperandToken(Token):
-    @abstractmethod
-    def to_verifast_syntax(self) -> str:
-        pass
-
-
-class OperandTokenSymbol(OperandToken):
-    def __init__(self, name: str) -> None:
-        self.name: str = helpers.sanitize_name(name)
-        self.bit_width: int = int(name[name.rfind("_") + 1:])
-
-
-class BVToken(OperandTokenSymbol):
-    def __init__(self, name: str) -> None:
-        super().__init__(name)
-
-    def to_verifast_syntax(self) -> str:
-        return self.name
-
-    def __repr__(self) -> str:
-        return f"<BV{self.bit_width} {self.name}>"
-
-
-class BVSliceToken(OperandTokenSymbol):
-    def __init__(self, name: str) -> None:
-        # Parse the name to determine slice indices
-        index_slice = name.rfind("[")
-        slice_info = name[index_slice:]
-        index_slice_split = slice_info.find(":")
-
-        super().__init__(name[:index_slice])
-        self.slice_lsb: int = int(slice_info[index_slice_split+1:-1])
-        self.slice_msb: int = int(slice_info[1:index_slice_split])
-        self.bit_width = self.slice_msb - self.slice_lsb + 1
-
-    def to_verifast_syntax(self) -> str:
-        return f"chunk({self.name}, {self.slice_lsb}, {self.slice_msb + 1})"
-
-    def __repr__(self) -> str:
-        return f"<BVSlice{self.bit_width} {self.name}[{self.slice_lsb}:{self.slice_msb}]>"
-
-
-class ScalarToken(OperandToken):
-    def __init__(self, value: int) -> None:
-        self.value: int = value
-
-    def to_verifast_syntax(self) -> str:
-        return hex(self.value)
-
-    def __repr__(self) -> str:
-        return f"<Scalar {self.value}>"
-
-# --- OPERATORS ---
-
-
-class OperatorToken(ABC):
-    @abstractmethod
-    def to_verifast_syntax(self, op_left: str, op_right: OperandToken, acc_bit_width: int) -> Tuple[str, int]:
-        pass
-
-
-class ConcatToken(OperatorToken):
-    def to_verifast_syntax(self, op_left: str, op_right: OperandToken, acc_bit_width: int) -> Tuple[str, int]:
-        if not issubclass(type(op_right), OperandTokenSymbol):
-            raise TraceProofException(
-                f"Incorrect type for {op_right}: expected subclass of {OperandTokenSymbol}")
-        return (f"append({op_left}, {op_right.to_verifast_syntax()})", acc_bit_width + op_right.bit_width)
-
-    def __repr__(self) -> str:
-        return ".."
-
-
-class AddToken(OperatorToken):
-    def to_verifast_syntax(self, op_left: str, op_right: OperandToken, acc_bit_width: int) -> Tuple[str, int]:
-        if not issubclass(type(op_right), ScalarToken):
-            raise TraceProofException(
-                f"Incorrect type for {op_right}: expected subclass of {ScalarToken}")
-        return (f"snd(bits_of_int(int_of_bits(0, {op_left}) + {op_right.to_verifast_syntax()}, {helpers.nat_of_int(acc_bit_width)}))",
-                acc_bit_width)
-
-    def __repr__(self) -> str:
-        return "+"
-
-
-class SubtractToken(OperatorToken):
-    def to_verifast_syntax(self, op_left: str, op_right: OperandToken, acc_bit_width: int) -> Tuple[str, int]:
-        if not issubclass(type(op_right), ScalarToken):
-            raise TraceProofException(
-                f"Incorrect type for {op_right}: expected subclass of {ScalarToken}")
-        return (f"snd(bits_of_int(int_of_bits(0, {op_left}) - {op_right.to_verifast_syntax()}, {helpers.nat_of_int(acc_bit_width)}))",
-                acc_bit_width)
-
-    def __repr__(self) -> str:
-        return "-"
-
-
-def generate_traces(nf_data_path: str) -> None:
+def generate_traces(nf_data_path: str, output_file: str) -> None:
     nf_data: List[StateData] = load_data(nf_data_path)
-    for state_data in nf_data[len(nf_data) - 1:]:
-        _: ProofBuilder = ProofBuilder(state_data)
-        print("------------------------")
+    with open(output_file, "w") as f:
+        # VeriFast includes
+        f.write("//@ #include \"proof/ghost_map.gh\"\n")
+        f.write("//@ #include \"bitops.gh\"\n")
+        f.write("//@ #include \"nat.gh\"\n")
+        f.write("//@ #include \"listutils.gh\"\n\n")
+
+        for (i, state_data) in enumerate(nf_data[:1]):
+            p: Proof = Proof(state_data)
+
+            # Create new trace
+            f.write(f"void trace{i}()\n")
+            f.write("\t//@ requires true;\n")
+            f.write("\t//@ ensures true;\n")
+            f.write("{\n")
+            for line in p.proof:
+                f.write(f"\t{line}\n")
+            f.write("\t//@ assert (true);\n")
+            f.write("}\n")

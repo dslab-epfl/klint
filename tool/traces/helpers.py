@@ -13,6 +13,8 @@ def extract_name(bv: claripy.BV) -> str:
 def sanitize_name(name: str) -> str:
     return name.replace("[", "_").replace("]", "_").replace("-", "_")
 
+def get_bv_bit_width(name: str) -> int:
+    return int(name[name.rfind("_") + 1:])
 
 __NAT: Dict[int, str] = {
     8: "N8",
