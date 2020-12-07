@@ -14,3 +14,10 @@ def spec(packet, config, transmitted_packet):
     # note: an Ethernet address is a group address if the least significant bit of its first octet is set to 1
     db = Map(typeof(packet.ether.src), ...)
     assert ~db.has(packet.ether.src) | ((packet.ether.src & 0x01_00_00_00_00_00) == 0)
+
+
+    # === §7.9.5 Querying the Filtering Database === #
+    # No quote here, the spec just alludes to this in many places
+    if ~db.has(packet.ether.dst):
+        assert ~(packet.device in transmitted_packet.devices)
+        assert transmitted_packet.devices.length == config.devices_count - 1

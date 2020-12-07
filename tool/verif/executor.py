@@ -52,10 +52,6 @@ def map_new(state, key_type, value_type):
         # TODO padding can mess things up, ideally this should do candidate_size >= desired_size and then truncate
         raise VerificationException("No such map.")
 
-    exact_candidates = [m for m in candidates if m.meta.key_size == key_size]
-    if exact_candidates:
-        candidates = exact_candidates
-
     global current_choices
     candidate = candidates[current_choices.index]
     current_choices.index = current_choices.index + 1
@@ -110,6 +106,22 @@ class SpecMaps:
         return self._maps.values().__iter__()
 
 
+class SpecConfig:
+    def __init__(self, state, meta, devices_count):
+        self._state = state
+        self._meta = meta
+        self._devices_count = devices_count
+
+    @property
+    def devices_count(self):
+        return ValueProxy(self._state, self._devices_count)
+
+    def __getitem__(self, index):
+        if index not in self._meta:
+            raise VerificationException("Unknown config item: " + str(index))
+        return ValueProxy(self._state, self._meta[index])
+
+
 class SpecChoices: pass
 
 def verify(data, spec):
@@ -132,14 +144,17 @@ def verify(data, spec):
             if len(data.network.transmitted) > 1:
                 raise "TODO support multiple transmitted packets"
             tx_dev_int = data.network.transmitted[0][2]
-            transmitted_device = SpecFloodedDevice(current_state, data.network.received_device) if tx_dev_int is None else SpecSingleDevice(current_state, tx_dev_int) 
+            if tx_dev_int is None:
+                transmitted_device = SpecFloodedDevice(current_state, data.network.received_device, data.devices_count)
+            else:
+                transmitted_device = SpecSingleDevice(current_state, tx_dev_int)
             transmitted_packet = SpecPacket(current_state, data.network.transmitted[0][0], data.network.transmitted[0][1], transmitted_device)
 
         try:
             result = py_executor.execute(
                 spec_text=spec,
                 spec_fun_name="spec",
-                spec_args=[packet, data.config, transmitted_packet], # TODO: add device count somewhere... maybe make it an attr (not item) of config
+                spec_args=[packet, SpecConfig(current_state, data.config, data.devices_count), transmitted_packet],
                 spec_external_names=externals.keys(),
                 spec_external_handler=handle_externals
             )

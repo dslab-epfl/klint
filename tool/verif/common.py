@@ -136,12 +136,8 @@ class ValueProxy:
     
     def __rshift__(self, other):
         return self._op(other, "LShR")
-    def __rrshift__(self, other):
-        return self._op(other, "LShR")
     
     def __lshift__(self, other):
-        return self._op(other, "__lshift__")
-    def __rlshift__(self, other):
         return self._op(other, "__lshift__")
 
 
@@ -156,12 +152,17 @@ def type_size(type):
 
 
 class SpecFloodedDevice:
-    def __init__(self, state, orig_device):
+    def __init__(self, state, orig_device, devices_count):
         self._state = state
         self._orig_device = orig_device
+        self._devices_count = devices_count
 
     def __contains__(self, item):
         return ValueProxy(self._state, ValueProxy.extract(item) != self._orig_device)
+
+    @property
+    def length(self):
+        return ValueProxy(self._state, self._devices_count - 1)
 
 class SpecSingleDevice:
     def __init__(self, state, device):
@@ -170,6 +171,11 @@ class SpecSingleDevice:
 
     def __contains__(self, item):
         return ValueProxy(self._state, ValueProxy.extract(item) == self._device)
+
+    @property
+    def length(self):
+        return 1
+
 
 class SpecPacket:
     def __init__(self, state, data, length, devices):
