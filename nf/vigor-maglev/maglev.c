@@ -7,7 +7,7 @@
 #include "os/debug.h"
 #include "os/network.h"
 
-#include "ld_balancer.h"
+#include "balancer.h"
 
 struct ld_balancer *balancer;
 uint16_t wan_device;
@@ -21,12 +21,15 @@ bool nf_init(uint16_t devices_count)
     }
 
     size_t flow_capacity = os_config_get_u64("flow capacity");
+    if (flow_capacity > SIZE_MAX / 16 - 2) {
+    	return false;
+    }
     size_t cht_height = os_config_get_u64("cht height");
     if (cht_height == 0 || cht_height >= MAX_CHT_HEIGHT) {
         return false;
     }
     size_t backend_capacity = os_config_get_u64("backend capacity");
-    if (backend_capacity == 0 || backend_capacity >= cht_height || backend_capacity * cht_height >= UINT32_MAX) {
+    if (backend_capacity == 0 || backend_capacity >= cht_height || backend_capacity * cht_height >= UINT32_MAX || flow_capacity > SIZE_MAX / 16 - 2) {
         return false;
     }
     time_t backend_expiration_time = os_config_get_time("backend expiration time");
@@ -58,21 +61,20 @@ void nf_handle(struct os_net_packet *packet)
     if (packet->device != wan_device)
     {
         os_debug("Processing heartbeat, device is %" PRIu16, device);
-        struct ether_addr ether_src_addr;
-        memcpy(&ether_src_addr.addr_bytes, ether_header->src_addr, OS_NET_ETHER_ADDR_SIZE);
-        lb_process_heartbit(balancer, &flow, ether_src_addr, packet->device, now);
+        lb_process_heartbit(balancer, &flow, ether_header->src_addr, packet->device, now);
         return;
     }
 
-    struct lb_backend backend = lb_get_backend(balancer, &flow, now, wan_device);
-
-    os_debug("Processing packet from %" PRIu16 " to %" PRIu16, device, backend.nic);
-
-    if (backend.nic != wan_device)
-    {
-        ipv4_header->dst_addr = backend.ip;
-        memcpy(&ether_header->dst_addr, backend.mac.addr_bytes, OS_NET_ETHER_ADDR_SIZE);
+    struct lb_backend* backend;
+    if (!lb_get_backend(balancer, &flow, now, wan_device, &backend)) {
+    	return;
     }
 
-	os_net_transmit(packet, backend.nic, ether_header, ipv4_header, tcpudp_header);
+    os_debug("Processing packet from %" PRIu16 " to %" PRIu16, device, backend->nic);
+
+    ipv4_header->dst_addr = backend->ip;
+    memcpy(&ether_header->dst_addr, backend->mac, sizeof(ether_header->dst_addr));
+
+    os_net_transmit(packet, backend->nic, ether_header, ipv4_header, tcpudp_header);
 }
+

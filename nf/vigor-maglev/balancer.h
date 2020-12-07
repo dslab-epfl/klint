@@ -15,12 +15,13 @@ struct ld_balancer *ld_balancer_alloc(size_t flow_capacity,
                                       size_t cht_height,
                                       time_t backend_expiration_time,
                                       time_t flow_expiration_time);
-struct lb_backend lb_get_backend(struct ld_balancer *balancer,
+bool lb_get_backend(struct ld_balancer *balancer,
                                  struct lb_flow *flow,
                                  time_t now,
-                                 uint16_t wan_device);
+                                 uint16_t wan_device,
+                                 struct lb_backend** out_backend);
 void lb_process_heartbit(struct ld_balancer *balancer,
                          struct lb_flow *flow,
-                         struct ether_addr mac_addr, int nic, time_t now);
+                         uint8_t* mac_addr, uint16_t nic, time_t now);
 
 #endif // _LB_BALANCER_H_INCLUDED_

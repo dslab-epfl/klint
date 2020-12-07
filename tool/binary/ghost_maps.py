@@ -681,7 +681,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                 results.put((ResultType.LENGTH_VAR, [o], lambda st, ms: ms[0].set_length(claripy.BVS("map_length", ms[0].length().size()))))
                 break
 
-    def thread_main(ancestor_state, orig_states):
+    def thread_main(ancestor_state, _orig_states):
         while True:
             try:
                 (o1, o2) = remaining_work.get(block=False)
@@ -689,7 +689,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                 return
 
             # Optimization: Ignore the combination if neither map changed
-            orig_states = [st for st in orig_states if st.maps[o1].version() != 0 or st.maps[o2].version() != 0]
+            orig_states = [st for st in _orig_states if st.maps[o1].version() != 0 or st.maps[o2].version() != 0]
             if len(orig_states) == 0:
                 continue
 
@@ -743,7 +743,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                 fps = find_fps(states, o1, get_value, o1_is_array)
 
             for fp in fps:
-                if fk or all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk: Implies(fp(MapItem(k, v, None)), MapHas(o2, fk(MapItem(k, v, None)))))) for st in states):
+                if all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk: Implies(fp(MapItem(k, v, None)), MapHas(o2, fk(MapItem(k, v, None)))))) for st in states):
                     log_item = MapItem(claripy.BVS("K", ancestor_state.maps.key_size(o1), explicit_name=True), claripy.BVS("V", ancestor_state.maps.value_size(o1), explicit_name=True), None)
                     log_text = f"Inferred: when {o1} contains (K,V), if {fp(log_item)} then {o2} contains {fk(log_item)}"
 

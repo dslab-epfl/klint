@@ -1,5 +1,4 @@
-#ifndef _STATE_H_INCLUDED_
-#define _STATE_H_INCLUDED_
+#pragma once
 
 #include <stdint.h>
 
@@ -14,13 +13,11 @@ struct State {
   struct os_pool* flow_chain;
   size_t* flow_id_to_backend_id;
   struct os_map* ip_to_backend_id;
-  struct ip_addr* backend_ips;
+  uint32_t* backend_ips;
   struct lb_backend* backends;
   struct os_pool* active_backends;
   struct cht* cht;
   size_t flow_capacity;
 };
 
-struct State* state_alloc(uint32_t backend_capacity, uint32_t flow_capacity, uint32_t cht_height);
-
-#endif//_STATE_H_INCLUDED_
+struct State* state_alloc(size_t backend_capacity, size_t flow_capacity, size_t cht_height);
