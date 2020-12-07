@@ -36,26 +36,20 @@ class ProofBuilder(object):
         # Iterate over records and create the proof as we go
         for record in state.ghost_history:
             if type(record) in HANDLERS:
-                print(record)
+                # print(record)
                 HANDLERS[type(record)](self, record)
             else:
                 pass
-                print(f"IGNORED: {record}")
+                # print(f"IGNORED: {record}")
 
     def append_to_proof(self, *proof: List[str]) -> None:
         for p in proof:
             print(f"\t{p}")
         self.proof.extend(proof)
 
-    # def is_symbol_bitvector(self, symbol: str) -> bool:
-    #     if symbol not in self.symbols:
-    #         raise TraceProofException(f"Symbol {symbol} does not exist.")
-    #     record = self.symbols[symbol]
-    #     return isinstance(record, RecordNewArray) and record.length.args[0] == 1
-
     def add_symbol(self, symbol_name: str, bit_width: int) -> None:
         self.symbols[symbol_name] = bit_width
-        self.append_to_proof(f"list<bool> {symbol_name};")
+        self.append_to_proof(f"//@ list<bool> {symbol_name};")
 
     def parse_expression(self, bv: claripy.BV) -> str:
         splitted: List[str] = str(bv)[1:-1].split(" ")
@@ -85,6 +79,8 @@ class ProofBuilder(object):
                 operators.append(ConcatToken())
             elif t == ADD:
                 operators.append(AddToken())
+            elif t == SUBTRACT:
+                operators.append(SubtractToken())
             else:
                 raise TraceProofException(f"Can't parse operator {t}.")
 
@@ -92,7 +88,11 @@ class ProofBuilder(object):
         for opand in operands:
             if issubclass(type(opand), OperandTokenSymbol):
                 if opand.name not in self.symbols:
-                    self.add_symbol(opand.name, opand.bit_width)
+                    if opand.name in self.ghost_maps:
+                        # Actually a ghostmap, replace token with previously created bitvector
+                        opand.name = f"simple_memloc_{opand.name}"
+                    else:
+                        self.add_symbol(opand.name, opand.bit_width)
 
         # === Create equivalent VeriFast expression ===
 
@@ -120,20 +120,24 @@ class ProofBuilder(object):
     # === Protected API ===
 
     def _handle_record_new(self, record: RecordNew) -> None:
-        result_symbol = helpers.extract_name(record.result)
-        self.ghost_maps[result_symbol] = record
+        result: str = helpers.extract_name(record.result)
+        self.ghost_maps[result] = record
         self.append_to_proof(
-            f"//@ list<pair<list<bool>, list<bool> > > {result_symbol};")
+            f"//@ list<pair<list<bool>, list<bool> > > {result};")
 
     def _handle_record_new_array(self, record: RecordNewArray) -> None:
-        result_symbol = helpers.extract_name(record.result)
-        self.ghost_maps[result_symbol] = record
-        # if self.is_symbol_bitvector(result_symbol):
-        #     # Treat this ghostmap as a simple bitvector
-        #     self.append_to_proof(f"//@ list<bool> {result_symbol} = nil;")
-        # else:
+        result: str = helpers.extract_name(record.result)
+        self.ghost_maps[result] = record
         self.append_to_proof(
-            f"//@ list<pair<list<bool>, list<bool> > > {result_symbol};")
+            f"//@ list<pair<list<bool>, list<bool> > > {result};")
+
+        # Ghostmaps that represent a simple memory location might be used down the line inside expressions
+        # We create a bitvector to represent their unique entry
+        if record.length.args[0] == 1:
+            self.append_to_proof(
+                f"//@ list<bool> simple_memloc_{result};",
+                f"//@ assume (ghostmap_get({result}, snd(bits_of_int(0, N64))) == some(simple_memloc_{result}));",
+            )
 
     def _handle_record_length(self, record: RecordLength) -> None:
         pass
@@ -158,10 +162,12 @@ class ProofBuilder(object):
         key_expr: str = self.parse_expression(record.key)
         value_expr: str = self.parse_expression(record.value)
         self.append_to_proof(
-            f"//@ assume (ghostmap_set({ghostmap}, {key_expr}, {value_expr}));")
+            f"//@ ghostmap_set({ghostmap}, {key_expr}, {value_expr});")
 
     def _handle_record_remove(self, record: RecordRemove) -> None:
-        pass
+        ghostmap: str = helpers.extract_name(record.obj)
+        key_expr: str = self.parse_expression(record.key)
+        self.append_to_proof(f"//@ ghostmap_remove({ghostmap}, {key_expr});")
 
     def _handle_record_forall(self, record: RecordForall) -> None:
         pass
@@ -184,8 +190,7 @@ SCALAR_PATTERN_HEX = re.compile(r"^0x[0-9a-f]+$")
 
 CONCAT = ".."
 ADD = "+"
-
-__OPERATORS = {CONCAT, ADD}
+SUBTRACT = "-"
 
 # === TOKENS FOR PARSING ===
 
@@ -278,6 +283,18 @@ class AddToken(OperatorToken):
 
     def __repr__(self) -> str:
         return "+"
+
+
+class SubtractToken(OperatorToken):
+    def to_verifast_syntax(self, op_left: str, op_right: OperandToken, acc_bit_width: int) -> Tuple[str, int]:
+        if not issubclass(type(op_right), ScalarToken):
+            raise TraceProofException(
+                f"Incorrect type for {op_right}: expected subclass of {ScalarToken}")
+        return (f"snd(bits_of_int(int_of_bits(0, {op_left}) - {op_right.to_verifast_syntax()}, {helpers.nat_of_int(acc_bit_width)}))",
+                acc_bit_width)
+
+    def __repr__(self) -> str:
+        return "-"
 
 
 def generate_traces(nf_data_path: str) -> None:
