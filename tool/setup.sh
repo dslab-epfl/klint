@@ -2,8 +2,10 @@
 # THIS SCRIPT SHOULD BE SOURCED NOT RAN
 
 if [ ! -d "$HOME/.virtualenvs/angr" ]; then
-  # Virtual env for angr using python3
-  python3 -m pip install virtualenv virtualenvwrapper
+  # Virtual env for angr using pypy for python3
+  sudo snap install --classic pypy3
+  pypy3 -m ensurepip
+  pypy3 -m pip install virtualenv virtualenvwrapper
   mkdir -p "$HOME/.virtualenvs"
 fi
 
