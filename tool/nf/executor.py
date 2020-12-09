@@ -89,6 +89,11 @@ def havoc_iter(bin_path, state, devices_count):
         s.path.print()
         #s.path.ghost_print()
 
+    # HACK: Katran merging triggers a bug in angr that results in extremely large expressions during merging, causing recursion depth errors
+    # Anyway there is nothing to merge (we know because this bug used to not be triggered...)
+    if "facebook-katran" in str(bin_path):
+        return (handled_states, None, True)
+
     print("Merging... at " + str(datetime.now()))
     opaque_metadata_value = handled_states[0].metadata.notify_impending_merge(handled_states[1:], original_state)
     (new_state, _, merged) = handled_states[0].merge(*handled_states[1:], common_ancestor=original_state)
