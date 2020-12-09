@@ -2,8 +2,6 @@
 
 #include <stdint.h>
 
-#include "compat/endian.h"
-
 #define ICMPV6_DEST_UNREACH 1
 #define ICMPV6_PKT_TOOBIG 2
 #define ICMPV6_ECHO_REQUEST 128
@@ -22,17 +20,17 @@ struct icmp6hdr {
 			uint16_t sequence;
 		} u_echo;
 		struct icmpv6_nd_advt {
-#ifdef IS_BIG_ENDIAN
-			uint32_t router : 1,
-			      solicited : 1,
-			      override : 1,
-			      reserved : 29;
-#else
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
 			uint32_t reserved : 5,
 			      override : 1,
 			      solicited : 1,
 			      router : 1,
 			      reserved2 : 24;
+#else
+			uint32_t router : 1,
+			      solicited : 1,
+			      override : 1,
+			      reserved : 29;
 #endif
 		} u_nd_advt;
 		struct icmpv6_nd_ra {

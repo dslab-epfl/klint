@@ -3,9 +3,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-// https://stackoverflow.com/a/4240257/3311770
-#define IS_LITTLE_ENDIAN_ (((union { unsigned x; unsigned char c; }){1}).c)
-
 #define OS_NET_ETHER_ADDR_SIZE 6
 typedef uint8_t os_net_ether_addr_t[OS_NET_ETHER_ADDR_SIZE];
 
@@ -68,7 +65,7 @@ static inline bool os_net_get_ipv4_header(struct os_net_ether_header* ether_head
 {
 	// if we return false this may be 1 past the end of the array, which is legal in C
 	*out_ipv4_header = (struct os_net_ipv4_header*) ((char*) ether_header + sizeof(struct os_net_ether_header));
-	return ether_header->ether_type == (IS_LITTLE_ENDIAN_ ? 0x0008 : 0x0800);
+	return ether_header->ether_type == (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__ ? 0x0008 : 0x0800);
 }
 
 // Get a packet's TCP/UDP common header given its IPv4 header
