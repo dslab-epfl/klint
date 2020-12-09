@@ -18,7 +18,7 @@ include $(RTE_SDK)/mk/rte.vars.mk
 include $(SELF_DIR)/../Makefile.base
 
 # Silence warnings triggered by DPDK
-CFLAGS += -Wno-address-of-packed-member
+CFLAGS += -Wno-address-of-packed-member -Wno-padded
 
 # Our includes
 CFLAGS += -I$(SELF_DIR)/include

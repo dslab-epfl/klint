@@ -11,7 +11,10 @@
 	uint##width##_t os_config_get_u##width(const char* name) \
 	{ \
 		uintmax_t value; \
-		if (!config_get(name, &value) || value > UINT##width##_MAX) { \
+		if (!config_get(name, &value)) { \
+			fail("No such value: %s", name); \
+		} \
+		if (value > UINT##width##_MAX) { \
 			fail("Value too large: %" PRIuMAX, value); \
 		} \
 		return (uint##width##_t) value; \

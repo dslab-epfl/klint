@@ -1,0 +1,2 @@
+{ "wan device", 0 },
+{ "lan device", 1 }
