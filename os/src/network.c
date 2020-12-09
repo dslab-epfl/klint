@@ -1,4 +1,6 @@
 #include "os/network.h"
+#include "os/debug.h"
+#include "os/network.h"
 #include "network_private.h"
 
 #include <stddef.h>
@@ -78,6 +80,7 @@ int os_net_init(int argc, char** argv)
 		fail("Error with DPDK init: %d", ret);
 	}
 	devices_count = rte_eth_dev_count_avail();
+	os_debug("Devices count -> %hu", devices_count);
 	if (devices_count > MAX_DEVICES) {
 		fail("Too many devices, please increase MAX_DEVICES");
 	}
@@ -107,6 +110,12 @@ struct os_net_packet* os_net_receive(uint16_t device)
 {
 	struct rte_mbuf* bufs[1];
 	if (rte_eth_rx_burst(device, 0, bufs, 1)) {
+		uint8_t* data = (uint8_t*) rte_pktmbuf_mtod(bufs[0], uint8_t*);
+		for (size_t i = 0 ; i < 37 ; i++) {
+			if (data[i] != 0) {
+				os_debug("Byte %llu of rte_mbuf is %hhx, not 0", i, data[i]);
+			}
+		}
 		return (struct os_net_packet*) bufs[0];
 	}
 	return NULL;
