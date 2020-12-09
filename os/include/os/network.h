@@ -24,8 +24,8 @@ struct os_net_packet {
 // Ethernet header
 struct os_net_ether_header
 {
-	uint8_t src_addr[OS_NET_ETHER_ADDR_SIZE];
 	uint8_t dst_addr[OS_NET_ETHER_ADDR_SIZE];
+	uint8_t src_addr[OS_NET_ETHER_ADDR_SIZE];
 	uint16_t ether_type;
 } __attribute__((__packed__));
 
