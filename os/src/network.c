@@ -110,12 +110,16 @@ struct os_net_packet* os_net_receive(uint16_t device)
 {
 	struct rte_mbuf* bufs[1];
 	if (rte_eth_rx_burst(device, 0, bufs, 1)) {
-		uint8_t* data = (uint8_t*) rte_pktmbuf_mtod(bufs[0], uint8_t*);
-		for (size_t i = 0 ; i < 37 ; i++) {
-			if (data[i] != 0) {
-				os_debug("Byte %llu of rte_mbuf is %hhx, not 0", i, data[i]);
-			}
-		}
+		// os_debug("buf_addr %p", bufs[0]->buf_addr);
+		// os_debug("data_off %p", bufs[0]->data_off);
+		// os_debug("offset buf_addr %ld", (long) offsetof(struct rte_mbuf, buf_addr));
+		// os_debug("offset data_off %ld", (long) offsetof(struct rte_mbuf, data_off));
+		// uint8_t* data = (uint8_t*) rte_pktmbuf_mtod(bufs[0], uint8_t*);
+		// for (size_t i = 0 ; i < 37 ; i++) {
+		// 	if (data[i] != 0) {
+		// 		os_debug("Byte %llu of rte_mbuf is %hhx, not 0", i, data[i]);
+		// 	}
+		// }
 		return (struct os_net_packet*) bufs[0];
 	}
 	return NULL;
