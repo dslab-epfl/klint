@@ -9,6 +9,10 @@
 
 #include "balancer.h"
 
+static inline time_t os_config_get_time(const char* name) {
+    return (time_t) os_config_get_u64(name);
+}
+
 struct ld_balancer *balancer;
 uint16_t wan_device;
 
@@ -60,7 +64,7 @@ void nf_handle(struct os_net_packet *packet)
 
     if (packet->device != wan_device)
     {
-        os_debug("Processing heartbeat, device is %" PRIu16, device);
+        // os_debug("Processing heartbeat, device is %" PRIu16, device);
         lb_process_heartbit(balancer, &flow, ether_header->src_addr, packet->device, now);
         return;
     }
@@ -70,7 +74,7 @@ void nf_handle(struct os_net_packet *packet)
     	return;
     }
 
-    os_debug("Processing packet from %" PRIu16 " to %" PRIu16, device, backend->nic);
+    // os_debug("Processing packet from %" PRIu16 " to %" PRIu16, device, backend->nic);
 
     ipv4_header->dst_addr = backend->ip;
     memcpy(&ether_header->dst_addr, backend->mac, sizeof(ether_header->dst_addr));
