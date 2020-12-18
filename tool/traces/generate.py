@@ -48,6 +48,9 @@ class Proof(object):
         for record in state.ghost_history:
             try:
                 if type(record) in HANDLERS:
+                    rec_str = str(record)
+                    if "map_values_4_present_329_-1" in rec_str:
+                        print(rec_str)
                     HANDLERS[type(record)](self, record)
                 else:
                     pass
@@ -63,7 +66,10 @@ class Proof(object):
 
     def add_symbol(self, symbol_name: str, bit_width: int) -> None:
         self.symbols[symbol_name] = bit_width
-        self.append_to_proof(f"//@ list<bool> {symbol_name};")
+        if bit_width == 1:
+            self.append_to_proof(f"//@ bool {symbol_name};")
+        else:
+            self.append_to_proof(f"//@ list<bool> {symbol_name};")
 
     def write_to_file(self, filename: str):
         with open(filename, "a") as f:
@@ -162,6 +168,16 @@ class Proof(object):
 
         elif bv.op == "ZeroExt":
             expr = f"append(repeat(false, {helpers.nat_of_int(bv.args[0])}), {self.parse_expression(bv.args[1])})"
+
+        elif bv.op == "If":
+            cond = self.parse_expression(bv.args[0])
+            then_expr = self.parse_expression(bv.args[1])
+            else_expr = self.parse_expression(bv.args[2])
+            expr = f"(({cond}) ? ({then_expr}) : ({else_expr}))"
+
+        elif bv.op == "BoolS":
+            expr = helpers.sanitize_name(bv.args[0])
+            self.add_symbol(expr, 1)
 
         elif bv.op == "__add__":
             subexprs: List[str] = [self.parse_expression(
