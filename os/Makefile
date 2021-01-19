@@ -59,7 +59,8 @@ SRCS += $(SELF_DIR)/src/dpdk/drivers/bus/pci/pci_common.c
 
 # Intel 10G Ethernet driver sources, and necessary includes
 CFLAGS += --include smmintrin.h
-SRCS += $(shell echo $(RTE_SDK)/drivers/net/ixgbe/ixgbe_{ethdev,pf,rxtx,rxtx_vec_sse}.c) # fdir, flow, ipsec, tm
+CFLAGS += -D rxrearm_nb=crc_len -D rxrearm_start=crc_len -D RTE_IXGBE_RXQ_REARM_THRESH=32 -D RTE_IXGBE_MAX_RX_BURST=32 # Horrible hack: use vec_sse without setting ARCH_X86 so DPDK itself remains neutral
+SRCS += $(shell echo $(RTE_SDK)/drivers/net/ixgbe/ixgbe_{ethdev,pf,rxtx,rxtx_vec_sse}.c)
 SRCS += $(shell echo $(RTE_SDK)/drivers/net/ixgbe/base/ixgbe_{api,common,phy,82599}.c)
 
 # Config

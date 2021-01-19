@@ -19,11 +19,3 @@
 
 // Required when building DPDK files
 #define ALLOW_INTERNAL_API 1
-
-// Required because the ixgbe driver has a bug:
-// it references ixgbe_rx_queue->rxrearm_nb even if it's not defined (and is conditionally defined on X86/ARM)
-#define RTE_ARCH_X86 1
-// and thus we must define this too
-enum rte_cpu_flag_t { RTE_CPUFLAG_EM64T = 85 };
-// might as well
-#define RTE_ARCH_X86_64 1
