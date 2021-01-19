@@ -32,6 +32,9 @@ CFLAGS += -isystem $(SELF_DIR)/src/dpdk/lib/librte_net
 CFLAGS += -isystem $(SELF_DIR)/src/dpdk/lib/librte_ring
 CFLAGS += -isystem $(SELF_DIR)/src/dpdk/config
 
+# DPDK sources
+SRCS += $(shell echo $(SELF_DIR)/src/dpdk-shim/*.c)
+
 # Config
 CFLAGS += '-D OS_CONFIG_FILENAME="$(abspath $(CONFIG_FILENAME))"'
 
