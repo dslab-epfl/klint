@@ -12,7 +12,7 @@ SELF_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 include $(SELF_DIR)/../Makefile.base
 
 # Silence warnings triggered by DPDK
-CFLAGS += -Wno-address-of-packed-member -Wno-padded -Wno-unused-function -Wno-deprecated-declarations -Wno-shadow -Wno-pedantic
+CFLAGS += -Wno-address-of-packed-member -Wno-padded -Wno-unused-function -Wno-deprecated-declarations -Wno-shadow -Wno-pedantic -Wno-unused-parameter -Wno-implicit-function-declaration -Wno-unused-but-set-variable
 
 # Our includes
 CFLAGS += -I$(SELF_DIR)/include
@@ -45,6 +45,10 @@ SRCS += $(SELF_DIR)/src/dpdk/lib/librte_mbuf/rte_mbuf.c
 SRCS += $(SELF_DIR)/src/dpdk/lib/librte_mempool/rte_mempool.c
 SRCS += $(SELF_DIR)/src/dpdk/lib/librte_mempool/rte_mempool_ops.c
 SRCS += $(SELF_DIR)/src/dpdk/lib/librte_mempool/rte_mempool_ops_default.c
+
+# Intel 10G Ethernet driver sources
+SRCS += $(shell echo $(RTE_SDK)/drivers/net/ixgbe/ixgbe_{fdir,flow,ethdev,ipsec,pf,rxtx,tm,rxtx_vec_sse}.c)
+SRCS += $(shell echo $(RTE_SDK)/drivers/net/ixgbe/base/ixgbe_{api,common,phy,82599}.c)
 
 # Config
 CFLAGS += '-D OS_CONFIG_FILENAME="$(abspath $(CONFIG_FILENAME))"'

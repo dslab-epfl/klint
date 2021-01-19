@@ -2,9 +2,17 @@
 
 #include <stdint.h>
 
+// TODO can we get rid of time_t altogether?
 typedef int64_t time_t;
 
 time_t os_clock_time(void);
+
+// Get the current number of CPU cycles.
+uint64_t os_clock_cycles(void);
+
+// Sleeps for at least the given amount of microseconds.
+// It is acceptable but inefficient to sleep for more than that.
+void os_clock_sleep_us(uint64_t microseconds);
 
 
 // Proof API
