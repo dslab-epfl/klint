@@ -13,3 +13,9 @@
 
 // Avoid hardware-dependent stuff
 #define RTE_FORCE_INTRINSICS 1
+
+// Required (why is this even an option?)
+#define RTE_USE_FUNCTION_VERSIONING 1
+
+// Required when building DPDK files
+#define ALLOW_INTERNAL_API 1

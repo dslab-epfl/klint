@@ -40,6 +40,9 @@ CFLAGS += -isystem $(SELF_DIR)/src/dpdk/config
 # DPDK sources
 SRCS += $(shell echo $(SELF_DIR)/src/dpdk-shim/*.c)
 SRCS += $(SELF_DIR)/src/dpdk/lib/librte_ethdev/rte_ethdev.c
+SRCS += $(SELF_DIR)/src/dpdk/lib/librte_mbuf/rte_mbuf.c
+SRCS += $(SELF_DIR)/src/dpdk/lib/librte_mempool/rte_mempool.c
+SRCS += $(SELF_DIR)/src/dpdk/lib/librte_mempool/rte_mempool_ops.c
 
 # Config
 CFLAGS += '-D OS_CONFIG_FILENAME="$(abspath $(CONFIG_FILENAME))"'
