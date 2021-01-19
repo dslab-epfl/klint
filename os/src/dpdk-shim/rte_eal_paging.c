@@ -1,7 +1,9 @@
 #include <rte_eal_paging.h>
 
+#include "os/memory.h"
+
+
 size_t rte_mem_page_size(void)
 {
-	// TODO OS low-level API
-	return 4096;
+	return os_memory_pagesize();
 }
