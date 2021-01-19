@@ -12,7 +12,7 @@ SELF_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 include $(SELF_DIR)/../Makefile.base
 
 # Silence warnings triggered by DPDK
-CFLAGS += -Wno-address-of-packed-member -Wno-padded
+CFLAGS += -Wno-address-of-packed-member -Wno-padded -Wno-unused-function
 
 # Our includes
 CFLAGS += -I$(SELF_DIR)/include
@@ -21,11 +21,22 @@ CFLAGS += -I$(SELF_DIR)/include
 SRCS += $(shell echo $(SELF_DIR)/src/core/*.c)
 SRCS += $(shell echo $(SELF_DIR)/src/user/*.c)
 
+# DPDK includes
+CFLAGS += -isystem $(SELF_DIR)/src/dpdk-shim
+CFLAGS += -isystem $(SELF_DIR)/src/dpdk/lib/librte_eal/include
+CFLAGS += -isystem $(SELF_DIR)/src/dpdk/lib/librte_eal/include/generic
+CFLAGS += -isystem $(SELF_DIR)/src/dpdk/lib/librte_ethdev
+CFLAGS += -isystem $(SELF_DIR)/src/dpdk/lib/librte_mbuf
+CFLAGS += -isystem $(SELF_DIR)/src/dpdk/lib/librte_mempool
+CFLAGS += -isystem $(SELF_DIR)/src/dpdk/lib/librte_net
+CFLAGS += -isystem $(SELF_DIR)/src/dpdk/lib/librte_ring
+CFLAGS += -isystem $(SELF_DIR)/src/dpdk/config
+
 # Config
 CFLAGS += '-D OS_CONFIG_FILENAME="$(abspath $(CONFIG_FILENAME))"'
 
 # Build with the libnf
-LDFLAGS += $(SELF_DIR)/../nf/$(NF)/libnf.so
+CFLAGS += $(NF)/libnf.so
 
 build:
 	$(CC) $(SRCS) $(CFLAGS) -o os.so

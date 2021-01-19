@@ -5,7 +5,7 @@
 #include <stdlib.h>
 
 
-void fail(const char* message)
+void os_fail(const char* message)
 {
 	(void) message;
 	os_debug(message);

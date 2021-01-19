@@ -20,7 +20,7 @@ hash_t generic_hash(void* obj, size_t obj_size)
 	// Without these two VeriFast loses track of the original obj and obj_size
 	//@ void* old_obj = obj;
 	//@ size_t old_obj_size = obj_size;
-	
+
 	//@ size_t discarded_size = 0;
 	uint32_t hash = 0;
 	while (obj_size >= 8)

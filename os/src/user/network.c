@@ -13,7 +13,7 @@
 #include <rte_udp.h>
 #include <rte_tcp.h>
 
-#include "fail.h"
+#include "os/fail.h"
 
 
 // --- Private stuff ---
@@ -38,27 +38,27 @@ static void os_net_init_device(unsigned device, struct rte_mempool* mbuf_pool)
 	struct rte_eth_conf device_conf = {0};
 	ret = rte_eth_dev_configure(device, 1, 1, &device_conf);
 	if (ret != 0) {
-		fail("Couldn't configure device %u: %d", device, ret);
+		os_fail("Couldn't configure device");
 	}
 
 	ret = rte_eth_tx_queue_setup(device, 0, TX_QUEUE_SIZE, rte_eth_dev_socket_id(device), NULL /* default config */);
 	if (ret != 0) {
-		fail("Couldn't configure a TX queue for device %u: %d", device, ret);
+		os_fail("Couldn't configure a TX queue");
 	}
 
 	ret = rte_eth_rx_queue_setup(device, 0, RX_QUEUE_SIZE, rte_eth_dev_socket_id(device), NULL /* default config */, mbuf_pool);
 	if (ret != 0) {
-		fail("Couldn't configure an RX queue for device %u: %d", device, ret);
+		os_fail("Couldn't configure an RX queue");
 	}
 
 	ret = rte_eth_dev_start(device);
 	if (ret != 0) {
-		fail("Couldn't start device %u: %d", device, ret);
+		os_fail("Couldn't start device");
 	}
 
 	rte_eth_promiscuous_enable(device);
 	if (rte_eth_promiscuous_get(device) != 1) {
-		fail("Couldn't set device %u as promiscuous", device);
+		os_fail("Couldn't set device as promiscuous");
 	}
 
 	rte_eth_macaddr_get(device, &(device_addrs[device]));
@@ -75,11 +75,11 @@ int os_net_init(int argc, char** argv)
 	// Initialize DPDK, and change argc/argv to look like nothing happened
 	int ret = rte_eal_init(argc, argv);
 	if (ret < 0) {
-		fail("Error with DPDK init: %d", ret);
+		os_fail("Error with DPDK init");
 	}
 	devices_count = rte_eth_dev_count_avail();
 	if (devices_count > MAX_DEVICES) {
-		fail("Too many devices, please increase MAX_DEVICES");
+		os_fail("Too many devices, please increase MAX_DEVICES");
 	}
 	struct rte_mempool *mbuf_pool = rte_pktmbuf_pool_create(
 		"MEMPOOL", // name
@@ -90,7 +90,7 @@ int os_net_init(int argc, char** argv)
 		rte_socket_id() // socket ID
 	);
 	if (mbuf_pool == NULL) {
-		fail("Cannot create DPDK pool: %s", rte_strerror(rte_errno));
+		os_fail("Cannot create DPDK pool");
 	}
 	for (uint16_t device = 0; device < devices_count; device++) {
 		os_net_init_device(device, mbuf_pool);
@@ -152,7 +152,7 @@ void os_net_transmit(struct os_net_packet* packet, uint16_t device,
 	// TODO: avoid refcnt shenanigans if we can...
 	rte_mbuf_refcnt_set((struct rte_mbuf*) packet, 2);
 	if (rte_eth_tx_burst(device, 0, (struct rte_mbuf**) &packet, 1) == 0) {
-		fail("DPDK failed to send");
+		os_fail("DPDK failed to send");
 	}
 }
 
@@ -162,7 +162,7 @@ void os_net_flood(struct os_net_packet* packet)
 	for (uint16_t device = 0; device < devices_count; device++) {
 		if (device != packet->device) {
 			if (rte_eth_tx_burst(device, 0, (struct rte_mbuf**) &packet, 1) == 0) {
-				fail("DPDK failed to send");
+				os_fail("DPDK failed to send");
 			}
 		}
 	}
