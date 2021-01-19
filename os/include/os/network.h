@@ -65,7 +65,6 @@ static inline bool os_net_get_ipv4_header(struct os_net_ether_header* ether_head
 {
 	// if we return false this may be 1 past the end of the array, which is legal in C
 	*out_ipv4_header = (struct os_net_ipv4_header*) ((char*) ether_header + sizeof(struct os_net_ether_header));
-	// os_debug("Ether type is %hx", ether_header->ether_type);
 	return ether_header->ether_type == (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__ ? 0x0008 : 0x0800);
 }
 
