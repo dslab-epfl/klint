@@ -18,6 +18,12 @@ int rte_eal_init(int argc, char **argv)
 
 int rte_eal_has_hugepages(void)
 {
-	// Yes
+	// OS ASSUMPTION: Hugepages are used
 	return 1;
+}
+
+enum rte_proc_type_t rte_eal_process_type(void)
+{
+	// OS ASSUMPTION: Single thread
+	return RTE_PROC_PRIMARY;
 }

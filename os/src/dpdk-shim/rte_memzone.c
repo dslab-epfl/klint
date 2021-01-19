@@ -19,8 +19,6 @@ const struct rte_memzone* rte_memzone_reserve(const char* name, size_t len, int 
 
 const struct rte_memzone* rte_memzone_reserve_aligned(const char* name, size_t len, int socket_id, unsigned flags, unsigned align)
 {
-	(void) name;
-
 	if ((flags & RTE_MEMZONE_SIZE_HINT_ONLY) == 0) {
 		os_fail("Memzone reserve is too strict");
 	}
@@ -42,8 +40,31 @@ const struct rte_memzone* rte_memzone_reserve_aligned(const char* name, size_t l
 	zone->socket_id = socket_id;
 	zone->flags = flags;
 
+	for (size_t n = 0; n < RTE_MEMZONE_NAMESIZE; n++) {
+		zone->name[n] = name[n];
+		if (name[n] == 0) {
+			break;
+		}
+	}
+
 	zone_index = zone_index + 1;
 	return zone;
+}
+
+const struct rte_memzone* rte_memzone_lookup(const char* name)
+{
+	for (size_t z = 0; z < zone_index; z++) {
+		for (size_t n = 0; n < RTE_MEMZONE_NAMESIZE; n++) {
+			if (all_zones[z].name[n] != name[n]) {
+				break;
+			}
+			if (name[n] == 0) {
+				return &(all_zones[z]);
+			}
+		}
+	}
+
+	os_fail("Could not find zone");
 }
 
 int rte_memzone_free(const struct rte_memzone* mz)

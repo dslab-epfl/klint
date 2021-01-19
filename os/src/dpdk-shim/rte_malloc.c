@@ -23,6 +23,13 @@ void* rte_zmalloc(const char* type, size_t size, unsigned align)
 	return os_memory_alloc(1, size);
 }
 
+void* rte_zmalloc_socket(const char *type, size_t size, unsigned align, int socket)
+{
+	(void) socket;
+
+	return rte_zmalloc(type, size, align);
+}
+
 void* rte_realloc(void* ptr, size_t size, unsigned align)
 {
 	(void) ptr;

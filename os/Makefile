@@ -12,7 +12,10 @@ SELF_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 include $(SELF_DIR)/../Makefile.base
 
 # Silence warnings triggered by DPDK
-CFLAGS += -Wno-address-of-packed-member -Wno-padded -Wno-unused-function -Wno-deprecated-declarations -Wno-shadow -Wno-pedantic -Wno-unused-parameter -Wno-implicit-function-declaration -Wno-unused-but-set-variable
+CFLAGS += -Wno-address-of-packed-member -Wno-padded -Wno-unused-function -Wno-deprecated-declarations -Wno-shadow -Wno-pedantic -Wno-unused-parameter -Wno-unused-but-set-variable -Wno-int-conversion
+
+# Do not fail on missing functions, so we don't have to write pointless stubs for functions that are never executed
+CFLAGS += -Wl,--warn-unresolved-symbols
 
 # Our includes
 CFLAGS += -I$(SELF_DIR)/include
@@ -25,18 +28,25 @@ SRCS += $(shell echo $(SELF_DIR)/src/user/*.c)
 CFLAGS += -isystem $(SELF_DIR)/src/dpdk-shim
 CFLAGS += --include rte_config.h
 CFLAGS += --include rte_os.h
+# These ones are because the generic versions of these headers do not declare some functions declared by the arch-specific ones
+CFLAGS += --include rte_atomic_header.h
+CFLAGS += --include rte_byteorder_header.h
 
 # DPDK includes
 CFLAGS += -isystem $(SELF_DIR)/src/dpdk/lib/librte_eal/include
 CFLAGS += -isystem $(SELF_DIR)/src/dpdk/lib/librte_eal/include/generic
 CFLAGS += -isystem $(SELF_DIR)/src/dpdk/lib/librte_ethdev
 CFLAGS += -isystem $(SELF_DIR)/src/dpdk/lib/librte_kvargs
+CFLAGS += -isystem $(SELF_DIR)/src/dpdk/lib/librte_hash
 CFLAGS += -isystem $(SELF_DIR)/src/dpdk/lib/librte_mbuf
 CFLAGS += -isystem $(SELF_DIR)/src/dpdk/lib/librte_mempool
+CFLAGS += -isystem $(SELF_DIR)/src/dpdk/lib/librte_meter
 CFLAGS += -isystem $(SELF_DIR)/src/dpdk/lib/librte_net
+CFLAGS += -isystem $(SELF_DIR)/src/dpdk/lib/librte_pci
 CFLAGS += -isystem $(SELF_DIR)/src/dpdk/lib/librte_ring
 CFLAGS += -isystem $(SELF_DIR)/src/dpdk/lib/librte_telemetry
 CFLAGS += -isystem $(SELF_DIR)/src/dpdk/config
+CFLAGS += -isystem $(SELF_DIR)/src/dpdk/drivers/bus/pci
 
 # DPDK sources
 SRCS += $(shell echo $(SELF_DIR)/src/dpdk-shim/*.c)
@@ -45,9 +55,11 @@ SRCS += $(SELF_DIR)/src/dpdk/lib/librte_mbuf/rte_mbuf.c
 SRCS += $(SELF_DIR)/src/dpdk/lib/librte_mempool/rte_mempool.c
 SRCS += $(SELF_DIR)/src/dpdk/lib/librte_mempool/rte_mempool_ops.c
 SRCS += $(SELF_DIR)/src/dpdk/lib/librte_mempool/rte_mempool_ops_default.c
+SRCS += $(SELF_DIR)/src/dpdk/drivers/bus/pci/pci_common.c
 
-# Intel 10G Ethernet driver sources
-SRCS += $(shell echo $(RTE_SDK)/drivers/net/ixgbe/ixgbe_{fdir,flow,ethdev,ipsec,pf,rxtx,tm,rxtx_vec_sse}.c)
+# Intel 10G Ethernet driver sources, and necessary includes
+CFLAGS += --include smmintrin.h
+SRCS += $(shell echo $(RTE_SDK)/drivers/net/ixgbe/ixgbe_{ethdev,pf,rxtx,rxtx_vec_sse}.c) # fdir, flow, ipsec, tm
 SRCS += $(shell echo $(RTE_SDK)/drivers/net/ixgbe/base/ixgbe_{api,common,phy,82599}.c)
 
 # Config

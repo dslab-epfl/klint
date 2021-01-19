@@ -21,7 +21,7 @@ CFLAGS += -fPIC
 CFLAGS += -fno-asynchronous-unwind-tables
 
 # Good warnings, and make them fatal errors to avoid walls of output for minor mistakes
-CFLAGS += -Wall -Wextra -Werror -pedantic -Wfatal-errors -Wshadow -Wstrict-aliasing -Wpadded
+CFLAGS += -Wall -Wextra -Werror -pedantic -Wshadow -Wstrict-aliasing -Wpadded -Wfatal-errors
 
 # Debug log
 # CFLAGS += -DDEBUG
