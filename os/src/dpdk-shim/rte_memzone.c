@@ -3,6 +3,8 @@
 #include "os/fail.h"
 #include "os/memory.h"
 
+// TODO check if this file is really needed once everything works (and while we're at it let's check that for every function/define/typedef/... in dpdk-shim)
+
 
 #define MAX_MEMZONES 32
 
