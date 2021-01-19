@@ -1,5 +1,5 @@
 #include "os/network.h"
-#include "network_private.h"
+#include "private/network.h"
 
 #include <stddef.h>
 

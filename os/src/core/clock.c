@@ -1,5 +1,5 @@
 #include "os/clock.h"
-#include "clock_private.h"
+#include "private/clock.h"
 
 #include <time.h>
 

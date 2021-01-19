@@ -1,8 +1,10 @@
 #include "os/skeleton/nf.h"
 
-#include "core/private/fail.h"
-#include "core/private/clock.h"
-#include "core/private/network.h"
+#include <stddef.h>
+
+#include "os/fail.h"
+#include "../core/private/clock.h"
+#include "private/network.h"
 
 #define INFINITE_LOOP while(1)
 
@@ -16,7 +18,7 @@ int main(int argc, char** argv)
 
 	uint16_t nb_devices = os_net_devices_count();
 	if (!nf_init(nb_devices)) {
-		fail("Initialization failed.");
+		os_fail("Initialization failed.");
 	}
 
 	INFINITE_LOOP {
