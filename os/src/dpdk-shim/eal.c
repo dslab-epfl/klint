@@ -15,3 +15,9 @@ int rte_eal_init(int argc, char **argv)
 	initialized = true;
 	return 0;
 }
+
+int rte_eal_has_hugepages(void)
+{
+	// Yes
+	return 1;
+}

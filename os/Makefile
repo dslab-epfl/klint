@@ -23,6 +23,7 @@ SRCS += $(shell echo $(SELF_DIR)/src/user/*.c)
 
 # DPDK shim includes, along with files that DPDK sometimes assumes are included
 CFLAGS += -isystem $(SELF_DIR)/src/dpdk-shim
+CFLAGS += --include rte_config.h
 CFLAGS += --include rte_os.h
 
 # DPDK includes
@@ -43,6 +44,7 @@ SRCS += $(SELF_DIR)/src/dpdk/lib/librte_ethdev/rte_ethdev.c
 SRCS += $(SELF_DIR)/src/dpdk/lib/librte_mbuf/rte_mbuf.c
 SRCS += $(SELF_DIR)/src/dpdk/lib/librte_mempool/rte_mempool.c
 SRCS += $(SELF_DIR)/src/dpdk/lib/librte_mempool/rte_mempool_ops.c
+SRCS += $(SELF_DIR)/src/dpdk/lib/librte_mempool/rte_mempool_ops_default.c
 
 # Config
 CFLAGS += '-D OS_CONFIG_FILENAME="$(abspath $(CONFIG_FILENAME))"'

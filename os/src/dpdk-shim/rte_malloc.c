@@ -38,3 +38,11 @@ void rte_free(void* ptr)
 	(void) ptr;
 	// No freeing necessary
 }
+
+int rte_malloc_heap_socket_is_external(int socket_id)
+{
+	(void) socket_id;
+
+	// All memory is internal
+	return 0;
+}
