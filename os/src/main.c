@@ -4,12 +4,7 @@
 #include "fail.h"
 #include "network_private.h"
 
-#ifdef KLEE_VERIFICATION
-#include "klee/klee.h"
-#define INFINITE_LOOP int _loop_termination = klee_int("loop_termination"); while(klee_induce_invariants() & _loop_termination)
-#else
 #define INFINITE_LOOP while(1)
-#endif
 
 
 int main(int argc, char** argv)
