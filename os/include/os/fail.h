@@ -1,3 +1,4 @@
 #pragma once
 
-void os_fail(const char* message);
+
+_Noreturn void os_fail(const char* message);

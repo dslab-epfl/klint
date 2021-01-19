@@ -1,5 +1,1 @@
-build/
-*.o
-*.d
-*.cmd
-*.tmp
+*.so

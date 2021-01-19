@@ -16,11 +16,11 @@ void* rte_zmalloc(const char* type, size_t size, unsigned align)
 {
 	(void) type;
 
-	uint8_t* result = (uint8_t*) os_memory_alloc(1, size + align);
-	if (align != 0) {
-		result = result + (align - ((uintptr_t) result % align));
+	if (align > size) {
+		size = align;
 	}
-	return (void*) result;
+
+	return os_memory_alloc(1, size);
 }
 
 void* rte_realloc(void* ptr, size_t size, unsigned align)
@@ -30,7 +30,6 @@ void* rte_realloc(void* ptr, size_t size, unsigned align)
 	(void) align;
 
 	os_fail("rte_realloc is not supported (yet?)");
-	return (void*) 0;
 }
 
 void rte_free(void* ptr)

@@ -29,15 +29,12 @@ size_t os_memory_pagesize(void)
 	const long page_size_long = sysconf(_SC_PAGESIZE);
 	if (page_size_long < 0) {
 		os_fail("Page size is negative?!?");
-		return 0;
 	}
 	if ((unsigned long) page_size_long > SIZE_MAX) {
 		os_fail("Page size too big for size_t");
-		return 0;
 	}
 	if (page_size_long == 0) {
 		os_fail("Could not get page size");
-		return 0;
 	}
 	return page_size_long;
 }
@@ -50,7 +47,6 @@ void* os_memory_alloc(const size_t count, const size_t size)
 	// OK if size is smaller, we'll just return too much memory
 	if (full_size > HUGEPAGE_SIZE) {
 		os_fail("Full size too big");
-		return (void*) 0;
 	}
 
 	// http://man7.org/linux/man-pages//man2/munmap.2.html
@@ -72,7 +68,6 @@ void* os_memory_alloc(const size_t count, const size_t size)
 	);
 	if (page == MAP_FAILED) {
 		os_fail("Allocate mmap failed");
-		return (void*) 0;
 	}
 
 	return page;
@@ -82,13 +77,11 @@ void* os_memory_phys_to_virt(const uintptr_t addr, const size_t size)
 {
 	if (addr != (uintptr_t) (off_t) addr) {
 		os_fail("Cannot phys-to-virt an addr that does not roundtrip to off_t");
-		return (void*) 0;
 	}
 
 	int mem_fd = open("/dev/mem", O_SYNC | O_RDWR);
 	if (mem_fd == -1) {
 		os_fail("Could not open /dev/mem");
-		return (void*) 0;
 	}
 
 	void* mapped = mmap(
@@ -111,7 +104,6 @@ void* os_memory_phys_to_virt(const uintptr_t addr, const size_t size)
 
 	if (mapped == MAP_FAILED) {
 		os_fail("Phys-to-virt mmap failed");
-		return (void*) 0;
 	}
 
 	return mapped;
@@ -125,18 +117,15 @@ uintptr_t os_memory_virt_to_phys(const void* const addr)
 	const uintptr_t map_offset = page * sizeof(uint64_t);
 	if (map_offset != (uintptr_t) (off_t) map_offset) {
 		os_fail("Cannot virt-to-phys with an offset that does not roundtrip to off_t");
-		return 0;
 	}
 
 	const int map_fd = open("/proc/self/pagemap", O_RDONLY);
 	if (map_fd < 0) {
 		os_fail("Could not open the pagemap");
-		return 0;
 	}
 
 	if (lseek(map_fd, (off_t) map_offset, SEEK_SET) == (off_t) -1) {
 		os_fail("Could not seek the pagemap");
-		return 0;
 	}
 
 	uint64_t metadata;
@@ -144,19 +133,16 @@ uintptr_t os_memory_virt_to_phys(const void* const addr)
 	close(map_fd);
 	if (read_result != sizeof(uint64_t)) {
 		os_fail("Could not read the pagemap");
-		return 0;
 	}
 
 	// We want the PFN, but it's only meaningful if the page is present; bit 63 indicates whether it is
 	if ((metadata & 0x8000000000000000) == 0) {
 		os_fail("Page not present");
-		return 0;
 	}
 	// PFN = bits 0-54
 	const uint64_t pfn = metadata & 0x7FFFFFFFFFFFFF;
 	if (pfn == 0) {
 		os_fail("Page not mapped");
-		return 0;
 	}
 
 	const uintptr_t addr_offset = (uintptr_t) addr % page_size;
