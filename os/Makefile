@@ -1,6 +1,9 @@
 ifndef NF
 $(error Please define the NF variable)
 endif
+ifndef CONFIG_FILENAME
+$(error Please define CONFIG_FILENAME)
+endif
 ifndef RTE_TARGET
 $(error Please define RTE_TARGET)
 endif
@@ -26,8 +29,8 @@ CFLAGS += -I$(SELF_DIR)/include
 # Our source
 SRCS-y += $(shell echo $(SELF_DIR)/src/**/*.c)
 
-# Config includes
-CFLAGS += -I$(SELF_DIR)/../config/include
+# Config
+CFLAGS += '-D OS_CONFIG_FILENAME="$(abspath $(CONFIG_FILENAME))"'
 
 # Build with the libnf
 LDFLAGS += $(SELF_DIR)/../nf/$(NF)/libnf.so

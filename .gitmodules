@@ -1,0 +1,3 @@
+[submodule "os/src/dpdk"]
+	path = os/src/dpdk
+	url = https://github.com/DPDK/dpdk

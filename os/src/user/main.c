@@ -1,8 +1,8 @@
 #include "os/skeleton/nf.h"
 
-#include "clock_private.h"
-#include "fail.h"
-#include "network_private.h"
+#include "core/private/fail.h"
+#include "core/private/clock.h"
+#include "core/private/network.h"
 
 #define INFINITE_LOOP while(1)
 

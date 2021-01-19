@@ -1,6 +1,5 @@
-#include "config/config.h"
+#include "os/config.h"
 
-#include <stddef.h>
 #include <string.h>
 
 
@@ -12,7 +11,7 @@ struct config_item
 
 struct config_item items[] =
 {
-#include CONFIG_FILENAME
+#include OS_CONFIG_FILENAME
 };
 
 bool config_get(const char* name, uintmax_t* out_value)

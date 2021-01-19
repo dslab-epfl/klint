@@ -2,8 +2,6 @@
 
 #include <stdint.h>
 
-#include "compat/endian.h"
-
 
 struct tcphdr {
 	uint16_t source;
@@ -20,7 +18,7 @@ struct tcphdr {
 	      ack : 1,
 	      urg : 1,
 	      ece : 1,
-	      cwr _ 1;
+	      cwr : 1;
 #else
 	uint16_t doff : 4,
 	      res1 : 4,
