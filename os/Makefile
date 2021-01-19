@@ -12,7 +12,7 @@ SELF_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 include $(SELF_DIR)/../Makefile.base
 
 # Silence warnings triggered by DPDK
-CFLAGS += -Wno-address-of-packed-member -Wno-padded -Wno-unused-function
+CFLAGS += -Wno-address-of-packed-member -Wno-padded -Wno-unused-function -Wno-deprecated-declarations -Wno-shadow -Wno-pedantic
 
 # Our includes
 CFLAGS += -I$(SELF_DIR)/include
@@ -21,19 +21,25 @@ CFLAGS += -I$(SELF_DIR)/include
 SRCS += $(shell echo $(SELF_DIR)/src/core/*.c)
 SRCS += $(shell echo $(SELF_DIR)/src/user/*.c)
 
-# DPDK includes
+# DPDK shim includes, along with files that DPDK sometimes assumes are included
 CFLAGS += -isystem $(SELF_DIR)/src/dpdk-shim
+CFLAGS += --include rte_os.h
+
+# DPDK includes
 CFLAGS += -isystem $(SELF_DIR)/src/dpdk/lib/librte_eal/include
 CFLAGS += -isystem $(SELF_DIR)/src/dpdk/lib/librte_eal/include/generic
 CFLAGS += -isystem $(SELF_DIR)/src/dpdk/lib/librte_ethdev
+CFLAGS += -isystem $(SELF_DIR)/src/dpdk/lib/librte_kvargs
 CFLAGS += -isystem $(SELF_DIR)/src/dpdk/lib/librte_mbuf
 CFLAGS += -isystem $(SELF_DIR)/src/dpdk/lib/librte_mempool
 CFLAGS += -isystem $(SELF_DIR)/src/dpdk/lib/librte_net
 CFLAGS += -isystem $(SELF_DIR)/src/dpdk/lib/librte_ring
+CFLAGS += -isystem $(SELF_DIR)/src/dpdk/lib/librte_telemetry
 CFLAGS += -isystem $(SELF_DIR)/src/dpdk/config
 
 # DPDK sources
 SRCS += $(shell echo $(SELF_DIR)/src/dpdk-shim/*.c)
+SRCS += $(SELF_DIR)/src/dpdk/lib/librte_ethdev/rte_ethdev.c
 
 # Config
 CFLAGS += '-D OS_CONFIG_FILENAME="$(abspath $(CONFIG_FILENAME))"'

@@ -5,6 +5,9 @@
 // TODO make this hardware-independent somehow? or define this deep into a low-level layer of the OS, not here
 #define RTE_CACHE_LINE_SIZE 64
 
+// Whatever?
+#define RTE_MAX_ETHPORTS 64
+
 // Single core support
 #define RTE_MAX_LCORE 1
 
