@@ -1,4 +1,4 @@
-#include "os/structs/cht.h"
+#include "structs/cht.h"
 
 #include "os/memory.h"
 

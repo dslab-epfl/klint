@@ -1,7 +1,8 @@
 #pragma once
 
 #include <stdint.h>
-#include "os/structs/pool.h"
+
+#include "structs/pool.h"
 
 //@ #include "proof/ghost_map.gh"
 

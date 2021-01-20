@@ -5,23 +5,29 @@ ifndef CONFIG_FILENAME
 $(error Please define CONFIG_FILENAME)
 endif
 
+OS := linux
+NET := dpdk-inline
+
 # Get current dir, see https://stackoverflow.com/a/8080530
-OS_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+THIS_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 
 # Use our global makefile, for the compiler and such
-include $(OS_DIR)/../Makefile.base
+include $(THIS_DIR)/../Makefile.base
 
 # TODO make this work properly, we shouldn't be getting warnings about undefined references in functions we don't use
 CFLAGS += -ffunction-sections -fdata-sections -Wl,--gc-sections
 
 # Our includes
-CFLAGS += -I$(OS_DIR)/include
+CFLAGS += -I$(THIS_DIR)/include
 
-# Our sources
-SRCS += $(shell echo $(OS_DIR)/src/os/*.c)
+# OS
+SRCS += $(shell echo $(THIS_DIR)/src/os/$(OS)/*.c)
 
-# Network layer
-include $(OS_DIR)/src/net/Makefile
+# Structs
+SRCS += $(shell echo $(THIS_DIR)/src/structs/*.c)
+
+# Network
+include $(THIS_DIR)/src/net/$(NET)/Makefile
 
 # Config
 CFLAGS += '-D OS_CONFIG_FILENAME="$(abspath $(CONFIG_FILENAME))"'

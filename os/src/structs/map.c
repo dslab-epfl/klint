@@ -1,4 +1,4 @@
-#include "os/structs/map.h"
+#include "structs/map.h"
 
 #include "os/memory.h"
 #include "generic_ops.h"

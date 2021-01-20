@@ -1,4 +1,4 @@
-#include "os/structs/pool.h"
+#include "structs/pool.h"
 
 #include <stdbool.h>
 #include <stddef.h>
