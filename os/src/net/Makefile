@@ -12,6 +12,7 @@ SRCS += $(shell echo $(NET_DIR)/*.c)
 
 # DPDK shim includes, along with files that DPDK sometimes assumes are included
 CFLAGS += -isystem $(NET_DIR)/dpdk-shim
+CFLAGS += --include rte_debug.h
 CFLAGS += --include rte_config.h
 CFLAGS += --include rte_os.h
 # These ones are because the generic versions of these headers do not declare some functions declared by the arch-specific ones
@@ -25,7 +26,6 @@ CFLAGS += -isystem $(NET_DIR)/dpdk/lib/librte_ethdev
 CFLAGS += -isystem $(NET_DIR)/dpdk/lib/librte_kvargs
 CFLAGS += -isystem $(NET_DIR)/dpdk/lib/librte_hash
 CFLAGS += -isystem $(NET_DIR)/dpdk/lib/librte_mbuf
-CFLAGS += -isystem $(NET_DIR)/dpdk/lib/librte_mempool
 CFLAGS += -isystem $(NET_DIR)/dpdk/lib/librte_meter
 CFLAGS += -isystem $(NET_DIR)/dpdk/lib/librte_net
 CFLAGS += -isystem $(NET_DIR)/dpdk/lib/librte_pci
@@ -38,9 +38,6 @@ CFLAGS += -isystem $(NET_DIR)/dpdk/drivers/bus/pci
 SRCS += $(shell echo $(NET_DIR)/dpdk-shim/*.c)
 SRCS += $(NET_DIR)/dpdk/lib/librte_ethdev/rte_ethdev.c
 SRCS += $(NET_DIR)/dpdk/lib/librte_mbuf/rte_mbuf.c
-SRCS += $(NET_DIR)/dpdk/lib/librte_mempool/rte_mempool.c
-SRCS += $(NET_DIR)/dpdk/lib/librte_mempool/rte_mempool_ops.c
-SRCS += $(NET_DIR)/dpdk/lib/librte_mempool/rte_mempool_ops_default.c
 
 # Intel 10G Ethernet driver sources, and necessary includes
 CFLAGS += --include smmintrin.h
