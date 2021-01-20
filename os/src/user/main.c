@@ -2,8 +2,8 @@
 
 #include <stddef.h>
 
+#include "os/clock.h"
 #include "os/fail.h"
-#include "../core/private/clock.h"
 #include "private/network.h"
 
 #define INFINITE_LOOP while(1)
@@ -22,7 +22,7 @@ int main(int argc, char** argv)
 	}
 
 	INFINITE_LOOP {
-		os_clock_flush();
+		os_clock_time_flush();
 		for (uint16_t device = 0; device < nb_devices; device++) {
 			struct os_net_packet* packet = os_net_receive(device);
 			if (packet != NULL) {

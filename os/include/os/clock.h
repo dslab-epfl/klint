@@ -7,6 +7,9 @@ typedef int64_t time_t;
 
 time_t os_clock_time(void);
 
+// Forces the next os_clock_time read to be uncached
+void os_clock_time_flush(void);
+
 // Get the current number of CPU cycles.
 uint64_t os_clock_cycles(void);
 

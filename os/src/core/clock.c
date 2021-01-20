@@ -1,5 +1,4 @@
 #include "os/clock.h"
-#include "private/clock.h"
 
 #include <stdlib.h>
 #include <time.h>
@@ -14,16 +13,6 @@
 static int64_t current_time = 0;
 
 
-// --- Internal API ---
-
-void os_clock_flush(void)
-{
-	current_time = 0;
-}
-
-
-// --- Public API ---
-
 int64_t os_clock_time(void)
 {
 	if (current_time == 0) {
@@ -34,6 +23,13 @@ int64_t os_clock_time(void)
 	return current_time;
 }
 
+void os_clock_time_flush(void)
+{
+	current_time = 0;
+}
+
+
+// TODO remove this, or do something silly but technically correct like returning the time (and pretending we're on a slow CPU)
 uint64_t os_clock_cycles(void)
 {
 	return __rdtsc();
