@@ -41,7 +41,6 @@ SRCS += $(NET_DIR)/dpdk/lib/librte_mbuf/rte_mbuf.c
 SRCS += $(NET_DIR)/dpdk/lib/librte_mempool/rte_mempool.c
 SRCS += $(NET_DIR)/dpdk/lib/librte_mempool/rte_mempool_ops.c
 SRCS += $(NET_DIR)/dpdk/lib/librte_mempool/rte_mempool_ops_default.c
-SRCS += $(NET_DIR)/dpdk/drivers/bus/pci/pci_common.c
 
 # Intel 10G Ethernet driver sources, and necessary includes
 CFLAGS += --include smmintrin.h
