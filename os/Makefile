@@ -6,10 +6,10 @@ $(error Please define CONFIG_FILENAME)
 endif
 
 # Get current dir, see https://stackoverflow.com/a/8080530
-SELF_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+OS_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 
 # Use our global makefile, for the compiler and such
-include $(SELF_DIR)/../Makefile.base
+include $(OS_DIR)/../Makefile.base
 
 # Silence warnings triggered by DPDK
 CFLAGS += -Wno-address-of-packed-member -Wno-padded -Wno-unused-function -Wno-deprecated-declarations -Wno-shadow -Wno-pedantic -Wno-unused-parameter -Wno-unused-but-set-variable -Wno-int-conversion
@@ -18,50 +18,13 @@ CFLAGS += -Wno-address-of-packed-member -Wno-padded -Wno-unused-function -Wno-de
 CFLAGS += -Wl,--warn-unresolved-symbols
 
 # Our includes
-CFLAGS += -I$(SELF_DIR)/include
+CFLAGS += -I$(OS_DIR)/include
 
 # Our sources
-SRCS += $(shell echo $(SELF_DIR)/src/core/*.c)
-SRCS += $(shell echo $(SELF_DIR)/src/user/*.c)
+SRCS += $(shell echo $(OS_DIR)/src/os/*.c)
 
-# DPDK shim includes, along with files that DPDK sometimes assumes are included
-CFLAGS += -isystem $(SELF_DIR)/src/dpdk-shim
-CFLAGS += --include rte_config.h
-CFLAGS += --include rte_os.h
-# These ones are because the generic versions of these headers do not declare some functions declared by the arch-specific ones
-CFLAGS += --include rte_atomic_header.h
-CFLAGS += --include rte_byteorder_header.h
-
-# DPDK includes
-CFLAGS += -isystem $(SELF_DIR)/src/dpdk/lib/librte_eal/include
-CFLAGS += -isystem $(SELF_DIR)/src/dpdk/lib/librte_eal/include/generic
-CFLAGS += -isystem $(SELF_DIR)/src/dpdk/lib/librte_ethdev
-CFLAGS += -isystem $(SELF_DIR)/src/dpdk/lib/librte_kvargs
-CFLAGS += -isystem $(SELF_DIR)/src/dpdk/lib/librte_hash
-CFLAGS += -isystem $(SELF_DIR)/src/dpdk/lib/librte_mbuf
-CFLAGS += -isystem $(SELF_DIR)/src/dpdk/lib/librte_mempool
-CFLAGS += -isystem $(SELF_DIR)/src/dpdk/lib/librte_meter
-CFLAGS += -isystem $(SELF_DIR)/src/dpdk/lib/librte_net
-CFLAGS += -isystem $(SELF_DIR)/src/dpdk/lib/librte_pci
-CFLAGS += -isystem $(SELF_DIR)/src/dpdk/lib/librte_ring
-CFLAGS += -isystem $(SELF_DIR)/src/dpdk/lib/librte_telemetry
-CFLAGS += -isystem $(SELF_DIR)/src/dpdk/config
-CFLAGS += -isystem $(SELF_DIR)/src/dpdk/drivers/bus/pci
-
-# DPDK sources
-SRCS += $(shell echo $(SELF_DIR)/src/dpdk-shim/*.c)
-SRCS += $(SELF_DIR)/src/dpdk/lib/librte_ethdev/rte_ethdev.c
-SRCS += $(SELF_DIR)/src/dpdk/lib/librte_mbuf/rte_mbuf.c
-SRCS += $(SELF_DIR)/src/dpdk/lib/librte_mempool/rte_mempool.c
-SRCS += $(SELF_DIR)/src/dpdk/lib/librte_mempool/rte_mempool_ops.c
-SRCS += $(SELF_DIR)/src/dpdk/lib/librte_mempool/rte_mempool_ops_default.c
-SRCS += $(SELF_DIR)/src/dpdk/drivers/bus/pci/pci_common.c
-
-# Intel 10G Ethernet driver sources, and necessary includes
-CFLAGS += --include smmintrin.h
-CFLAGS += -D rxrearm_nb=crc_len -D rxrearm_start=crc_len -D RTE_IXGBE_RXQ_REARM_THRESH=32 -D RTE_IXGBE_MAX_RX_BURST=32 # Horrible hack: use vec_sse without setting ARCH_X86 so DPDK itself remains neutral
-SRCS += $(shell echo $(RTE_SDK)/drivers/net/ixgbe/ixgbe_{ethdev,pf,rxtx,rxtx_vec_sse}.c)
-SRCS += $(shell echo $(RTE_SDK)/drivers/net/ixgbe/base/ixgbe_{api,common,phy,82599}.c)
+# Network layer
+include $(OS_DIR)/src/net/Makefile
 
 # Config
 CFLAGS += '-D OS_CONFIG_FILENAME="$(abspath $(CONFIG_FILENAME))"'

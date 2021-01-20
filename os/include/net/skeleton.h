@@ -3,7 +3,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "os/network.h"
+#include "net/packet.h"
+#include "net/tx.h" // convenience for implementors
 
 
 // Initialize any necessary state, given the number of devices; returns true iff initialization succeeded.

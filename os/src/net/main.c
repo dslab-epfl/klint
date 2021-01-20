@@ -1,22 +1,20 @@
-#include "os/network.h"
-#include "private/network.h"
+#include "net/tx.h"
 
 #include <stddef.h>
 
 #include <rte_eal.h>
 #include <rte_ethdev.h>
 #include <rte_ether.h>
-#include <rte_errno.h>
 #include <rte_ip.h>
 #include <rte_mbuf.h>
 #include <rte_mempool.h>
 #include <rte_udp.h>
 #include <rte_tcp.h>
 
+#include "os/clock.h"
 #include "os/fail.h"
+#include "net/skeleton.h"
 
-
-// --- Private stuff ---
 
 // DPDK constants; keep the same values as Vigor for now
 #define RX_QUEUE_SIZE 96
@@ -31,7 +29,7 @@ struct rte_ether_addr device_addrs[MAX_DEVICES];
 struct rte_ether_addr endpoint_addrs[MAX_DEVICES];
 
 
-static void os_net_init_device(unsigned device, struct rte_mempool* mbuf_pool)
+static void device_init(unsigned device, struct rte_mempool* mbuf_pool)
 {
 	int ret;
 
@@ -66,60 +64,6 @@ static void os_net_init_device(unsigned device, struct rte_mempool* mbuf_pool)
 	endpoint_addrs[device] = (struct rte_ether_addr){.addr_bytes = {device}};
 }
 
-
-
-// --- Internal APIs ---
-
-int os_net_init(int argc, char** argv)
-{
-	// Initialize DPDK, and change argc/argv to look like nothing happened
-	int ret = rte_eal_init(argc, argv);
-	if (ret < 0) {
-		os_fail("Error with DPDK init");
-	}
-	devices_count = rte_eth_dev_count_avail();
-	if (devices_count > MAX_DEVICES) {
-		os_fail("Too many devices, please increase MAX_DEVICES");
-	}
-	struct rte_mempool *mbuf_pool = rte_pktmbuf_pool_create(
-		"MEMPOOL", // name
-		MEMPOOL_BUFFER_COUNT * devices_count, // #elements
-		0, // cache size (per-lcore, not useful in a single-threaded app)
-		0, // application private area size
-		RTE_MBUF_DEFAULT_BUF_SIZE, // data buffer size
-		rte_socket_id() // socket ID
-	);
-	if (mbuf_pool == NULL) {
-		os_fail("Cannot create DPDK pool");
-	}
-	for (uint16_t device = 0; device < devices_count; device++) {
-		os_net_init_device(device, mbuf_pool);
-	}
-	return ret;
-}
-
-uint16_t os_net_devices_count(void)
-{
-	return rte_eth_dev_count_avail();
-}
-
-struct os_net_packet* os_net_receive(uint16_t device)
-{
-	struct rte_mbuf* bufs[1];
-	if (rte_eth_rx_burst(device, 0, bufs, 1)) {
-		return (struct os_net_packet*) bufs[0];
-	}
-	return NULL;
-}
-
-void os_net_cleanup(struct os_net_packet* packet)
-{
-	rte_pktmbuf_free((struct rte_mbuf*) packet);
-}
-
-
-
-// --- Public APIs ---
 
 // TODO: Offload checksums to the hardware if possible
 void os_net_transmit(struct os_net_packet* packet, uint16_t device,
@@ -166,4 +110,52 @@ void os_net_flood(struct os_net_packet* packet)
 			}
 		}
 	}
+}
+
+
+int main(int argc, char** argv)
+{
+	// Initialize DPDK, and change argc/argv to look like nothing happened
+	int ret = rte_eal_init(0, NULL);
+	if (ret < 0) {
+		os_fail("Error with DPDK init");
+	}
+
+	devices_count = rte_eth_dev_count_avail();
+	if (devices_count > MAX_DEVICES) {
+		os_fail("Too many devices, please increase MAX_DEVICES");
+	}
+
+	struct rte_mempool *mbuf_pool = rte_pktmbuf_pool_create(
+		"MEMPOOL", // name
+		MEMPOOL_BUFFER_COUNT * devices_count, // #elements
+		0, // cache size (per-lcore, not useful in a single-threaded app)
+		0, // application private area size
+		RTE_MBUF_DEFAULT_BUF_SIZE, // data buffer size
+		rte_socket_id() // socket ID
+	);
+	if (mbuf_pool == NULL) {
+		os_fail("Cannot create DPDK pool");
+	}
+
+	for (uint16_t device = 0; device < devices_count; device++) {
+		device_init(device, mbuf_pool);
+	}
+
+	if (!nf_init(devices_count)) {
+		os_fail("Initialization failed.");
+	}
+
+	while(1) {
+		os_clock_time_flush();
+		for (uint16_t device = 0; device < devices_count; device++) {
+			struct rte_mbuf* bufs[1];
+			if (rte_eth_rx_burst(device, 0, bufs, 1)) {
+				nf_handle((struct os_net_packet*) bufs[0]);
+				rte_pktmbuf_free(bufs[0]);
+			}
+		}
+	}
+
+	return 0;
 }

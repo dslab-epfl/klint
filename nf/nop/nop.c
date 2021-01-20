@@ -1,4 +1,4 @@
-#include "os/skeleton/nf.h"
+#include "net/skeleton.h"
 
 #include "os/config.h"
 
