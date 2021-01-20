@@ -11,11 +11,8 @@ OS_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 # Use our global makefile, for the compiler and such
 include $(OS_DIR)/../Makefile.base
 
-# Silence warnings triggered by DPDK
-CFLAGS += -Wno-address-of-packed-member -Wno-padded -Wno-unused-function -Wno-deprecated-declarations -Wno-shadow -Wno-pedantic -Wno-unused-parameter -Wno-unused-but-set-variable -Wno-int-conversion
-
-# Do not fail on missing functions, so we don't have to write pointless stubs for functions that are never executed
-CFLAGS += -Wl,--warn-unresolved-symbols
+# TODO make this work properly, we shouldn't be getting warnings about undefined references in functions we don't use
+CFLAGS += -ffunction-sections -fdata-sections -Wl,--gc-sections
 
 # Our includes
 CFLAGS += -I$(OS_DIR)/include
@@ -33,4 +30,4 @@ CFLAGS += '-D OS_CONFIG_FILENAME="$(abspath $(CONFIG_FILENAME))"'
 CFLAGS += $(NF)/libnf.so
 
 build:
-	$(CC) $(SRCS) $(CFLAGS) -o os.so
+	$(CC) $(SRCS) $(CFLAGS) -o bin

@@ -2,7 +2,6 @@
 
 #include <stdlib.h>
 #include <time.h>
-#include <x86intrin.h>
 
 #include "os/fail.h"
 
@@ -28,12 +27,6 @@ void os_clock_time_flush(void)
 	current_time = 0;
 }
 
-
-// TODO remove this, or do something silly but technically correct like returning the time (and pretending we're on a slow CPU)
-uint64_t os_clock_cycles(void)
-{
-	return __rdtsc();
-}
 
 // Note that POSIX's "usleep" call, which could be used directly here, was removed in POSIX-2008.
 void os_clock_sleep_us(uint64_t microseconds)
