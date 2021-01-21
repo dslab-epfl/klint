@@ -11,4 +11,4 @@
 bool nf_init(uint16_t devices_count);
 
 // Handles a packet
-void nf_handle(struct os_net_packet* packet);
+void nf_handle(struct net_packet* packet);

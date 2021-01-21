@@ -5,8 +5,8 @@ ifndef CONFIG_FILENAME
 $(error Please define CONFIG_FILENAME)
 endif
 
-OS := linux
-NET := dpdk-inline
+OS ?= linux
+NET ?= dpdk-inline
 
 # Get current dir, see https://stackoverflow.com/a/8080530
 THIS_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))

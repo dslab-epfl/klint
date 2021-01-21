@@ -8,7 +8,7 @@ bool pcn_pkt_controller_flood = false;
 // Polycube NFs implement this, it returns one of the RX_* values above and may call pcn_pkt_redirect or pcn_pkt_controller
 int handle_rx(struct xdp_md* ctx, struct pkt_metadata* md);
 
-void nf_handle(struct os_net_packet* packet)
+void nf_handle(struct net_packet* packet)
 {
 	struct xdp_md ctx = {
 		.data = (uintptr_t) packet->data,
@@ -21,10 +21,10 @@ void nf_handle(struct os_net_packet* packet)
 	int rx_result = handle_rx(&ctx, &md);
 
 	if (pcn_pkt_controller_flood) {
-		os_net_flood(packet);
+		net_flood(packet);
 	} else if (rx_result == RX_DROP) {
 		// Do nothing
 	} else {
-		os_net_transmit(packet, (uint16_t) rx_result, (struct os_net_ether_header*) packet->data, NULL, NULL);
+		net_transmit(packet, (uint16_t) rx_result, UPDATE_ETHER_ADDRS);
 	}
 }

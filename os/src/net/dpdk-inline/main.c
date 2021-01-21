@@ -66,42 +66,41 @@ static void device_init(unsigned device, struct rte_mempool* mbuf_pool)
 }
 
 
-// TODO: Offload checksums to the hardware if possible
-void os_net_transmit(struct os_net_packet* packet, uint16_t device,
-                     struct os_net_ether_header* ether_header,
-                     struct os_net_ipv4_header* ipv4_header,
-                     struct os_net_tcpudp_header* tcpudp_header)
+// TODO: Offload checksums to the hardware
+void net_transmit(struct net_packet* packet, uint16_t device, enum net_transmit_flags flags)
 {
-	if (ether_header != NULL) {
+	struct net_ether_header* ether_header = (struct net_ether_header*) packet->data;
+	if (flags & UPDATE_ETHER_ADDRS) {
 		memcpy(&(ether_header->src_addr), &(device_addrs[device]), sizeof(struct rte_ether_addr));
 		memcpy(&(ether_header->dst_addr), &(endpoint_addrs[device]), sizeof(struct rte_ether_addr));
 	}
 
-	if (ipv4_header != NULL) {
+	struct net_ipv4_header* ipv4_header = (struct net_ipv4_header*) (ether_header + 1);
+	if (flags & UPDATE_L3_CHECKSUM) {
 		ipv4_header->hdr_checksum = 0; // Assumed by checksum calculation
 		ipv4_header->hdr_checksum = rte_ipv4_cksum((void*) ipv4_header);
+	}
 
-		if (tcpudp_header != NULL) {
-			if (ipv4_header->next_proto_id == IPPROTO_TCP) {
-				struct rte_tcp_hdr *tcp_header = (struct rte_tcp_hdr*) tcpudp_header;
-				tcp_header->cksum = 0; // Assumed by checksum calculation
-				tcp_header->cksum = rte_ipv4_udptcp_cksum((void*) ipv4_header, tcp_header);
-			} else if(ipv4_header->next_proto_id == IPPROTO_UDP) {
-				struct rte_udp_hdr *udp_header = (struct rte_udp_hdr*) tcpudp_header;
-				udp_header->dgram_cksum = 0; // Assumed by checksum calculation
-				udp_header->dgram_cksum = rte_ipv4_udptcp_cksum((void*) ipv4_header, udp_header);
-			}
+	if (flags & UPDATE_L4_CHECKSUM) {
+		if (ipv4_header->next_proto_id == IPPROTO_TCP) {
+			struct rte_tcp_hdr *tcp_header = (struct rte_tcp_hdr*) (ipv4_header + 1);
+			tcp_header->cksum = 0; // Assumed by checksum calculation
+			tcp_header->cksum = rte_ipv4_udptcp_cksum((void*) ipv4_header, tcp_header);
+		} else if(ipv4_header->next_proto_id == IPPROTO_UDP) {
+			struct rte_udp_hdr *udp_header = (struct rte_udp_hdr*) (ipv4_header + 1);
+			udp_header->dgram_cksum = 0; // Assumed by checksum calculation
+			udp_header->dgram_cksum = rte_ipv4_udptcp_cksum((void*) ipv4_header, udp_header);
 		}
 	}
 
-	// TODO: avoid refcnt shenanigans if we can...
+	// TODO: avoid refcnt shenanigans...
 	rte_mbuf_refcnt_set((struct rte_mbuf*) packet, 2);
 	if (rte_eth_tx_burst(device, 0, (struct rte_mbuf**) &packet, 1) == 0) {
 		os_fail("DPDK failed to send");
 	}
 }
 
-void os_net_flood(struct os_net_packet* packet)
+void net_flood(struct net_packet* packet)
 {
 	rte_mbuf_refcnt_set((struct rte_mbuf*) packet, devices_count);
 	for (uint16_t device = 0; device < devices_count; device++) {
@@ -152,7 +151,7 @@ int main(int argc, char** argv)
 		for (uint16_t device = 0; device < devices_count; device++) {
 			struct rte_mbuf* bufs[1];
 			if (rte_eth_rx_burst(device, 0, bufs, 1)) {
-				nf_handle((struct os_net_packet*) bufs[0]);
+				nf_handle((struct net_packet*) bufs[0]);
 				rte_pktmbuf_free(bufs[0]);
 			}
 		}

@@ -3,13 +3,15 @@
 #include "net/packet.h"
 
 
-// Transmit the given packet on the given device
-// Precondition: tcpudp_header != NULL  -->  ipv4_header != NULL
-// TODO: would be nice to get rid of NULL here :/
-void os_net_transmit(struct os_net_packet* packet, uint16_t device,
-                     struct os_net_ether_header* ether_header, // if not NULL, MAC addrs are updated
-                     struct os_net_ipv4_header* ipv4_header, // if not NULL, IPv4 checksum is recomputed
-                     struct os_net_tcpudp_header* tcpudp_header); // if not NULL, TCP/UDP checksum is recomputed
+enum net_transmit_flags {
+	UPDATE_ETHER_ADDRS = 1 << 0,
+	UPDATE_L3_CHECKSUM = 1 << 1,
+	UPDATE_L4_CHECKSUM = 1 << 2
+};
+
+// Transmit the given packet on the given device, with the given flags
+void net_transmit(struct net_packet* packet, uint16_t device, enum net_transmit_flags flags);
 
 // Transmit the given packet unmodified to all devices except the packet's own
-void os_net_flood(struct os_net_packet* packet);
+// TODO: This should not be necessary, it's only required because we can't properly deal with loops during verification
+void net_flood(struct net_packet* packet);

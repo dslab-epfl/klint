@@ -463,25 +463,25 @@ static bool reg_is_field_cleared(void* addr, uint32_t reg, uint32_t field)
 }
 
 // Get the value of PCI register 'reg' on the device at address 'addr'
-static uint32_t pcireg_read(struct tn_pci_address addr, uint8_t reg)
+static uint32_t pcireg_read(struct os_pci_address addr, uint8_t reg)
 {
-	uint32_t value = tn_pci_read(addr, reg);
+	uint32_t value = os_pci_read(addr, reg);
 	//os_debug("IXGBE PCI read: 0x%02" PRIx8 " -> 0x%08" PRIx32, reg, value);
 	return value;
 }
 
 // Check if the field 'field' (from the PCIREG_... #defines) of register 'reg' on the device at address 'addr' is cleared (i.e., reads as all 0s)
-static bool pcireg_is_field_cleared(struct tn_pci_address addr, uint8_t reg, uint32_t field)
+static bool pcireg_is_field_cleared(struct os_pci_address addr, uint8_t reg, uint32_t field)
 {
 	return (pcireg_read(addr, reg) & field) == 0;
 }
 
 // Set (i.e., write all 1s) the field 'field' (from the PCIREG_... #defines) of register 'reg' on the device at address 'addr'
-static void pcireg_set_field(struct tn_pci_address addr, uint8_t reg, uint32_t field)
+static void pcireg_set_field(struct os_pci_address addr, uint8_t reg, uint32_t field)
 {
 	uint32_t old_value = pcireg_read(addr, reg);
 	uint32_t new_value = old_value | field;
-	tn_pci_write(addr, reg, new_value);
+	os_pci_write(addr, reg, new_value);
 	//os_debug("IXGBE PCI write: 0x%02" PRIx8 " := 0x%08" PRIx32, reg, new_value);
 }
 
@@ -501,7 +501,7 @@ struct tn_net_device
 // Section 4.6.3 Initialization Sequence
 // -------------------------------------
 
-bool tn_net_device_init(const struct tn_pci_address pci_address, struct tn_net_device** out_device)
+bool tn_net_device_init(const struct os_pci_address pci_address, struct tn_net_device** out_device)
 {
 	// The NIC supports 64-bit addresses, so pointers can't be larger
 	static_assert(UINTPTR_MAX <= UINT64_MAX, "uintptr_t must fit in an uint64_t");
@@ -1058,11 +1058,7 @@ bool tn_net_agent_set_input(struct tn_net_agent* const agent, struct tn_net_devi
 	// 	Section 8.2.3.8.1 Receive Descriptor Base Address Low (RDBAL[n]):
 	// 	"The receive descriptor base address must point to a 128 byte-aligned block of data."
 	// This alignment is guaranteed by the agent initialization
-	uintptr_t ring_phys_addr;
-	if (!os_memory_virt_to_phys((void*) agent->rings[0], &ring_phys_addr)) {
-		os_debug("Could not get phys addr of main ring");
-		return false;
-	}
+	uintptr_t ring_phys_addr = os_memory_virt_to_phys((void*) agent->rings[0]);
 	reg_write(device->addr, REG_RDBAH(queue_index), (uint32_t) (ring_phys_addr >> 32));
 	reg_write(device->addr, REG_RDBAL(queue_index), (uint32_t) ring_phys_addr);
 	// "- Set the length register to the size of the descriptor ring (register RDLEN)."
@@ -1161,17 +1157,13 @@ bool tn_net_agent_add_output(struct tn_net_agent* const agent, struct tn_net_dev
 		uintptr_t packet_phys_addr = os_memory_virt_to_phys(packet_addr);
 		// INTERPRETATION-MISSING: The data sheet does not specify the endianness of descriptor buffer addresses..
 		// Since Section 1.5.3 Byte Ordering states "Registers not transferred on the wire are defined in little endian notation.", we will assume they are little-endian.
-		ring[n * 2u] = tn_cpu_to_le64(packet_phys_addr);
+		ring[n * 2u] = cpu_to_le64(packet_phys_addr);
 	}
 	// "- Program the descriptor base address with the address of the region (TDBAL, TDBAH)."
 	// 	Section 8.2.3.9.5 Transmit Descriptor Base Address Low (TDBAL[n]):
 	// 	"The Transmit Descriptor Base Address must point to a 128 byte-aligned block of data."
 	// This alignment is guaranteed by the agent initialization
-	uintptr_t ring_phys_addr;
-	if (!os_memory_virt_to_phys((void*) ring, &ring_phys_addr)) {
-		os_debug("Could not get a transmit ring's physical address");
-		return false;
-	}
+	uintptr_t ring_phys_addr = os_memory_virt_to_phys((void*) ring);
 	reg_write(device->addr, REG_TDBAH(queue_index), (uint32_t) (ring_phys_addr >> 32));
 	reg_write(device->addr, REG_TDBAL(queue_index), (uint32_t) ring_phys_addr);
 	// "- Set the length register to the size of the descriptor ring (TDLEN)."
@@ -1276,7 +1268,7 @@ bool tn_net_agent_receive(struct tn_net_agent* agent, uint8_t** out_packet, uint
 // Packet transmission
 // -------------------
 
-void tn_net_agent_transmit(struct tn_net_agent* agent, uint16_t packet_length, bool* outputs)
+void tn_net_agent_transmit(struct tn_net_agent* agent, uint16_t* output_lengths)
 {
 	// INTERPRETATION-MISSING: The data sheet does not specify the endianness of transmit descriptor metadata fields, nor of the written-back head pointer.
 	// Since Section 1.5.3 Byte Ordering states "Registers not transferred on the wire are defined in little endian notation.", we will assume they are little-endian.
@@ -1313,7 +1305,7 @@ void tn_net_agent_transmit(struct tn_net_agent* agent, uint16_t packet_length, b
 	// Not setting the RS bit every time is a huge perf win in throughput (a few Gb/s) with no apparent impact on latency.
 	uint64_t rs_bit = (uint64_t) ((agent->processed_delimiter & (IXGBE_AGENT_RECYCLE_PERIOD - 1)) == (IXGBE_AGENT_RECYCLE_PERIOD - 1)) << (24+3);
 	for (uint64_t n = 0; n < agent->outputs_count; n++) {
-		agent->rings[n][2u*agent->processed_delimiter + 1] = cpu_to_le64((outputs[n] * (uint64_t) packet_length) | rs_bit | BITL(24+1) | BITL(24));
+		agent->rings[n][2u*agent->processed_delimiter + 1] = cpu_to_le64((uint64_t) output_lengths[n] | rs_bit | BITL(24+1) | BITL(24));
 	}
 
 	// Increment the processed delimiter, modulo the ring size
@@ -1354,7 +1346,7 @@ void tn_net_agent_transmit(struct tn_net_agent* agent, uint16_t packet_length, b
 
 void tn_net_run(uint64_t agents_count, struct tn_net_agent** agents, tn_net_packet_handler** handlers, void** states)
 {
-	bool outputs[IXGBE_AGENT_OUTPUTS_MAX] = {0};
+	uint16_t output_lengths[IXGBE_AGENT_OUTPUTS_MAX] = {0};
 	while (true) {
 		for (uint64_t n = 0; n < agents_count; n++) {
 			for (uint64_t p = 0; p < IXGBE_AGENT_FLUSH_PERIOD; p++) {
@@ -1364,9 +1356,9 @@ void tn_net_run(uint64_t agents_count, struct tn_net_agent** agents, tn_net_pack
 					break;
 				}
 
-				uint16_t transmit_packet_length = handlers[n](packet, receive_packet_length, states[n], outputs);
+				handlers[n](packet, receive_packet_length, states[n], output_lengths);
 
-				tn_net_agent_transmit(agents[n], transmit_packet_length, outputs);
+				tn_net_agent_transmit(agents[n], output_lengths);
 			}
 		}
 	}
