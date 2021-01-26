@@ -1,4 +1,4 @@
-#include "os/skeleton/nf.h"
+#include "net/skeleton.h"
 
 #include "os/memory.h"
 #include "os/debug.h"
@@ -17,11 +17,11 @@ bool nf_init(uint16_t devices_count)
 	return true;
 }
 
-void nf_handle(struct os_net_packet* packet)
+void nf_handle(struct net_packet* packet)
 {
-	struct os_net_ether_header* ether_header;
-	struct os_net_ipv4_header* ipv4_header;
-	if (!os_net_get_ether_header(packet, &ether_header) || !os_net_get_ipv4_header(ether_header, &ipv4_header)) {
+	struct net_ether_header* ether_header;
+	struct net_ipv4_header* ipv4_header;
+	if (!net_get_ether_header(packet, &ether_header) || !net_get_ipv4_header(ether_header, &ipv4_header)) {
 		os_debug("Not IPv4 over Ethernet");
 		return;
 	}
@@ -41,7 +41,7 @@ void nf_handle(struct os_net_packet* packet)
 		return;
 	}
 
-	if (!os_net_ipv4_checksum_valid(ipv4_header)) {
+	if (!net_ipv4_checksum_valid(ipv4_header)) {
 		os_debug("Bad packet checksum");
 		return;
 	}
@@ -55,6 +55,6 @@ void nf_handle(struct os_net_packet* packet)
 	uint32_t out_prefix;
 	uint8_t out_prefixlen;
 	if (lpm_lookup_elem(lpm, ipv4_header->dst_addr, &dst_device, &out_prefix, &out_prefixlen)) {
-		os_net_transmit(packet, dst_device, ether_header, NULL, NULL);
+		net_transmit(packet, dst_device, UPDATE_ETHER_ADDRS);
 	}
 }

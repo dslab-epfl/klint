@@ -1,9 +1,8 @@
-#include "os/skeleton/nf.h"
+#include "net/skeleton.h"
 
 #include "os/clock.h"
 #include "os/config.h"
 #include "os/debug.h"
-#include "os/network.h"
 
 #include "flowtable.h"
 
@@ -38,12 +37,12 @@ bool nf_init(uint16_t devices_count)
 }
 
 
-void nf_handle(struct os_net_packet* packet)
+void nf_handle(struct net_packet* packet)
 {
-	struct os_net_ether_header* ether_header;
-	struct os_net_ipv4_header* ipv4_header;
-	struct os_net_tcpudp_header* tcpudp_header;
-	if (!os_net_get_ether_header(packet, &ether_header) || !os_net_get_ipv4_header(ether_header, &ipv4_header) || !os_net_get_tcpudp_header(ipv4_header, &tcpudp_header)) {
+	struct net_ether_header* ether_header;
+	struct net_ipv4_header* ipv4_header;
+	struct net_tcpudp_header* tcpudp_header;
+	if (!net_get_ether_header(packet, &ether_header) || !net_get_ipv4_header(ether_header, &ipv4_header) || !net_get_tcpudp_header(ipv4_header, &tcpudp_header)) {
 		os_debug("Not TCP/UDP over IPv4 over Ethernet");
 		return;
 	}
@@ -74,5 +73,5 @@ void nf_handle(struct os_net_packet* packet)
 		flowtable_learn_internal(table, time, &flow);
 	}
 
-	os_net_transmit(packet, 1 - packet->device, 0, 0, 0);
+	net_transmit(packet, 1 - packet->device, 0);
 }

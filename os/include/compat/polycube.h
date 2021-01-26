@@ -5,7 +5,6 @@
 #include <stdint.h>
 
 #include "os/memory.h"
-#include "os/network.h"
 
 #include "compat/uapi/linux/bpf.h"
 

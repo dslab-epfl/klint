@@ -2,6 +2,8 @@
 
 #include "compat/polycube.h"
 
+#include "net/tx.h"
+
 // See compat/polycube.h
 bool pcn_pkt_controller_flood = false;
 

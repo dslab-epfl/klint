@@ -1,8 +1,8 @@
 #include "flowtable.h"
 
 #include "os/memory.h"
-#include "os/structs/map.h"
-#include "os/structs/pool.h"
+#include "structs/map.h"
+#include "structs/pool.h"
 
 
 struct flowtable

@@ -1,5 +1,3 @@
-#include "os/skeleton/nf.h"
-
 #define XDP_MAIN_FUNC xdp_fw_prog
 #include "compat/skeleton/xdp.h"
 

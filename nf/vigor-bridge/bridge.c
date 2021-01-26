@@ -1,16 +1,16 @@
-#include "os/skeleton/nf.h"
+#include "net/skeleton.h"
 
 #include <string.h>
 
 #include "os/config.h"
 #include "os/clock.h"
 #include "os/memory.h"
-#include "os/structs/pool.h"
-#include "os/structs/map.h"
+#include "structs/pool.h"
+#include "structs/map.h"
 
 
 int64_t expiration_time;
-os_net_ether_addr_t* addresses;
+net_ether_addr_t* addresses;
 uint16_t* devices;
 struct os_map* map;
 struct os_pool* allocator;
@@ -31,19 +31,19 @@ bool nf_init(uint16_t devices_count)
 		return false;
 	}
 
-	addresses = os_memory_alloc(capacity, sizeof(os_net_ether_addr_t));
+	addresses = os_memory_alloc(capacity, sizeof(net_ether_addr_t));
 	devices = os_memory_alloc(capacity, sizeof(uint16_t));
 
-	map = os_map_alloc(sizeof(os_net_ether_addr_t), capacity);
+	map = os_map_alloc(sizeof(net_ether_addr_t), capacity);
 	allocator = os_pool_alloc(capacity);
 
 	return true;
 }
 
-void nf_handle(struct os_net_packet* packet)
+void nf_handle(struct net_packet* packet)
 {
-	struct os_net_ether_header* ether_header;
-	if (!os_net_get_ether_header(packet, &ether_header)) {
+	struct net_ether_header* ether_header;
+	if (!net_get_ether_header(packet, &ether_header)) {
 		return;
 	}
 
@@ -66,9 +66,9 @@ void nf_handle(struct os_net_packet* packet)
 
 	if(os_map_get(map, &(ether_header->dst_addr), (void*) &index)) {
 		if (devices[index] != packet->device) {
-			os_net_transmit(packet, devices[index], 0, 0, 0);
+			net_transmit(packet, devices[index], 0);
 		}
 	} else {
-		os_net_flood(packet);
+		net_flood(packet);
 	}
 }

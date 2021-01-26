@@ -60,11 +60,11 @@ pub unsafe extern "C" fn nf_init(devices_count: u16) -> bool {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn nf_handle(packet: *mut OsNetPacket) {
+pub unsafe extern "C" fn nf_handle(packet: *mut NetPacket) {
     let mut ether_header = null_mut();
     let mut ipv4_header = null_mut();
-    if !os_net_get_ether_header(packet, &mut ether_header)
-        || !os_net_get_ipv4_header(ether_header, &mut ipv4_header)
+    if !net_get_ether_header(packet, &mut ether_header)
+        || !net_get_ipv4_header(ether_header, &mut ipv4_header)
     {
         // Not IPv4 over Ethernet
         return;
@@ -122,5 +122,5 @@ pub unsafe extern "C" fn nf_handle(packet: *mut OsNetPacket) {
         }
     } // No policing for outgoing packets
 
-    os_net_transmit(packet, 1 - (*packet).device, null_mut(), null_mut(), null_mut());
+    net_transmit(packet, 1 - (*packet).device, 0);
 }

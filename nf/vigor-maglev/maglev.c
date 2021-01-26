@@ -1,14 +1,14 @@
-#include <string.h>
+#include "net/skeleton.h"
 
-#include "os/skeleton/nf.h"
+#include <string.h>
 
 #include "os/clock.h"
 #include "os/config.h"
 #include "os/debug.h"
-#include "os/network.h"
 
 #include "balancer.h"
 
+// TODO move to OS? or just kill once we remove time_t
 static inline time_t os_config_get_time(const char* name) {
     return (time_t) os_config_get_u64(name);
 }
@@ -43,12 +43,12 @@ bool nf_init(uint16_t devices_count)
     return balancer != NULL;
 }
 
-void nf_handle(struct os_net_packet *packet)
+void nf_handle(struct net_packet *packet)
 {
-    struct os_net_ether_header *ether_header;
-    struct os_net_ipv4_header *ipv4_header;
-    struct os_net_tcpudp_header *tcpudp_header;
-    if (!os_net_get_ether_header(packet, &ether_header) || !os_net_get_ipv4_header(ether_header, &ipv4_header) || !os_net_get_tcpudp_header(ipv4_header, &tcpudp_header))
+    struct net_ether_header *ether_header;
+    struct net_ipv4_header *ipv4_header;
+    struct net_tcpudp_header *tcpudp_header;
+    if (!net_get_ether_header(packet, &ether_header) || !net_get_ipv4_header(ether_header, &ipv4_header) || !net_get_tcpudp_header(ipv4_header, &tcpudp_header))
     {
         os_debug("Not TCP/UDP over IPv4 over Ethernet");
         return;
@@ -64,7 +64,6 @@ void nf_handle(struct os_net_packet *packet)
 
     if (packet->device != wan_device)
     {
-        // os_debug("Processing heartbeat, device is %" PRIu16, device);
         lb_process_heartbit(balancer, &flow, ether_header->src_addr, packet->device, now);
         return;
     }
@@ -74,11 +73,9 @@ void nf_handle(struct os_net_packet *packet)
     	return;
     }
 
-    // os_debug("Processing packet from %" PRIu16 " to %" PRIu16, device, backend->nic);
-
     ipv4_header->dst_addr = backend->ip;
     memcpy(&ether_header->dst_addr, backend->mac, sizeof(ether_header->dst_addr));
 
-    os_net_transmit(packet, backend->nic, ether_header, ipv4_header, tcpudp_header);
+    net_transmit(packet, backend->nic, UPDATE_ETHER_ADDRS | UPDATE_L3_CHECKSUM | UPDATE_L4_CHECKSUM);
 }
 

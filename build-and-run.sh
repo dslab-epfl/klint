@@ -14,10 +14,9 @@ cat > "$config" << 'EOF'
   { "external addr", 0 },
   { "start port", 0 }
 EOF
-CONFIG_FILENAME="$config" make --no-print-directory -C ../../config
 
-# OS (must be last)
-NF=$(basename $(pwd)) make --no-print-directory -C ../../os
+cd os
+NF=$(pwd)/../nf/nop NF_CONFIG_FILENAME=$(pwd)/../nf/nop/config OS_CONFIG_FILENAME=$(pwd)/config NET=tinynf make
 
 # Run
-taskset -c 6 sudo ../../os/build/app/nf
+taskset -c 6 sudo ../../os/bin

@@ -8,7 +8,7 @@
 
 #include "os/clock.h"
 #include "os/memory.h"
-#include "os/structs/map2.h"
+#include "structs/map2.h"
 
 // just so we have it somewhere
 #define ETHERNET_MTU_ 1514

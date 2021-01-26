@@ -1,6 +1,6 @@
 // This header is intended to be included *once*. It includes non-static declarations.
 
-#include "os/skeleton/nf.h"
+#include "net/skeleton.h"
 
 #include "compat/uapi/linux/bpf.h"
 

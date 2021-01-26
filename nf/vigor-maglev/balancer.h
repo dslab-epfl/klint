@@ -1,5 +1,4 @@
-#ifndef _LB_BALANCER_H_INCLUDED_
-#define _LB_BALANCER_H_INCLUDED_
+#pragma once
 
 #include "state.h"
 
@@ -23,5 +22,3 @@ bool lb_get_backend(struct ld_balancer *balancer,
 void lb_process_heartbit(struct ld_balancer *balancer,
                          struct lb_flow *flow,
                          uint8_t* mac_addr, uint16_t nic, time_t now);
-
-#endif // _LB_BALANCER_H_INCLUDED_
