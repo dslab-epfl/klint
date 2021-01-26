@@ -11,7 +11,7 @@ struct config_item
 
 struct config_item items[] =
 {
-#include OS_CONFIG_FILENAME
+#include NF_CONFIG_FILENAME
 };
 
 bool os_config_get(const char* name, uintmax_t* out_value)

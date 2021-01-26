@@ -1,8 +1,11 @@
 ifndef NF
 $(error Please define NF)
 endif
-ifndef CONFIG_FILENAME
-$(error Please define CONFIG_FILENAME)
+ifndef NF_CONFIG_FILENAME
+$(error Please define NF_CONFIG_FILENAME)
+endif
+ifndef OS_CONFIG_FILENAME
+$(error Please define OS_CONFIG_FILENAME)
 endif
 
 OS ?= linux
@@ -30,7 +33,8 @@ SRCS += $(shell echo $(THIS_DIR)/src/structs/*.c)
 include $(THIS_DIR)/src/net/$(NET)/Makefile
 
 # Config
-CFLAGS += '-D OS_CONFIG_FILENAME="$(abspath $(CONFIG_FILENAME))"'
+CFLAGS += '-D OS_CONFIG_FILENAME="$(abspath $(OS_CONFIG_FILENAME))"'
+CFLAGS += '-D NF_CONFIG_FILENAME="$(abspath $(NF_CONFIG_FILENAME))"'
 
 # Build with the libnf
 CFLAGS += $(NF)/libnf.so
