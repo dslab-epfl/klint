@@ -62,6 +62,8 @@ void nf_handle(struct net_packet* packet)
 				return;
 			}
 
+			net_packet_checksum_update(ipv4_header, ipv4_header->dst_addr, internal_flow.src_ip, true);
+			net_packet_checksum_update(ipv4_header, tcpudp_header->dst_port, internal_flow.src_port, false);
 			ipv4_header->dst_addr = internal_flow.src_ip;
 			tcpudp_header->dst_port = internal_flow.src_port;
 		} else {
@@ -83,9 +85,11 @@ void nf_handle(struct net_packet* packet)
 			return;
 		}
 
+		net_packet_checksum_update(ipv4_header, ipv4_header->src_addr, external_addr, true);
+		net_packet_checksum_update(ipv4_header, tcpudp_header->src_port, external_port, false);
 		ipv4_header->src_addr = external_addr;
 		tcpudp_header->src_port = external_port;
 	}
 
-	net_transmit(packet, 1 - packet->device, UPDATE_ETHER_ADDRS | UPDATE_L3_CHECKSUM | UPDATE_L4_CHECKSUM);
+	net_transmit(packet, 1 - packet->device, UPDATE_ETHER_ADDRS);
 }

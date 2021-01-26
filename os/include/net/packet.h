@@ -3,6 +3,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#define IP_PROTOCOL_TCP 6
+#define IP_PROTOCOL_UDP 17
+
 typedef uint8_t net_ether_addr_t[6];
 
 // Packet received on a device
@@ -39,7 +42,7 @@ struct net_ipv4_header
 	uint16_t fragment_offset;
 	uint8_t  time_to_live;
 	uint8_t  next_proto_id;
-	uint16_t hdr_checksum;
+	uint16_t checksum;
 	uint32_t src_addr;
 	uint32_t dst_addr;
 } __attribute__((__packed__));
@@ -65,7 +68,7 @@ static inline bool net_get_ether_header(struct net_packet* packet, struct net_et
 static inline bool net_get_ipv4_header(struct net_ether_header* ether_header, struct net_ipv4_header** out_ipv4_header)
 {
 	// if we return false this may be 1 past the end of the array, which is legal in C
-	*out_ipv4_header = (struct net_ipv4_header*) ((uint8_t*) ether_header + sizeof(struct net_ether_header));
+	*out_ipv4_header = (struct net_ipv4_header*) (ether_header + 1);
 	return ether_header->ether_type == (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__ ? 0x0008 : 0x0800);
 }
 
@@ -73,15 +76,36 @@ static inline bool net_get_ipv4_header(struct net_ether_header* ether_header, st
 static inline bool net_get_tcpudp_header(struct net_ipv4_header* ipv4_header, struct net_tcpudp_header** out_tcpudp_header)
 {
 	// if we return false this may be 1 past the end of the array, which is legal in C
-	*out_tcpudp_header = (struct net_tcpudp_header*) ((uint8_t*) ipv4_header + sizeof(struct net_ipv4_header));
-	bool result = (ipv4_header->next_proto_id == 6 /* TCP */) | (ipv4_header->next_proto_id == 17 /* UDP */);
-	// TODO: Remove; Dirty trick to force the compiler to emit a single branch for both conditions, halving the number of paths in symbex
-	return *((volatile bool*)&result);
+	*out_tcpudp_header = (struct net_tcpudp_header*) (ipv4_header + 1);
+	return (ipv4_header->next_proto_id == IP_PROTOCOL_TCP) || (ipv4_header->next_proto_id == IP_PROTOCOL_UDP);
 }
 
 // Compute the checksum of an IPv4 packet
 static inline bool net_ipv4_checksum_valid(struct net_ipv4_header* header)
 {
 	(void) header;
-	return true; // TODO
+	return true; // TODO (for the router only so no big deal for now)
+}
+
+// Incrementally updates an IP/UDP/TCP checksum given a 16-bit word change
+static inline void net_checksum_update(uint16_t* checksum_ptr, uint16_t old_word, uint16_t new_word)
+{
+	// RFC 1624 Equation 3
+	*checksum_ptr = ~(~(*checksum_ptr) + ~old_word + new_word);
+}
+
+// Incrementally updates a packet's checksum given its IPv4 header and the old and new values of a 16-bit word, as well as whether the word is in the IP header
+static inline void net_packet_checksum_update(struct net_ipv4_header* ipv4_header, uint16_t old_word, uint16_t new_word, bool in_ip)
+{
+	if (in_ip) {
+		// manual pointer addition to avoid an "address of packed member" warning
+		net_checksum_update((uint16_t*) ipv4_header + 6, old_word, new_word);
+	}
+
+	uint16_t* l4_header = (uint16_t*) (ipv4_header + 1);
+	if (ipv4_header->next_proto_id == IP_PROTOCOL_TCP) {
+		net_checksum_update(l4_header + 8, old_word, new_word);
+	} else if (ipv4_header->next_proto_id == IP_PROTOCOL_UDP) {
+		net_checksum_update(l4_header + 3, old_word, new_word);
+	}
 }

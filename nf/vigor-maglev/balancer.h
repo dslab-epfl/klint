@@ -19,6 +19,6 @@ bool lb_get_backend(struct ld_balancer *balancer,
                                  time_t now,
                                  uint16_t wan_device,
                                  struct lb_backend** out_backend);
-void lb_process_heartbit(struct ld_balancer *balancer,
-                         struct lb_flow *flow,
-                         uint8_t* mac_addr, uint16_t nic, time_t now);
+void lb_process_heartbeat(struct ld_balancer *balancer,
+                          struct lb_flow *flow,
+                          uint16_t nic, time_t now);

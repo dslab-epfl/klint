@@ -1,12 +1,12 @@
 #include "net/skeleton.h"
 
-#include <string.h>
-
 #include "os/clock.h"
 #include "os/config.h"
 #include "os/debug.h"
 
 #include "balancer.h"
+
+// TODO fix formatting in maglev, and also inline stuff...
 
 // TODO move to OS? or just kill once we remove time_t
 static inline time_t os_config_get_time(const char* name) {
@@ -64,7 +64,7 @@ void nf_handle(struct net_packet *packet)
 
     if (packet->device != wan_device)
     {
-        lb_process_heartbit(balancer, &flow, ether_header->src_addr, packet->device, now);
+        lb_process_heartbeat(balancer, &flow, packet->device, now);
         return;
     }
 
@@ -73,9 +73,9 @@ void nf_handle(struct net_packet *packet)
     	return;
     }
 
+    net_packet_checksum_update(ipv4_header, ipv4_header->dst_addr, backend->ip, true);
     ipv4_header->dst_addr = backend->ip;
-    memcpy(&ether_header->dst_addr, backend->mac, sizeof(ether_header->dst_addr));
 
-    net_transmit(packet, backend->nic, UPDATE_ETHER_ADDRS | UPDATE_L3_CHECKSUM | UPDATE_L4_CHECKSUM);
+    net_transmit(packet, backend->nic, 0);
 }
 

@@ -2,14 +2,11 @@
 
 #include <stdint.h>
 
-#include "net/packet.h"
-
 
 struct lb_backend {
-  uint16_t nic;
-  net_ether_addr_t mac;
   uint32_t ip;
-  uint8_t _padding[4];
+  uint16_t nic;
+  uint8_t _padding[2];
 };
 
 struct lb_flow {

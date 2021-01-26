@@ -66,10 +66,10 @@ bool lb_get_backend(struct ld_balancer *balancer,
         return false;
 }
 
-void lb_process_heartbit(struct ld_balancer *balancer,
-                         struct lb_flow *flow,
-                         uint8_t* mac_addr, uint16_t nic,
-                         time_t now)
+void lb_process_heartbeat(struct ld_balancer *balancer,
+                          struct lb_flow *flow,
+                          uint16_t nic,
+                          time_t now)
 {
     size_t backend_index;
     if (os_map_get(balancer->state->ip_to_backend_id, &flow->src_ip, (void *)&backend_index))
@@ -89,7 +89,6 @@ void lb_process_heartbit(struct ld_balancer *balancer,
         {
             struct lb_backend *new_backend = &balancer->state->backends[backend_index];
             new_backend->ip = flow->src_ip;
-            memcpy(new_backend->mac, mac_addr, sizeof(new_backend->mac));
             new_backend->nic = nic;
 
             balancer->state->backend_ips[backend_index] = flow->src_ip;

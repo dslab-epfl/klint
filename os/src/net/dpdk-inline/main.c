@@ -5,12 +5,9 @@
 #include <rte_eal.h>
 #include <rte_ethdev.h>
 #include <rte_ether.h>
-#include <rte_ip.h>
 #include <rte_lcore.h>
 #include <rte_mbuf.h>
 #include <rte_mempool.h>
-#include <rte_udp.h>
-#include <rte_tcp.h>
 
 #include "os/clock.h"
 #include "os/fail.h"
@@ -73,24 +70,6 @@ void net_transmit(struct net_packet* packet, uint16_t device, enum net_transmit_
 	if (flags & UPDATE_ETHER_ADDRS) {
 		memcpy(&(ether_header->src_addr), &(device_addrs[device]), sizeof(struct rte_ether_addr));
 		memcpy(&(ether_header->dst_addr), &(endpoint_addrs[device]), sizeof(struct rte_ether_addr));
-	}
-
-	struct net_ipv4_header* ipv4_header = (struct net_ipv4_header*) (ether_header + 1);
-	if (flags & UPDATE_L3_CHECKSUM) {
-		ipv4_header->hdr_checksum = 0; // Assumed by checksum calculation
-		ipv4_header->hdr_checksum = rte_ipv4_cksum((void*) ipv4_header);
-	}
-
-	if (flags & UPDATE_L4_CHECKSUM) {
-		if (ipv4_header->next_proto_id == IPPROTO_TCP) {
-			struct rte_tcp_hdr *tcp_header = (struct rte_tcp_hdr*) (ipv4_header + 1);
-			tcp_header->cksum = 0; // Assumed by checksum calculation
-			tcp_header->cksum = rte_ipv4_udptcp_cksum((void*) ipv4_header, tcp_header);
-		} else if(ipv4_header->next_proto_id == IPPROTO_UDP) {
-			struct rte_udp_hdr *udp_header = (struct rte_udp_hdr*) (ipv4_header + 1);
-			udp_header->dgram_cksum = 0; // Assumed by checksum calculation
-			udp_header->dgram_cksum = rte_ipv4_udptcp_cksum((void*) ipv4_header, udp_header);
-		}
 	}
 
 	// TODO: avoid refcnt shenanigans...
