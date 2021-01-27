@@ -46,7 +46,8 @@ void* os_memory_alloc(const size_t count, const size_t size)
 
 	// OK if size is smaller, we'll just return too much memory
 	if (full_size > HUGEPAGE_SIZE) {
-		os_fail("Full size too big");
+return malloc(full_size); // TODO proper memory allocation with 1 GB hugepages...
+//		os_fail("Full size too big");
 	}
 
 	// http://man7.org/linux/man-pages//man2/munmap.2.html

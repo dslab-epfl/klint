@@ -1,0 +1,5 @@
+{ "wan device", 1 },
+{ "expiration time", 4000ull * 1000ull * 1000ull },
+{ "max flows", 65536 },
+{ "external addr", 0 },
+{ "start port", 0 }

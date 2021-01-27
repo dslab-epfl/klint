@@ -9,7 +9,7 @@ $(error Please define OS_CONFIG_FILENAME)
 endif
 
 OS ?= linux
-NET ?= dpdk-inline
+NET ?= tinynf
 
 # Get current dir, see https://stackoverflow.com/a/8080530
 THIS_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
@@ -40,4 +40,5 @@ CFLAGS += '-D NF_CONFIG_FILENAME="$(abspath $(NF_CONFIG_FILENAME))"'
 CFLAGS += $(NF)/libnf.so
 
 build:
-	$(CC) $(SRCS) $(CFLAGS) -o bin
+	@$(CC) $(SRCS) $(CFLAGS) -o bin
+	@$(STRIP) $(STRIPFLAGS) bin

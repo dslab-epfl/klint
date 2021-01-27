@@ -555,7 +555,8 @@ bool tn_net_device_init(const struct os_pci_address pci_address, struct tn_net_d
 	// Thus we can ask for 128KB, since we don't know the flash size (and don't need it thus no need to actually check it)
 	device.addr = os_memory_phys_to_virt(dev_phys_addr, 128 * 1024);
 
-	os_debug("Device %02" PRIx8 ":%02" PRIx8 ".%" PRIx8 " mapped to %p", pci_address.bus, pci_address.device, pci_address.function, device.addr);
+	// TODO either make os_debug support formatting or remove this
+	//os_debug("Device %02" PRIx8 ":%02" PRIx8 ".%" PRIx8 " mapped to %p", pci_address.bus, pci_address.device, pci_address.function, device.addr);
 
 	// "The following sequence of commands is typically issued to the device by the software device driver in order to initialize the 82599 for normal operation.
 	//  The major initialization steps are:"

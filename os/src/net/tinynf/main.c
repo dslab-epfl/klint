@@ -21,7 +21,11 @@ void net_transmit(struct net_packet* packet, uint16_t device, enum net_transmit_
 		memcpy(packet, device_mac_pairs + 12 * device, 12);
 	}
 
+#ifdef TN_MANY_OUTPUTS
 	current_output_lengths[device] = packet->length;
+#else
+	current_output_lengths[0] = packet->length;
+#endif
 }
 
 void net_flood(struct net_packet* packet)
@@ -56,7 +60,6 @@ static void tinynf_packet_handler(uint8_t* packet, uint16_t packet_length, void*
 		.device = (uint16_t) (uintptr_t) state,
 		.length = packet_length
 	};
-
 	nf_handle(&pkt);
 }
 

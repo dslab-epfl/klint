@@ -1,0 +1,16 @@
+ifndef NF
+$(error Please define NF)
+endif
+
+# Get current dir, see https://stackoverflow.com/a/8080530
+SELF_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+
+build:
+	@make -C $(SELF_DIR)/nf/$(NF) -f $(SELF_DIR)/Makefile.nf
+	@NF=$(SELF_DIR)/nf/$(NF) NF_CONFIG_FILENAME=$(SELF_DIR)/nf/$(NF)/config OS_CONFIG_FILENAME=$(SELF_DIR)/os/config make -C $(SELF_DIR)/os
+
+run:
+	@sudo $(SELF_DIR)/os/bin
+
+print-nf-name:
+	@echo bin

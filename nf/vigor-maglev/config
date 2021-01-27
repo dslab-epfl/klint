@@ -1,0 +1,6 @@
+{ "wan device", 1 },
+{ "max flows", 65536 },
+{ "backend capacity", 32 },
+{ "cht height", 97 },
+{ "flow expiration time", 10ull * 1000ull },
+{ "backend expiration time", 36000ull * 1000ull * 1000ull }
