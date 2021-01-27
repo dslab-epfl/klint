@@ -1,0 +1,9 @@
+# MoonGen
+moongen/
+
+# Benchmark outputs
+*.log
+results/
+
+# Configuration
+config
