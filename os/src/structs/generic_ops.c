@@ -3,6 +3,8 @@
 #include <string.h>
 #include <nmmintrin.h>
 
+// TODO move to os/memory.h
+
 #include "generic_ops.h"
 
 bool generic_eq(void* a, void* b, size_t obj_size)
