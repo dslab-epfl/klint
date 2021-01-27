@@ -1,5 +1,7 @@
 #include "net/skeleton.h"
 
+#include <string.h>
+
 #include "os/fail.h"
 #include "os/pci.h"
 
@@ -9,12 +11,15 @@
 #define MAX_DEVICES 10
 
 static size_t devices_count;
+static uint8_t device_mac_pairs[12 * MAX_DEVICES];
 static uint16_t* current_output_lengths;
 
 void net_transmit(struct net_packet* packet, uint16_t device, enum net_transmit_flags flags)
 {
 	// TODO: Explicitly verify TinyNF assumptions during verif (including TN_MANY_OUTPUTS)
-	(void) flags; // TODO: handle flags!
+	if (flags & UPDATE_ETHER_ADDRS) {
+		memcpy(packet, device_mac_pairs + 12 * device, 12);
+	}
 
 	current_output_lengths[device] = packet->length;
 }
@@ -78,6 +83,21 @@ int main(int argc, char** argv)
 		if (!tn_net_device_set_promiscuous(devices[n])) {
 			os_fail("Couldn't make device promiscuous");
 		}
+		uint64_t device_mac = tn_net_device_get_mac(devices[n]);
+		// DST - TODO have it in config somehow, for now we just use a non-constant
+		device_mac_pairs[n * 12 + 0] = 0;
+		device_mac_pairs[n * 12 + 1] = device_mac >> 10;
+		device_mac_pairs[n * 12 + 2] = device_mac >> 20;
+		device_mac_pairs[n * 12 + 3] = device_mac >> 30;
+		device_mac_pairs[n * 12 + 4] = device_mac >> 40;
+		device_mac_pairs[n * 12 + 5] = 0;
+		// SRC
+		device_mac_pairs[n * 12 + 0] = device_mac >> 0;
+		device_mac_pairs[n * 12 + 1] = device_mac >> 8;
+		device_mac_pairs[n * 12 + 2] = device_mac >> 16;
+		device_mac_pairs[n * 12 + 3] = device_mac >> 24;
+		device_mac_pairs[n * 12 + 4] = device_mac >> 32;
+		device_mac_pairs[n * 12 + 5] = device_mac >> 40;
 	}
 
 	struct tn_net_agent* agents[MAX_DEVICES];

@@ -231,6 +231,12 @@
 // Section 8.2.3.27.16 PF VM VLAN Pool Filter Bitmap
 #define REG_PFVLVFB(n) (0x0F200u + 4u*(n))
 
+// Section 8.2.3.7.9 Receive Address High
+#define REG_RAH(n) (0x0A204 + 8u*(n))
+
+// Section 8.2.3.7.8 Receive Address Low
+#define REG_RAL(n) (0x0A200 + 8u*(n))
+
 // Section 8.2.3.8.2 Receive Descriptor Base Address High
 #define REG_RDBAH(n) ((n) <= 63u ? (0x01004u + 0x40u*(n)) : (0x0D004u + 0x40u*((n)-64u)))
 
@@ -986,6 +992,13 @@ bool tn_net_device_set_promiscuous(struct tn_net_device* const device)
 
 	// This function cannot fail (for now?)
 	return true;
+}
+
+uint64_t tn_net_device_get_mac(struct tn_net_device* device)
+{
+	uint32_t ral = reg_read(device->addr, REG_RAL(0));
+	uint32_t rah = reg_read(device->addr, REG_RAH(0));
+	return ((uint64_t) ral) | ((uint64_t) rah << 32);
 }
 
 // ----------------

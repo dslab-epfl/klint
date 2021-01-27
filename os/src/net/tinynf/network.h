@@ -24,6 +24,7 @@ struct tn_net_agent;
 
 bool tn_net_device_init(struct os_pci_address pci_address, struct tn_net_device** out_device);
 bool tn_net_device_set_promiscuous(struct tn_net_device* device);
+uint64_t tn_net_device_get_mac(struct tn_net_device* device); // only the lowest 48 bits are nonzero, in big-endian
 
 struct tn_net_agent* tn_net_agent_alloc(void);
 bool tn_net_agent_set_input(struct tn_net_agent* agent, struct tn_net_device* device);
