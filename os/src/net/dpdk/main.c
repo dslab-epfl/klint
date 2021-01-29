@@ -93,11 +93,13 @@ void net_flood(struct net_packet* packet)
 
 int main(int argc, char** argv)
 {
-	// Our custom DPDK needs no parameters
-	int ret = rte_eal_init(0, NULL);
+	// Initialize DPDK, and change argc/argv to look like nothing happened
+	int ret = rte_eal_init(argc, argv);
 	if (ret < 0) {
 		os_fail("Error with DPDK init");
 	}
+	argc -= ret;
+	argv += ret;
 
 	devices_count = rte_eth_dev_count_avail();
 	if (devices_count > MAX_DEVICES) {

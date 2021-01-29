@@ -11,6 +11,8 @@ endif
 OS ?= linux
 NET ?= tinynf
 
+OUTPUT := bin
+
 # Get current dir, see https://stackoverflow.com/a/8080530
 THIS_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 
@@ -23,6 +25,13 @@ CFLAGS += -ffunction-sections -fdata-sections -Wl,--gc-sections
 # Our includes
 CFLAGS += -I$(THIS_DIR)/include
 
+# Config
+CFLAGS += '-D OS_CONFIG_FILENAME="$(abspath $(OS_CONFIG_FILENAME))"'
+CFLAGS += '-D NF_CONFIG_FILENAME="$(abspath $(NF_CONFIG_FILENAME))"'
+
+# Build with the libnf
+LDFLAGS += $(NF)/libnf.so
+
 # OS
 SRCS += $(shell echo $(THIS_DIR)/src/os/$(OS)/*.c)
 
@@ -32,13 +41,8 @@ SRCS += $(shell echo $(THIS_DIR)/src/structs/*.c)
 # Network
 include $(THIS_DIR)/src/net/$(NET)/Makefile
 
-# Config
-CFLAGS += '-D OS_CONFIG_FILENAME="$(abspath $(OS_CONFIG_FILENAME))"'
-CFLAGS += '-D NF_CONFIG_FILENAME="$(abspath $(NF_CONFIG_FILENAME))"'
-
-# Build with the libnf
-CFLAGS += $(NF)/libnf.so
-
+ifndef NO_DEFAULT_TARGET
 build:
-	@$(CC) $(SRCS) $(CFLAGS) -o bin
-	@$(STRIP) $(STRIPFLAGS) bin
+	@$(CC) $(SRCS) $(CFLAGS) $(LDFLAGS) -o $(OUTPUT)
+	@$(STRIP) $(STRIPFLAGS) $(OUTPUT)
+endif
