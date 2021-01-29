@@ -1,3 +1,6 @@
 [submodule "os/src/dpdk"]
 	path = os/src/net/dpdk-inline/dpdk
 	url = https://github.com/DPDK/dpdk
+[submodule "os/src/net/dpdk/dpdk"]
+	path = os/src/net/dpdk/dpdk
+	url = https://github.com/DPDK/dpdk
