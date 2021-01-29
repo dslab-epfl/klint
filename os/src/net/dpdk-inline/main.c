@@ -9,7 +9,6 @@
 #include <rte_mbuf.h>
 #include <rte_mempool.h>
 
-#include "os/clock.h"
 #include "os/fail.h"
 #include "net/skeleton.h"
 
@@ -125,7 +124,6 @@ int main(int argc, char** argv)
 	}
 
 	while(1) {
-		os_clock_time_flush();
 		for (uint16_t device = 0; device < devices_count; device++) {
 			struct rte_mbuf* bufs[1];
 			if (rte_eth_rx_burst(device, 0, bufs, 1)) {

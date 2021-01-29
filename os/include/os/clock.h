@@ -2,13 +2,12 @@
 
 #include <stdint.h>
 
+// TODO os_clock_time is a bottleneck, we need a clever way to avoid invoking it too many times if we can (e.g., when batching)
+
 // TODO can we get rid of time_t altogether?
 typedef int64_t time_t;
 
 time_t os_clock_time(void);
-
-// Forces the next os_clock_time read to be uncached
-void os_clock_time_flush(void);
 
 // Sleeps for at least the given amount of microseconds.
 // It is acceptable but inefficient to sleep for more than that.

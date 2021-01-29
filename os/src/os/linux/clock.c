@@ -9,22 +9,11 @@
 #define MAX_SLEEP_ATTEMPTS 1000
 
 
-static int64_t current_time = 0;
-
-
 int64_t os_clock_time(void)
 {
-	if (current_time == 0) {
-		struct timespec tp;
-		clock_gettime(CLOCK_MONOTONIC, &tp);
-		current_time = tp.tv_sec * 1000000000ul + tp.tv_nsec;
-	}
-	return current_time;
-}
-
-void os_clock_time_flush(void)
-{
-	current_time = 0;
+	struct timespec tp;
+	clock_gettime(CLOCK_MONOTONIC, &tp);
+	return tp.tv_sec * 1000000000ul + tp.tv_nsec;
 }
 
 

@@ -2,7 +2,6 @@
 
 #include <string.h>
 
-#include "os/clock.h"
 #include "os/fail.h"
 #include "os/pci.h"
 
@@ -54,8 +53,6 @@ static void tinynf_packet_handler(uint8_t* packet, uint16_t packet_length, void*
 #else
 	output_lengths[0] = 0;
 #endif
-
-	os_clock_time_flush();
 
 	current_output_lengths = output_lengths;
 	struct net_packet pkt = {
