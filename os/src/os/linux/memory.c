@@ -29,7 +29,18 @@ static size_t page_used_len;
 
 size_t os_memory_pagesize(void)
 {
-	return HUGEPAGE_SIZE;
+	// sysconf is documented to return -1 on error; let's check all negative cases along the way, to make sure the conversion to unsigned is sound
+	const long page_size_long = sysconf(_SC_PAGESIZE);
+	if (page_size_long < 0) {
+		os_fail("Page size is negative?!?");
+	}
+	if ((unsigned long) page_size_long > SIZE_MAX) {
+		os_fail("Page size too big for size_t");
+	}
+	if (page_size_long == 0) {
+		os_fail("Could not get page size");
+	}
+	return page_size_long;
 }
 
 void* os_memory_alloc(const size_t count, const size_t size)
