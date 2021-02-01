@@ -1,19 +1,20 @@
 // The only way to have pinned pages on Linux is to use huge pages: https://www.kernel.org/doc/Documentation/vm/hugetlbpage.txt
 // Note that Linux's `mlock` system call is not sufficient to pin; it only guarantees the pages will not be swapped out, not that the physical address won't change.
 // While Linux doesn't actually guarantee that huge pages are pinned, in practice its implementation pins them.
+// We use a single 1 GB page to serve everything; it should be enough...
 
 #include "os/memory.h"
 
 #include <fcntl.h>
-#include <stdlib.h>
+#include <stdbool.h>
 #include <unistd.h>
 #include <sys/mman.h>
 
 #include "os/fail.h"
 
 
-// We only support 2MB hugepages
-#define HUGEPAGE_SIZE_POWER (10 + 10 + 1)
+// 1 GB hugepages
+#define HUGEPAGE_SIZE_POWER (10 + 10 + 10)
 #define HUGEPAGE_SIZE (1u << HUGEPAGE_SIZE_POWER)
 
 // glibc defines it but musl doesn't
@@ -21,56 +22,52 @@
 #define MAP_HUGE_SHIFT 26
 #endif
 
+static bool page_allocated;
+static uint8_t* page_addr;
+static size_t page_used_len;
+
 
 size_t os_memory_pagesize(void)
 {
-	// sysconf is documented to return -1 on error; let's check all negative cases along the way, to make sure the conversion to unsigned is sound
-	const long page_size_long = sysconf(_SC_PAGESIZE);
-	if (page_size_long < 0) {
-		os_fail("Page size is negative?!?");
-	}
-	if ((unsigned long) page_size_long > SIZE_MAX) {
-		os_fail("Page size too big for size_t");
-	}
-	if (page_size_long == 0) {
-		os_fail("Could not get page size");
-	}
-	return page_size_long;
+	return HUGEPAGE_SIZE;
 }
 
 void* os_memory_alloc(const size_t count, const size_t size)
 {
+	if (!page_allocated) {
+		page_addr = mmap(
+			// No specific address
+			NULL,
+			// Size of the mapping
+			HUGEPAGE_SIZE,
+			// R/W page
+			PROT_READ | PROT_WRITE,
+			// Hugepage, not backed by a file (and thus zero-initialized); note that without MAP_SHARED the call fails
+			// MAP_POPULATE means the page table will be populated already (without the need for a page fault later),
+			// which is required if the calling code tries to get the physical address of the page without accessing it first.
+			MAP_HUGETLB | (HUGEPAGE_SIZE_POWER << MAP_HUGE_SHIFT) | MAP_ANONYMOUS | MAP_SHARED | MAP_POPULATE,
+			// Required on MAP_ANONYMOUS
+			-1,
+			// Required on MAP_ANONYMOUS
+			0
+		);
+		if (page_addr == MAP_FAILED) {
+			os_fail("Allocate mmap failed");
+		}
+		page_allocated = true;
+		page_used_len = 0;
+	}
+
 	// OK because of the contract, this cannot overflow
 	const size_t full_size = size * count;
 
-	// OK if size is smaller, we'll just return too much memory
-	if (full_size > HUGEPAGE_SIZE) {
-return malloc(full_size); // TODO proper memory allocation with 1 GB hugepages...
-//		os_fail("Full size too big");
+	if (HUGEPAGE_SIZE - page_used_len < full_size) {
+		os_fail("Not enough space left to allocate");
 	}
 
-	// http://man7.org/linux/man-pages//man2/munmap.2.html
-	void* page = mmap(
-		// No specific address
-		NULL,
-		// Size of the mapping
-		HUGEPAGE_SIZE,
-		// R/W page
-		PROT_READ | PROT_WRITE,
-		// Hugepage, not backed by a file (and thus zero-initialized); note that without MAP_SHARED the call fails
-		// MAP_POPULATE means the page table will be populated already (without the need for a page fault later),
-		// which is required if the calling code tries to get the physical address of the page without accessing it first.
-		MAP_HUGETLB | (HUGEPAGE_SIZE_POWER << MAP_HUGE_SHIFT) | MAP_ANONYMOUS | MAP_SHARED | MAP_POPULATE,
-		// Required on MAP_ANONYMOUS
-		-1,
-		// Required on MAP_ANONYMOUS
-		0
-	);
-	if (page == MAP_FAILED) {
-		os_fail("Allocate mmap failed");
-	}
-
-	return page;
+	void* result = page_addr + page_used_len;
+	page_used_len = page_used_len + full_size;
+	return result;
 }
 
 void* os_memory_phys_to_virt(const uintptr_t addr, const size_t size)

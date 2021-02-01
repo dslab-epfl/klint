@@ -16,6 +16,7 @@ void* os_memory_alloc(size_t count, size_t size);
 //@ requires count == 1 || count * size <= SIZE_MAX;
 //@ ensures chars(result, count * size, ?cs) &*& true == all_eq(cs, 0) &*& result + count * size <= (char*) UINTPTR_MAX;
 
+// TODO is this necessary? currently it's there for dpdk-inline but might not be needed after all
 // Get the page size.
 size_t os_memory_pagesize(void);
 //@ requires true;
