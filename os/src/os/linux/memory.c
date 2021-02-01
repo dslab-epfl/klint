@@ -70,7 +70,13 @@ void* os_memory_alloc(const size_t count, const size_t size)
 	}
 
 	// OK because of the contract, this cannot overflow
-	const size_t full_size = size * count;
+	const uintptr_t full_size = size * count;
+
+	// Align as required by the contract
+	const uintptr_t align_diff = (uintptr_t) (page_addr + page_used_len) % full_size;
+	if (align_diff != 0) {
+		page_used_len = page_used_len + (full_size - align_diff);
+	}
 
 	if (HUGEPAGE_SIZE - page_used_len < full_size) {
 		os_fail("Not enough space left to allocate");

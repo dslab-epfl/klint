@@ -1,14 +1,17 @@
 # Get current dir, see https://stackoverflow.com/a/8080530
 NET_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 
+# Batch size
+CFLAGS += -DBATCH_SIZE=$(BATCH_SIZE)
+
 # Silence warnings triggered by DPDK
 CFLAGS += -Wno-address-of-packed-member -Wno-padded -Wno-unused-function -Wno-deprecated-declarations -Wno-shadow -Wno-pedantic -Wno-unused-parameter -Wno-unused-but-set-variable -Wno-int-conversion
 
 # Do not fail on missing functions, so we don't have to write pointless stubs for functions that are never executed
 CFLAGS += -Wl,--warn-unresolved-symbols
 
-# Our sources
-SRCS += $(shell echo $(NET_DIR)/*.c)
+# Reuse the one for standard DPDK; no extra sources needed
+SRCS += $(NET_DIR)/../dpdk/main.c
 
 # DPDK shim includes, along with files that DPDK sometimes assumes are included
 CFLAGS += -isystem $(NET_DIR)/dpdk-shim

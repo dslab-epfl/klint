@@ -18,7 +18,7 @@ void net_transmit(struct net_packet* packet, uint16_t device, enum net_transmit_
 {
 	// TODO: Explicitly verify TinyNF assumptions during verif (including TN_MANY_OUTPUTS)
 	if (flags & UPDATE_ETHER_ADDRS) {
-		memcpy(packet, device_mac_pairs + 12 * device, 12);
+		memcpy(packet->data, device_mac_pairs + 12 * device, 12);
 	}
 
 #ifdef TN_MANY_OUTPUTS

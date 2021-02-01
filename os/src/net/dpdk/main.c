@@ -18,7 +18,7 @@
 #define TX_QUEUE_SIZE 96
 #define MEMPOOL_BUFFER_COUNT 256
 
-#ifndef BATCH_SIZE
+#if BATCH_SIZE + 0 == 0
 #error Please define BATCH_SIZE
 #endif
 
@@ -30,7 +30,7 @@ static struct rte_ether_addr device_addrs[MAX_DEVICES];
 static struct rte_ether_addr endpoint_addrs[MAX_DEVICES];
 
 static uint16_t bufs_to_tx_count;
-static rte_mbuf* bufs_to_tx[BATCH_SIZE];
+static struct rte_mbuf* bufs_to_tx[BATCH_SIZE];
 
 static void device_init(unsigned device, struct rte_mempool* mbuf_pool)
 {
@@ -68,6 +68,7 @@ static void device_init(unsigned device, struct rte_mempool* mbuf_pool)
 }
 
 
+// TODO make sure we never get multiple net_transmit calls for the same mbuf? or handle it? idk
 void net_transmit(struct net_packet* packet, uint16_t device, enum net_transmit_flags flags)
 {
 	struct net_ether_header* ether_header = (struct net_ether_header*) packet->data;
@@ -76,7 +77,7 @@ void net_transmit(struct net_packet* packet, uint16_t device, enum net_transmit_
 		memcpy(&(ether_header->dst_addr), &(endpoint_addrs[device]), sizeof(struct rte_ether_addr));
 	}
 
-	bufs_to_tx[bufs_to_tx_count] = (struct rte_mbuf*) packet;
+	bufs_to_tx[bufs_to_tx_count] = (struct rte_mbuf*) packet->os_tag;
 	bufs_to_tx_count = bufs_to_tx_count + 1;
 }
 
@@ -98,6 +99,9 @@ int main(int argc, char** argv)
 	argv += ret;
 
 	devices_count = rte_eth_dev_count_avail();
+	if (devices_count == 0) {
+		os_fail("No devices??");
+	}
 	if (devices_count > MAX_DEVICES) {
 		os_fail("Too many devices, please increase MAX_DEVICES");
 	}
@@ -127,11 +131,17 @@ int main(int argc, char** argv)
 			struct rte_mbuf* bufs[BATCH_SIZE];
 			uint16_t nb_rx = rte_eth_rx_burst(device, 0, bufs, BATCH_SIZE);
 			for (int16_t n = 0; n < nb_rx; n++) {
-				nf_handle((struct net_packet*) bufs[n]);
+				struct net_packet packet = {
+					.data = (uint8_t*) bufs[n]->buf_addr + bufs[n]->data_off,
+					.length = bufs[n]->data_len,
+					.device = bufs[n]->port,
+					.os_tag = bufs[n]
+				};
+				nf_handle(&packet);
 			}
 			uint16_t nb_tx = rte_eth_tx_burst(1 - device, 0, bufs_to_tx, bufs_to_tx_count);
-			if (nb_tx != bufs_to_tx_count) {
-				os_fail("DPDK failed to send");
+			for (uint16_t n = nb_tx; n < bufs_to_tx_count; n++) {
+				rte_pktmbuf_free(bufs_to_tx[n]);
 			}
 			bufs_to_tx_count = 0;
 		}

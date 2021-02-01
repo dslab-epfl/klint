@@ -43,6 +43,7 @@ def packet_init(state, devices_count):
     state.add_constraints(packet_device.ULT(devices_count))
 
     # the packet is a bit weird because of all the reserved fields, we set them to fresh symbols
+    raise "TODO update packet layout"
     packet_addr = state.memory.allocate(1, 42, name="packet")
     state.memory.store(packet_addr, data_addr + PACKET_MTU, endness=state.arch.memory_endness)
     state.memory.store(packet_addr + 8, state.symbol_factory.BVS("packet_reserved[0-3]", 14 * 8), endness=state.arch.memory_endness)

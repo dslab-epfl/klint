@@ -1,3 +1,5 @@
+# TODO make DPDK if not made
+
 # This makefile takes over everything because DPDK
 NO_DEFAULT_TARGET := 1
 
@@ -10,6 +12,9 @@ RTE_TARGET ?= x86_64-native-linuxapp-gcc
 
 # Silence warnings triggered by DPDK
 CFLAGS += -Wno-address-of-packed-member -Wno-padded
+
+# Batch size
+CFLAGS += -DBATCH_SIZE=$(BATCH_SIZE)
 
 # DPDK only accepts flags in EXTRA_*
 EXTRA_CFLAGS := $(CFLAGS)

@@ -9,19 +9,13 @@
 typedef uint8_t net_ether_addr_t[6];
 
 // Packet received on a device
-// HACK: It's really a DPDK mbuf we hide
 struct net_packet {
 	uint8_t* data;
-	uint64_t _reserved0; // DPDK buf_iova
-	uint16_t _reserved1; // DPDK data_off
-	uint16_t _reserved2; // DPDK refcnt
-	uint16_t _reserved3; // DPDK nb_segs
 	uint16_t device;
-	uint64_t _reserved4; // DPDK ol_flags
-	uint32_t _reserved5; // DPDK packet_type
-	uint32_t _reserved6; // DPDK pkt_len
 	uint16_t length;
-} __attribute__((packed));
+	uint8_t _padding[4];
+	void* os_tag; // NFs must not touch this
+};
 
 // Ethernet header
 struct net_ether_header
@@ -59,7 +53,6 @@ struct net_tcpudp_header
 static inline bool net_get_ether_header(struct net_packet* packet, struct net_ether_header** out_ether_header)
 {
 	// For now we only support Ethernet packets, so this cannot fail.
-	// TODO Triple-check that our DPDK implementation is fine with this (no padding)
 	*out_ether_header = (struct net_ether_header*) packet->data;
 	return true;
 }
