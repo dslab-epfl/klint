@@ -33,7 +33,7 @@ CFLAGS += '-D NF_CONFIG_FILENAME="$(abspath $(NF_CONFIG_FILENAME))"'
 LDFLAGS += $(NF)/libnf.so
 
 # OS
-SRCS += $(shell echo $(THIS_DIR)/src/os/$(OS)/*.c)
+include $(THIS_DIR)/src/os/$(OS)/Makefile
 
 # Structs
 SRCS += $(shell echo $(THIS_DIR)/src/structs/*.c)

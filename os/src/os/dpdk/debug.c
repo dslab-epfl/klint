@@ -1,16 +1,13 @@
 #include "os/debug.h"
 
 #ifdef DEBUG
-#include <stdarg.h>
-#include <stdio.h>
+#include <rte_log.h>
 
 void os_debug(const char* format, ...)
 {
 	va_list args;
 	va_start(args, format);
-	vfprintf(stderr, format, args);
-	fprintf(stderr, "\n");
-	fflush(stderr);
+	rte_vlog(RTE_LOG_DEBUG, RTE_LOGTYPE_USER1, format, args);
 	va_end(args);
 }
 #endif

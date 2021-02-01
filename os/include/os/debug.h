@@ -6,5 +6,9 @@
 #ifdef DEBUG
 void os_debug(const char* format, ...);
 #else
-#define os_debug(...)
+static inline void os_debug(const char* format, ...)
+{
+	(void) format;
+	// Nothing.
+}
 #endif

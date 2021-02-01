@@ -22,7 +22,6 @@
 #endif
 
 
-// Gets the page size, or returns 0 on error
 size_t os_memory_pagesize(void)
 {
 	// sysconf is documented to return -1 on error; let's check all negative cases along the way, to make sure the conversion to unsigned is sound
