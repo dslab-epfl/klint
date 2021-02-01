@@ -18,13 +18,19 @@
 #define TX_QUEUE_SIZE 96
 #define MEMPOOL_BUFFER_COUNT 256
 
-// change at will...
-#define MAX_DEVICES 10
+#ifndef BATCH_SIZE
+#error Please define BATCH_SIZE
+#endif
 
-uint16_t devices_count;
-struct rte_ether_addr device_addrs[MAX_DEVICES];
-struct rte_ether_addr endpoint_addrs[MAX_DEVICES];
+// TODO allow >2, which requires changes to the batching
+#define MAX_DEVICES 2
 
+static uint16_t devices_count;
+static struct rte_ether_addr device_addrs[MAX_DEVICES];
+static struct rte_ether_addr endpoint_addrs[MAX_DEVICES];
+
+static uint16_t bufs_to_tx_count;
+static rte_mbuf* bufs_to_tx[BATCH_SIZE];
 
 static void device_init(unsigned device, struct rte_mempool* mbuf_pool)
 {
@@ -70,23 +76,14 @@ void net_transmit(struct net_packet* packet, uint16_t device, enum net_transmit_
 		memcpy(&(ether_header->dst_addr), &(endpoint_addrs[device]), sizeof(struct rte_ether_addr));
 	}
 
-	// TODO: avoid refcnt shenanigans...
-	rte_mbuf_refcnt_set((struct rte_mbuf*) packet, 2);
-	if (rte_eth_tx_burst(device, 0, (struct rte_mbuf**) &packet, 1) == 0) {
-		os_fail("DPDK failed to send");
-	}
+	bufs_to_tx[bufs_to_tx_count] = (struct rte_mbuf*) packet;
+	bufs_to_tx_count = bufs_to_tx_count + 1;
 }
 
 void net_flood(struct net_packet* packet)
 {
-	rte_mbuf_refcnt_set((struct rte_mbuf*) packet, devices_count);
-	for (uint16_t device = 0; device < devices_count; device++) {
-		if (device != packet->device) {
-			if (rte_eth_tx_burst(device, 0, (struct rte_mbuf**) &packet, 1) == 0) {
-				os_fail("DPDK failed to send");
-			}
-		}
-	}
+	// Since MAX_DEVICES == 2
+	net_transmit(packet, 1 - packet->device, 0);
 }
 
 
@@ -127,11 +124,16 @@ int main(int argc, char** argv)
 
 	while(1) {
 		for (uint16_t device = 0; device < devices_count; device++) {
-			struct rte_mbuf* bufs[1];
-			if (rte_eth_rx_burst(device, 0, bufs, 1)) {
-				nf_handle((struct net_packet*) bufs[0]);
-				rte_pktmbuf_free(bufs[0]);
+			struct rte_mbuf* bufs[BATCH_SIZE];
+			uint16_t nb_rx = rte_eth_rx_burst(device, 0, bufs, BATCH_SIZE);
+			for (int16_t n = 0; n < nb_rx; n++) {
+				nf_handle((struct net_packet*) bufs[n]);
 			}
+			uint16_t nb_tx = rte_eth_tx_burst(1 - device, 0, bufs_to_tx, bufs_to_tx_count);
+			if (nb_tx != bufs_to_tx_count) {
+				os_fail("DPDK failed to send");
+			}
+			bufs_to_tx_count = 0;
 		}
 	}
 
