@@ -1,6 +1,5 @@
 #include "os/clock.h"
 
-#include <stdlib.h>
 #include <time.h>
 
 #include "os/fail.h"
