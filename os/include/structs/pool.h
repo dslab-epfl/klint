@@ -4,6 +4,12 @@
 #include <stddef.h>
 #include "os/clock.h"
 
+// TODO remove
+#define time_t uint64_t
+#define malloc_block_times malloc_block_ullongs
+#define PRED_times ullongs
+#define chars_to_times chars_to_ullongs
+
 //@ #include "proof/ghost_map.gh"
 
 struct os_pool;

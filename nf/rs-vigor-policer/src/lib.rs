@@ -71,7 +71,7 @@ pub unsafe extern "C" fn nf_handle(packet: *mut NetPacket) {
     }
 
     if (*packet).device == WAN_DEVICE {
-        let time = os_clock_time();
+        let time = os_clock_time_ns();
         let mut index: usize = 0;
         if os_map_get(
             MAP,

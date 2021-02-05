@@ -7,8 +7,8 @@
 struct ld_balancer *ld_balancer_alloc(size_t flow_capacity,
                                       size_t backend_capacity,
                                       size_t cht_height,
-                                      time_t backend_expiration_time,
-                                      time_t flow_expiration_time)
+                                      uint64_t backend_expiration_time,
+                                      uint64_t flow_expiration_time)
 {
     struct ld_balancer *balancer = os_memory_alloc(1, sizeof(struct ld_balancer));
     balancer->flow_expiration_time = flow_expiration_time;
@@ -19,7 +19,7 @@ struct ld_balancer *ld_balancer_alloc(size_t flow_capacity,
 
 bool lb_get_backend(struct ld_balancer *balancer,
                                  struct lb_flow *flow,
-                                 time_t now,
+                                 uint64_t now,
                                  uint16_t wan_device,
                                  struct lb_backend** out_backend)
 {
@@ -27,7 +27,7 @@ bool lb_get_backend(struct ld_balancer *balancer,
     if (os_map_get(balancer->state->flow_to_flow_id, flow, (void **)&flow_index))
     {
         size_t backend_index = balancer->state->flow_id_to_backend_id[flow_index];
-        time_t out_time;
+        uint64_t out_time;
         if (os_pool_used(balancer->state->active_backends, backend_index, &out_time))
         {
             os_pool_refresh(balancer->state->flow_chain, now, flow_index);
@@ -47,7 +47,7 @@ bool lb_get_backend(struct ld_balancer *balancer,
             balancer->state->active_backends, &backend_index);
         if (found)
         {
-            time_t last_time = now - balancer->flow_expiration_time;
+            uint64_t last_time = now - balancer->flow_expiration_time;
             size_t index;
             if (os_pool_expire(balancer->state->flow_chain, last_time, &index))
             {
@@ -69,7 +69,7 @@ bool lb_get_backend(struct ld_balancer *balancer,
 void lb_process_heartbeat(struct ld_balancer *balancer,
                           struct lb_flow *flow,
                           uint16_t nic,
-                          time_t now)
+                          uint64_t now)
 {
     size_t backend_index;
     if (os_map_get(balancer->state->ip_to_backend_id, &flow->src_ip, (void *)&backend_index))
@@ -78,7 +78,7 @@ void lb_process_heartbeat(struct ld_balancer *balancer,
     }
     else
     {
-        time_t last_time = now - balancer->backend_expiration_time;
+        uint64_t last_time = now - balancer->backend_expiration_time;
         size_t index;
         if (os_pool_expire(balancer->state->active_backends, last_time, &index))
         {

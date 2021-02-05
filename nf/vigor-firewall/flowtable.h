@@ -15,8 +15,8 @@ struct flow {
 
 struct flowtable;
 
-struct flowtable* flowtable_init(int64_t expiration_time, uint64_t max_flows);
+struct flowtable* flowtable_init(uint64_t expiration_time, uint64_t max_flows);
 
-void flowtable_learn_internal(struct flowtable* table, int64_t time, struct flow* flow);
+void flowtable_learn_internal(struct flowtable* table, uint64_t time, struct flow* flow);
 
-bool flowtable_has_external(struct flowtable* table, int64_t time, struct flow* flow);
+bool flowtable_has_external(struct flowtable* table, uint64_t time, struct flow* flow);

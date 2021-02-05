@@ -8,15 +8,10 @@ pub type TimeT = i64;
 #[repr(C)]
 pub struct NetPacket {
     pub data: *mut u8,
-    pub _reserved0: u64, // DPDK buf_iova
-    pub _reserved1: u16, // DPDK data_off
-    pub _reserved2: u16, // DPDK refcnt
-    pub _reserved3: u16, // DPDK nb_segs
     pub device: u16,
-    pub _reserved4: u64, // DPDK ol_flags
-    pub _reserved5: u32, // DPDK packet_type
-    pub _reserved6: u32, // DPDK pkt_len
     pub length: u16,
+    pub _padding: u32,
+    pub os_tag: u64
 }
 
 #[repr(C)]
@@ -72,7 +67,7 @@ extern "C" {
     pub fn os_config_get_u16(name: *const c_char) -> u16;
     pub fn os_config_get_u64(name: *const c_char) -> u64;
     pub fn os_memory_alloc(count: usize, size: usize) -> *mut u8;
-    pub fn os_clock_time() -> TimeT;
+    pub fn os_clock_time_ns() -> TimeT;
     pub fn net_transmit(
         packet: *mut NetPacket,
         device: u16,

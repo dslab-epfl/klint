@@ -378,13 +378,13 @@ static_assert((IXGBE_AGENT_RECYCLE_PERIOD & (IXGBE_AGENT_RECYCLE_PERIOD - 1)) ==
 static bool timed_out;
 #define IF_AFTER_TIMEOUT(timeout_in_us, condition) \
 		timed_out = true; \
-		os_clock_sleep_us((timeout_in_us) % 10); \
+		os_clock_sleep_ns((timeout_in_us) % 10 * 1000); \
 		for (uint8_t i = 0; i < 10; i++) { \
 			if (!(condition)) { \
 				timed_out = false; \
 				break; \
 			} \
-			os_clock_sleep_us((timeout_in_us) / 10); \
+			os_clock_sleep_ns((timeout_in_us) / 10 * 1000); \
 		} \
 		if (timed_out)
 
@@ -588,7 +588,7 @@ bool tn_net_device_init(const struct os_pci_address pci_address, struct tn_net_d
 			return false;
 		}
 		// "Once the RXDCTL.ENABLE bit is cleared the driver should wait additional amount of time (~100 us) before releasing the memory allocated to this queue."
-		os_clock_sleep_us(100);
+		os_clock_sleep_ns(100 * 1000);
 	}
 	//   "Then the device driver sets the PCIe Master Disable bit [in the Device Status register] when notified of a pending master disable (or D3 entry)."
 	reg_set_field(device.addr, REG_CTRL, REG_CTRL_MASTER_DISABLE);
@@ -615,7 +615,7 @@ bool tn_net_device_init(const struct os_pci_address pci_address, struct tn_net_d
 
 		// "- Set the GCR_EXT.Buffers_Clear_Func bit for 20 microseconds to flush internal buffers."
 		reg_set_field(device.addr, REG_GCREXT, REG_GCREXT_BUFFERS_CLEAR_FUNC);
-		os_clock_sleep_us(20);
+		os_clock_sleep_ns(20 * 1000);
 
 		// "- Clear the HLREG0.LPBK bit and the GCR_EXT.Buffers_Clear_Func"
 		reg_clear_field(device.addr, REG_HLREG0, REG_HLREG0_LPBK);
@@ -624,7 +624,7 @@ bool tn_net_device_init(const struct os_pci_address pci_address, struct tn_net_d
 		// "- It is now safe to issue a software reset."
 		// see just below for an explanation of this line
 		reg_set_field(device.addr, REG_CTRL, REG_CTRL_RST);
-		os_clock_sleep_us(2);
+		os_clock_sleep_ns(2 * 1000);
 	}
 	// happy path, back to Section 4.2.1.6.1:
 	// "Software reset is done by writing to the Device Reset bit of the Device Control register (CTRL.RST)."
@@ -632,10 +632,10 @@ bool tn_net_device_init(const struct os_pci_address pci_address, struct tn_net_d
 	// Section 8.2.3.1.1 Device Control Register
 	// "To ensure that a global device reset has fully completed and that the 82599 responds to subsequent accesses,
 	//  programmers must wait approximately 1 ms after setting before attempting to check if the bit has cleared or to access (read or write) any other device register."
-	os_clock_sleep_us(1000);
+	os_clock_sleep_ns(1000 * 1000);
 	// Section 4.6.3.2 Global Reset and General Configuration: "Following a Global Reset the Software driver should wait at least 10msec to enable smooth initialization flow."
 	// This is a bit odd, but let's do both, it can't hurt
-	os_clock_sleep_us(10 * 1000);
+	os_clock_sleep_ns(10 * 1000 * 1000);
 	//	Section 8.2.3.5.4 Extended Interrupt Mask Clear Register (EIMC):
 	//	"Writing a 1b to any bit clears its corresponding bit in the EIMS register disabling the corresponding interrupt in the EICR register. Writing 0b has no impact"
 	//	Note that the first register has its bit 31 reserved.

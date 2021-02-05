@@ -66,7 +66,7 @@ void nf_handle(struct net_packet* packet)
 	}
 
 	if (packet->device == wan_device) {
-		int64_t time = os_clock_time();
+		uint64_t time = os_clock_time_ns();
 		uint64_t index;
 		if (os_map_get(map, &(ipv4_header->dst_addr), (void*) &index)) {
 			os_pool_refresh(pool, time, index);

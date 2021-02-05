@@ -9,7 +9,7 @@
 #include "structs/map.h"
 
 
-int64_t expiration_time;
+uint64_t expiration_time;
 net_ether_addr_t* addresses;
 uint16_t* devices;
 struct os_map* map;
@@ -21,13 +21,10 @@ bool nf_init(uint16_t devices_count)
 		return false;
 	}
 
+	expiration_time = os_config_get_u64("expiration time");
+
 	uint64_t capacity = os_config_get_u64("capacity");
 	if (capacity == 0 || capacity > 2*65536) {
-		return false;
-	}
-
-	expiration_time = (int64_t) os_config_get_u64("expiration time");
-	if (expiration_time <= 0) {
 		return false;
 	}
 
@@ -47,7 +44,7 @@ void nf_handle(struct net_packet* packet)
 		return;
 	}
 
-	int64_t time = os_clock_time();
+	uint64_t time = os_clock_time_ns();
 
 	uint64_t index;
 	if (os_map_get(map, &(ether_header->src_addr), (void*) &index)) {
