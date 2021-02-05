@@ -335,7 +335,7 @@ function measureStandard(queuePairs, extraPair, args)
     latencyRates[#latencyRates+1] = currentGuess
     currentGuess = currentGuess + LATENCY_LOAD_INCREMENT
   end
-  if currentGuess - LATENCY_LOAD_INCREMENT ~= bestRate then
+  if bestRate - LATENCY_LOAD_PADDING >= latencyRates[#latencyRates] then
     latencyRates[#latencyRates+1] = bestRate
   end
 

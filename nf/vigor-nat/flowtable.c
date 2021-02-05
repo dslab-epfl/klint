@@ -1,4 +1,3 @@
-//#include <stdio.h>
 #include "flowtable.h"
 
 #include "os/memory.h"
@@ -39,16 +38,13 @@ bool flowtable_get_internal(struct flowtable* table, uint64_t time, struct flow*
 		os_pool_refresh(table->port_allocator, time, index);
 	} else {
 		if (os_pool_expire(table->port_allocator, time - table->expiration_time, &index)) {
-//printf("expired: %lu at %lu due to exp time %lu\n", (long unsigned) index, (long unsigned) time, (long unsigned) table->expiration_time);
 			os_map_remove(table->flow_indexes, &(table->flows[index]));
 		}
 
 		if (!os_pool_borrow(table->port_allocator, time, &index)) {
-//printf("oh noes\n");
 			return false;
 		}
 
-//printf("borrowed: %lu   at time %lu\n", (long unsigned)index, (long unsigned)time);
 		table->flows[index] = *flow;
 		os_map_set(table->flow_indexes, &(table->flows[index]), (void*) index);
 	}
@@ -63,13 +59,11 @@ bool flowtable_get_external(struct flowtable* table, uint64_t time, uint16_t por
 	// Per its contract, we cannot call 'os_pool_used' with an out-of-range index
 	// TODO fix its contract?
 	if (index >= table->max_flows) {
-//printf("wtf?\n");
 		return false;
 	}
 
 	uint64_t flow_time = (uint64_t)-1;
 	if (!os_pool_used(table->port_allocator, index, &flow_time) || time - table->expiration_time > flow_time) {
-//printf("unused or bad; idx= %lu at time %lu due to exp time %lu and flow time %lu\n", (long unsigned) index, (long unsigned) time, (long unsigned) table->expiration_time, (long unsigned) flow_time);
 		return false;
 	}
 

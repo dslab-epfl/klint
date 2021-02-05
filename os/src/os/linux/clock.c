@@ -9,6 +9,7 @@
 #include "os/fail.h"
 
 
+// Fetch it at startup and store it, to make the time call as fast as possible, it's on the critical path
 static uint64_t cpu_freq_numerator;
 static uint64_t cpu_freq_denominator;
 
@@ -34,7 +35,7 @@ static uint64_t linux_read_msr(uint64_t index)
 }
 
 __attribute__((constructor))
-static void fetch_cpu_freq(void)
+static void fetch_tsc_freq(void)
 {
 	tsc_get_nhz(linux_read_msr, &cpu_freq_numerator, &cpu_freq_denominator);
 }
@@ -42,7 +43,7 @@ static void fetch_cpu_freq(void)
 
 uint64_t os_clock_time_ns(void)
 {
-	return tsc_get() * cpu_freq_denominator / cpu_freq_numerator; // freq is in 100s of MHz so tsc/freq is in 1/100us, thus we multiply by 10 for ns
+	return tsc_get() * cpu_freq_denominator / cpu_freq_numerator;
 }
 
 
