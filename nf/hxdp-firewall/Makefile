@@ -16,3 +16,6 @@ CFLAGS += -std=gnu17
 
 # The code structs need padding
 CFLAGS += -Wno-padded
+
+# Clang complains otherwise
+CFLAGS += -Wno-gnu-zero-variadic-macro-arguments

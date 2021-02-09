@@ -18,5 +18,9 @@ CFLAGS += -Wno-address-of-packed-member
 # Ignore weird comparisons
 CFLAGS += -Wno-sign-compare
 
-# Ignore lack of casts, which has no specific warning in GCC
+# The code triggers a bunch of 'comparison of distinct pointer types lacks a cast', which have no specific -W... switch in GCC but have one in Clang
+ifeq (, $(findstring clang,$(CC)))
 CFLAGS += -Wno-error
+else
+CFLAGS += -Wno-compare-distinct-pointer-types
+endif
