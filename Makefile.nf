@@ -16,8 +16,8 @@ CFLAGS += -I$(SELF_DIR)/os/include
 # NF source
 SRCS += $(shell echo *.c)
 
-# Name of the app
-LIB := nf
+# Name of the library
+LIB := libnf.so
 
 # NF-specific makefile if necessary
 ifneq (,$(wildcard Makefile))
@@ -27,6 +27,6 @@ endif
 ifndef NO_DEFAULT_TARGET
 # TODO: this should have dependency tracking, proper targets, and stuff
 compile:
-	@$(CC) $(SRCS) $(CFLAGS) -shared -o lib$(LIB).so
-	@$(STRIP) $(STRIPFLAGS) lib$(LIB).so
+	@$(CC) $(SRCS) $(CFLAGS) -shared -o $(LIB)
+	@$(STRIP) $(STRIPFLAGS) $(LIB)
 endif
