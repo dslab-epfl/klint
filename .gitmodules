@@ -5,3 +5,11 @@
 	path = os/src/net/dpdk/dpdk
 	url = https://github.com/DPDK/dpdk
 	ignore = dirty
+[submodule "experiments/baselines/fastclick/fastclick"]
+	path = experiments/baselines/fastclick/fastclick
+	url = https://github.com/tbarbette/fastclick
+	ignore = dirty
+[submodule "experiments/baselines/fastclick/dpdk"]
+	path = experiments/baselines/fastclick/dpdk
+	url = https://github.com/DPDK/dpdk
+	ignore = dirty
