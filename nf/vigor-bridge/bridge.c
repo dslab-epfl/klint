@@ -23,7 +23,7 @@ bool nf_init(uint16_t devices_count)
 
 	expiration_time = os_config_get_u64("expiration time");
 
-	uint64_t capacity = os_config_get_u64("capacity");
+	uint64_t capacity = os_config_get_u64("capacity"); // TODO should be size_t (and in other NFs!)
 	if (capacity == 0 || capacity > 2*65536) {
 		return false;
 	}
@@ -46,8 +46,8 @@ void nf_handle(struct net_packet* packet)
 
 	uint64_t time = os_clock_time_ns();
 
-	uint64_t index;
-	if (os_map_get(map, &(ether_header->src_addr), (void*) &index)) {
+	size_t index;
+	if (os_map_get(map, &(ether_header->src_addr), &index)) {
 		// TODO this is obviously wrong, need to check if they match
 		os_pool_refresh(allocator, time, index);
 	} else {
@@ -57,11 +57,11 @@ void nf_handle(struct net_packet* packet)
 		if (os_pool_borrow(allocator, time, &index)) {
 			memcpy(addresses[index], ether_header->src_addr, sizeof(ether_header->src_addr));
 			devices[index] = packet->device;
-			os_map_set(map, &(addresses[index]), (void*) index);
+			os_map_set(map, &(addresses[index]), index);
 		}
 	} // It's OK if we can't get nor add, we can forward the packet anyway
 
-	if(os_map_get(map, &(ether_header->dst_addr), (void*) &index)) {
+	if(os_map_get(map, &(ether_header->dst_addr), &index)) {
 		if (devices[index] != packet->device) {
 			net_transmit(packet, devices[index], 0);
 		}

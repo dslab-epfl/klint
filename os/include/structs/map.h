@@ -16,7 +16,7 @@ struct os_map* os_map_alloc(size_t key_size, size_t capacity);
 /*@ requires capacity <= (SIZE_MAX / 16); @*/
 /*@ ensures mapp(result, key_size, capacity, nil, nil); @*/
 
-bool os_map_get(struct os_map* map, void* key_ptr, void** out_value);
+bool os_map_get(struct os_map* map, void* key_ptr, size_t* out_value);
 /*@ requires mapp(map, ?key_size, ?capacity, ?values, ?addrs) &*&
              [?frac]chars(key_ptr, key_size, ?key) &*&
              *out_value |-> _; @*/
@@ -27,7 +27,7 @@ bool os_map_get(struct os_map* map, void* key_ptr, void** out_value);
               case some(v): return result == true &*& *out_value |-> v;
             }; @*/
 
-void os_map_set(struct os_map* map, void* key_ptr, void* value);
+void os_map_set(struct os_map* map, void* key_ptr, size_t value);
 /*@ requires mapp(map, ?key_size, ?capacity, ?values, ?addrs) &*&
              [0.25]chars(key_ptr, key_size, ?key) &*&
              length(values) < capacity &*&
