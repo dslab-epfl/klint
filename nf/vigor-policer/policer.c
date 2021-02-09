@@ -67,8 +67,8 @@ void nf_handle(struct net_packet* packet)
 
 	if (packet->device == wan_device) {
 		uint64_t time = os_clock_time_ns();
-		uint64_t index;
-		if (os_map_get(map, &(ipv4_header->dst_addr), (void*) &index)) {
+		size_t index;
+		if (os_map_get(map, &(ipv4_header->dst_addr), &index)) {
 			os_pool_refresh(pool, time, index);
 			uint64_t time_diff = time - buckets[index].time;
 			if (time_diff < burst / rate) {
@@ -99,7 +99,7 @@ void nf_handle(struct net_packet* packet)
 
 			if (os_pool_borrow(pool, time, &index)) {
 				addresses[index] = ipv4_header->dst_addr;
-				os_map_set(map, &(addresses[index]), (void*) index);
+				os_map_set(map, &(addresses[index]), index);
 				buckets[index].size = burst - packet->length;
 				buckets[index].time = time;
 			} else {

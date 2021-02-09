@@ -115,8 +115,8 @@ static inline long bpf_xdp_adjust_tail(struct xdp_md* xdp_md, int delta)
 // single threaded
 #define bpf_get_smp_processor_id() 0
 
-#define bpf_ktime_get_ns os_clock_time
-#define bpf_ktime_get_boot_ns os_clock_time
+#define bpf_ktime_get_ns os_clock_time_ns
+#define bpf_ktime_get_boot_ns os_clock_time_ns
 
 enum bpf_map_type {
 	BPF_MAP_TYPE_HASH,

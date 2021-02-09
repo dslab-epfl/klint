@@ -22,7 +22,7 @@ bool nf_init(uint16_t devices_count)
 		return false;
 	}
 
-	uint64_t max_flows = os_config_get_u64("max flows");
+	size_t max_flows = os_config_get_u64("max flows"); // TODO get_size
 	if (max_flows == 0 || max_flows > SIZE_MAX / 16 - 2) {
 		return false;
 	}

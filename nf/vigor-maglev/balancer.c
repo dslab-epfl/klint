@@ -1,4 +1,3 @@
-#include <string.h>
 #include <stdbool.h>
 
 #include "balancer.h"
@@ -24,7 +23,7 @@ bool lb_get_backend(struct ld_balancer *balancer,
                                  struct lb_backend** out_backend)
 {
     size_t flow_index;
-    if (os_map_get(balancer->state->flow_to_flow_id, flow, (void **)&flow_index))
+    if (os_map_get(balancer->state->flow_to_flow_id, flow, &flow_index))
     {
         size_t backend_index = balancer->state->flow_id_to_backend_id[flow_index];
         uint64_t out_time;
@@ -56,9 +55,9 @@ bool lb_get_backend(struct ld_balancer *balancer,
 
             if (os_pool_borrow(balancer->state->flow_chain, now, &flow_index))
             {
-                memcpy(&(balancer->state->flow_heap[flow_index]), flow, sizeof(struct lb_flow));
+                os_memory_copy(flow, &(balancer->state->flow_heap[flow_index]), sizeof(struct lb_flow));
                 balancer->state->flow_id_to_backend_id[flow_index] = backend_index;
-                os_map_set(balancer->state->flow_to_flow_id, &balancer->state->flow_heap[flow_index], (void *)flow_index);
+                os_map_set(balancer->state->flow_to_flow_id, &balancer->state->flow_heap[flow_index], flow_index);
             } // Doesn't matter if we can't insert
             *out_backend = &balancer->state->backends[backend_index];
             return true;
@@ -72,7 +71,7 @@ void lb_process_heartbeat(struct ld_balancer *balancer,
                           uint64_t now)
 {
     size_t backend_index;
-    if (os_map_get(balancer->state->ip_to_backend_id, &flow->src_ip, (void *)&backend_index))
+    if (os_map_get(balancer->state->ip_to_backend_id, &flow->src_ip, &backend_index))
     {
         os_pool_refresh(balancer->state->active_backends, now, backend_index);
     }
@@ -92,7 +91,7 @@ void lb_process_heartbeat(struct ld_balancer *balancer,
             new_backend->nic = nic;
 
             balancer->state->backend_ips[backend_index] = flow->src_ip;
-            os_map_set(balancer->state->ip_to_backend_id, &(balancer->state->backend_ips[backend_index]), (void*) backend_index);
+            os_map_set(balancer->state->ip_to_backend_id, &(balancer->state->backend_ips[backend_index]), backend_index);
         }
         // Otherwise ignore this backend, we are full.
     }

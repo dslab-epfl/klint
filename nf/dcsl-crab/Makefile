@@ -3,6 +3,9 @@ CFLAGS += -I ../../os/include/compat/uapi
 CFLAGS += -I ../../os/include/compat
 CFLAGS += -I common
 
+# The code expects this defined
+CFLAGS += -D__always_inline=inline
+
 # Arithmetic with void*
 CFLAGS += -Wno-pointer-arith
 

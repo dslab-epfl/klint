@@ -4,8 +4,11 @@ SELF_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 # Base makefile
 include $(SELF_DIR)/Makefile.base
 
-# Disable stdlib, this is an NF, we only use the "OS" abstractions
+# No libC, thus no extra stuff like __cxa_finalize
 CFLAGS += -nostdlib
+
+# Allow only freestanding headers, nothing else (hacky but no other way to do it apparently... https://stackoverflow.com/q/2681304)
+CFLAGS += -ffreestanding -nostdinc -isystem $(shell gcc -print-search-dirs | head -n 1 | cut -d ':' -f 2)/include
 
 # OS headers
 CFLAGS += -I$(SELF_DIR)/os/include
@@ -20,9 +23,6 @@ LIB := nf
 ifneq (,$(wildcard Makefile))
 include Makefile
 endif
-
-# Disable standard includes then add them back, so that ours are preferred
-CFLAGS += -nostdinc -isystem $(shell $(CC) --print-file-name=include) -isystem /usr/local/include -isystem /usr/include/x86_64-linux-gnu -isystem /usr/include
 
 ifndef NO_DEFAULT_TARGET
 # TODO: this should have dependency tracking, proper targets, and stuff

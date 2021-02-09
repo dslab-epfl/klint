@@ -4,8 +4,6 @@
 
 #include "os/memory.h"
 
-#include "generic_ops.h"
-
 //@ #include "proof/chain-buckets.gh"
 //@ #include "proof/listexex.gh"
 //@ #include "proof/modulo.gh"
@@ -989,7 +987,7 @@ bool os_map2_get(struct os_map2* map, void* key_ptr, void* out_value_ptr)
             }; @*/
 {
   //@ open mapp2(map, key_size, value_size, capacity, items);
-  hash_t key_hash = generic_hash(key_ptr, map->key_size);
+  hash_t key_hash = os_memory_hash(key_ptr, map->key_size);
   for (size_t i = 0; i < map->capacity; ++i)
     /*@ invariant mapp2_raw(map, ?keys_lst, ?busybits_lst, ?hashes_lst, ?chains_lst, ?values_lst, key_size, value_size, ?real_capacity) &*&
                   mapp2_core(real_capacity, keys_lst, busybits_lst, hashes_lst, values_lst, ?key_opts, items) &*&
@@ -1028,7 +1026,7 @@ bool os_map2_get(struct os_map2* map, void* key_ptr, void* out_value_ptr)
       //@ append_nil(reverse(take(index, busybits_lst)));
       //@ append_nil(reverse(take(index, key_opts)));
       //@ extract_object(keys_ptr, index);
-      if (generic_eq(kp, key_ptr, map->key_size)) {
+      if (os_memory_eq(kp, key_ptr, map->key_size)) {
         //@ stitch_objects(keys_ptr, index, real_capacity);
         //@ recover_key_opt_list(keys_lst, busybits_lst, key_opts, index);
         //@ open map_items(key_opts, values_lst, items);
@@ -1039,7 +1037,7 @@ bool os_map2_get(struct os_map2* map, void* key_ptr, void* out_value_ptr)
         //@ map_items_reflects_keyopts_mem(key, index);
         //@ mul_bounds(value_size, value_size, index, real_capacity);
         //@ extract_object(values_ptr, index);
-        generic_copy(map->values + (index * map->value_size), out_value_ptr, map->value_size);
+        os_memory_copy(map->values + (index * map->value_size), out_value_ptr, map->value_size);
         //@ stitch_objects(values_ptr, index, real_capacity);
         //@ close mapp2_core(real_capacity, keys_lst, busybits_lst, hashes_lst, values_lst, key_opts, items);
         //@ drop_cons(keys_lst, index);
@@ -1433,7 +1431,7 @@ bool os_map2_set(struct os_map2* map, void* key_ptr, void* value_ptr)
             mapp2(map, key_size, value_size, capacity, ghostmap_set(items, key, value)); @*/
 {
   //@ open mapp2(map, key_size, value_size, capacity, items);
-  hash_t key_hash = generic_hash(key_ptr, map->key_size);
+  hash_t key_hash = os_memory_hash(key_ptr, map->key_size);
   //@ assert buckets_keys_insync(?real_capacity, ?old_chains_lst, ?buckets, ?key_opts);
   //@ size_t start = loop_fp(key_hash, real_capacity);
   //@ loop_lims(key_hash, real_capacity);
@@ -1463,7 +1461,7 @@ bool os_map2_set(struct os_map2* map, void* key_ptr, void* value_ptr)
       //@ close objects(keys_ptr, key_size, real_capacity, keys_lst);
       //@ mul_bounds(key_size, key_size, index, real_capacity);
       //@ extract_object(keys_ptr, index);
-      generic_copy(key_ptr, map->keys + (index * map->key_size), map->key_size);
+      os_memory_copy(key_ptr, map->keys + (index * map->key_size), map->key_size);
       //@ stitch_objects(keys_ptr, index, real_capacity);
       map->busybits[index] = true;
       map->hashes[index] = key_hash;
@@ -1473,7 +1471,7 @@ bool os_map2_set(struct os_map2* map, void* key_ptr, void* value_ptr)
       //@ close objects(values_ptr, value_size, real_capacity, values_lst);
       //@ mul_bounds(value_size, value_size, index, real_capacity);
       //@ extract_object(values_ptr, index);
-      generic_copy(value_ptr, map->values + (index * map->value_size), map->value_size);
+      os_memory_copy(value_ptr, map->values + (index * map->value_size), map->value_size);
       //@ stitch_objects(values_ptr, index, real_capacity);
       //@ no_key_in_ks_no_key_in_buckets(buckets, key);
       //@ close buckets_keys_insync_Xchain(real_capacity, chains_lst, buckets, start, index, key_opts);
@@ -1708,7 +1706,7 @@ void os_map2_remove(struct os_map2* map, void* key_ptr)
             mapp2(map, key_size, value_size, capacity, ghostmap_remove(items, key)); @*/
 {
   //@ open mapp2(map, key_size, value_size, capacity, items);
-  hash_t key_hash = generic_hash(key_ptr, map->key_size);
+  hash_t key_hash = os_memory_hash(key_ptr, map->key_size);
   //@ open mapp2_core(?real_capacity, ?keys_lst, ?busybits_lst, ?hashes_lst, ?values_lst, ?key_opts, items);
   //@ map_items_has_implies_key_opts_has(key);
   //@ key_opts_has_implies_not_empty(key_opts, key);
@@ -1752,7 +1750,7 @@ void os_map2_remove(struct os_map2* map, void* key_ptr)
       //@ append_nil(reverse(take(index, key_opts)));
       //@ mul_bounds(key_size, key_size, index, real_capacity);
       //@ extract_object(keys_ptr, index);
-      if (generic_eq(map->keys + (index * map->key_size), key_ptr, map->key_size)) {
+      if (os_memory_eq(map->keys + (index * map->key_size), key_ptr, map->key_size)) {
         //@ stitch_objects(keys_ptr, index, real_capacity);
         //@ recover_key_opt_list(keys_lst, busybits_lst, key_opts, index);
         //@ key_opt_list_find_key(key_opts, index, key);

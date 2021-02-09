@@ -2,7 +2,7 @@
 
 #include <stddef.h>
 
-// Try to access as wide a width as possible, both faster at runtime and for symbex
+#include "os/memory.h"
 
 // otherwise GCC complains those shadow existing functions... guess mem* functions have special handling for historical reasons
 #pragma GCC diagnostic push
@@ -10,31 +10,7 @@
 
 static inline void* memcpy(void* dest, const void* src, size_t n)
 {
-	const uint8_t* src_ = (const uint8_t*) src;
-	uint8_t* dst_ = (uint8_t*) dest;
-
-	while (n >= 8) {
-		*((uint64_t*)dst_) = *((const uint64_t*)src_);
-		dst_ += 8;
-		src_ += 8;
-		n -= 8;
-	}
-	if (n >= 4) {
-		*((uint32_t*)dst_) = *((const uint32_t*)src_);
-		dst_ += 4;
-		src_ += 4;
-		n -= 4;
-	}
-	if (n >= 2) {
-		*((uint16_t*)dst_) = *((const uint16_t*)src_);
-		dst_ += 2;
-		src_ += 2;
-		n -= 2;
-	}
-	if (n == 1) {
-		*dst_ = *src_;
-	}
-
+	os_memory_copy(src, dest, n);
 	return dest;
 }
 

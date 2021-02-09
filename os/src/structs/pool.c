@@ -12,11 +12,13 @@
 
 #define DCHAIN_RESERVED (2)
 
+// TODO include timestamp in there and simplify overall...
 struct dchain_cell {
     size_t prev;
     size_t next;
 };
 
+// TODO this should not exist...
 enum DCHAIN_ENUM {
     ALLOC_LIST_HEAD = 0,
     FREE_LIST_HEAD = 1,

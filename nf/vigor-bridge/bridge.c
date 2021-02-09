@@ -1,7 +1,5 @@
 #include "net/skeleton.h"
 
-#include <string.h>
-
 #include "os/config.h"
 #include "os/clock.h"
 #include "os/memory.h"
@@ -55,7 +53,7 @@ void nf_handle(struct net_packet* packet)
 			os_map_remove(map, &(addresses[index]));
 		}
 		if (os_pool_borrow(allocator, time, &index)) {
-			memcpy(addresses[index], ether_header->src_addr, sizeof(ether_header->src_addr));
+			os_memory_copy(ether_header->src_addr, addresses[index], sizeof(ether_header->src_addr));
 			devices[index] = packet->device;
 			os_map_set(map, &(addresses[index]), index);
 		}

@@ -2,8 +2,6 @@
 
 #include "os/memory.h"
 
-#include "generic_ops.h"
-
 static size_t loop(size_t k, size_t capacity)
 {
     return k % capacity;
@@ -50,7 +48,7 @@ struct cht *cht_alloc(size_t cht_height, size_t backend_capacity)
 
 bool cht_find_preferred_available_backend(struct cht *cht, void* obj, size_t obj_size, struct os_pool *active_backends, size_t *chosen_backend)
 {
-    size_t cht_bucket = loop(generic_hash(obj, obj_size), cht->height) * cht->backend_capacity;
+    size_t cht_bucket = loop(os_memory_hash(obj, obj_size), cht->height) * cht->backend_capacity;
     for (size_t i = 0; i < cht->backend_capacity; ++i)
     {
         size_t candidate = cht->data[cht_bucket + i];

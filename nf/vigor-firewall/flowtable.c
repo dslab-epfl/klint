@@ -14,7 +14,7 @@ struct flowtable
 };
 
 
-struct flowtable* flowtable_init(uint64_t expiration_time, uint64_t max_flows)
+struct flowtable* flowtable_init(uint64_t expiration_time, size_t max_flows)
 {
 	struct os_map* flow_indexes = os_map_alloc(sizeof(struct flow), max_flows); // TODO: 2*max_flows because it's only a small amount of additional space for a lot more tput when near full
 	struct os_pool* port_allocator = os_pool_alloc(max_flows);
@@ -28,8 +28,8 @@ struct flowtable* flowtable_init(uint64_t expiration_time, uint64_t max_flows)
 
 void flowtable_learn_internal(struct flowtable* table, uint64_t time, struct flow* flow)
 {
-	uint64_t index;
-	if (os_map_get(table->flow_indexes, flow, (void*) &index)) {
+	size_t index;
+	if (os_map_get(table->flow_indexes, flow, &index)) {
 		os_pool_refresh(table->port_allocator, time, index);
 	} else {
 		if (os_pool_expire(table->port_allocator, time - table->expiration_time, &index)) {
@@ -37,16 +37,16 @@ void flowtable_learn_internal(struct flowtable* table, uint64_t time, struct flo
 		}
 		if (os_pool_borrow(table->port_allocator, time, &index)) {
 			table->flows[index] = *flow;
-			os_map_set(table->flow_indexes, &(table->flows[index]), (void*) index);
+			os_map_set(table->flow_indexes, &(table->flows[index]), index);
 		}
 	}
 }
 
 bool flowtable_has_external(struct flowtable* table, uint64_t time, struct flow* flow)
 {
-	uint64_t index;
+	size_t index;
 	uint64_t flow_time;
-	if (os_map_get(table->flow_indexes, flow, (void*) &index) && os_pool_used(table->port_allocator, index, &flow_time) && time - table->expiration_time <= flow_time) {
+	if (os_map_get(table->flow_indexes, flow, &index) && os_pool_used(table->port_allocator, index, &flow_time) && time - table->expiration_time <= flow_time) {
 		os_pool_refresh(table->port_allocator, time, index);
 		return true;
 	}

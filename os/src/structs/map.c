@@ -1,7 +1,6 @@
 #include "structs/map.h"
 
 #include "os/memory.h"
-#include "generic_ops.h"
 
 //@ #include "proof/chain-buckets.gh"
 //@ #include "proof/listexex.gh"
@@ -890,7 +889,7 @@ bool os_map_get(struct os_map* map, void* key_ptr, size_t* out_value)
             }; @*/
 {
   //@ open mapp(map, key_size, capacity, map_values, map_addrs);
-  hash_t key_hash = generic_hash(key_ptr, map->key_size);
+  hash_t key_hash = os_memory_hash(key_ptr, map->key_size);
   for (size_t i = 0; i < map->capacity; ++i)
     /*@ invariant mapp_raw(map, ?kaddrs_lst, ?busybits_lst, ?hashes_lst, ?chains_lst, ?values_lst, key_size, ?real_capacity) &*&
                   mapp_core(key_size, real_capacity, kaddrs_lst, busybits_lst, hashes_lst, values_lst, ?key_opts, map_values, map_addrs) &*&
@@ -915,7 +914,7 @@ bool os_map_get(struct os_map* map, void* key_ptr, size_t* out_value)
       //@ append_nil(reverse(take(index, kaddrs_lst)));
       //@ append_nil(reverse(take(index, busybits_lst)));
       //@ append_nil(reverse(take(index, key_opts)));
-      if (generic_eq(it->key_addr, key_ptr, map->key_size)) {
+      if (os_memory_eq(it->key_addr, key_ptr, map->key_size)) {
         //@ recover_key_opt_list(kaddrs_lst, busybits_lst, key_opts, index);
         //@ open map_valuesaddrs(kaddrs_lst, key_opts, values_lst, map_values, map_addrs);
         //@ assert true == opt_no_dups(key_opts);
@@ -1291,7 +1290,7 @@ void os_map_set(struct os_map* map, void* key_ptr, size_t value)
 /*@ ensures mapp(map, key_size, capacity, ghostmap_set(map_values, key, value), ghostmap_set(map_addrs, key, key_ptr)); @*/
 {
   //@ open mapp(map, key_size, capacity, map_values, map_addrs);
-  hash_t key_hash = generic_hash(key_ptr, map->key_size);
+  hash_t key_hash = os_memory_hash(key_ptr, map->key_size);
   //@ assert buckets_keys_insync(?real_capacity, ?old_chains_lst, ?buckets, ?key_opts);
   //@ size_t start = loop_fp(key_hash, real_capacity);
   //@ loop_lims(key_hash, real_capacity);
@@ -1552,7 +1551,7 @@ void os_map_remove(struct os_map* map, void* key_ptr)
            [frac + 0.25]chars(key_ptr, key_size, key); @*/
 {
   //@ open mapp(map, key_size, capacity, map_values, map_addrs);
-  hash_t key_hash = generic_hash(key_ptr, map->key_size);
+  hash_t key_hash = os_memory_hash(key_ptr, map->key_size);
   //@ open mapp_core(key_size, ?real_capacity, ?kaddrs_lst, ?busybits_lst, ?hashes_lst, ?values_lst, ?key_opts, map_values, map_addrs);
   //@ map_values_has_implies_key_opts_has(key);
   //@ key_opts_has_implies_not_empty(key_opts, key);
@@ -1587,7 +1586,7 @@ void os_map_remove(struct os_map* map, void* key_ptr)
       //@ append_nil(reverse(take(index, kaddrs_lst)));
       //@ append_nil(reverse(take(index, busybits_lst)));
       //@ append_nil(reverse(take(index, key_opts)));
-      if (generic_eq(item->key_addr, key_ptr, map->key_size)) {
+      if (os_memory_eq(item->key_addr, key_ptr, map->key_size)) {
         //@ recover_key_opt_list(kaddrs_lst, busybits_lst, key_opts, index);
         //@ key_opt_list_find_key(key_opts, index, key);
         item->busy = false;

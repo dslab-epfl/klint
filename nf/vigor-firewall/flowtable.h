@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 
@@ -15,7 +16,7 @@ struct flow {
 
 struct flowtable;
 
-struct flowtable* flowtable_init(uint64_t expiration_time, uint64_t max_flows);
+struct flowtable* flowtable_init(uint64_t expiration_time, size_t max_flows);
 
 void flowtable_learn_internal(struct flowtable* table, uint64_t time, struct flow* flow);
 
