@@ -11,13 +11,13 @@ struct flowtable
 	struct os_map* flow_indexes;
 	struct os_pool* port_allocator;
 	uint64_t expiration_time;
-	uint64_t max_flows;
+	size_t max_flows;
 	uint16_t start_port;
 	uint8_t _padding[6];
 };
 
 
-struct flowtable* flowtable_alloc(uint16_t start_port, uint64_t expiration_time, uint64_t max_flows)
+struct flowtable* flowtable_alloc(uint16_t start_port, uint64_t expiration_time, size_t max_flows)
 {
 	struct os_map* flow_indexes = os_map_alloc(sizeof(struct flow), max_flows); // TODO: 2*max_flows because it's only a small amount of additional space for a lot more tput when near full
 	struct os_pool* port_allocator = os_pool_alloc(max_flows);
@@ -33,8 +33,8 @@ struct flowtable* flowtable_alloc(uint16_t start_port, uint64_t expiration_time,
 
 bool flowtable_get_internal(struct flowtable* table, uint64_t time, struct flow* flow, uint16_t* out_port)
 {
-	uint64_t index;
-	if (os_map_get(table->flow_indexes, flow, (void*) &index)) {
+	size_t index;
+	if (os_map_get(table->flow_indexes, flow, &index)) {
 		os_pool_refresh(table->port_allocator, time, index);
 	} else {
 		if (os_pool_expire(table->port_allocator, time - table->expiration_time, &index)) {
@@ -46,7 +46,7 @@ bool flowtable_get_internal(struct flowtable* table, uint64_t time, struct flow*
 		}
 
 		table->flows[index] = *flow;
-		os_map_set(table->flow_indexes, &(table->flows[index]), (void*) index);
+		os_map_set(table->flow_indexes, &(table->flows[index]), index);
 	}
 
 	*out_port = table->start_port + index;
@@ -55,14 +55,14 @@ bool flowtable_get_internal(struct flowtable* table, uint64_t time, struct flow*
 
 bool flowtable_get_external(struct flowtable* table, uint64_t time, uint16_t port, struct flow* out_flow)
 {
-	uint64_t index = (uint16_t) (port - table->start_port);
+	size_t index = (uint16_t) (port - table->start_port);
 	// Per its contract, we cannot call 'os_pool_used' with an out-of-range index
 	// TODO fix its contract?
 	if (index >= table->max_flows) {
 		return false;
 	}
 
-	uint64_t flow_time = (uint64_t)-1;
+	uint64_t flow_time = (uint64_t) -1;
 	if (!os_pool_used(table->port_allocator, index, &flow_time) || time - table->expiration_time > flow_time) {
 		return false;
 	}

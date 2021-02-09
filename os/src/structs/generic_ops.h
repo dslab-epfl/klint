@@ -4,10 +4,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
+
+// 32-bit hash because a 64-bit one is generally not useful for data structure purposes (unless you create tables with > 2**32 elements)
 typedef uint32_t hash_t;
 #define chars_to_hashes chars_to_uints
-
 //@ fixpoint hash_t hash_fp(list<char> value);
+
 
 bool generic_eq(void* a, void* b, size_t obj_size);
 //@ requires [?f1]chars(a, obj_size, ?ac) &*& [?f2]chars(b, obj_size, ?bc);

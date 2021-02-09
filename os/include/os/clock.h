@@ -2,6 +2,8 @@
 
 #include <stdint.h>
 
+// TODO: time_t typedef?
+
 // TODO time is a bottleneck, we need a clever way to avoid invoking it too many times if we can (e.g., when batching)
 
 // Gets the current time in nanoseconds, according to a monotonic clock with an undefined starting point.

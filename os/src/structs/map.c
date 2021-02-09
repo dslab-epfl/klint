@@ -50,7 +50,7 @@ struct os_map {
     };
 
   // Key options => hashes
-  // NOTE: It's important that we say nothing about hashes of none keys, which is why this can't return a list<hash_t> (which would need to reason about this info)
+  // NOTE: It's important that we say nothing about hashes of none keys, which is why this can't return a list of hashes (which would need to reason about this info)
   predicate hash_list(list<option<list<char> > > key_opts, list<hash_t> hashes) =
     switch(key_opts) {
       case nil:

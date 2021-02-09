@@ -1,7 +1,6 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
-#include <nmmintrin.h>
 
 // TODO move to os/memory.h
 
@@ -24,48 +23,36 @@ hash_t generic_hash(void* obj, size_t obj_size)
 	//@ size_t old_obj_size = obj_size;
 
 	//@ size_t discarded_size = 0;
-	uint32_t hash = 0;
-	while (obj_size >= 8)
+	hash_t hash = 0;
+	while (obj_size >= sizeof(uint32_t))
 	/*@ invariant [f]chars(obj - discarded_size, discarded_size, _) &*&
 	              [f]chars(obj, obj_size, _) &*&
 	              old_obj == obj - discarded_size &*&
 	              old_obj_size == obj_size + discarded_size; @*/
 	{
 		//@ chars_limits(obj);
-		//@ chars_split(obj, 8);
-		//@ chars_to_integer_(obj, 8, false);
-		hash = (uint32_t) _mm_crc32_u64(hash, *((uint64_t*)obj));
-		//@ integer__to_chars(obj, 8, false);
-		//@ discarded_size += 8;
-		obj = (void*) (((char*)obj) + 8);
-		obj_size -= 8;
-	}
-	if (obj_size >= 4) {
-		//@ chars_limits(obj);
 		//@ chars_split(obj, 4);
 		//@ chars_to_integer_(obj, 4, false);
-		hash = _mm_crc32_u32(hash, *((uint32_t*)obj));
+		hash = (hash >> 5) + hash + *((uint32_t*) obj);
 		//@ integer__to_chars(obj, 4, false);
 		//@ discarded_size += 4;
-		obj = (void*) (((char*)obj) + 4);
-		obj_size -= 4;
-		//@ chars_join(obj - discarded_size);
+		obj = (uint32_t*) obj + 1;
+		obj_size -= sizeof(uint32_t);
 	}
-	if (obj_size >= 2) {
+	if ((obj_size & sizeof(uint16_t)) != 0) {
 		//@ chars_limits(obj);
 		//@ chars_split(obj, 2);
 		//@ chars_to_integer_(obj, 2, false);
-		hash = _mm_crc32_u16(hash, *((uint16_t*)obj));
+		hash = (hash >> 5) + hash + *((uint16_t*) obj);
 		//@ integer__to_chars(obj, 2, false);
 		//@ discarded_size += 2;
-		obj = (void*) (((char*)obj) + 2);
-		obj_size -= 2;
+		obj = (uint16_t*) obj + 1;
 		//@ chars_join(obj - discarded_size);
 	}
-	if (obj_size == 1) {
+	if ((obj_size & sizeof(uint8_t)) != 0) {
 		//@ chars_split(obj, 1);
 		//@ chars_to_integer_(obj, 1, false);
-		hash = _mm_crc32_u8(hash, *((uint8_t*)obj));
+		hash = (hash >> 5) + hash + *((uint8_t*) obj);
 		//@ integer__to_chars(obj, 1, false);
 		//@ discarded_size += 1;
 		//@ chars_join(obj + 1 - discarded_size);
