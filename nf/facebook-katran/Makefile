@@ -1,7 +1,15 @@
 # Compatibility layer
 CFLAGS += -isystem ../../os/include/compat
+CFLAGS += -I ../../os/include/compat/uapi
 CFLAGS += -I ../../os/include/compat/uapi/linux
 CFLAGS += -I ../../os/include/compat/bpf
+
+# Linux defines
+CFLAGS += -D__u8=uint8_t
+CFLAGS += -D__u16=uint16_t
+CFLAGS += -D__u32=uint32_t
+CFLAGS += -D__u64=uint64_t
+CFLAGS += -D__be32=uint32_t
 
 # Ignore #pragma unroll
 CFLAGS += -Wno-unknown-pragmas
@@ -26,6 +34,9 @@ CFLAGS += -Wno-attributes
 
 # Give up on pedantism, there are a few empty structs
 CFLAGS += -Wno-pedantic
+
+# Give up on padding
+CFLAGS += -Wno-padded
 
 # Katran triggers a bunch of 'comparison of distinct pointer types lacks a cast', which have no specific -W... switch in GCC but have one in Clang
 ifeq (, $(findstring clang,$(CC)))
