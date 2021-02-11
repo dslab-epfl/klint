@@ -10,5 +10,5 @@ RTE_SDK=$(pwd)/../dpdk RTE_TARGET=x86_64-native-linuxapp-gcc \
   CFLAGS="-O3" CXXFLAGS="-std=c++11 -O3"  --disable-dynamic-linking --enable-poll \
   --enable-bound-port-transfer --enable-local --enable-flow --disable-task-stats \
   --disable-cpu-load --enable-dpdk-packet --disable-clone --disable-dpdk-softqueue \
-  --disable-avx2 --enable-etherswitch --enable-auto-batch
+  --enable-etherswitch --enable-auto-batch
 RTE_SDK=$(pwd)/../dpdk RTE_TARGET=x86_64-native-linuxapp-gcc make
