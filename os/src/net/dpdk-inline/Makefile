@@ -4,8 +4,11 @@ NET_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 # Batch size
 CFLAGS += -DBATCH_SIZE=$(BATCH_SIZE)
 
+# Remove "DEBUG" define because DPDK uses it as well
+CFLAGS := $(filter-out -DDEBUG,$(CFLAGS))
+
 # Silence warnings triggered by DPDK
-CFLAGS += -Wno-address-of-packed-member -Wno-padded -Wno-unused-function -Wno-deprecated-declarations -Wno-shadow -Wno-pedantic -Wno-unused-parameter -Wno-unused-but-set-variable -Wno-int-conversion
+CFLAGS += -Wno-address-of-packed-member -Wno-padded -Wno-unused-function -Wno-deprecated-declarations -Wno-shadow -Wno-pedantic -Wno-unused-parameter -Wno-unused-but-set-variable -Wno-int-conversion -Wno-format-truncation
 
 # Do not fail on missing functions, so we don't have to write pointless stubs for functions that are never executed
 CFLAGS += -Wl,--warn-unresolved-symbols
