@@ -38,9 +38,9 @@ CFLAGS += -isystem $(DPDK_DIR)/config
 CFLAGS += -isystem $(DPDK_DIR)/drivers/bus/pci
 
 # DPDK sources
-SRCS += $(DPDK_DIR)/lib/librte_ethdev/rte_ethdev.c
-SRCS += $(DPDK_DIR)/lib/librte_mbuf/rte_mbuf.c
-SRCS += $(DPDK_DIR)/drivers/bus/pci/pci_common.c
+#SRCS += $(DPDK_DIR)/lib/librte_ethdev/rte_ethdev.c
+#SRCS += $(DPDK_DIR)/lib/librte_mbuf/rte_mbuf.c
+#SRCS += $(DPDK_DIR)/drivers/bus/pci/pci_common.c
 
 # Intel 10G Ethernet driver sources, and necessary includes
 CFLAGS += --include smmintrin.h
@@ -49,6 +49,7 @@ SRCS += $(shell echo $(DPDK_DIR)/drivers/net/ixgbe/ixgbe_{ethdev,pf,rxtx,rxtx_ve
 SRCS += $(shell echo $(DPDK_DIR)/drivers/net/ixgbe/base/ixgbe_{api,common,phy,82599}.c)
 
 # Files that DPDK sometimes assumes are included
+CFLAGS += --include rte_atomic.h
 CFLAGS += --include rte_debug.h
 CFLAGS += --include rte_config.h
 CFLAGS += --include rte_os.h

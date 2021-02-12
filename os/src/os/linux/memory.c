@@ -72,6 +72,11 @@ void* os_memory_alloc(const size_t count, const size_t size)
 	// OK because of the contract, this cannot overflow
 	const uintptr_t full_size = size * count;
 
+	// Weird but valid; return a likely-invalid address for debugging convenience
+	if (full_size == 0) {
+		return page_addr + HUGEPAGE_SIZE;
+	}
+
 	// Align as required by the contract
 	const uintptr_t align_diff = (uintptr_t) (page_addr + page_used_len) % full_size;
 	if (align_diff != 0) {
