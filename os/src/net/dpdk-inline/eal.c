@@ -184,6 +184,8 @@ printf("all good; BAR is %p aka %p of length %xu\n", (void*) bar_phys_addr, bar_
 			if (probe_result < 0) {
 				os_fail("Probe failed");
 			}
+
+			break; // we found a driver, don't keep trying
 		}
 
 		if (!found) {
@@ -222,7 +224,7 @@ int rte_log(uint32_t level, uint32_t logtype, const char* format, ...)
 	(void) level;
 	(void) logtype;
 	(void) format;
-printf("%s\n\n",format);fflush(stdout);
+//printf("%s\n\n",format);fflush(stdout);
 	return 0;
 }
 

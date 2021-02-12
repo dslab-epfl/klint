@@ -37,19 +37,16 @@ CFLAGS += -isystem $(DPDK_DIR)/lib/librte_telemetry
 CFLAGS += -isystem $(DPDK_DIR)/config
 CFLAGS += -isystem $(DPDK_DIR)/drivers/bus/pci
 
-# DPDK sources
-#SRCS += $(DPDK_DIR)/lib/librte_ethdev/rte_ethdev.c
-#SRCS += $(DPDK_DIR)/lib/librte_mbuf/rte_mbuf.c
-#SRCS += $(DPDK_DIR)/drivers/bus/pci/pci_common.c
-
 # Intel 10G Ethernet driver sources, and necessary includes
 CFLAGS += --include smmintrin.h
 CFLAGS += -D rxrearm_nb=crc_len -D rxrearm_start=crc_len -D RTE_IXGBE_RXQ_REARM_THRESH=32 -D RTE_IXGBE_MAX_RX_BURST=32 # Horrible hack: use vec_sse without setting ARCH_X86 so DPDK itself remains neutral
 SRCS += $(shell echo $(DPDK_DIR)/drivers/net/ixgbe/ixgbe_{ethdev,pf,rxtx,rxtx_vec_sse}.c)
 SRCS += $(shell echo $(DPDK_DIR)/drivers/net/ixgbe/base/ixgbe_{api,common,phy,82599}.c)
 
+# Allow our own stubs to include the driver stuff
+CFLAGS += -I $(DPDK_DIR)/drivers/net/ixgbe
+
 # Files that DPDK sometimes assumes are included
-CFLAGS += --include rte_atomic.h
 CFLAGS += --include rte_debug.h
 CFLAGS += --include rte_config.h
 CFLAGS += --include rte_os.h
