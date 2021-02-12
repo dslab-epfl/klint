@@ -29,6 +29,7 @@ CFLAGS += -isystem $(DPDK_DIR)/lib/librte_ethdev
 CFLAGS += -isystem $(DPDK_DIR)/lib/librte_kvargs
 CFLAGS += -isystem $(DPDK_DIR)/lib/librte_hash
 CFLAGS += -isystem $(DPDK_DIR)/lib/librte_mbuf
+CFLAGS += -isystem $(DPDK_DIR)/lib/librte_mempool
 CFLAGS += -isystem $(DPDK_DIR)/lib/librte_meter
 CFLAGS += -isystem $(DPDK_DIR)/lib/librte_net
 CFLAGS += -isystem $(DPDK_DIR)/lib/librte_pci
