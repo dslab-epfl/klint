@@ -39,14 +39,6 @@ void rte_pci_register(struct rte_pci_driver* driver)
 	drivers_count = drivers_count + 1;
 }
 
-// Called by driver constructors, to create their own log type
-int rte_log_register_type_and_pick_level(const char* name, uint32_t level_def)
-{
-	(void) name;
-	// level_def is the user-provided fallback if the name is unknown
-	return level_def;
-}
-
 // Called by drivers probe, to initialize the driver itself
 int rte_eth_dev_create(struct rte_device* device, const char* name, size_t priv_data_size, ethdev_bus_specific_init bus_specific_init, void* bus_init_params, ethdev_init_t ethdev_init, void* init_params)
 {
@@ -199,41 +191,13 @@ printf("all good; BAR is %p aka %p of length %xu\n", (void*) bar_phys_addr, bar_
 	return 0;
 }
 
-
-// Utility functions
-
 uint16_t rte_eth_dev_count_avail(void)
 {
 	return devices_count;
-}
-
-unsigned int rte_socket_id(void)
-{
-	// OS ASSUMPTION: Single core
-	return 0;
 }
 
 enum rte_proc_type_t rte_eal_process_type(void)
 {
 	// OS ASSUMPTION: Single core
 	return RTE_PROC_PRIMARY;
-}
-
-int rte_log(uint32_t level, uint32_t logtype, const char* format, ...)
-{
-	(void) level;
-	(void) logtype;
-	(void) format;
-//printf("%s\n\n",format);fflush(stdout);
-	return 0;
-}
-
-void rte_io_rmb(void)
-{
-	rte_compiler_barrier();
-}
-
-void rte_io_wmb(void)
-{
-	rte_compiler_barrier();
 }
