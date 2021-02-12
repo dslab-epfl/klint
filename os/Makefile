@@ -41,5 +41,5 @@ include $(THIS_DIR)/src/net/$(NET)/Makefile
 ifndef NO_DEFAULT_TARGET
 build:
 	@$(CC) $(SRCS) $(CFLAGS) $(LDFLAGS) -o $(OUTPUT)
-	@$(STRIP) $(STRIPFLAGS) $(OUTPUT)
+#	@$(STRIP) $(STRIPFLAGS) $(OUTPUT)
 endif
