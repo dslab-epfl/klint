@@ -1,16 +1,10 @@
 #include "os/memory.h"
 
-#include <rte_eal_paging.h>
 #include <rte_common.h>
 #include <rte_malloc.h>
 
 #include "os/fail.h"
 
-
-size_t os_memory_pagesize(void)
-{
-	return rte_mem_page_size();
-}
 
 void* os_memory_alloc(const size_t count, const size_t size)
 {

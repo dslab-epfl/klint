@@ -27,7 +27,7 @@ static uint8_t* page_addr;
 static size_t page_used_len;
 
 
-size_t os_memory_pagesize(void)
+static size_t os_memory_pagesize(void)
 {
 	// sysconf is documented to return -1 on error; let's check all negative cases along the way, to make sure the conversion to unsigned is sound
 	const long page_size_long = sysconf(_SC_PAGESIZE);
