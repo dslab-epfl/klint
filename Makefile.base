@@ -10,9 +10,9 @@ CC ?= gcc
 CFLAGS += -std=c17 -D_POSIX_C_SOURCE=200809L -D_GNU_SOURCE
 
 # Max optimizations
-CFLAGS += -O0 -g
+CFLAGS += -O3
 CFLAGS += -march=native
-#CFLAGS += -flto
+CFLAGS += -flto
 
 # Required
 CFLAGS += -fPIC
@@ -24,7 +24,7 @@ CFLAGS += -fno-asynchronous-unwind-tables
 CFLAGS += -Wall -Wextra -Werror -pedantic -Wshadow -Wstrict-aliasing -Wpadded -Wfatal-errors
 
 # Debug log
- CFLAGS += -DDEBUG_LEVEL=1
+# CFLAGS += -DDEBUG_LEVEL=1
 
 # Strip, defined conditionally so it can be overriden with /bin/true to not strip
 STRIP ?= strip

@@ -13,10 +13,8 @@
 #include "net/skeleton.h"
 
 
-// DPDK constants; keep the same values as Vigor for now
-#define RX_QUEUE_SIZE 96
-#define TX_QUEUE_SIZE 96
-#define MEMPOOL_BUFFER_COUNT 256
+// Just needs to be high enough to not run out of buffers
+#define MEMPOOL_BUFFER_COUNT 1024
 
 #if BATCH_SIZE + 0 == 0
 #error Please define BATCH_SIZE
@@ -42,12 +40,12 @@ static void device_init(unsigned device, struct rte_mempool* mbuf_pool)
 		os_fail("Couldn't configure device");
 	}
 
-	ret = rte_eth_tx_queue_setup(device, 0, TX_QUEUE_SIZE, rte_eth_dev_socket_id(device), NULL /* default config */);
+	ret = rte_eth_tx_queue_setup(device, 0, 0, rte_eth_dev_socket_id(device), NULL /* default config */);
 	if (ret != 0) {
 		os_fail("Couldn't configure a TX queue");
 	}
 
-	ret = rte_eth_rx_queue_setup(device, 0, RX_QUEUE_SIZE, rte_eth_dev_socket_id(device), NULL /* default config */, mbuf_pool);
+	ret = rte_eth_rx_queue_setup(device, 0, 0, rte_eth_dev_socket_id(device), NULL /* default config */, mbuf_pool);
 	if (ret != 0) {
 		os_fail("Couldn't configure an RX queue");
 	}
