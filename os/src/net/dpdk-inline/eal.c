@@ -1,8 +1,6 @@
-// TODO remove
-#include <stdio.h>
-
 #include <rte_bus_pci.h>
 #include <rte_eal.h>
+#include <rte_ethdev.h>
 #include <rte_ethdev_driver.h>
 #include <rte_pci.h>
 
@@ -25,8 +23,8 @@ static size_t drivers_count;
 static struct os_pci_address* pci_devices;
 static struct rte_pci_device* rte_pci_devices;
 static struct rte_device* devices;
-static struct rte_eth_dev* eth_devices;
-static struct rte_eth_dev_data* eth_devices_data;
+struct rte_eth_dev rte_eth_devices[RTE_MAX_ETHPORTS];
+static struct rte_eth_dev_data* rte_eth_devices_data;
 static size_t devices_count;
 
 static bool initialized;
@@ -43,10 +41,10 @@ void rte_pci_register(struct rte_pci_driver* driver)
 int rte_eth_dev_create(struct rte_device* device, const char* name, size_t priv_data_size, ethdev_bus_specific_init bus_specific_init, void* bus_init_params, ethdev_init_t ethdev_init, void* init_params)
 {
 	// At this point, devices_count has the value of the next index to use
-	struct rte_eth_dev* dev = &(eth_devices[devices_count]);
+	struct rte_eth_dev* dev = &(rte_eth_devices[devices_count]);
 
 	dev->device = device;
-	dev->data = &(eth_devices_data[devices_count]);
+	dev->data = &(rte_eth_devices_data[devices_count]);
 	dev->data->dev_private = os_memory_alloc(1, priv_data_size);
 	// Ignore dev->data->name...
 	dev->data->port_id = devices_count;
@@ -71,19 +69,19 @@ int rte_eal_init(int argc, char **argv)
 	(void) argc;
 	(void) argv;
 
-printf("init; there are %zu drivers\n", drivers_count);fflush(stdout);
-
 	if (initialized) {
 		return -1;
 	}
 
 	// Do not set devices_count directly; the callbacks used during probe must know which index to use
 	size_t total_devices_count = os_pci_enumerate(&pci_devices);
+	if (total_devices_count > RTE_MAX_ETHPORTS) {
+		os_fail("Too many devices");
+	}
 
 	rte_pci_devices = os_memory_alloc(total_devices_count, sizeof(struct rte_pci_device));
 	devices = os_memory_alloc(total_devices_count, sizeof(struct rte_device));
-	eth_devices = os_memory_alloc(total_devices_count, sizeof(struct rte_eth_dev));
-	eth_devices_data = os_memory_alloc(total_devices_count, sizeof(struct rte_eth_dev_data));
+	rte_eth_devices_data = os_memory_alloc(total_devices_count, sizeof(struct rte_eth_dev_data));
 
 	for (size_t dev = 0; dev < total_devices_count; dev++) {
 		uint32_t dev_and_vendor = os_pci_read(pci_devices[dev], 0x00);
@@ -167,7 +165,6 @@ printf("init; there are %zu drivers\n", drivers_count);fflush(stdout);
 				rte_pci_devices[dev].mem_resource[0].phys_addr = bar_phys_addr;
 				rte_pci_devices[dev].mem_resource[0].addr = bar_virt_addr;
 				rte_pci_devices[dev].mem_resource[0].len = bar_size;
-printf("all good; BAR is %p aka %p of length %xu\n", (void*) bar_phys_addr, bar_virt_addr, (unsigned) bar_size);fflush(stdout);
 			}
 
 			rte_pci_devices[dev].device = devices[dev];
