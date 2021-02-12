@@ -1,6 +1,6 @@
 #include "os/debug.h"
 
-#ifdef DEBUG
+#ifdef DEBUG_LEVEL
 #include <stdarg.h>
 #include <stdio.h>
 

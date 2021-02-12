@@ -14,7 +14,7 @@ CFLAGS += -O3
 CFLAGS += -march=native
 CFLAGS += -flto
 
-# Clang sometimes requires this
+# Required
 CFLAGS += -fPIC
 
 # Don't emit unneeded stuff in the binary
@@ -24,7 +24,7 @@ CFLAGS += -fno-asynchronous-unwind-tables
 CFLAGS += -Wall -Wextra -Werror -pedantic -Wshadow -Wstrict-aliasing -Wpadded -Wfatal-errors
 
 # Debug log
-# CFLAGS += -DDEBUG
+# CFLAGS += -DDEBUG_LEVEL=1
 
 # Strip, defined conditionally so it can be overriden with /bin/true to not strip
 STRIP ?= strip

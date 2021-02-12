@@ -13,6 +13,9 @@ CFLAGS += -ffreestanding -nostdinc -isystem $(shell gcc -print-search-dirs | hea
 # OS headers
 CFLAGS += -I$(SELF_DIR)/os/include
 
+# We're building a shared lib
+CFLAGS += -shared
+
 # NF source
 SRCS += $(shell echo *.c)
 
@@ -27,6 +30,6 @@ endif
 ifndef NO_DEFAULT_TARGET
 # TODO: this should have dependency tracking, proper targets, and stuff
 compile:
-	@$(CC) $(SRCS) $(CFLAGS) -shared -o $(LIB)
+	@$(CC) $(SRCS) $(CFLAGS) -o $(LIB)
 	@$(STRIP) $(STRIPFLAGS) $(LIB)
 endif

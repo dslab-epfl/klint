@@ -19,9 +19,6 @@ THIS_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 # Use our global makefile, for the compiler and such
 include $(THIS_DIR)/../Makefile.base
 
-# TODO make this work properly, we shouldn't be getting warnings about undefined references in functions we don't use
-CFLAGS += -ffunction-sections -fdata-sections -Wl,--gc-sections
-
 # Our includes
 CFLAGS += -I$(THIS_DIR)/include
 

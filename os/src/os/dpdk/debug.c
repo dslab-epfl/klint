@@ -1,6 +1,6 @@
 #include "os/debug.h"
 
-#ifdef DEBUG
+#ifdef DEBUG_LEVEL
 #include <rte_log.h>
 
 void os_debug(const char* format, ...)

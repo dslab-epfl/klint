@@ -4,14 +4,11 @@ NET_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 # Batch size
 CFLAGS += -DBATCH_SIZE=$(BATCH_SIZE)
 
-# Remove "DEBUG" define because DPDK uses it as well
-CFLAGS := $(filter-out -DDEBUG,$(CFLAGS))
-
 # Silence warnings triggered by DPDK
 CFLAGS += -Wno-address-of-packed-member -Wno-padded -Wno-unused-function -Wno-deprecated-declarations -Wno-shadow -Wno-pedantic -Wno-unused-parameter -Wno-unused-but-set-variable -Wno-int-conversion -Wno-format-truncation
 
 # Do not fail on missing functions, so we don't have to write pointless stubs for functions that are never executed
-CFLAGS += -Wl,--warn-unresolved-symbols
+CFLAGS += -Wl,--unresolved-symbols=ignore-all
 
 # Reuse the one for standard DPDK; no extra sources needed
 SRCS += $(NET_DIR)/../dpdk/main.c
@@ -40,10 +37,13 @@ CFLAGS += -isystem $(NET_DIR)/dpdk/lib/librte_telemetry
 CFLAGS += -isystem $(NET_DIR)/dpdk/config
 CFLAGS += -isystem $(NET_DIR)/dpdk/drivers/bus/pci
 
-# DPDK sources
+# DPDK shim sources
 SRCS += $(shell echo $(NET_DIR)/dpdk-shim/*.c)
+
+# DPDK sources
 SRCS += $(NET_DIR)/dpdk/lib/librte_ethdev/rte_ethdev.c
 SRCS += $(NET_DIR)/dpdk/lib/librte_mbuf/rte_mbuf.c
+SRCS += $(NET_DIR)/dpdk/drivers/bus/pci/pci_common.c
 
 # Intel 10G Ethernet driver sources, and necessary includes
 CFLAGS += --include smmintrin.h
