@@ -1,7 +1,6 @@
-#include "bridge.h"
-
-#include "map.h"
 #include "lru.h"
+#include "map.h"
+#include "nf.h"
 
 
 static time_t expiration_time;
@@ -9,16 +8,17 @@ static struct map* map;
 static struct lru* lru;
 
 
-bool nf_init(uint16_t devices_count, time_t expiration_time, size_t capacity)
+bool nf_init(uint16_t devices_count, time_t exp_time, size_t capacity)
 {
 	if (devices_count < 2) {
 		return false;
 	}
 
-	if (expiration_time < 0) {
+	if (exp_time < 0) {
 		return false;
 	}
 
+	expiration_time = exp_time;
 	map = map_alloc(capacity);
 	lru = lru_alloc(capacity);
 
@@ -26,29 +26,29 @@ bool nf_init(uint16_t devices_count, time_t expiration_time, size_t capacity)
 }
 
 // TODO same issue as vigor-bridge re: checking map_get's device
-void nf_handle(uint8_t* packet, uint16_t packet_length, uint16_t device, uint64_t time)
+void nf_handle(struct rte_mbuf* mbuf, time_t time)
 {
-	struct rte_ether_hdr* ether_header = (struct rte_ether_hdr*) packet;
+	struct rte_ether_hdr* ether_header = rte_pktmbuf_mtod(mbuf, struct rte_ether_hdr*);
 
 	uint16_t out_device;
 	size_t index;
 
-	if (map_get(map, &(ether_header->src_addr), &index, &out_device)) {
+	if (map_get(map, &(ether_header->s_addr), &index, &out_device)) {
 		lru_touch(lru, time, index);
 	} else {
-		if (lru_expire(allocator, time - expiration_time, &index)) {
+		if (lru_expire(lru, time - expiration_time, &index)) {
 			map_remove(map, index);
 		}
 		if (lru_get_unused(lru, time, &index)) {
-			map_set(map, &(ether_header->src_addr), index, devicex);
+			map_set(map, &(ether_header->s_addr), index, mbuf->port);
 		}
 	}
 
-	if(map_get(map, &(ether_header->dst_addr), &index, &out_device)) {
-		if (out_device != packet->device) {
-			// TODO TX on out_device
+	if(map_get(map, &(ether_header->d_addr), &index, &out_device)) {
+		if (out_device != mbuf->port) {
+			tx_packet(mbuf, out_device);
 		}
 	} else {
-		// TODO flood
+		flood_packet(mbuf);
 	}
 }

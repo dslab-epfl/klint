@@ -3,6 +3,7 @@
 #include <stddef.h>
 
 #include <rte_common.h>
+#include <rte_ether.h>
 #include <rte_lcore.h>
 #include <rte_malloc.h>
 #include <rte_memcpy.h>
@@ -16,7 +17,7 @@ struct map_value
 	size_t index;
 	uint16_t device;
 	uint8_t _padding[6];
-}
+};
 
 struct map
 {
@@ -61,7 +62,7 @@ static inline bool map_get(struct map* map, struct rte_ether_addr* addr, size_t*
 	struct rte_mbuf** pkts = (struct rte_mbuf**) &addr; // the table is meant for mbufs...
 	uint64_t pkts_mask = 1; // only the first is set -> first bit
 	uint64_t lookup_hit_mask = 0;
-	int result = rte_table_hash_ext_ops.f_lookup(map->rte_table, pkts, pkts_mask, &lookup_hit_mask, entries);
+	int result = rte_table_hash_ext_ops.f_lookup(map->rte_map, pkts, pkts_mask, &lookup_hit_mask, entries);
 	if (result != 0 || lookup_hit_mask == 0) {
 		return false;
 	}
@@ -81,7 +82,7 @@ static inline void map_set(struct map* map, struct rte_ether_addr* addr, size_t 
 	};
 	int key_found = 0; // we don't care, but it needs to be passed in
 	void* entry_ptr; // don't care either
-	int result = rte_table_hash_ext_ops.f_add(map->rte_table, addr, &value, &key_found, &entry_ptr);
+	int result = rte_table_hash_ext_ops.f_add(map->rte_map, addr, &value, &key_found, &entry_ptr);
 	if (result != 0) {
 		rte_exit(1, "Could not set in map");
 	}
@@ -90,7 +91,7 @@ static inline void map_set(struct map* map, struct rte_ether_addr* addr, size_t 
 static inline void map_remove(struct map* map, size_t index)
 {
 	int key_found = 0; // we don't care, but it needs to be passed in
-	int result = rte_table_hash_ext_ops.f_delete(map->rte_table, &(map->addrs[index]), &key_found, NULL);
+	int result = rte_table_hash_ext_ops.f_delete(map->rte_map, &(map->addrs[index]), &key_found, NULL);
 	if (result != 0) {
 		rte_exit(1, "Could not set in map");
 	}

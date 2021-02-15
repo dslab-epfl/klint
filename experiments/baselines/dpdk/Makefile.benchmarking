@@ -1,0 +1,39 @@
+ifndef NF
+$(error Please define NF)
+endif
+
+THIS_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+
+include $(THIS_DIR)/../../../Makefile.base
+
+RTE_SDK := $(THIS_DIR)/dpdk
+RTE_TARGET := x86_64-native-linuxapp-gcc
+
+CFLAGS += -Wno-padded
+CFLAGS += -DALLOW_EXPERIMENTAL_API
+CFLAGS += -DBATCH_SIZE=$(BATCH_SIZE)
+
+# DPDK wants this in there
+EXTRA_CFLAGS := $(CFLAGS)
+
+include $(RTE_SDK)/mk/rte.vars.mk
+
+APP := nf
+
+SRCS-y += $(shell echo $(THIS_DIR)/$(NF)/*.c)
+
+include $(RTE_SDK)/mk/rte.extapp.mk
+
+# well...
+all: clean
+
+build: all
+
+run:
+	@sudo $(THIS_DIR)/build/app/$(APP)
+
+is-dpdk:
+	@# yes
+
+print-nf-name:
+	@echo $(APP)
