@@ -25,6 +25,7 @@ struct map
 	void* rte_map;
 };
 
+static uint64_t key_mask = 0x0000FFFFFFFFFFFFull;
 
 static inline struct map* map_alloc(size_t capacity)
 {
@@ -40,9 +41,9 @@ static inline struct map* map_alloc(size_t capacity)
 
 	struct rte_table_hash_params rte_params = {
 		.name = "rte map",
-		.key_size = sizeof(struct rte_ether_addr),
+		.key_size = sizeof(uint64_t), // minimum size is uint64_t; must also be a power of 2; so we use the mask...
 		.key_offset = 0,
-		.key_mask = NULL,
+		.key_mask = (uint8_t*) &key_mask,
 		.n_keys = capacity,
 		.n_buckets = rte_align32pow2(capacity / 4), // seems like a common thing to do given examples online
 		.f_hash = rte_table_hash_crc_key48,

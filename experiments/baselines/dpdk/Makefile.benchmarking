@@ -9,25 +9,29 @@ include $(THIS_DIR)/../../../Makefile.base
 RTE_SDK := $(THIS_DIR)/dpdk
 RTE_TARGET := x86_64-native-linuxapp-gcc
 
+# Triggered by DPDK
 CFLAGS += -Wno-padded
+
+# To use the hash functions
 CFLAGS += -DALLOW_EXPERIMENTAL_API
+
+# Forward the batch size from the command line
 CFLAGS += -DBATCH_SIZE=$(BATCH_SIZE)
 
 # DPDK wants this in there
 EXTRA_CFLAGS := $(CFLAGS)
 
-include $(RTE_SDK)/mk/rte.vars.mk
 
-APP := nf
+include $(RTE_SDK)/mk/rte.vars.mk
 
 SRCS-y += $(shell echo $(THIS_DIR)/$(NF)/*.c)
 
+APP := nf
+
 include $(RTE_SDK)/mk/rte.extapp.mk
 
-# well...
-all: clean
-
-build: all
+# DPDK already declares 'build'
+build: clean
 
 run:
 	@sudo $(THIS_DIR)/build/app/$(APP)

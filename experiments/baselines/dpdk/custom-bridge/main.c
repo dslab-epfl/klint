@@ -1,6 +1,7 @@
 #include "nf.h"
 
 #include <rte_common.h>
+#include <rte_cycles.h>
 #include <rte_eal.h>
 #include <rte_ethdev.h>
 #include <rte_ether.h>
@@ -113,8 +114,18 @@ int main(int argc, char** argv)
 		device_init(device, mbuf_pool);
 	}
 
-	if (!nf_init(devices_count)) {
+	if (!nf_init(devices_count, 4ull * 1000ull * 1000ull * 1000ull, 2 * 65536)) {
 		rte_exit(1, "Initialization failed.");
+	}
+
+	uint64_t freq_numerator = rte_get_tsc_hz();
+	if (freq_numerator == 0) {
+		rte_exit(1, "Could not get TSC freq");
+	}
+	uint64_t freq_denominator = 1000000000ull;
+	while (freq_numerator % 10 == 0) {
+		freq_numerator = freq_numerator / 10;
+		freq_denominator = freq_denominator / 10;
 	}
 
 	while(1) {
@@ -122,7 +133,7 @@ int main(int argc, char** argv)
 			struct rte_mbuf* bufs[BATCH_SIZE];
 			uint16_t nb_rx = rte_eth_rx_burst(device, 0, bufs, BATCH_SIZE);
 			for (int16_t n = 0; n < nb_rx; n++) {
-				nf_handle(bufs[n]);
+				nf_handle(bufs[n], rte_rdtsc() * freq_denominator / freq_numerator);
 			}
 			for (uint16_t out_device = 0; out_device < devices_count; out_device++) {
 				uint16_t nb_tx = rte_eth_tx_burst(out_device, 0, bufs_to_tx[out_device], bufs_to_tx_count[out_device]);
