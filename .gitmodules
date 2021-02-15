@@ -18,3 +18,7 @@
 	path = experiments/baselines/vigor/dpdk
 	url = https://github.com/dpdk/dpdk
 	ignore = dirty
+[submodule "experiments/baselines/dpdk/dpdk"]
+	path = experiments/baselines/dpdk/dpdk
+	url = https://github.com/dpdk/dpdk
+	ignore = dirty
