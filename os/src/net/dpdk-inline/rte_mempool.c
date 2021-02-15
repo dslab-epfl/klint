@@ -1,42 +1,26 @@
-#include <rte_mbuf.h>
+#include <rte_mempool.h>
 
-#include <rte_lcore.h>
-
-#include "os/fail.h"
+#include "structs/buffer_pool.h"
 
 
-// Could be anything
-#define MAX_POOLS 1
-
-static struct rte_mempool pools[MAX_POOLS];
-static size_t pools_count;
+// Defined as extern by rte_mempool.h
+struct rte_mempool_ops_table rte_mempool_ops_table;
 
 
-struct rte_mempool* rte_pktmbuf_pool_create(const char *name, unsigned n, unsigned cache_size, uint16_t priv_size, uint16_t data_room_size, int socket_id)
+static int mempool_enqueue(struct rte_mempool* pool, void*const* obj_table, unsigned n)
 {
-	if (cache_size != 0) {
-		os_fail("Unsupported cache size");
-	}
-	if (priv_size != 0) {
-		os_fail("Unsupported priv size");
-	}
-	if ((unsigned) socket_id != rte_socket_id()) {
-		os_fail("Unsupported socket ID");
-	}
+	return buffer_pool_put((struct buffer_pool*) pool->pool_data, obj_table, (size_t) n) ? 1 : 0;
+}
 
-	(void) name; // don't care
+static int mempool_dequeue(struct rte_mempool* pool, void** obj_table, unsigned n)
+{
+	return buffer_pool_take((struct buffer_pool*) pool->pool_data, obj_table, (size_t) n) ? 1 : 0;
+}
 
-	if (pools_count == MAX_POOLS) {
-		os_fail("Too many pools");
-	}
-
-	struct rte_mempool* pool = &(pools[pools_count]);
-	pools_count = pools_count + 1;
-
-// TODO:	pool->pool_data = ???
-	pool->size = n;
-	pool->populated_size = n;
-	pool->elt_size = data_room_size;
-
-	return pool;
+__attribute__((constructor))
+static void mempool_init(void)
+{
+	rte_mempool_ops_table.num_ops = 1;
+	rte_mempool_ops_table.ops[0].enqueue = mempool_enqueue;
+	rte_mempool_ops_table.ops[0].dequeue = mempool_dequeue;
 }
