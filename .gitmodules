@@ -13,6 +13,8 @@
 [submodule "experiments/baselines/vigor/vigor"]
 	path = experiments/baselines/vigor/vigor
 	url = https://github.com/vigor-nf/vigor
+	ignore = dirty
 [submodule "experiments/baselines/vigor/dpdk"]
 	path = experiments/baselines/vigor/dpdk
 	url = https://github.com/dpdk/dpdk
+	ignore = dirty

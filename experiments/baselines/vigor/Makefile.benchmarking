@@ -1,0 +1,21 @@
+ifndef NF
+$(error Please define NF)
+endif
+
+THIS_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+
+# Run the setup script, in case it hasn't been run yet
+_IGNORED := $(shell cd $(THIS_DIR); ./setup.sh 2>/dev/null)
+
+# Vigor's make run always compiles, so no need to have a separate compile step
+build:
+	@# nothing
+
+run:
+	@EXTRA_CFLAGS="-DVIGOR_ALLOW_DROPS" RTE_SDK="$(THIS_DIR)/dpdk" RTE_TARGET=x86_64-native-linuxapp-gcc make -C $(THIS_DIR)/vigor/$(NF) run
+
+is-dpdk:
+	@# yes
+
+print-nf-name:
+	@echo nf
