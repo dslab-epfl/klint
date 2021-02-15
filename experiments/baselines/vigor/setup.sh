@@ -1,5 +1,6 @@
-#!/bin/bash
-set -eux
+#!/bin/sh
+
+git submodule update --init --recursive
 
 DIR="$(pwd)"
 DPDK_VER='20.08'
