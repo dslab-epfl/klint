@@ -20,15 +20,15 @@
 #error Please define BATCH_SIZE
 #endif
 
-// TODO allow >2, which requires changes to the batching
+// Can be anything
 #define MAX_DEVICES 2
 
 static uint16_t devices_count;
 static struct rte_ether_addr device_addrs[MAX_DEVICES];
 static struct rte_ether_addr endpoint_addrs[MAX_DEVICES];
 
-static uint16_t bufs_to_tx_count;
-static struct rte_mbuf* bufs_to_tx[BATCH_SIZE];
+static uint16_t bufs_to_tx_count[MAX_DEVICES];
+static struct rte_mbuf* bufs_to_tx[MAX_DEVICES][BATCH_SIZE];
 
 static void device_init(unsigned device, struct rte_mempool* mbuf_pool)
 {
@@ -75,14 +75,18 @@ void net_transmit(struct net_packet* packet, uint16_t device, enum net_transmit_
 		memcpy(&(ether_header->dst_addr), &(endpoint_addrs[device]), sizeof(struct rte_ether_addr));
 	}
 
-	bufs_to_tx[bufs_to_tx_count] = (struct rte_mbuf*) packet->os_tag;
-	bufs_to_tx_count = bufs_to_tx_count + 1;
+	bufs_to_tx[device][bufs_to_tx_count[device]] = (struct rte_mbuf*) packet->os_tag;
+	bufs_to_tx_count[device] = bufs_to_tx_count[device] + 1;
 }
 
 void net_flood(struct net_packet* packet)
 {
-	// Since MAX_DEVICES == 2
-	net_transmit(packet, 1 - packet->device, 0);
+	for (uint16_t device = 0; device < devices_count; device++) {
+		if (packet->device != device) {
+			bufs_to_tx[device][bufs_to_tx_count[device]] = (struct rte_mbuf*) packet->os_tag;
+			bufs_to_tx_count[device] = bufs_to_tx_count[device] + 1;
+		}
+	}
 }
 
 
@@ -137,11 +141,13 @@ int main(int argc, char** argv)
 				};
 				nf_handle(&packet);
 			}
-			uint16_t nb_tx = rte_eth_tx_burst(1 - device, 0, bufs_to_tx, bufs_to_tx_count);
-			for (uint16_t n = nb_tx; n < bufs_to_tx_count; n++) {
-				rte_pktmbuf_free(bufs_to_tx[n]);
+			for (uint16_t out_device = 0; out_device < devices_count; out_device++) {
+				uint16_t nb_tx = rte_eth_tx_burst(out_device, 0, bufs_to_tx[out_device], bufs_to_tx_count[out_device]);
+				for (uint16_t n = nb_tx; n < bufs_to_tx_count[out_device]; n++) {
+					rte_pktmbuf_free(bufs_to_tx[out_device][n]);
+				}
+				bufs_to_tx_count[out_device] = 0;
 			}
-			bufs_to_tx_count = 0;
 		}
 	}
 
