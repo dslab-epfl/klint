@@ -248,6 +248,37 @@ ensures ghostmap_remove(ghostmap, key) == ghostmap;
   }
 }
 
+lemma void ghostmap_remove_decreases_length<k, v>(list<pair<k, v> > ghostmap, k key)
+requires emp;
+ensures length(ghostmap_remove(ghostmap, key)) <= length(ghostmap);
+{
+  switch(ghostmap) {
+    case nil:
+    case cons(h, t):
+      switch(h) {
+        case pair(hk, hv):
+          ghostmap_remove_decreases_length(t, key);
+      }
+  }
+}
+
+lemma void ghostmap_remove_when_present_decreases_length<k, v>(list<pair<k, v> > ghostmap, k key)
+requires none != ghostmap_get(ghostmap, key);
+ensures length(ghostmap_remove(ghostmap, key)) < length(ghostmap);
+{
+  switch(ghostmap) {
+    case nil:
+    case cons(h, t):
+      switch(h) {
+        case pair(hk, hv):
+          ghostmap_remove_decreases_length(t, key);
+          if (hk != key) {
+            ghostmap_remove_when_present_decreases_length(t, key);
+          }
+      }
+  }
+}
+
 lemma void ghostmap_remove_when_distinct_and_present_decreases_length<k, v>(list<pair<k, v> > ghostmap, k key)
 requires true == ghostmap_distinct(ghostmap) &*&
          none != ghostmap_get(ghostmap, key);
@@ -305,6 +336,64 @@ ensures false == mem(value, map(snd, ghostmap_remove(ghostmap, key)));
       switch(h) {
         case pair(hk, hv):
           ghostmap_remove_preserves_notmem(t, key, value);
+      }
+  }
+}
+
+lemma void ghostmap_remove_preserves_forall<k, v>(list<pair<k, v> > ghostmap, fixpoint(k, v, bool) pred, k key)
+requires true == ghostmap_forall(ghostmap, pred);
+ensures true == ghostmap_forall(ghostmap_remove(ghostmap, key), pred);
+{
+  switch(ghostmap) {
+    case nil:
+    case cons(h, t):
+      switch(h) {
+        case pair(hk, hv):
+          ghostmap_remove_preserves_forall(t, pred, key);
+      }
+  }
+}
+
+lemma void ghostmap_forall_implies_pred<k, v>(list<pair<k, v> > ghostmap, fixpoint(k, v, bool) pred, k key, v value)
+requires true == ghostmap_forall(ghostmap, pred) &*&
+         some(value) == ghostmap_get(ghostmap, key);
+ensures true == pred(key, value);
+{
+  switch(ghostmap) {
+    case nil:
+    case cons(h, t):
+      switch(h) {
+        case pair(hk, hv):
+          if (hk != key) {
+            ghostmap_forall_implies_pred(t, pred, key, value);
+          }
+      }
+  }
+}
+
+lemma void ghostmap_extra_preserves_forall<k, v>(list<pair<k, v> > ghostmap, fixpoint (k, v, bool) pred, k key, v value)
+requires true == ghostmap_forall(ghostmap_remove(ghostmap, key), pred) &*&
+         some(value) == ghostmap_get(ghostmap, key) &*&
+         length(ghostmap_remove(ghostmap, key)) == length(ghostmap) - 1 &*&
+         true == pred(key, value);
+ensures true == ghostmap_forall(ghostmap, pred);
+{
+  switch(ghostmap) {
+    case nil:
+    case cons(h, t):
+      switch(h) {
+        case pair(hk, hv):
+          if (hk == key) {
+            switch (ghostmap_get(t, key)) {
+              case none:
+                ghostmap_remove_unchanged_when_missing(t, key);
+              case some(x):
+                ghostmap_remove_when_present_decreases_length(t, key);
+                assert false;
+            }
+          } else {
+            ghostmap_extra_preserves_forall(t, pred, key, value);
+          }
       }
   }
 }
