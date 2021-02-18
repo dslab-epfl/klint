@@ -7,7 +7,7 @@
 
 //@ #include "proof/ghost_map.gh"
 
-// TODO move
+// TODO move, and avoid #defines as much as possible
 typedef uint64_t time_t;
 #define TIME_INVALID ((time_t) 0xFFFFFFFFFFFFFFFFull)
 //#define malloc_block_times malloc_block_ullongs
@@ -38,8 +38,10 @@ bool os_pool_borrow(struct os_pool* pool, time_t time, size_t* out_index, bool* 
             	   *out_used |-> ?used &*&
             	   poolp(pool, size, exp_time, ghostmap_set(items, index, time)) &*&
             	   index < size &*&
-            	   used ? (ghostmap_get(items, index) == some(?old) &*& old < time - exp_time)
-            	        : (ghostmap_get(items, index) == none)); @*/
+                   switch (ghostmap_get(items, index)) {
+                   	case some(old): return used == true &*& old < time - exp_time;
+                   	case none: return used == false;
+                   }); @*/
 
 void os_pool_refresh(struct os_pool* pool, time_t time, size_t index);
 /*@ requires poolp(pool, ?size, ?exp_time, ?items) &*&

@@ -56,6 +56,10 @@ fixpoint bool ghostmap_distinct<k, v>(list<pair<k, v> > ghostmap) {
   return distinct(map(fst, ghostmap));
 }
 
+fixpoint bool ghostmap_has<k, v>(list<pair<k, v> > ghostmap, k key) {
+  return ghostmap_get(ghostmap, key) != none;
+}
+
 // -- Lemmas --
 
 // Some of the normal lemmas should be autolemmas but VeriFast either errors or crashes if that's the case

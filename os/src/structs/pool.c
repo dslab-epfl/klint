@@ -10,140 +10,49 @@ struct os_pool {
 	size_t size;
 	time_t expiration_time;
 };
+
 /*@
-fixpoint bool key_in_range(list<time_t> timestamps, size_t k, time_t v) { return k < length(timestamps); }
+fixpoint bool idx_in_bounds<t>(size_t i, list<t> xs) { return 0 <= i && i < length(xs); }
+fixpoint bool nth_eq<t>(size_t i, list<t> xs, t x) { return nth(i, xs) == x; }
+
+fixpoint bool key_in_bounds(list<time_t> timestamps, size_t k, time_t v) { return idx_in_bounds(k, timestamps); }
 fixpoint bool value_is_valid(size_t k, time_t v) { return v != TIME_INVALID; }
-fixpoint bool key_is_nth(list<time_t> timestamps, size_t k, time_t v) { return nth(k, timestamps) == v; }
+fixpoint bool value_is_nth(list<time_t> timestamps, size_t k, time_t v) { return nth(k, timestamps) == v; }
 
-predicate poolp_items(size_t start, list<time_t> timestamps, list<pair<size_t, time_t> > items) =
-	start == length(timestamps) ? items == nil
-	                            : (poolp_items(start + 1, timestamps, ?items_rest) &*&
-		                       nth(start, timestamps) == TIME_INVALID ? items == items_rest
-		                                                              : (items_rest == ghostmap_remove(items, start) &*&
-		                                                                 length(items_rest) == length(items) - 1 &*&
-		                                                                 ghostmap_get(items, start) == some(nth(start, timestamps))));
-
-predicate poolp(struct os_pool* pool, size_t size, time_t expiration_time, list<pair<size_t, time_t> > used_items) =
+predicate poolp_raw(struct os_pool* pool; size_t size, time_t expiration_time, list<time_t> timestamps) =
 	struct_os_pool_padding(pool) &*&
 	pool->size |-> size &*&
 	pool->expiration_time |-> expiration_time &*&
 	pool->timestamps |-> ?raw_timestamps &*&
-	PRED_times(raw_timestamps, size, ?timestamps) &*&
-	size == length(timestamps) &*&
-	poolp_items(0, timestamps, used_items);
+	PRED_times(raw_timestamps, size, timestamps);
+
+predicate poolp_truths(list<time_t> timestamps, list<pair<size_t, time_t> > items) =
+//	true == ghostmap_forall(items, (key_within_bounds)(length(timestamps))) &*&
+//	true == ghostmap_forall(items, value_is_valid) &*&
+	true == ghostmap_forall(items, (value_is_nth)(timestamps)) &*&
+	forall_(size_t k; (idx_in_bounds(k, timestamps) && !nth_eq(k, timestamps, TIME_INVALID)) == ghostmap_has(items, k));
+
+predicate poolp(struct os_pool* pool, size_t size, time_t expiration_time, list<pair<size_t, time_t> > items) =
+	poolp_raw(pool, size, expiration_time, ?timestamps) &*&
+	poolp_truths(timestamps, items);
 @*/
 
 /*@
-// Note: We repeat 3x the same lemma with a different predicate; would be nice to factor this out...
-
-lemma void keys_in_range(size_t start)
-requires poolp_items(start, ?timestamps, ?items) &*&
-         start <= length(timestamps);
-ensures poolp_items(start, timestamps, items) &*&
-        true == ghostmap_forall(items, (key_in_range)(timestamps));
+lemma void time_validity_to_presence(size_t index, list<pair<size_t, time_t> > items)
+requires poolp_raw(?pool, ?size, ?exp_time, ?timestamps) &*&
+         poolp_truths(timestamps, items) &*&
+         true == idx_in_bounds(index, timestamps);
+ensures poolp_raw(pool, size, exp_time, timestamps) &*&
+	poolp_truths(timestamps, items) &*&
+        nth_eq(index, timestamps, TIME_INVALID) ? ghostmap_get(items, index) == none
+                                                : ghostmap_get(items, index) == some(nth(index, timestamps));
 {
-	open poolp_items(start, timestamps, items);
-	if (start != length(timestamps)) {
-		keys_in_range(start + 1);
-		if (nth(start, timestamps) != TIME_INVALID) {
-			ghostmap_extra_preserves_forall(items, (key_in_range)(timestamps), start, nth(start, timestamps));
-		}
+	open poolp_truths(timestamps, items);
+	if (ghostmap_has(items, index)) {
+		assert ghostmap_get(items, index) == some(?ts);
+		ghostmap_forall_implies_pred(items, (value_is_nth)(timestamps), index, ts);
 	}
-	close poolp_items(start, timestamps, items);
-}
-
-lemma void values_are_valid(size_t start)
-requires poolp_items(start, ?timestamps, ?items);
-ensures poolp_items(start, timestamps, items) &*&
-        true == ghostmap_forall(items, value_is_valid);
-{
-	open poolp_items(start, timestamps, items);
-	if (start != length(timestamps)) {
-		values_are_valid(start + 1);
-		if (nth(start, timestamps) != TIME_INVALID) {
-			ghostmap_extra_preserves_forall(items, value_is_valid, start, nth(start, timestamps));
-		}
-	}
-	close poolp_items(start, timestamps, items);
-}
-
-lemma void keys_are_nth(size_t start)
-requires poolp_items(start, ?timestamps, ?items);
-ensures poolp_items(start, timestamps, items) &*&
-        true == ghostmap_forall(items, (key_is_nth)(timestamps));
-{
-	open poolp_items(start, timestamps, items);
-	if (start != length(timestamps)) {
-		keys_are_nth(start + 1);
-		if (nth(start, timestamps) != TIME_INVALID) {
-			ghostmap_extra_preserves_forall(items, (key_is_nth)(timestamps), start, nth(start, timestamps));
-		}
-	}
-	close poolp_items(start, timestamps, items);
-}
-
-lemma void valid_index_in(size_t start, size_t index)
-requires poolp_items(start, ?timestamps, ?items) &*&
-         start <= index &*& index < length(timestamps) &*&
-         nth(index, timestamps) != TIME_INVALID;
-ensures poolp_items(start, timestamps, items) &*&
-        ghostmap_get(items, index) == some(nth(index, timestamps));
-{
-	open poolp_items(start, timestamps, items);
-	switch (ghostmap_get(items, index)) {
-		case none:
-			if (start != length(timestamps)) {
-				valid_index_in(start + 1, index);
-			}
-		case some(ts):
-			close poolp_items(start, timestamps, items);
-			keys_are_nth(start);
-			open poolp_items(start, timestamps, items);
-			ghostmap_forall_implies_pred(items, (key_is_nth)(timestamps), index, ts);
-		
-	}
-	close poolp_items(start, timestamps, items);
-}
-
-lemma void invalid_index_not_in(size_t start, size_t index)
-requires poolp_items(start, ?timestamps, ?items) &*&
-         nth(index, timestamps) == TIME_INVALID;
-ensures poolp_items(start, timestamps, items) &*&
-        ghostmap_get(items, index) == none;
-{
-	open poolp_items(start, timestamps, items);
-	switch (ghostmap_get(items, index)) {
-		case none:
-			if (start != length(timestamps)) {
-				invalid_index_not_in(start + 1, index);
-			}
-		case some(ts):
-			close poolp_items(start, timestamps, items);
-			values_are_valid(start);
-			keys_are_nth(start);
-			open poolp_items(start, timestamps, items);
-			ghostmap_forall_implies_pred(items, value_is_valid, index, ts);
-			ghostmap_forall_implies_pred(items, (key_is_nth)(timestamps), index, ts);
-			assert false;
-	}
-	close poolp_items(start, timestamps, items);
-}
-@*/
-
-/*@
-lemma void empty_items(list<time_t> timestamps)
-requires true == all_eq(timestamps, TIME_INVALID);
-ensures poolp_items(0, timestamps, nil);
-{
-	close poolp_items(length(timestamps), timestamps, nil);
-	for (size_t n = length(timestamps); n > 0; n--)
-	invariant 0 <= n &*& n <= length(timestamps) &*&
-	          poolp_items(n, timestamps, nil);
-	decreases n;
-	{
-		all_eq_nth(timestamps, TIME_INVALID, n - 1);
-		close poolp_items(n - 1, timestamps, nil);
-	}
+	close poolp_truths(timestamps, items);
 }
 @*/
 
@@ -167,9 +76,11 @@ struct os_pool* os_pool_alloc(size_t size, time_t expiration_time)
 		//@ chars_to_time(raw_timestamps + n - 1);
 		pool->timestamps[n - 1] = TIME_INVALID;
 	}
+
 	//@ assert pool->timestamps |-> ?raw_timestamps;
 	//@ assert PRED_times(raw_timestamps, size, ?timestamps);
-	//@ empty_items(timestamps);
+	//@ forall_eq_nth(timestamps, TIME_INVALID);
+	//@ close poolp_truths(timestamps, nil);
 	//@ close poolp(pool, size, expiration_time, nil);
 	return pool;
 }
@@ -186,8 +97,10 @@ bool os_pool_borrow(struct os_pool* pool, time_t time, size_t* out_index, bool* 
             	   *out_used |-> ?used &*&
             	   poolp(pool, size, exp_time, ghostmap_set(items, index, time)) &*&
             	   index < size &*&
-            	   used ? (ghostmap_get(items, index) == some(?old) &*& old < time - exp_time)
-            	        : (ghostmap_get(items, index) == none)); @*/
+            	   switch (ghostmap_get(items, index)) {
+                   	case some(old): return used == true &*& old < time - exp_time;
+                   	case none: return used == false;
+            	   }); @*/
 {
 	//@ assume(false);
 }
@@ -202,24 +115,20 @@ void os_pool_refresh(struct os_pool* pool, time_t time, size_t index)
 }
 
 /*@
-lemma void index_too_large(size_t index)
-requires poolp_items(?start, ?timestamps, ?items) &*&
-         start <= length(timestamps) &*&
+lemma void index_too_large(size_t index, list<pair<size_t, time_t> > items)
+requires poolp_truths(?timestamps, items) &*&
          index >= length(timestamps);
-ensures poolp_items(start, timestamps, items) &*&
+ensures poolp_truths(timestamps, items) &*&
         ghostmap_get(items, index) == none;
 {
-	open poolp_items(start, timestamps, items);
+	open poolp_truths(timestamps, items);
 	switch (ghostmap_get(items, index)) {
 		case none:
 		case some(ts):
-			close poolp_items(start, timestamps, items);
-			keys_in_range(start);
-			open poolp_items(start, timestamps, items);
-			ghostmap_forall_implies_pred(items, (key_in_range)(timestamps), index, ts);
+			assert !idx_in_bounds(index, timestamps);
 			assert false;
 	}
-	close poolp_items(start, timestamps, items);
+	close poolp_truths(timestamps, items);
 }
 @*/
 
@@ -234,23 +143,18 @@ bool os_pool_used(struct os_pool* pool, size_t index, time_t* out_time)
 {
 	//@ open poolp(pool, size, exp_time, items);
 	if (index >= pool->size) {
-		//@ index_too_large(index);
+		//@ index_too_large(index, items);
 		//@ close poolp(pool, size, exp_time, items);
 		return false;
 	}
-	/*@
-	if (pool->timestamps[index] == TIME_INVALID) {
-		invalid_index_not_in(0, index);
-	} else {
-		valid_index_in(0, index);
-	}
-	@*/
+	//@ close poolp_raw(pool, size, exp_time, ?timestamps);
+	//@ time_validity_to_presence(index, items);
 	*out_time = pool->timestamps[index];
 	return *out_time != TIME_INVALID;
 	//@ close poolp(pool, size, exp_time, items);
 }
 
-/*@
+/*
 lemma void items_update_remove(size_t start, size_t index)
 requires poolp_items(start, ?timestamps, ?items) &*&
          nth(index, timestamps) != TIME_INVALID &*&
@@ -273,15 +177,8 @@ void os_pool_return(struct os_pool* pool, size_t index)
              ghostmap_get(items, index) != none; @*/
 /*@ ensures poolp(pool, size, exp_time, ghostmap_remove(items, index)); @*/
 {
+	//@ assume(false);
 	//@ open poolp(pool, size, exp_time, items);
-	//@ assert poolp_items(0, ?timestamps, items);
-	/*@
-	if (nth(index, timestamps) == TIME_INVALID) {
-		invalid_index_not_in(0, index);
-		assert false;
-	}
-	@*/
 	pool->timestamps[index] = TIME_INVALID;
-	//@ items_update_remove(0, index);
 	//@ close poolp(pool, size, exp_time, ghostmap_remove(items, index));
 }

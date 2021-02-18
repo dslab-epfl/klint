@@ -18,6 +18,18 @@ ensures lst == nil;
   }
 }
 
+lemma void forall_eq_nth<t>(list<t> lst, t item)
+requires true == all_eq(lst, item);
+ensures forall_(int n; n < 0 || n >= length(lst) || nth(n, lst) == item);
+{
+	for (int k = 0; k < length(lst); k++)
+	invariant 0 <= k &*& k <= length(lst) &*& forall_(int n; n < 0 || n >= k || nth(n, lst) == item);
+	decreases length(lst) - k;
+	{
+		all_eq_nth(lst, item, k);
+	}
+}
+
 
 lemma void nth_0_head<t>(list<t> lst)
 requires lst != nil;
