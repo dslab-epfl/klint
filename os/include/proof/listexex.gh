@@ -3,6 +3,17 @@
 
 #include <listex.gh>
 
+lemma void forall_nth_unchanged<t>(int idx, t x, list<t> xs)
+requires emp;
+ensures forall_(int other; nth(other, xs) == nth(other, update(idx, x, xs)) || idx == other);
+{
+	switch (xs) {
+		case nil:
+		case cons(h, t):
+			forall_nth_unchanged(idx - 1, x, t);
+	}
+}
+
 lemma void length_0_nil<T>(list<T> lst)
 requires length(lst) == 0;
 ensures lst == nil;

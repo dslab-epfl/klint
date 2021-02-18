@@ -45,6 +45,7 @@ bool os_pool_borrow(struct os_pool* pool, time_t time, size_t* out_index, bool* 
 
 void os_pool_refresh(struct os_pool* pool, time_t time, size_t index);
 /*@ requires poolp(pool, ?size, ?exp_time, ?items) &*&
+             time != TIME_INVALID &*&
              index < size &*&
              ghostmap_get(items, index) != none; @*/
 /*@ ensures poolp(pool, size, exp_time, ghostmap_set(items, index, time)); @*/
