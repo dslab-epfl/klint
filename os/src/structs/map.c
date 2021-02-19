@@ -7,9 +7,9 @@
 //@ #include "proof/modulo.gh"
 //@ #include "proof/mod-pow2.gh"
 //@ #include "proof/nth-prop.gh"
-//@ #include "proof/sizeex.gh"
 //@ #include "proof/stdex.gh"
 
+// TODO should no longer be true
 // !!! IMPORTANT !!!
 // To verify, 'default_value_eq_zero' needs to be turned from a lemma_auto to a lemma in prelude_core.gh, see verifast issue 68
 
@@ -21,6 +21,32 @@ struct os_map_item {
 	bool busy;
 	uint8_t _padding[3];
 };
+
+/*@
+  inductive map_item = map_item(void*, size_t, size_t, hash_t, bool);
+  
+  fixpoint void* map_item_key_addr(map_item item) { switch(item) { case map_item(key_addr, value, chain, key_hash, busy): return key_addr; } }
+  fixpoint size_t map_item_value(map_item item) { switch(item) { case map_item(key_addr, value, chain, key_hash, busy): return value; } }
+  fixpoint size_t map_item_chain(map_item item) { switch(item) { case map_item(key_addr, value, chain, key_hash, busy): return chain; } }
+  fixpoint hash_t map_item_key_hash(map_item item) { switch(item) { case map_item(key_addr, value, chain, key_hash, busy): return key_hash; } }
+  fixpoint bool map_item_busy(map_item item) { switch(item) { case map_item(key_addr, value, chain, key_hash, busy): return busy; } }
+  
+  predicate map_itemp(struct os_map_item* ptr; map_item item) =
+    ptr->key_addr |-> ?key_addr &*&
+    ptr->value |-> ?value &*&
+    ptr->chain |-> ?chain &*&
+    ptr->key_hash |-> ?key_hash &*&
+    ptr->busy |-> ?busy &*&
+    ptr->_padding |-> ?_padding &*&
+    item == map_item(key_addr, value, chain, key_hash, busy);
+    
+  predicate map_itemsp(struct os_map_item* ptr, int count; list<map_item> items) =
+      count == 0 ?
+        items == nil
+      :
+        map_itemp(ptr, ?item) &*& map_itemsp(ptr + 1, count - 1, ?items_tail) &*&
+        items == cons(item, items_tail);
+@*/
 
 struct os_map {
 	struct os_map_item* items;
@@ -101,8 +127,8 @@ struct os_map {
   // Addresses + key options + values => Map values + Map addresses
   // NOTE: It is crucial that this predicate be expressed without using ghostmap_set!
   //       Using set would impose an order, which makes the rest of the proof (probably?) infeasible.
-  predicate map_valuesaddrs(list<void*> kaddrs, list<option<list<char> > > key_opts, list<void*> values,
-                            list<pair<list<char>, void*> > map_values, list<pair<list<char>, void*> > map_addrs) =
+  predicate map_valuesaddrs(list<void*> kaddrs, list<option<list<char> > > key_opts, list<size_t> values,
+                            list<pair<list<char>, size_t> > map_values, list<pair<list<char>, void*> > map_addrs) =
     switch(kaddrs) {
       case nil:
         return key_opts == nil &*&
@@ -127,8 +153,8 @@ struct os_map {
 
   // Keys + busybits + hashes + values => key options + map values + map addresses
   predicate mapp_core(size_t key_size, size_t capacity,
-                      list<void*> kaddrs, list<bool> busybits, list<hash_t> hashes, list<void*> values,
-                      list<option<list<char> > > key_opts, list<pair<list<char>, void*> > map_values, list<pair<list<char>, void*> > map_addrs) =
+                      list<void*> kaddrs, list<bool> busybits, list<hash_t> hashes, list<size_t> values,
+                      list<option<list<char> > > key_opts, list<pair<list<char>, size_t> > map_values, list<pair<list<char>, void*> > map_addrs) =
      key_opt_list(key_size, kaddrs, busybits, key_opts) &*&
      map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs) &*&
      hash_list(key_opts, hashes) &*&
@@ -141,23 +167,19 @@ struct os_map {
      length(map_values) == length(map_addrs);
 
   // Map => its contents
-  predicate mapp_raw(struct os_map* map; list<void*> kaddrs, list<bool> busybits, list<hash_t> hashes, list<size_t> chains, list<void*> values, size_t key_size, size_t capacity) =
-    struct_os_map_padding(map) &*&
-    map->kaddrs |-> ?kaddrs_ptr &*&
-    map->busybits |-> ?busybits_ptr &*&
-    map->hashes |-> ?hashes_ptr &*&
-    map->chains |-> ?chains_ptr &*&
-    map->values |-> ?values_ptr &*&
-    map->key_size |-> key_size &*&
-    map->capacity |-> capacity &*&
-    kaddrs_ptr[0..capacity] |-> kaddrs &*&
-    busybits_ptr[0..capacity] |-> busybits &*&
-    hashes_ptr[0..capacity] |-> hashes &*&
-    chains_ptr[0..capacity] |-> chains &*&
-    values_ptr[0..capacity] |-> values;
+  predicate mapp_raw(struct os_map* m; list<void*> kaddrs, list<bool> busybits, list<hash_t> hashes, list<size_t> chains, list<size_t> values, size_t key_size, size_t capacity) =
+    struct_os_map_padding(m) &*&
+    m->key_size |-> key_size &*&
+    m->capacity |-> capacity &*&
+    map_itemsp(m->items, capacity, ?items) &*&
+    kaddrs == map(map_item_key_addr, items) &*&
+    busybits == map(map_item_busy, items) &*&
+    hashes == map(map_item_key_hash, items) &*&
+    values == map(map_item_value, items) &*&
+    chains == map(map_item_chain, items);
 
   // Combine everything, including the chains optimization
-  predicate mapp(struct os_map* map, size_t key_size, size_t capacity, list<pair<list<char>, void*> > map_values, list<pair<list<char>, void*> > map_addrs) =
+  predicate mapp(struct os_map* map, size_t key_size, size_t capacity, list<pair<list<char>, size_t> > map_values, list<pair<list<char>, void*> > map_addrs) =
     mapp_raw(map, ?kaddrs, ?busybits, ?hashes, ?chains, ?values, key_size, ?real_capacity) &*&
     mapp_core(key_size, real_capacity, kaddrs, busybits, hashes, values, ?key_opts, map_values, map_addrs) &*&
     buckets_keys_insync(real_capacity, chains, ?buckets, key_opts) &*&
@@ -208,48 +230,6 @@ static size_t loop(size_t start, size_t i, size_t capacity)
 }
 
 /*@
-lemma void move_chain(size_t* data, size_t i, size_t len)
-  requires data[0..i] |-> ?l1 &*&
-           data[i..len] |-> ?l2 &*&
-           l2 == cons(?l2h, ?l2t) &*&
-           i < len;
-  ensures data[0..(i + 1)] |-> append(l1, cons(l2h, nil)) &*&
-          data[(i + 1)..len] |-> tail(l2);
-{
-  open PRED_sizes(data, i, l1);
-  switch(l1) {
-    case nil:
-      open PRED_sizes(data, len-i, l2);
-      close PRED_sizes(data, 1, cons(l2h, nil));
-    case cons(h, t):
-      move_chain(data+1, i-1, len-1);
-  }
-  close PRED_sizes(data, i+1, append(l1, cons(l2h, nil)));
-}
-
-// ---
-
-lemma void move_busybit(bool* data, size_t i, size_t len)
-  requires data[0..i] |-> ?l1 &*&
-           data[i..len] |-> ?l2 &*&
-           l2 == cons(?l2h, ?l2t) &*&
-           i < len;
-  ensures data[0..(i + 1)] |-> append(l1, cons(l2h, nil)) &*&
-          data[(i + 1)..len] |-> tail(l2);
-{
-  open bools(data, i, l1);
-  switch(l1) {
-    case nil:
-      open bools(data, len-i, l2);
-      close bools(data, 1, cons(l2h, nil));
-    case cons(h, t):
-      move_busybit(data+1, i-1, len-1);
-  }
-  close bools(data, i+1, append(l1, cons(l2h, nil)));
-}
-
-// ---
-
 lemma void extend_repeat_n<t>(nat len, t extra, t z)
   requires true;
   ensures update(int_of_nat(len), z, append(repeat_n(len, z), cons(extra, nil))) == repeat_n(succ(len), z);
@@ -374,7 +354,7 @@ lemma void repeat_none_is_opt_no_dups<t>(nat n, list<option<t> > opts)
   }
 }
 
-lemma void produce_empty_map_valuesaddrs(size_t capacity, list<void*> kaddrs, list<void*> values)
+lemma void produce_empty_map_valuesaddrs(size_t capacity, list<void*> kaddrs, list<size_t> values)
   requires length(kaddrs) == length(values) &*& length(kaddrs) == capacity;
   ensures map_valuesaddrs(kaddrs, repeat_n(nat_of_int(capacity), none), values, nil, nil);
 {
@@ -399,7 +379,7 @@ lemma void produce_empty_map_valuesaddrs(size_t capacity, list<void*> kaddrs, li
 @*/
 
 struct os_map* os_map_alloc(size_t key_size, size_t capacity)
-/*@ requires capacity <= (SIZE_MAX / 16); @*/
+/*@ requires capacity <= SIZE_MAX / 2; @*/
 /*@ ensures mapp(result, key_size, capacity, nil, nil); @*/
 {
   struct os_map* map = (struct os_map*) os_memory_alloc(1, sizeof(struct os_map));
@@ -1095,7 +1075,7 @@ lemma void put_keeps_key_opt_list(list<void*> kaddrs, list<bool> busybits, list<
 
 // ---
 
-lemma void map_values_has_not_implies_key_opts_has_not(list<pair<list<char>, void*> > map_values, list<option<list<char> > > key_opts, list<char> key)
+lemma void map_values_has_not_implies_key_opts_has_not(list<pair<list<char>, size_t> > map_values, list<option<list<char> > > key_opts, list<char> key)
 requires map_valuesaddrs(?kaddrs, key_opts, ?values, map_values, ?map_addrs) &*&
          ghostmap_get(map_values, key) == none;
 ensures map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs) &*&
@@ -1213,7 +1193,7 @@ lemma void put_preserves_no_dups(list<option<list<char> > > key_opts, size_t i, 
 
 // ---
 
-lemma void put_updates_valuesaddrs(size_t index, void* key_ptr, list<char> key, void* value)
+lemma void put_updates_valuesaddrs(size_t index, void* key_ptr, list<char> key, size_t value)
   requires map_valuesaddrs(?kaddrs, ?key_opts, ?values, ?map_values, ?map_addrs) &*&
            0 <= index &*& index < length(key_opts) &*&
            nth(index, key_opts) == none &*&

@@ -9,11 +9,11 @@
 
 struct os_map;
 
-//@ predicate mapp(struct os_map* map, size_t key_size, size_t capacity, list<pair<list<char>, void*> > values, list<pair<list<char>, void*> > addrs);
+//@ predicate mapp(struct os_map* map, size_t key_size, size_t capacity, list<pair<list<char>, size_t> > values, list<pair<list<char>, void*> > addrs);
 
 
 struct os_map* os_map_alloc(size_t key_size, size_t capacity);
-/*@ requires capacity <= (SIZE_MAX / 16); @*/
+/*@ requires capacity <= SIZE_MAX / 2; @*/
 /*@ ensures mapp(result, key_size, capacity, nil, nil); @*/
 
 bool os_map_get(struct os_map* map, void* key_ptr, size_t* out_value);
