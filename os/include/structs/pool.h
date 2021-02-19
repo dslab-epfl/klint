@@ -20,7 +20,7 @@ typedef uint64_t time_t;
 struct os_pool;
 
 //@ predicate poolp(struct os_pool* pool, size_t size, time_t expiration_time, list<pair<size_t, time_t> > used_items);
-//@ fixpoint bool pool_young(time_t time, time_t expiration_time, size_t k, time_t v) { return time < expiration_time || time - expiration_time < v; }
+//@ fixpoint bool pool_young(time_t time, time_t expiration_time, size_t k, time_t v) { return time < expiration_time || time - expiration_time <= v; }
 
 struct os_pool* os_pool_alloc(size_t size, time_t expiration_time);
 /*@ requires emp; @*/

@@ -62,6 +62,11 @@ fixpoint bool ghostmap_has<k, v>(list<pair<k, v> > ghostmap, k key) {
   return ghostmap_get(ghostmap, key) != none;
 }
 
+fixpoint bool ghostmap_key_gte<v>(int limit, int key, v value) {
+  return key >= limit;
+}
+
+
 // -- Lemmas --
 
 // Some of the normal lemmas should be autolemmas but VeriFast either errors or crashes if that's the case
@@ -450,12 +455,11 @@ ensures ghostmap == nil;
 }
 
 fixpoint bool _bounds_check(int a, int n, int b) { return a <= n && n < b; }
-
-lemma void ghostmap_array_size_close_loophole<v>(list<pair<int, v> > remaining, int size, int i, int i2)
+lemma void ghostmap_array_size_HACK<v>(list<pair<int, v> > remaining, int size, int i, int i2)
 requires forall_(int n; _bounds_check(i2, n, size) == ghostmap_has(remaining, n) || n == i) &*& i2 == i + 1;
 ensures forall_(int n; _bounds_check(i2, n, size) == ghostmap_has(ghostmap_remove(remaining, i), n) || n == i);
 {
-	// Nothing needed, VeriFast can prove this on its own but only in isolation
+  // Nothing needed, VeriFast can prove this on its own but only in isolation
 }
 lemma void ghostmap_array_size<v>(list<pair<int, v> > ghostmap, int size)
 requires forall_(int n; _bounds_check(0, n, size) == ghostmap_has(ghostmap, n)) &*&
@@ -463,20 +467,45 @@ requires forall_(int n; _bounds_check(0, n, size) == ghostmap_has(ghostmap, n)) 
          size >= 0;
 ensures length(ghostmap) == size;
 {
-	list<pair<int, v> > remaining = ghostmap;
-	for (int i = 0; i < size; i++)
-	invariant 0 <= i &*& i <= size &*&
-	          forall_(int n; _bounds_check(i, n, size) == ghostmap_has(remaining, n)) &*&
-	          true == ghostmap_distinct(remaining) &*&
-	          length(ghostmap) == length(remaining) + i;
-	decreases size - i;
-	{
-		assert true == ghostmap_has(remaining, i);
-		list<pair<int, v> > next = ghostmap_remove(remaining, i);
-		ghostmap_get_none_after_remove(remaining, i);
-		ghostmap_array_size_close_loophole(remaining, size, i, i + 1);
-		ghostmap_remove_when_distinct_and_present_decreases_length(remaining, i);
-		remaining = next;
-	}
-	ghostmap_has_nothing_implies_nil(remaining);
+  list<pair<int, v> > remaining = ghostmap;
+  for (int i = 0; i < size; i++)
+  invariant 0 <= i &*& i <= size &*&
+            forall_(int n; _bounds_check(i, n, size) == ghostmap_has(remaining, n)) &*&
+            true == ghostmap_distinct(remaining) &*&
+            length(ghostmap) == length(remaining) + i;
+  decreases size - i;
+  {
+    assert true == ghostmap_has(remaining, i);
+    list<pair<int, v> > next = ghostmap_remove(remaining, i);
+    ghostmap_get_none_after_remove(remaining, i);
+    ghostmap_array_size_HACK(remaining, size, i, i + 1);
+    ghostmap_remove_when_distinct_and_present_decreases_length(remaining, i);
+    remaining = next;
+  }
+  ghostmap_has_nothing_implies_nil(remaining);
+}
+
+lemma void ghostmap_keys_gte_HACK<v>(list<pair<int, v> > ghostmap, int limit)
+requires ghostmap == cons(?h, ?t) &*&
+         forall_(int k; !ghostmap_has(ghostmap, k) || ghostmap_key_gte(limit, k, 0));
+ensures forall_(int k; !ghostmap_has(t, k) || ghostmap_key_gte(limit, k, 0));
+{
+  // Nothing needed, VeriFast can prove this on its own but only in isolation
+}
+lemma void ghostmap_keys_gte<v>(list<pair<int, v> > ghostmap, int limit)
+requires forall_(int k; !ghostmap_has(ghostmap, k) || k >= limit);
+ensures true == ghostmap_forall(ghostmap, (ghostmap_key_gte)(limit));
+{
+  switch(ghostmap) {
+     case nil:
+     case cons(h, t):
+       switch(h) {
+         case pair(hk, hv):
+           ghostmap_keys_gte_HACK(ghostmap, limit);
+           ghostmap_keys_gte(t, limit);
+           if (hk < limit) {
+             assert !ghostmap_has(ghostmap, hk);
+           }
+       }
+  }
 }
