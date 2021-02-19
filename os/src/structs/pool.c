@@ -11,6 +11,7 @@
 // PROOF NOTES:
 	// Weird things Redux cannot figure out without these hints
 // TODO: Write more
+// TODO: Try the 'note' workaround instead of the hacky lemmas (also in ghost_map.gh!)
 
 
 // TODO: Redux triggers some inconsistencies, see console output; but Z3 is fine; probably need to minimize an example and report it...
@@ -100,6 +101,32 @@ ensures poolp_truths(update(index, time, timestamps), ghostmap_set(items, index,
 
 // TODO do we need this?
 fixpoint bool nth_is_young(time_t time, time_t expiration_time, size_t n, list<time_t> timestamps) { return time < expiration_time || time - expiration_time <= nth(n, timestamps); }
+
+lemma void pool_items_implication_tail(list<pair<size_t, time_t> > items, list<time_t> timestamps, time_t time, time_t exp_time)
+requires items == cons(?h, ?t) &*&
+         true == ghostmap_distinct(items) &*&
+         forall_(size_t k; !ghostmap_has(items, k) || (ghostmap_get(items, k) == some(nth(k, timestamps))));
+ensures forall_(size_t k; !ghostmap_has(t, k) || (ghostmap_get(t, k) == some(nth(k, timestamps))));
+{
+	assert h == pair(?hk, ?hv);
+	assert !ghostmap_has(t, hk);
+}
+
+lemma void pool_items_young_forall_to_ghostmap(list<pair<size_t, time_t> > items, list<time_t> timestamps, time_t time, time_t exp_time)
+requires true == ghostmap_distinct(items) &*&
+         forall_(size_t k; !ghostmap_has(items, k) || (ghostmap_get(items, k) == some(nth(k, timestamps)))) &*&
+         forall_(size_t k; !ghostmap_has(items, k) || nth_is_young(time, exp_time, k, timestamps));
+ensures true == ghostmap_forall(items, (pool_young)(time, exp_time));
+{
+	switch (items) {
+		case nil:
+		case cons(h, t):
+			assert h == pair(?hk, ?hv);
+			pool_items_implication_tail(items, timestamps, time, exp_time);
+			pool_items_young_forall_to_ghostmap(t, timestamps, time, exp_time);
+			assert ghostmap_get(items, hk) == some(hv);
+	}
+}
 @*/
 
 bool os_pool_borrow(struct os_pool* pool, time_t time, size_t* out_index, bool* out_used)
@@ -151,41 +178,9 @@ bool os_pool_borrow(struct os_pool* pool, time_t time, size_t* out_index, bool* 
 			return true;
 		}
 	}
-	
-	// TODO
-	// assume(true == ghostmap_forall(items, (pool_young)(time, exp_time)));
-
 	//@ open poolp_truths(timestamps, items);
 	//@ ghostmap_array_size(items, size);
-	
-	
-	
-	// assert forall_(size_t k; !(0 <= k && k < size) || pool_young(time, exp_time, k, nth(k, timestamps)));
-	// assert forall_(size_t k; !ghostmap_has(items, k) || pool_young(time, exp_time, k, nth(k, timestamps)));
-	// assert forall_(size_t k; !(0 <= k && k < size) || ghostmap_has_or_none(items, k, nth(k, timestamps)));
-	// assert forall_(size_t k; !ghostmap_has(items, k) || ghostmap_has_or_none(items, k, nth(k, timestamps)));
-	// assert forall_(size_t k; !ghostmap_has(items, k) || (ghostmap_has_or_none(items, k, nth(k, timestamps)) && pool_young(time, exp_time, k, nth(k, timestamps))));
-	
-	// assume(false);
-	// assert true == ghostmap_forall(items, (value_is_nth)(timestamps));
-	// assert forall_(size_t k; ghostmap_has2(items, k, nth(k, timestamps)));
-	
-	
-	
-	// assert forall_(size_t k; (idx_in_bounds(k, timestamps) && !nth_eq(k, timestamps, TIME_INVALID)) == ghostmap_has(items, k));
-	// assert forall_(size_t k; idx_in_bounds(k, timestamps) == ghostmap_has(items, k));
-	// assert forall_(size_t k; !idx_in_bounds(k, timestamps) || !nth_eq(k, timestamps, TIME_INVALID));
-
-	// assert forall_(size_t k; ghostmap_has_or_none(items, k, nth(k, timestamps)));
-	
-	//@ assert forall_(size_t k; !(0 <= k && k < size) || nth_is_young(time, exp_time, k, timestamps));
-	
-	//@ assert forall_(size_t k; (0 <= k && k < size) == ghostmap_has(items, k));
-	//@ assert forall_(size_t k; !ghostmap_has(items, k) || nth_is_young(time, exp_time, k, timestamps));
-	//@ assert forall_(size_t k; (0 <= k && k < size) == (ghostmap_get(items, k) == some(nth(k, timestamps))));
-
-	//@ assume(true == ghostmap_forall(items, (pool_young)(time, exp_time)));
-	
+	//@ pool_items_young_forall_to_ghostmap(items, timestamps, time, exp_time);
 	//@ close poolp_truths(timestamps, items);
 	//@ close poolp(pool, size, exp_time, items);
 	return false;

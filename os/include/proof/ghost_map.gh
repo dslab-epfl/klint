@@ -1,6 +1,7 @@
 #pragma once
 
 // TODO: Remove unused lemmas if they're pointless or overly specific
+// TODO: Replace all switch(h) { case pair(hk, hv): ... } with assert h == pair(?hk, ?hv);
 
 // -- Contract API --
 
