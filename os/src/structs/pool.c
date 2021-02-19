@@ -14,17 +14,19 @@ struct os_pool {
 	time_t* timestamps;
 	size_t size;
 	time_t expiration_time;
+	size_t last_borrowed_index;
 };
 
 /*@
 fixpoint bool idx_in_bounds<t>(size_t i, list<t> xs) { return 0 <= i && i < length(xs); }
 fixpoint bool nth_eq<t>(size_t i, list<t> xs, t x) { return nth(i, xs) == x; }
 
-predicate poolp_raw(struct os_pool* pool; size_t size, time_t expiration_time, list<time_t> timestamps) =
+predicate poolp_raw(struct os_pool* pool; size_t size, time_t expiration_time, size_t last_borrowed_index, list<time_t> timestamps) =
 	struct_os_pool_padding(pool) &*&
+	pool->timestamps |-> ?raw_timestamps &*&
 	pool->size |-> size &*&
 	pool->expiration_time |-> expiration_time &*&
-	pool->timestamps |-> ?raw_timestamps &*&
+	pool->last_borrowed_index |-> last_borrowed_index &*&
 	raw_timestamps[0..size] |-> timestamps;
 
 predicate poolp_truths(list<time_t> timestamps, list<pair<size_t, time_t> > items) =
@@ -33,8 +35,9 @@ predicate poolp_truths(list<time_t> timestamps, list<pair<size_t, time_t> > item
 	forall_(size_t k; !ghostmap_has(items, k) || ghostmap_get(items, k) == some(nth(k, timestamps)));
 
 predicate poolp(struct os_pool* pool, size_t size, time_t expiration_time, list<pair<size_t, time_t> > items) =
-	poolp_raw(pool, size, expiration_time, ?timestamps) &*&
-	poolp_truths(timestamps, items);
+	poolp_raw(pool, size, expiration_time, ?last_borrowed_index, ?timestamps) &*&
+	poolp_truths(timestamps, items) &*&
+	last_borrowed_index <= size;
 @*/
 
 /*@
@@ -158,12 +161,19 @@ bool os_pool_borrow(struct os_pool* pool, time_t time, size_t* out_index, bool* 
                    	case none: return used == false;
             	   }); @*/
 {
+	// Optimization:
+	// Instead of looping through the entire array from zero,
+	// we keep track of the last index we borrowed and start from there next time.
+	// This avoids O(N^2) performance when borrowing a bunch of stuff at startup.
+	// Cloning the loop is the easiest way to do this from a verification perspective.
+
 	//@ open poolp(pool, size, exp_time, items);
+	// These three lines are required to avoid failures later...
 	//@ open poolp_truths(?timestamps, items);
-	// Not sure why but this open/close is required
 	//@ close poolp_truths(timestamps, items);
-	for (size_t n = 0; n < pool->size; n++)
-	/*@ invariant poolp_raw(pool, size, exp_time, timestamps) &*&
+	//@ assert poolp_raw(pool, size, exp_time, ?lbi, timestamps);
+	for (size_t n = 0; n < pool->last_borrowed_index; n++)
+	/*@ invariant poolp_raw(pool, size, exp_time, lbi, timestamps) &*&
 	              poolp_truths(timestamps, items) &*&
 	              *out_index |-> _ &*&
 	              *out_used |-> _ &*&
@@ -173,6 +183,7 @@ bool os_pool_borrow(struct os_pool* pool, time_t time, size_t* out_index, bool* 
 		if (pool->timestamps[n] == TIME_INVALID) {
 			//@ ghostmap_array_max_size(items, size, n);
 			pool->timestamps[n] = time;
+			pool->last_borrowed_index = n;
 			*out_index = n;
 			*out_used = false;
 			//@ truths_update(items, n, time);
@@ -182,6 +193,37 @@ bool os_pool_borrow(struct os_pool* pool, time_t time, size_t* out_index, bool* 
 		if (time >= pool->expiration_time && time - pool->expiration_time > pool->timestamps[n]) {
 			//@ ghostmap_notpred_implies_notforall(items, (pool_young)(time, exp_time), n);
 			pool->timestamps[n] = time;
+			pool->last_borrowed_index = n;
+			*out_index = n;
+			*out_used = true;
+			//@ truths_update(items, n, time);
+			//@ close poolp(pool, size, exp_time, ghostmap_set(items, n, time));
+			return true;
+		}
+	}
+	for (size_t n = pool->last_borrowed_index; n < pool->size; n++)
+	/*@ invariant poolp_raw(pool, size, exp_time, lbi, timestamps) &*&
+	              poolp_truths(timestamps, items) &*&
+	              *out_index |-> _ &*&
+	              *out_used |-> _ &*&
+	              lbi <= size &*&
+	              forall_(size_t k; !(lbi <= k && k < n) || !nth_eq(k, timestamps, TIME_INVALID)) &*&
+	              forall_(size_t k; !(lbi <= k && k < n) || (time < exp_time || time - exp_time <= nth(k, timestamps))); @*/
+	{
+		if (pool->timestamps[n] == TIME_INVALID) {
+			//@ ghostmap_array_max_size(items, size, n);
+			pool->timestamps[n] = time;
+			pool->last_borrowed_index = n;
+			*out_index = n;
+			*out_used = false;
+			//@ truths_update(items, n, time);
+			//@ close poolp(pool, size, exp_time, ghostmap_set(items, n, time));
+			return true;
+		}
+		if (time >= pool->expiration_time && time - pool->expiration_time > pool->timestamps[n]) {
+			//@ ghostmap_notpred_implies_notforall(items, (pool_young)(time, exp_time), n);
+			pool->timestamps[n] = time;
+			pool->last_borrowed_index = n;
 			*out_index = n;
 			*out_used = true;
 			//@ truths_update(items, n, time);
