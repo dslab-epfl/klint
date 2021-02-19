@@ -1,7 +1,6 @@
 #pragma once
 
 // TODO: Remove unused lemmas if they're pointless or overly specific
-// TODO: Replace all switch(h) { case pair(hk, hv): ... } with assert h == pair(?hk, ?hv); (and maybe move to tabs?)
 
 // -- Contract API --
 
@@ -53,6 +52,7 @@ fixpoint bool ghostmap_forall<k, v>(list<pair<k, v> > ghostmap, fixpoint(k, v, b
   }
 }
 
+
 // -- Proof API --
 
 fixpoint bool ghostmap_distinct<k, v>(list<pair<k, v> > ghostmap) {
@@ -61,10 +61,6 @@ fixpoint bool ghostmap_distinct<k, v>(list<pair<k, v> > ghostmap) {
 
 fixpoint bool ghostmap_has<k, v>(list<pair<k, v> > ghostmap, k key) {
   return ghostmap_get(ghostmap, key) != none;
-}
-
-fixpoint bool ghostmap_key_gte<v>(int limit, int key, v value) {
-  return key >= limit;
 }
 
 
@@ -340,14 +336,6 @@ ensures true == ghostmap_forall(ghostmap_remove(ghostmap, key), pred);
   }
 }
 
-lemma void ghostmap_forall_tail<k, v>(list<pair<k, v> > ghostmap, fixpoint(k, v, bool) pred)
-requires ghostmap == cons(?h, ?t) &*&
-         true == ghostmap_forall(ghostmap, pred);
-ensures true == ghostmap_forall(t, pred);
-{
-  assert h == pair(_, _);
-}
-
 lemma void ghostmap_forall_implies_pred<k, v>(list<pair<k, v> > ghostmap, fixpoint(k, v, bool) pred, k key, v value)
 requires true == ghostmap_forall(ghostmap, pred) &*&
          some(value) == ghostmap_get(ghostmap, key);
@@ -405,15 +393,16 @@ ensures true == ghostmap_forall(ghostmap, pred);
 
 // These lemmas are somewhat odd because of forall_'s nature, it's not always easy to prove things and it sometimes requires... creative proofs.
 
-lemma void ghostmap_has_nothing_implies_nil<k, v>(list<pair<k, v> > ghostmap)
-requires forall_(k key; !ghostmap_has(ghostmap, key));
+// This one must use 'int' as the key because that's how it's used below; otherwise, using Z3 fails to prove
+lemma void ghostmap_has_nothing_implies_nil<v>(list<pair<int, v> > ghostmap)
+requires forall_(int key; false == ghostmap_has(ghostmap, key));
 ensures ghostmap == nil;
 {
   switch(ghostmap) {
     case nil:
     case cons(h, t):
       assert h == pair(?hk, ?hv);
-      assert !ghostmap_has(ghostmap, hk);
+      assert false == ghostmap_has(ghostmap, hk); // This line is required when using Redux
   }
 }
 
@@ -480,27 +469,4 @@ ensures length(ghostmap) < size;
     }
   }
   ghostmap_has_nothing_implies_nil(remaining);
-}
-
-lemma void ghostmap_keys_gte_HACK<v>(list<pair<int, v> > ghostmap, int limit)
-requires ghostmap == cons(?h, ?t) &*&
-         forall_(int k; !ghostmap_has(ghostmap, k) || ghostmap_key_gte(limit, k, 0));
-ensures forall_(int k; !ghostmap_has(t, k) || ghostmap_key_gte(limit, k, 0));
-{
-  // Nothing needed, VeriFast can prove this on its own but only in isolation
-}
-lemma void ghostmap_keys_gte<v>(list<pair<int, v> > ghostmap, int limit)
-requires forall_(int k; !ghostmap_has(ghostmap, k) || k >= limit);
-ensures true == ghostmap_forall(ghostmap, (ghostmap_key_gte)(limit));
-{
-  switch(ghostmap) {
-     case nil:
-     case cons(h, t):
-       assert h == pair(?hk, ?hv);
-       ghostmap_keys_gte_HACK(ghostmap, limit);
-       ghostmap_keys_gte(t, limit);
-       if (hk < limit) {
-         assert !ghostmap_has(ghostmap, hk);
-       }
-  }
 }
