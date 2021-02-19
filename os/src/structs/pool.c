@@ -73,14 +73,6 @@ struct os_pool* os_pool_alloc(size_t size, time_t expiration_time)
 }
 
 /*@
-lemma void pool_not_full(list<pair<size_t, time_t> > items, size_t index)
-requires poolp_truths(?timestamps, items) &*&
-         true == nth_eq(index, timestamps, TIME_INVALID);
-ensures poolp_truths(timestamps, items) &*&
-        length(items) != length(timestamps);
-{
-	assume(false);
-}
 lemma void pool_not_young(list<pair<size_t, time_t> > items, size_t index, time_t time, time_t exp_time)
 requires poolp_truths(?timestamps, items) &*&
          time >= exp_time &*&
@@ -146,6 +138,7 @@ bool os_pool_borrow(struct os_pool* pool, time_t time, size_t* out_index, bool* 
 {
 	//@ open poolp(pool, size, exp_time, items);
 	//@ open poolp_truths(?timestamps, items);
+	// Not sure why but this open/close is required
 	//@ close poolp_truths(timestamps, items);
 	for (size_t n = 0; n < pool->size; n++)
 	/*@ invariant poolp_raw(pool, size, exp_time, timestamps) &*&
@@ -157,7 +150,8 @@ bool os_pool_borrow(struct os_pool* pool, time_t time, size_t* out_index, bool* 
 	{
 		//@ close poolp_raw(pool, size, exp_time, timestamps);
 		if (pool->timestamps[n] == TIME_INVALID) {
-			//@ pool_not_full(items, n);
+			//@ assert size > 0;
+			//@ ghostmap_array_max_size(items, size, n);
 			pool->timestamps[n] = time;
 			*out_index = n;
 			*out_used = false;
