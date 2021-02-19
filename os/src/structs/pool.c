@@ -2,8 +2,6 @@
 
 #include "os/memory.h"
 
-//@ #include "proof/listexex.gh"
-
 // Note that 'ghostmap_get(items, index) != none' is not necessary in this implementation for refresh and return.
 // But it should help in other implementations, e.g. using separate linked lists for free/occupied.
 // So we leave it there, because the usefulness of removing the requirement is limited.
@@ -42,12 +40,47 @@ predicate poolp(struct os_pool* pool, size_t size, time_t expiration_time, list<
 @*/
 
 /*@
-lemma void forall_fix_loophole(list<pair<size_t, time_t> > items, list<time_t> timestamps, size_t index)
+lemma void forall_eq_nth<t>(list<t> lst, t item)
+requires true == all_eq(lst, item);
+ensures forall_(int n; n < 0 || n >= length(lst) || nth(n, lst) == item);
+{
+	for (int k = 0; k < length(lst); k++)
+	invariant 0 <= k &*& k <= length(lst) &*& forall_(int n; n < 0 || n >= k || nth(n, lst) == item);
+	decreases length(lst) - k;
+	{
+		all_eq_nth(lst, item, k);
+	}
+}
+
+lemma void forall_nth_unchanged<t>(int idx, t x, list<t> xs)
+requires emp;
+ensures forall_(int other; nth(other, xs) == nth(other, update(idx, x, xs)) || idx == other);
+{
+	switch (xs) {
+		case nil:
+		case cons(h, t):
+			forall_nth_unchanged(idx - 1, x, t);
+	}
+}
+
+lemma void truths_update_HACK(list<pair<size_t, time_t> > items, list<time_t> timestamps, size_t index)
 requires forall_(size_t k; ((idx_in_bounds(k, timestamps) && !nth_eq(k, timestamps, TIME_INVALID)) == ghostmap_has(items, k)) || k == index) &*&
          (idx_in_bounds(index, timestamps) && !nth_eq(index, timestamps, TIME_INVALID)) == ghostmap_has(items, index);
 ensures forall_(size_t k; (idx_in_bounds(k, timestamps) && !nth_eq(k, timestamps, TIME_INVALID)) == ghostmap_has(items, k));
 {
-	// This is required every time we update the truths; for some reason VeriFast can figure it out on its own only when in a lemma.
+	// For some reason VeriFast can figure it out on its own only when in a lemma.
+}
+lemma void truths_update(list<pair<size_t, time_t> > items, size_t index, time_t time)
+requires poolp_truths(?timestamps, items) &*&
+         true == idx_in_bounds(index, timestamps);
+ensures poolp_truths(update(index, time, timestamps), time == TIME_INVALID ? ghostmap_remove(items, index) : ghostmap_set(items, index, time));
+{
+	open poolp_truths(timestamps, items);
+	forall_nth_unchanged(index, time, timestamps);
+	ghostmap_get_none_after_remove(items, index);
+	list<pair<size_t, time_t> > result = time == TIME_INVALID ? ghostmap_remove(items, index) : ghostmap_set(items, index, time);
+	truths_update_HACK(result,  update(index, time, timestamps), index);
+	close poolp_truths(update(index, time, timestamps), result);
 }
 @*/
 
@@ -82,31 +115,6 @@ struct os_pool* os_pool_alloc(size_t size, time_t expiration_time)
 }
 
 /*@
-lemma void pool_items_update_nth(list<time_t> timestamps, size_t index, time_t time)
-requires 0 <= index &*& index < length(timestamps);
-ensures forall_(size_t k; nth(k, timestamps) == nth(k, update(index, time, timestamps)) || k == index);
-{
-	switch (timestamps) {
-		case nil:
-		case cons(h, t):
-			if (index != 0) {
-				pool_items_update_nth(t, index - 1, time);
-			}
-	}
-}
-
-lemma void truths_update_borrow(list<pair<size_t, time_t> > items, size_t index, time_t time)
-requires poolp_truths(?timestamps, items) &*&
-         time != TIME_INVALID &*&
-         0 <= index &*& index < length(timestamps);
-ensures poolp_truths(update(index, time, timestamps), ghostmap_set(items, index, time));
-{
-	open poolp_truths(timestamps, items);
-	pool_items_update_nth(timestamps, index, time);
-	forall_fix_loophole(ghostmap_set(items, index, time),  update(index, time, timestamps), index);
-	close poolp_truths(update(index, time, timestamps), ghostmap_set(items, index, time));
-}
-
 lemma void pool_items_implication_tail(list<pair<size_t, time_t> > items, list<time_t> timestamps, time_t time, time_t exp_time)
 requires items == cons(?h, ?t) &*&
          true == ghostmap_distinct(items) &*&
@@ -169,7 +177,7 @@ bool os_pool_borrow(struct os_pool* pool, time_t time, size_t* out_index, bool* 
 			pool->timestamps[n] = time;
 			*out_index = n;
 			*out_used = false;
-			//@ truths_update_borrow(items, n, time);
+			//@ truths_update(items, n, time);
 			//@ close poolp(pool, size, exp_time, ghostmap_set(items, n, time));
 			return true;
 		}
@@ -178,7 +186,7 @@ bool os_pool_borrow(struct os_pool* pool, time_t time, size_t* out_index, bool* 
 			pool->timestamps[n] = time;
 			*out_index = n;
 			*out_used = true;
-			//@ truths_update_borrow(items, n, time);
+			//@ truths_update(items, n, time);
 			//@ close poolp(pool, size, exp_time, ghostmap_set(items, n, time));
 			return true;
 		}
@@ -191,20 +199,6 @@ bool os_pool_borrow(struct os_pool* pool, time_t time, size_t* out_index, bool* 
 	return false;
 }
 
-/*@	
-lemma void truths_update_refresh(list<pair<size_t, time_t> > items, size_t index, time_t time)
-requires poolp_truths(?timestamps, items) &*&
-         true == idx_in_bounds(index, timestamps) &*&
-         time != TIME_INVALID;
-ensures poolp_truths(update(index, time, timestamps), ghostmap_set(items, index, time));
-{
-	open poolp_truths(timestamps, items);
-	forall_nth_unchanged(index, time, timestamps);
-	forall_fix_loophole(ghostmap_set(items, index, time),  update(index, time, timestamps), index);
-	close poolp_truths(update(index, time, timestamps), ghostmap_set(items, index, time));
-}
-@*/
-
 void os_pool_refresh(struct os_pool* pool, time_t time, size_t index)
 /*@ requires poolp(pool, ?size, ?exp_time, ?items) &*&
              time != TIME_INVALID &*&
@@ -214,7 +208,7 @@ void os_pool_refresh(struct os_pool* pool, time_t time, size_t index)
 {
 	//@ open poolp(pool, size, exp_time, items);
 	pool->timestamps[index] = time;
-	//@ truths_update_refresh(items, index, time);
+	//@ truths_update(items, index, time);
 	//@ close poolp(pool, size, exp_time, ghostmap_set(items, index, time));
 }
 
@@ -240,20 +234,6 @@ bool os_pool_used(struct os_pool* pool, size_t index, time_t* out_time)
 	//@ close poolp(pool, size, exp_time, items);
 }
 
-/*@
-lemma void truths_update_return(list<pair<size_t, time_t> > items, size_t index)
-requires poolp_truths(?timestamps, items) &*&
-         true == idx_in_bounds(index, timestamps);
-ensures poolp_truths(update(index, TIME_INVALID, timestamps), ghostmap_remove(items, index));
-{
-	open poolp_truths(timestamps, items);
-	forall_nth_unchanged(index, TIME_INVALID, timestamps);
-	ghostmap_get_none_after_remove(items, index);
-	forall_fix_loophole(ghostmap_remove(items, index),  update(index, TIME_INVALID, timestamps), index);
-	close poolp_truths(update(index, TIME_INVALID, timestamps), ghostmap_remove(items, index));
-}
-@*/
-
 void os_pool_return(struct os_pool* pool, size_t index)
 /*@ requires poolp(pool, ?size, ?exp_time, ?items) &*&
              index < size &*&
@@ -262,6 +242,6 @@ void os_pool_return(struct os_pool* pool, size_t index)
 {
 	//@ open poolp(pool, size, exp_time, items);
 	pool->timestamps[index] = TIME_INVALID;
-	//@ truths_update_return(items, index);
+	//@ truths_update(items, index, TIME_INVALID);
 	//@ close poolp(pool, size, exp_time, ghostmap_remove(items, index));
 }
