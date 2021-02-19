@@ -402,7 +402,10 @@ ensures ghostmap == nil;
     case nil:
     case cons(h, t):
       assert h == pair(?hk, ?hv);
-      assert false == ghostmap_has(ghostmap, hk); // This line is required when using Redux
+      // This line is required when using Redux,
+      // but it causes console output about an inconsistency;
+      // this is normal, see https://github.com/verifast/verifast/issues/32
+      assert false == ghostmap_has(ghostmap, hk);
   }
 }
 

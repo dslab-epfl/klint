@@ -10,8 +10,6 @@
 // in general, only expressions that are direct arguments to calls can be "trigger" terms for forall_ expansion,
 // see VeriFast's examples/fm2012/problem1-alternative.c
 
-// TODO: Redux triggers some inconsistencies, see console output; but Z3 is fine; probably need to minimize an example and report it...
-
 struct os_pool {
 	time_t* timestamps;
 	size_t size;
