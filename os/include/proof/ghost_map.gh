@@ -428,3 +428,17 @@ ensures true == ghostmap_forall(ghostmap, pred);
       }
   }
 }
+
+lemma void ghostmap_has_nothing_implies_nil<k, v>(list<pair<k, v> > ghostmap)
+requires forall_(k key; !ghostmap_has(ghostmap, key));
+ensures ghostmap == nil;
+{
+  switch(ghostmap) {
+    case nil:
+      case cons(h, t):
+        switch(h) {
+          case pair(hk, hv):
+            assert true == ghostmap_has(ghostmap, hk);
+        }
+  }
+}
