@@ -8,6 +8,10 @@
 // But it should help in other implementations, e.g. using separate linked lists for free/occupied.
 // So we leave it there, because the usefulness of removing the requirement is limited.
 
+// The odd use of fixpoints for seemingly-simple things such as nth_eq is required for forall_ to work properly;
+// in general, only expressions that are direct arguments to calls can be "trigger" terms for forall_ expansion,
+// see VeriFast's examples/fm2012/problem1-alternative.c
+
 // TODO: Redux triggers some inconsistencies, see console output; but Z3 is fine; probably need to minimize an example and report it...
 
 struct os_pool {
