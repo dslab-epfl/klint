@@ -13,7 +13,7 @@ struct os_map;
 
 
 struct os_map* os_map_alloc(size_t key_size, size_t capacity);
-/*@ requires capacity <= SIZE_MAX / 2; @*/
+/*@ requires capacity <= SIZE_MAX / 2 + 1; @*/
 /*@ ensures mapp(result, key_size, capacity, nil, nil); @*/
 
 bool os_map_get(struct os_map* map, void* key_ptr, size_t* out_value);

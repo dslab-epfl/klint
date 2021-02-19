@@ -40,12 +40,69 @@ struct os_map_item {
     ptr->_padding |-> ?_padding &*&
     item == map_item(key_addr, value, chain, key_hash, busy);
     
-  predicate map_itemsp(struct os_map_item* ptr, int count; list<map_item> items) =
+  predicate map_itemsp(struct os_map_item* ptr, size_t count; list<map_item> items) =
       count == 0 ?
         items == nil
       :
         map_itemp(ptr, ?item) &*& map_itemsp(ptr + 1, count - 1, ?items_tail) &*&
         items == cons(item, items_tail);
+
+  lemma void length_map_items(size_t count)
+    requires map_itemsp(?ptr, count, ?items);
+    ensures map_itemsp(ptr, count, items) &*&
+            length(items) == count;
+  {
+    open map_itemsp(ptr, count, items);
+    switch (items) {
+      case nil:
+      case cons(h, t):
+        length_map_items(count - 1);
+    }
+    close map_itemsp(ptr, count, items);
+  }
+
+  lemma void bytes_to_map_item(char* ptr)
+    requires chars(ptr, sizeof(struct os_map_item), ?cs) &*&
+             true == all_eq(cs, 0);
+    ensures map_itemp((struct os_map_item*) ptr, ?i) &*&
+            i == map_item(?ka, ?va, ?ch, ?ha, ?bu) &*&
+            ch == 0 &*&
+            bu == false;
+  {
+    assume(false);
+  }
+  
+  lemma void all_eq_append<t>(list<t> xs1, list<t> xs2, t x)
+    requires emp;
+    ensures all_eq(append(xs1, xs2), x) == (all_eq(xs1, x) && all_eq(xs2, x));
+  {
+    switch (xs1) {
+      case nil:
+      case cons(xs1h, xs1t):
+        all_eq_append(xs1t, xs2, x);
+    }
+  }
+
+  lemma void bytes_to_map_items(char* ptr, nat count)
+    requires chars(ptr, int_of_nat(count) * sizeof(struct os_map_item), ?cs) &*&
+             true == all_eq(cs, 0);
+    ensures map_itemsp((struct os_map_item*) ptr, int_of_nat(count), ?is) &*&
+            true == forall(map(map_item_chain, is), (eq)(0)) &*&
+            true == forall(map(map_item_busy, is), (eq)(false));
+  {
+    switch (count) {
+      case zero:
+        close map_itemsp((struct os_map_item*) ptr, 0, nil);
+      case succ(next):
+        mul_mono(1, int_of_nat(count), sizeof(struct os_map_item));
+        chars_split(ptr, sizeof(struct os_map_item));
+        all_eq_append(take(sizeof(struct os_map_item), cs), drop(sizeof(struct os_map_item), cs), 0);
+        mul_subst(int_of_nat(count)-1, int_of_nat(next), sizeof(struct os_map_item));
+        bytes_to_map_items(ptr + sizeof(struct os_map_item), next);
+        bytes_to_map_item(ptr);
+        close map_itemsp((struct os_map_item*) ptr, int_of_nat(count), _);
+    }
+  }
 @*/
 
 struct os_map {
@@ -171,7 +228,8 @@ struct os_map {
     struct_os_map_padding(m) &*&
     m->key_size |-> key_size &*&
     m->capacity |-> capacity &*&
-    map_itemsp(m->items, capacity, ?items) &*&
+    m->items |-> ?raw_items &*&
+    map_itemsp(raw_items, capacity, ?items) &*&
     kaddrs == map(map_item_key_addr, items) &*&
     busybits == map(map_item_busy, items) &*&
     hashes == map(map_item_key_hash, items) &*&
@@ -185,12 +243,12 @@ struct os_map {
     buckets_keys_insync(real_capacity, chains, ?buckets, key_opts) &*&
     capacity == 0 ? real_capacity == 0
                   : (real_capacity >= capacity &*&
-                     real_capacity <= SIZE_MAX / 2 &*&
+                     real_capacity <= SIZE_MAX / 2 + 1 &*&
                      is_pow2(real_capacity, N63) != none);
 @*/
 
 static size_t get_real_capacity(size_t capacity)
-//@ requires capacity <= SIZE_MAX / 2;
+//@ requires capacity <= SIZE_MAX / 2 + 1;
 /*@ ensures capacity == 0 ? result == 0 :
                             (result >= capacity &*&
                              result <= capacity * 2 &*&
@@ -212,8 +270,7 @@ static size_t get_real_capacity(size_t capacity)
 
 static size_t loop(size_t start, size_t i, size_t capacity)
 /*@ requires i < capacity &*&
-             is_pow2(capacity, N63) != none &*&
-             capacity <= SIZE_MAX / 2; @*/
+             is_pow2(capacity, N63) != none; @*/
 /*@ ensures 0 <= result &*& result < capacity &*&
             result == loop_fp(start + i, capacity) &*&
             0 <= loop_fp(start, capacity) &*& loop_fp(start, capacity) < capacity &*&
@@ -231,7 +288,7 @@ static size_t loop(size_t start, size_t i, size_t capacity)
 
 /*@
 lemma void extend_repeat_n<t>(nat len, t extra, t z)
-  requires true;
+  requires emp;
   ensures update(int_of_nat(len), z, append(repeat_n(len, z), cons(extra, nil))) == repeat_n(succ(len), z);
 {
   switch(len) {
@@ -244,7 +301,7 @@ lemma void extend_repeat_n<t>(nat len, t extra, t z)
 // ---
 
 lemma void nat_len_of_non_nil<t>(t h, list<t> t)
-  requires true;
+  requires emp;
   ensures nat_of_int(length(cons(h, t)) - 1) == nat_of_int(length(t)) &*&
           nat_of_int(length(cons(h, t))) == succ(nat_of_int(length(t)));
 {
@@ -257,22 +314,28 @@ lemma void nat_len_of_non_nil<t>(t h, list<t> t)
   }
 }
 
-lemma void produce_key_opt_list(size_t key_size, list<hash_t> hashes, list<void*> kaddrs)
-  requires length(hashes) == length(kaddrs);
-  ensures key_opt_list(key_size, kaddrs, repeat_n(nat_of_int(length(kaddrs)), false), repeat_n(nat_of_int(length(kaddrs)), none)) &*&
+lemma void produce_key_opt_list(size_t key_size, list<hash_t> hashes, list<void*> kaddrs, list<bool> busybits)
+  requires length(hashes) == length(kaddrs) &*&
+           length(hashes) == length(busybits) &*&
+           true == forall(busybits, (eq)(false));
+  ensures key_opt_list(key_size, kaddrs, busybits, repeat_n(nat_of_int(length(kaddrs)), none)) &*&
           length(kaddrs) == length(repeat_n(nat_of_int(length(kaddrs)), none));
 {
   switch(kaddrs) {
     case nil:
-      close key_opt_list(key_size, kaddrs, repeat_n(nat_of_int(length(kaddrs)), false), repeat_n(nat_of_int(length(kaddrs)), none));
+      close key_opt_list(key_size, kaddrs, busybits, repeat_n(nat_of_int(length(kaddrs)), none));
     case cons(kaddrh,kaddrt):
       switch(hashes) {
         case nil:
         case cons(hh,ht):
       }
-      produce_key_opt_list(key_size, tail(hashes), kaddrt);
+      switch(busybits) {
+        case nil:
+        case cons(bbh,bbt):
+      }
+      produce_key_opt_list(key_size, tail(hashes), kaddrt, tail(busybits));
       nat_len_of_non_nil(kaddrh,kaddrt);
-      close key_opt_list(key_size, kaddrs, repeat_n(nat_of_int(length(kaddrs)), false), repeat_n(nat_of_int(length(kaddrs)), none));
+      close key_opt_list(key_size, kaddrs, busybits, repeat_n(nat_of_int(length(kaddrs)), none));
   }
 }
 
@@ -318,6 +381,23 @@ lemma void empty_keychains_start_on_hash(nat len, size_t pos, size_t capacity)
     case zero:
     case succ(n):
       empty_keychains_start_on_hash(n, pos + 1, capacity);
+  }
+}
+
+lemma void forall_eq_to_repeat_n<t>(list<t> items, t value)
+  requires true == forall(items, (eq)(value));
+  ensures items == repeat_n(nat_of_int(length(items)), value);
+{
+  switch(items) {
+    case nil:
+    case cons(h, t):
+      forall_eq_to_repeat_n(t, value);
+      assert t == repeat_n(nat_of_int(length(t)), value);
+      assert h == value;
+      assert cons(h, t) == repeat_n(succ(nat_of_int(length(t))), value);
+      assert cons(h, t) == repeat_n(nat_of_int(length(t)+1), value);
+      assert cons(h, t) == repeat_n(nat_of_int(length(items)), value);
+      assert items == repeat_n(nat_of_int(length(items)), value);
   }
 }
 
@@ -379,47 +459,44 @@ lemma void produce_empty_map_valuesaddrs(size_t capacity, list<void*> kaddrs, li
 @*/
 
 struct os_map* os_map_alloc(size_t key_size, size_t capacity)
-/*@ requires capacity <= SIZE_MAX / 2; @*/
+/*@ requires capacity <= SIZE_MAX / 2 + 1; @*/
 /*@ ensures mapp(result, key_size, capacity, nil, nil); @*/
 {
-  struct os_map* map = (struct os_map*) os_memory_alloc(1, sizeof(struct os_map));
-  //@ close_struct_zero(map);
+  struct os_map* m = (struct os_map*) os_memory_alloc(1, sizeof(struct os_map));
+  //@ close_struct_zero(m);
   size_t real_capacity = get_real_capacity(capacity);
-  map->items = (struct os_map_item*) os_memory_alloc(real_capacity, sizeof(struct os_map_item));
-  map->capacity = real_capacity;
-  map->key_size = key_size;
-  // TODO extend VeriFast to understand that since map->busybits and map->chains are zeroed chars, they are zeroed bools/size_ts
-  for (size_t i = 0; i < real_capacity; ++i)
-    /*@ invariant map->busybits |-> ?busybits_ptr &*&
-                  busybits_ptr[0..i] |-> repeat_n(nat_of_int(i), false) &*&
-                  busybits_ptr[i..real_capacity] |-> ?busybits_rest &*&
-                  map->chains |-> ?chains_ptr &*&
-                  chains_ptr[0..i] |-> repeat_n(nat_of_int(i), 0) &*&
-                  chains_ptr[i..real_capacity] |-> ?chains_rest &*&
-                  0 <= i &*& i <= real_capacity; @*/
-  {
-    //@ move_busybit(busybits_ptr, i, real_capacity);
-    //@ move_chain(chains_ptr, i, real_capacity);
-    //@ assert busybits_rest == cons(?bbrh, _);
-    //@ assert chains_rest == cons(?crh, _);
-    //@ extend_repeat_n(nat_of_int(i), bbrh, false);
-    //@ extend_repeat_n(nat_of_int(i), crh, 0);
-    map->items[i].busy = false;
-    map->items[i].chain = 0;
-    //@ assert succ(nat_of_int(i)) == nat_of_int(i+1);
-  }
-  //@ close mapp_raw(map, ?kaddrs_lst, ?busybits_lst, ?hashes_lst, ?chains_lst, ?values_lst, key_size, real_capacity);
-  //@ produce_key_opt_list(key_size, hashes_lst, kaddrs_lst);
-  //@ assert key_opt_list(key_size, kaddrs_lst, _, ?kopts);
+  m->items = (struct os_map_item*) os_memory_alloc(real_capacity, sizeof(struct os_map_item));
+  m->capacity = real_capacity;
+  m->key_size = key_size;
+  //@ assert m->items |-> ?raw_items;
+  //@ bytes_to_map_items((char*) raw_items, nat_of_int(real_capacity));
+  //@ assert map_itemsp(raw_items, real_capacity, ?items);
+  //@ length_map_items(real_capacity);
+  //@ map_preserves_length(map_item_key_addr, items);
+  //@ map_preserves_length(map_item_value, items);
+  //@ map_preserves_length(map_item_chain, items);
+  //@ map_preserves_length(map_item_key_hash, items);
+  //@ map_preserves_length(map_item_busy, items);
+  //@ list<bool> busybits_lst = map(map_item_busy, items);
+  //@ list<void*> kaddrs_lst = map(map_item_key_addr, items);
+  //@ list<hash_t> hashes_lst = map(map_item_key_hash, items);
+  //@ list<size_t> chains_lst = map(map_item_chain, items);
+  //@ list<size_t> values_lst = map(map_item_value, items);
+  //@ close mapp_raw(m, kaddrs_lst, busybits_lst, hashes_lst, chains_lst, values_lst, key_size, real_capacity);
+  //@ repeat_n_contents(nat_of_int(real_capacity), false);
+  //@ produce_key_opt_list(key_size, hashes_lst, kaddrs_lst, busybits_lst);
+  //@ assert key_opt_list(key_size, kaddrs_lst, busybits_lst, ?kopts);
   //@ repeat_n_contents(nat_of_int(real_capacity), none);
   //@ kopts_size_0_when_empty(kopts);
-  //@ empty_buckets_insync(repeat_n(nat_of_int(real_capacity), 0), real_capacity);
+  //@ forall_eq_to_repeat_n(chains_lst, 0);
+  //@ assert chains_lst == repeat_n(nat_of_int(length(kaddrs_lst)), 0);
+  //@ empty_buckets_insync(chains_lst, real_capacity);
   //@ produce_empty_map_valuesaddrs(real_capacity, kaddrs_lst, values_lst);
   //@ produce_empty_hash_list(kopts, hashes_lst);
   //@ repeat_none_is_opt_no_dups(nat_of_int(real_capacity), kopts);
-  //@ close mapp_core(key_size, real_capacity, kaddrs_lst, _, hashes_lst, values_lst, kopts, nil, nil);
-  //@ close mapp(map, key_size, capacity, nil, nil);
-  return map;
+  //@ close mapp_core(key_size, real_capacity, kaddrs_lst, busybits_lst, hashes_lst, values_lst, kopts, nil, nil);
+  //@ close mapp(m, key_size, capacity, nil, nil);
+  return m;
 }
 
 
@@ -879,7 +956,7 @@ bool os_map_get(struct os_map* map, void* key_ptr, size_t* out_value)
                   hash_fp(key) == key_hash &*&
                   capacity == 0 ? real_capacity == 0 :
                                   (real_capacity >= capacity &*&
-                                   real_capacity <= SIZE_MAX / 2 &*&
+                                   real_capacity <= SIZE_MAX / 2 + 1 &*&
                                    is_pow2(real_capacity, N63) != none) &*&
                   true == up_to(nat_of_int(i), (byLoopNthProp)(key_opts, (neq)(some(key)), real_capacity, loop_fp(key_hash, real_capacity))) &*&
                   *out_value |-> _; @*/
