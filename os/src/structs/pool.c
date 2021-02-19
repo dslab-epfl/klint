@@ -25,7 +25,7 @@ predicate poolp_raw(struct os_pool* pool; size_t size, time_t expiration_time, l
 	pool->size |-> size &*&
 	pool->expiration_time |-> expiration_time &*&
 	pool->timestamps |-> ?raw_timestamps &*&
-	PRED_times(raw_timestamps, size, timestamps);
+	raw_timestamps[0..size] |-> timestamps;
 
 predicate poolp_truths(list<time_t> timestamps, list<pair<size_t, time_t> > items) =
 	true == ghostmap_distinct(items) &*&
@@ -96,16 +96,16 @@ struct os_pool* os_pool_alloc(size_t size, time_t expiration_time)
 	for (size_t n = size; n > 0; n--)
 	/*@ invariant pool->timestamps |-> ?raw_timestamps &*& 
 	              chars((char*) raw_timestamps, n * sizeof(time_t), _) &*&
-	              PRED_times(raw_timestamps + n, size - n, ?timestamps) &*&
+	              raw_timestamps[n..size] |-> ?timestamps &*&
 	              true == all_eq(timestamps, TIME_INVALID); @*/
 	{
 		//@ chars_split((char*) raw_timestamps, (n - 1) * sizeof(time_t));
-		//@ chars_to_time(raw_timestamps + n - 1);
+		//@ chars_to_integer_(raw_timestamps + n - 1, sizeof(time_t), IS_TIME_T_SIGNED);
 		pool->timestamps[n - 1] = TIME_INVALID;
 	}
 
 	//@ assert pool->timestamps |-> ?raw_timestamps;
-	//@ assert PRED_times(raw_timestamps, size, ?timestamps);
+	//@ assert raw_timestamps[0..size] |-> ?timestamps;
 	//@ forall_eq_nth(timestamps, TIME_INVALID);
 	//@ close poolp_truths(timestamps, nil);
 	//@ close poolp(pool, size, expiration_time, nil);

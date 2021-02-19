@@ -7,15 +7,6 @@
 
 //@ #include "proof/ghost_map.gh"
 
-// TODO move, and avoid #defines as much as possible
-typedef uint64_t time_t;
-#define TIME_INVALID ((time_t) 0xFFFFFFFFFFFFFFFFull)
-//#define malloc_block_times malloc_block_ullongs
-#define PRED_times ullongs
-#define chars_to_times chars_to_ullongs
-//@ predicate PRED_time(time_t* p; time_t t) = integer_(p, sizeof(time_t), false, t);
-//@ lemma_auto void chars_to_time(void *p); requires [?f]chars(p, sizeof(time_t), ?cs); ensures [f]integer_(p, sizeof(time_t), false, _);
-
 
 struct os_pool;
 
