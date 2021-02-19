@@ -99,9 +99,6 @@ ensures poolp_truths(update(index, time, timestamps), ghostmap_set(items, index,
 	assume(false);
 }
 
-// TODO do we need this?
-fixpoint bool nth_is_young(time_t time, time_t expiration_time, size_t n, list<time_t> timestamps) { return time < expiration_time || time - expiration_time <= nth(n, timestamps); }
-
 lemma void pool_items_implication_tail(list<pair<size_t, time_t> > items, list<time_t> timestamps, time_t time, time_t exp_time)
 requires items == cons(?h, ?t) &*&
          true == ghostmap_distinct(items) &*&
@@ -115,7 +112,7 @@ ensures forall_(size_t k; !ghostmap_has(t, k) || (ghostmap_get(t, k) == some(nth
 lemma void pool_items_young_forall_to_ghostmap(list<pair<size_t, time_t> > items, list<time_t> timestamps, time_t time, time_t exp_time)
 requires true == ghostmap_distinct(items) &*&
          forall_(size_t k; !ghostmap_has(items, k) || (ghostmap_get(items, k) == some(nth(k, timestamps)))) &*&
-         forall_(size_t k; !ghostmap_has(items, k) || nth_is_young(time, exp_time, k, timestamps));
+         forall_(size_t k; !ghostmap_has(items, k) || (time < exp_time || time - exp_time <= nth(k, timestamps)));
 ensures true == ghostmap_forall(items, (pool_young)(time, exp_time));
 {
 	switch (items) {
@@ -156,7 +153,7 @@ bool os_pool_borrow(struct os_pool* pool, time_t time, size_t* out_index, bool* 
 	              *out_index |-> _ &*&
 	              *out_used |-> _ &*&
 	              forall_(size_t k; !(0 <= k && k < n) || !nth_eq(k, timestamps, TIME_INVALID)) &*&
-	              forall_(size_t k; !(0 <= k && k < n) || nth_is_young(time, exp_time, k, timestamps)); @*/
+	              forall_(size_t k; !(0 <= k && k < n) || (time < exp_time || time - exp_time <= nth(k, timestamps))); @*/
 	{
 		//@ close poolp_raw(pool, size, exp_time, timestamps);
 		if (pool->timestamps[n] == TIME_INVALID) {
