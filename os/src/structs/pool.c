@@ -118,41 +118,6 @@ ensures poolp_truths(update(index, time, timestamps), ghostmap_set(items, index,
 {
 	assume(false);
 }
-
-fixpoint bool _bounds_check(int a, int n, int b) { return a <= n && n < b; }
-
-lemma void ghostmap_array_size_close_loophole<v>(list<pair<int, v> > remaining, int size, int i, int i2)
-requires forall_(int n; _bounds_check(i2, n, size) == ghostmap_has(remaining, n) || n == i) &*& i2 == i + 1;
-ensures forall_(int n; _bounds_check(i2, n, size) == ghostmap_has(ghostmap_remove(remaining, i), n) || n == i);
-{
-}
-lemma void ghostmap_array_size<v>(list<pair<int, v> > ghostmap, int size)
-requires forall_(int n; _bounds_check(0, n, size) == ghostmap_has(ghostmap, n)) &*&
-         true == ghostmap_distinct(ghostmap) &*&
-         size >= 0;
-ensures length(ghostmap) == size;
-{
-	list<pair<int, v> > remaining = ghostmap;
-	for (int i = 0; i < size; i++)
-	invariant 0 <= i &*& i <= size &*&
-	          forall_(int n; _bounds_check(i, n, size) == ghostmap_has(remaining, n)) &*&
-	          true == ghostmap_distinct(remaining) &*&
-	          length(ghostmap) == length(remaining) + i;
-	decreases size - i;
-	{
-		assert true == ghostmap_has(remaining, i);
-		list<pair<int, v> > next = ghostmap_remove(remaining, i);
-		ghostmap_get_none_after_remove(remaining, i);
-		ghostmap_array_size_close_loophole(remaining, size, i, i + 1);
-		ghostmap_remove_when_distinct_and_present_decreases_length(remaining, i);
-		remaining = next;
-	}
-	assert forall_(int n; _bounds_check(size, n, size) == ghostmap_has(remaining, n));
-	assert forall_(int n; !_bounds_check(size, n, size));
-	assert forall_(int n; !ghostmap_has(remaining, n));
-	ghostmap_has_nothing_implies_nil(remaining);
-	assert length(remaining) == 0;
-}
 @*/
 
 bool os_pool_borrow(struct os_pool* pool, time_t time, size_t* out_index, bool* out_used)
@@ -179,7 +144,7 @@ bool os_pool_borrow(struct os_pool* pool, time_t time, size_t* out_index, bool* 
 	              poolp_truths(timestamps, items) &*&
 	              *out_index |-> _ &*&
 	              *out_used |-> _ &*&
-	              forall_(size_t k; !_bounds_check(0, k, n) || !nth_eq(k, timestamps, TIME_INVALID)); @*/
+	              forall_(size_t k; !(0 <= k && k < n) || !nth_eq(k, timestamps, TIME_INVALID)); @*/
 	{
 		//@ close poolp_raw(pool, size, exp_time, timestamps);
 		//@ time_validity_to_presence(n, items);
