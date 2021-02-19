@@ -1,7 +1,7 @@
 #pragma once
 
 // TODO: Remove unused lemmas if they're pointless or overly specific
-// TODO: Replace all switch(h) { case pair(hk, hv): ... } with assert h == pair(?hk, ?hv);
+// TODO: Replace all switch(h) { case pair(hk, hv): ... } with assert h == pair(?hk, ?hv); (and maybe move to tabs?)
 
 // -- Contract API --
 
@@ -405,6 +405,22 @@ ensures true == pred(key, value);
           if (hk != key) {
             ghostmap_forall_implies_pred(t, pred, key, value);
           }
+      }
+  }
+}
+
+lemma void ghostmap_notpred_implies_notforall<k, v>(list<pair<k, v> > ghostmap, fixpoint(k, v, bool) pred, k key)
+requires ghostmap_get(ghostmap, key) == some(?value) &*&
+         false == pred(key, value);
+ensures false == ghostmap_forall(ghostmap, pred);
+{
+  switch(ghostmap) {
+    case nil:
+      assert false;
+    case cons(h, t):
+      assert h == pair(?hk, ?hv);
+      if (hk != key) {
+        ghostmap_notpred_implies_notforall(t, pred, key);
       }
   }
 }

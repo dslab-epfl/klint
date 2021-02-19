@@ -73,16 +73,6 @@ struct os_pool* os_pool_alloc(size_t size, time_t expiration_time)
 }
 
 /*@
-lemma void pool_not_young(list<pair<size_t, time_t> > items, size_t index, time_t time, time_t exp_time)
-requires poolp_truths(?timestamps, items) &*&
-         time >= exp_time &*&
-         time - exp_time > nth(index, timestamps);
-ensures poolp_truths(timestamps, items) &*&
-        false == ghostmap_forall(items, (pool_young)(time, exp_time));
-{
-	assume(false);
-}
-
 lemma void truths_update_borrow(list<pair<size_t, time_t> > items, size_t index, time_t time)
 requires poolp_truths(?timestamps, items) &*&
          time != TIME_INVALID;
@@ -160,7 +150,7 @@ bool os_pool_borrow(struct os_pool* pool, time_t time, size_t* out_index, bool* 
 			return true;
 		}
 		if (time >= pool->expiration_time && time - pool->expiration_time > pool->timestamps[n]) {
-			//@ pool_not_young(items, n, time, exp_time);
+			//@ ghostmap_notpred_implies_notforall(items, (pool_young)(time, exp_time), n);
 			pool->timestamps[n] = time;
 			*out_index = n;
 			*out_used = true;
