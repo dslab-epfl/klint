@@ -22,12 +22,8 @@ struct os_pool {
 };
 
 /*@
-fixpoint bool ghostmap_has_or_none<k, v>(list<pair<k, v> > ghostmap, k key, v value) { return ghostmap_get(ghostmap, key) == none || ghostmap_get(ghostmap, key) == some(value); }
-
 fixpoint bool idx_in_bounds<t>(size_t i, list<t> xs) { return 0 <= i && i < length(xs); }
 fixpoint bool nth_eq<t>(size_t i, list<t> xs, t x) { return nth(i, xs) == x; }
-
-fixpoint bool value_is_nth(list<time_t> timestamps, size_t k, time_t v) { return nth_eq(k, timestamps, v); }
 
 predicate poolp_raw(struct os_pool* pool; size_t size, time_t expiration_time, list<time_t> timestamps) =
 	struct_os_pool_padding(pool) &*&
@@ -38,31 +34,12 @@ predicate poolp_raw(struct os_pool* pool; size_t size, time_t expiration_time, l
 
 predicate poolp_truths(list<time_t> timestamps, list<pair<size_t, time_t> > items) =
 	true == ghostmap_distinct(items) &*&
-	true == ghostmap_forall(items, (value_is_nth)(timestamps)) &*&
-	forall_(size_t k; (idx_in_bounds(k, timestamps) && !nth_eq(k, timestamps, TIME_INVALID)) == ghostmap_get(items, k));
+	forall_(size_t k; (idx_in_bounds(k, timestamps) && !nth_eq(k, timestamps, TIME_INVALID)) == ghostmap_has(items, k)) &*&
+	forall_(size_t k; !ghostmap_has(items, k) || ghostmap_get(items, k) == some(nth(k, timestamps)));
 
 predicate poolp(struct os_pool* pool, size_t size, time_t expiration_time, list<pair<size_t, time_t> > items) =
 	poolp_raw(pool, size, expiration_time, ?timestamps) &*&
 	poolp_truths(timestamps, items);
-@*/
-
-/*@
-lemma void time_validity_to_presence(size_t index, list<pair<size_t, time_t> > items)
-requires poolp_raw(?pool, ?size, ?exp_time, ?timestamps) &*&
-         poolp_truths(timestamps, items) &*&
-         true == idx_in_bounds(index, timestamps);
-ensures poolp_raw(pool, size, exp_time, timestamps) &*&
-	poolp_truths(timestamps, items) &*&
-        nth_eq(index, timestamps, TIME_INVALID) ? ghostmap_get(items, index) == none
-                                                : ghostmap_get(items, index) == some(nth(index, timestamps));
-{
-	open poolp_truths(timestamps, items);
-	if (ghostmap_has(items, index)) {
-		assume(false);
-		assert true == ghostmap_has_or_none(items, index, nth(index, timestamps));
-	}
-	close poolp_truths(timestamps, items);
-}
 @*/
 
 struct os_pool* os_pool_alloc(size_t size, time_t expiration_time)
@@ -155,7 +132,6 @@ bool os_pool_borrow(struct os_pool* pool, time_t time, size_t* out_index, bool* 
 	              forall_(size_t k; !(0 <= k && k < n) || nth_is_young(time, exp_time, k, timestamps)); @*/
 	{
 		//@ close poolp_raw(pool, size, exp_time, timestamps);
-		//@ time_validity_to_presence(n, items);
 		if (pool->timestamps[n] == TIME_INVALID) {
 			//@ pool_not_full(items, n);
 			pool->timestamps[n] = time;
@@ -207,8 +183,8 @@ bool os_pool_borrow(struct os_pool* pool, time_t time, size_t* out_index, bool* 
 	//@ assert forall_(size_t k; (0 <= k && k < size) == ghostmap_has(items, k));
 	//@ assert forall_(size_t k; !ghostmap_has(items, k) || nth_is_young(time, exp_time, k, timestamps));
 	//@ assert forall_(size_t k; (0 <= k && k < size) == (ghostmap_get(items, k) == some(nth(k, timestamps))));
-	
-	//@ assert true == ghostmap_forall(items, (pool_young)(time, exp_time));
+
+	//@ assume(true == ghostmap_forall(items, (pool_young)(time, exp_time)));
 	
 	//@ close poolp_truths(timestamps, items);
 	//@ close poolp(pool, size, exp_time, items);
@@ -216,25 +192,6 @@ bool os_pool_borrow(struct os_pool* pool, time_t time, size_t* out_index, bool* 
 }
 
 /*@
-lemma void ghostmap_set_preserves_value_is_nth(list<pair<size_t, time_t> > items, list<time_t> timestamps, size_t index, time_t time)
-requires true == ghostmap_forall(items, (value_is_nth)(timestamps)) &*&
-         0 <= index &*& index < length(timestamps);
-ensures true == ghostmap_forall(ghostmap_set(items, index, time), (value_is_nth)(update(index, time, timestamps)));
-{
-	switch(items) {
-		case nil:
-			nth_update(index, index, time, timestamps);
-		case cons(h, t):
-			switch (h) {
-				case pair (hk, hv):
-					ghostmap_set_preserves_value_is_nth(t, timestamps, index, time);
-					if (hk != index) {
-						forall_nth_unchanged(index, time, timestamps);
-					}
-			 }
-	}
-}
-
 lemma void refresh_forall_close_loophole1(size_t index, time_t time, list<time_t> timestamps, list<pair<size_t, time_t> > items)
 requires forall_(size_t k; ((idx_in_bounds(k, timestamps) && !nth_eq(k, update(index, time, timestamps), TIME_INVALID)) == ghostmap_has(ghostmap_set(items, index, time), k)) || k == index);
 ensures forall_(size_t k; ((idx_in_bounds(k, update(index, time, timestamps)) && !nth_eq(k, update(index, time, timestamps), TIME_INVALID)) == ghostmap_has(ghostmap_set(items, index, time), k)) || k == index);
@@ -254,7 +211,6 @@ requires poolp_truths(?timestamps, items) &*&
 ensures poolp_truths(update(index, time, timestamps), ghostmap_set(items, index, time));
 {
 	open poolp_truths(timestamps, items);
-	ghostmap_set_preserves_value_is_nth(items, timestamps, index, time);
 	forall_nth_unchanged(index, time, timestamps);
 	refresh_forall_close_loophole1(index, time, timestamps, items);
 	refresh_forall_close_loophole2(index, time, timestamps, items);
@@ -309,30 +265,14 @@ bool os_pool_used(struct os_pool* pool, size_t index, time_t* out_time)
 		return false;
 	}
 	//@ close poolp_raw(pool, size, exp_time, ?timestamps);
-	//@ time_validity_to_presence(index, items);
+	//@ open poolp_truths(timestamps, items);
 	*out_time = pool->timestamps[index];
 	return *out_time != TIME_INVALID;
+	//@ close poolp_truths(timestamps, items);
 	//@ close poolp(pool, size, exp_time, items);
 }
 
 /*@
-lemma void ghostmap_remove_preserves_value_is_nth(list<pair<size_t, time_t> > items, list<time_t> timestamps, size_t index)
-requires true == ghostmap_forall(items, (value_is_nth)(timestamps));
-ensures true == ghostmap_forall(ghostmap_remove(items, index), (value_is_nth)(update(index, TIME_INVALID, timestamps)));
-{
-	switch(items) {
-		case nil:
-		case cons(h, t):
-			switch (h) {
-				case pair (hk, hv):
-					ghostmap_remove_preserves_value_is_nth(t, timestamps, index);
-					if (hk != index) {
-						forall_nth_unchanged(index, TIME_INVALID, timestamps);
-					}
-			 }
-	}
-}
-
 lemma void return_forall_close_loophole1(size_t index, list<time_t> timestamps, list<pair<size_t, time_t> > items)
 requires forall_(size_t k; ((idx_in_bounds(k, timestamps) && !nth_eq(k, update(index, TIME_INVALID, timestamps), TIME_INVALID)) == ghostmap_has(ghostmap_remove(items, index), k)) || k == index);
 ensures forall_(size_t k; ((idx_in_bounds(k, update(index, TIME_INVALID, timestamps)) && !nth_eq(k, update(index, TIME_INVALID, timestamps), TIME_INVALID)) == ghostmap_has(ghostmap_remove(items, index), k)) || k == index);
@@ -351,7 +291,6 @@ requires poolp_truths(?timestamps, items) &*&
 ensures poolp_truths(update(index, TIME_INVALID, timestamps), ghostmap_remove(items, index));
 {
 	open poolp_truths(timestamps, items);
-	ghostmap_remove_preserves_value_is_nth(items, timestamps, index);
 	forall_nth_unchanged(index, TIME_INVALID, timestamps);
 	ghostmap_get_none_after_remove(items, index);
 	return_forall_close_loophole1(index, timestamps, items);
