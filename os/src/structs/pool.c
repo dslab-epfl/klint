@@ -4,15 +4,9 @@
 
 //@ #include "proof/listexex.gh"
 
-// IMPLEMENTATION NOTES:
-	// Note that 'ghostmap_get(items, index) != none' is not necessary in this implementation for refresh and return.
-	// But it should help in other implementations, e.g. using separate linked lists for free/occupied.
-	// So we leave it there, because the usefulness of removing the requirement is limited.
-// PROOF NOTES:
-	// Weird things Redux cannot figure out without these hints
-// TODO: Write more
-// TODO: Try the 'note' workaround instead of the hacky lemmas (also in ghost_map.gh!)
-
+// Note that 'ghostmap_get(items, index) != none' is not necessary in this implementation for refresh and return.
+// But it should help in other implementations, e.g. using separate linked lists for free/occupied.
+// So we leave it there, because the usefulness of removing the requirement is limited.
 
 // TODO: Redux triggers some inconsistencies, see console output; but Z3 is fine; probably need to minimize an example and report it...
 
