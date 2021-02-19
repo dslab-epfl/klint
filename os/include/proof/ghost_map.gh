@@ -282,7 +282,7 @@ ensures length(ghostmap_remove(ghostmap, key)) <= length(ghostmap);
   }
 }
 
-lemma void ghostmap_remove_when_present_decreases_length<k, v>(list<pair<k, v> > ghostmap, k key)
+lemma_auto void ghostmap_remove_when_present_decreases_length<k, v>(list<pair<k, v> > ghostmap, k key)
 requires none != ghostmap_get(ghostmap, key);
 ensures length(ghostmap_remove(ghostmap, key)) < length(ghostmap);
 {

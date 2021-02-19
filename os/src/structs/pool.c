@@ -95,16 +95,73 @@ struct os_pool* os_pool_alloc(size_t size, time_t expiration_time)
 	return pool;
 }
 
+/*@
+lemma void pool_not_full(list<pair<size_t, time_t> > items, size_t index)
+requires poolp_truths(?timestamps, items) &*&
+         true == nth_eq(index, timestamps, TIME_INVALID);
+ensures poolp_truths(timestamps, items) &*&
+        length(items) != length(timestamps);
+{
+	assume(false);
+}
+lemma void pool_not_young(list<pair<size_t, time_t> > items, size_t index, time_t time, time_t exp_time)
+requires poolp_truths(?timestamps, items) &*&
+         time >= exp_time &*&
+         time - exp_time > nth(index, timestamps);
+ensures poolp_truths(timestamps, items) &*&
+        false == ghostmap_forall(items, (pool_young)(time, exp_time));
+{
+	assume(false);
+}
+
+lemma void truths_update_borrow(list<pair<size_t, time_t> > items, size_t index, time_t time)
+requires poolp_truths(?timestamps, items) &*&
+         time != TIME_INVALID;
+ensures poolp_truths(update(index, time, timestamps), ghostmap_set(items, index, time));
+{
+	assume(false);
+}
+
+fixpoint bool _bounds_check(int a, int n, int b) { return a <= n && n < b; }
+
+lemma void ghostmap_array_size_close_loophole<v>(list<pair<int, v> > remaining, int size, int i, int i2)
+requires forall_(int n; !_bounds_check(i2, n, size) || ghostmap_has(remaining, n) || n == i) &*& i2 == i + 1;
+ensures forall_(int n; !_bounds_check(i2, n, size) || ghostmap_has(ghostmap_remove(remaining, i), n) || n == i);
+{
+}
+lemma void ghostmap_array_size<v>(list<pair<int, v> > ghostmap, int size)
+requires forall_(int n; !_bounds_check(0, n, size) || ghostmap_has(ghostmap, n)) &*&
+         size >= 0;
+ensures length(ghostmap) >= size;
+{
+	list<pair<int, v> > remaining = ghostmap;
+	for (int i = 0; i < size; i++)
+	invariant 0 <= i &*& i <= size &*&
+	          forall_(int n; !_bounds_check(i, n, size) || ghostmap_has(remaining, n)) &*&
+	          length(ghostmap) >= length(remaining) + i;
+	decreases size - i;
+	{
+		assert true == ghostmap_has(remaining, i);
+		list<pair<int, v> > next = ghostmap_remove(remaining, i);
+		ghostmap_get_none_after_remove(remaining, i);
+		ghostmap_array_size_close_loophole(remaining, size, i, i + 1);
+		ghostmap_remove_when_present_decreases_length(remaining, i);
+		remaining = next;
+	}
+}
+@*/
+
 bool os_pool_borrow(struct os_pool* pool, time_t time, size_t* out_index, bool* out_used)
 /*@ requires poolp(pool, ?size, ?exp_time, ?items) &*&
+             time != TIME_INVALID &*&
              *out_index |-> _ &*&
              *out_used |-> _; @*/
-/*@ ensures length(items) == size &*& ghostmap_forall(items, (pool_lowerbounded)(time)) ?
+/*@ ensures *out_index |-> ?index &*&
+            *out_used |-> ?used &*&
+            length(items) == size && ghostmap_forall(items, (pool_young)(time, exp_time)) ?
             	  (result == false &*&
             	   poolp(pool, size, exp_time, items))
             	: (result == true &*&
-            	   *out_index |-> ?index &*&
-            	   *out_used |-> ?used &*&
             	   poolp(pool, size, exp_time, ghostmap_set(items, index, time)) &*&
             	   index < size &*&
             	   switch (ghostmap_get(items, index)) {
@@ -112,7 +169,38 @@ bool os_pool_borrow(struct os_pool* pool, time_t time, size_t* out_index, bool* 
                    	case none: return used == false;
             	   }); @*/
 {
-	//@ assume(false);
+	//@ open poolp(pool, size, exp_time, items);
+	for (size_t n = 0; n < pool->size; n++)
+	/*@ invariant poolp_raw(pool, size, exp_time, ?timestamps) &*&
+	              poolp_truths(timestamps, items) &*&
+	              *out_index |-> _ &*&
+	              *out_used |-> _ &*&
+	              forall_(size_t k; !_bounds_check(0, k, n) || ghostmap_has(items, k)); @*/
+	{
+		//@ close poolp_raw(pool, size, exp_time, timestamps);
+		//@ time_validity_to_presence(n, items);
+		if (pool->timestamps[n] == TIME_INVALID) {
+			//@ pool_not_full(items, n);
+			pool->timestamps[n] = time;
+			*out_index = n;
+			*out_used = false;
+			//@ truths_update_borrow(items, n, time);
+			//@ close poolp(pool, size, exp_time, ghostmap_set(items, n, time));
+			return true;
+		}
+		if (time >= pool->expiration_time && time - pool->expiration_time > pool->timestamps[n]) {
+			//@ pool_not_young(items, n, time, exp_time);
+			pool->timestamps[n] = time;
+			*out_index = n;
+			*out_used = true;
+			//@ truths_update_borrow(items, n, time);
+			//@ close poolp(pool, size, exp_time, ghostmap_set(items, n, time));
+			return true;
+		}
+	}
+	//@ ghostmap_array_size(items, size);
+	//@ close poolp(pool, size, exp_time, items);
+	return false;
 }
 
 /*@
