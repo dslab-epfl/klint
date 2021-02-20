@@ -46,14 +46,13 @@ struct cht *cht_alloc(size_t cht_height, size_t backend_capacity)
     return cht;
 }
 
-bool cht_find_preferred_available_backend(struct cht *cht, void* obj, size_t obj_size, struct os_pool *active_backends, size_t *chosen_backend)
+bool cht_find_preferred_available_backend(struct cht *cht, void* obj, size_t obj_size, struct os_pool *active_backends, size_t *chosen_backend, time_t time)
 {
     size_t cht_bucket = loop(os_memory_hash(obj, obj_size), cht->height) * cht->backend_capacity;
     for (size_t i = 0; i < cht->backend_capacity; ++i)
     {
         size_t candidate = cht->data[cht_bucket + i];
-        time_t out_time;
-        if (os_pool_used(active_backends, candidate, &out_time))
+        if (os_pool_contains(active_backends, time, candidate))
         {
             *chosen_backend = candidate;
             return true;

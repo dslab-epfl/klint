@@ -42,7 +42,7 @@ bool lb_get_backend(struct ld_balancer *balancer,
         size_t backend_index = 0;
         bool found = cht_find_preferred_available_backend(
             balancer->state->cht, (void*)flow, sizeof(struct lb_flow),
-            balancer->state->active_backends, &backend_index);
+            balancer->state->active_backends, &backend_index, now);
         if (found)
         {
             size_t index;

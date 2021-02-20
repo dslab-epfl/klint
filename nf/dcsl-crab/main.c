@@ -8,9 +8,9 @@ extern struct bpf_map_def macs_map;
 extern struct bpf_map_def targets_count;
 extern struct bpf_map_def cpu_rr_idx;
 
-bool nf_init(device_t max_device)
+bool nf_init(device_t devices_count)
 {
-	(void) max_device;
+	(void) devices_count;
 
 	bpf_map_init(&targets_map, true);
 	bpf_map_init(&macs_map, true);

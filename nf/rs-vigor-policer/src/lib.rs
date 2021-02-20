@@ -26,13 +26,13 @@ static mut MAP: *mut OsMap = null_mut();
 static mut POOL: *mut OsPool = null_mut();
 
 #[no_mangle]
-pub unsafe extern "C" fn nf_init(max_device: u16) -> bool {
-    if max_device != 1 {
+pub unsafe extern "C" fn nf_init(devices_count: u16) -> bool {
+    if devices_count != 2 {
         return false;
     }
     WAN_DEVICE = {
         let device = os_config_get_u16(cstr!("wan device"));
-        if device > max_device {
+        if device >= devices_count {
             return false;
         }
         device

@@ -10,6 +10,10 @@ NET_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 RTE_SDK := $(NET_DIR)/dpdk
 RTE_TARGET ?= x86_64-native-linuxapp-gcc
 
+# Force the use of our own time_t by preventing the stdlib from defining it and forcefully including ours so it's available
+CFLAGS += -D__time_t_defined
+CFLAGS += --include os/clock.h
+
 # Silence warnings triggered by DPDK
 CFLAGS += -Wno-address-of-packed-member -Wno-padded
 

@@ -21,13 +21,13 @@ uint32_t* addresses;
 struct os_map* map;
 struct os_pool* pool;
 
-bool nf_init(device_t max_device)
+bool nf_init(device_t devices_count)
 {
-	if (max_device != 1) {
+	if (devices_count != 2) {
 		return false;
 	}
 
-	wan_device = os_config_get_device("wan device", max_device);
+	wan_device = os_config_get_device("wan device", devices_count);
 
 	rate = os_config_get_u64("rate");
 	if (rate == 0) {

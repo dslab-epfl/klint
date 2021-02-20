@@ -11,13 +11,13 @@ device_t wan_device;
 struct flow_table* table;
 
 
-bool nf_init(device_t max_device)
+bool nf_init(device_t devices_count)
 {
-	if (max_device != 1) {
+	if (devices_count != 2) {
 		return false;
 	}
 
-	wan_device = os_config_get_device("wan device", max_device);
+	wan_device = os_config_get_device("wan device", devices_count);
 
 	size_t max_flows = os_config_get_size("max flows");
 	time_t expiration_time = os_config_get_time("expiration time");

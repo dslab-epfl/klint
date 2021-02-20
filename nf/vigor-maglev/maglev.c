@@ -11,13 +11,13 @@
 struct ld_balancer *balancer;
 device_t wan_device;
 
-bool nf_init(device_t max_device)
+bool nf_init(device_t devices_count)
 {
-    if (max_device == 0) {
+    if (devices_count < 2) {
         return false;
     }
 
-    wan_device = os_config_get_device("wan device", max_device);
+    wan_device = os_config_get_device("wan device", devices_count);
 
     size_t flow_capacity = os_config_get_size("flow capacity");
     size_t cht_height = os_config_get_size("cht height");

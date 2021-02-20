@@ -8,9 +8,9 @@
 struct lpm* lpm;
 
 
-bool nf_init(device_t max_device)
+bool nf_init(device_t devices_count)
 {
-	(void) max_device;
+	(void) devices_count;
 
 	// TODO: Split allocation and fill-from-config
 	lpm = lpm_alloc();

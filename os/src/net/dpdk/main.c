@@ -20,17 +20,18 @@
 #error Please define BATCH_SIZE
 #endif
 
-// Can be anything
 #define MAX_DEVICES 2
+// TODO properly do refcount shenanigans
+_Static_assert(MAX_DEVICES == 2, "see todo");
 
-static uint16_t devices_count;
+static device_t devices_count;
 static struct rte_ether_addr device_addrs[MAX_DEVICES];
 static struct rte_ether_addr endpoint_addrs[MAX_DEVICES];
 
 static uint16_t bufs_to_tx_count[MAX_DEVICES];
 static struct rte_mbuf* bufs_to_tx[MAX_DEVICES][BATCH_SIZE];
 
-static void device_init(unsigned device, struct rte_mempool* mbuf_pool)
+static void device_init(device_t device, struct rte_mempool* mbuf_pool)
 {
 	int ret;
 
@@ -67,7 +68,7 @@ static void device_init(unsigned device, struct rte_mempool* mbuf_pool)
 
 
 // TODO make sure we never get multiple net_transmit calls for the same mbuf? or handle it? idk
-void net_transmit(struct net_packet* packet, uint16_t device, enum net_transmit_flags flags)
+void net_transmit(struct net_packet* packet, device_t device, enum net_transmit_flags flags)
 {
 	struct net_ether_header* ether_header = (struct net_ether_header*) packet->data;
 	if (flags & UPDATE_ETHER_ADDRS) {
@@ -81,7 +82,7 @@ void net_transmit(struct net_packet* packet, uint16_t device, enum net_transmit_
 
 void net_flood(struct net_packet* packet)
 {
-	for (uint16_t device = 0; device < devices_count; device++) {
+	for (device_t device = 0; device < devices_count; device++) {
 		if (packet->device != device) {
 			bufs_to_tx[device][bufs_to_tx_count[device]] = (struct rte_mbuf*) packet->os_tag;
 			bufs_to_tx_count[device] = bufs_to_tx_count[device] + 1;
@@ -120,7 +121,7 @@ int main(int argc, char** argv)
 		os_fail("Cannot create DPDK pool");
 	}
 
-	for (uint16_t device = 0; device < devices_count; device++) {
+	for (device_t device = 0; device < devices_count; device++) {
 		device_init(device, mbuf_pool);
 	}
 
@@ -129,7 +130,7 @@ int main(int argc, char** argv)
 	}
 
 	while(1) {
-		for (uint16_t device = 0; device < devices_count; device++) {
+		for (device_t device = 0; device < devices_count; device++) {
 			struct rte_mbuf* bufs[BATCH_SIZE];
 			uint16_t nb_rx = rte_eth_rx_burst(device, 0, bufs, BATCH_SIZE);
 			for (int16_t n = 0; n < nb_rx; n++) {
@@ -141,7 +142,7 @@ int main(int argc, char** argv)
 				};
 				nf_handle(&packet);
 			}
-			for (uint16_t out_device = 0; out_device < devices_count; out_device++) {
+			for (device_t out_device = 0; out_device < devices_count; out_device++) {
 				uint16_t nb_tx = rte_eth_tx_burst(out_device, 0, bufs_to_tx[out_device], bufs_to_tx_count[out_device]);
 				for (uint16_t n = nb_tx; n < bufs_to_tx_count[out_device]; n++) {
 					rte_pktmbuf_free(bufs_to_tx[out_device][n]);

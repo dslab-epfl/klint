@@ -13,9 +13,9 @@ struct os_map* map;
 struct os_pool* allocator;
 
 
-bool nf_init(device_t max_device)
+bool nf_init(device_t devices_count)
 {
-	if (max_device == 0) {
+	if (devices_count < 2) {
 		return false;
 	}
 

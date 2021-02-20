@@ -10,7 +10,7 @@
 // change at will...
 #define MAX_DEVICES 10
 
-static size_t devices_count;
+static device_t devices_count;
 static uint8_t device_mac_pairs[12 * MAX_DEVICES];
 static uint16_t* current_output_lengths;
 
@@ -33,7 +33,7 @@ void net_flood(struct net_packet* packet)
 	(void) packet;
 
 #ifdef TN_MANY_OUTPUTS
-	for (size_t n = 0; n < devices_count; n++) {
+	for (device_t n = 0; n < devices_count; n++) {
 		if (n != packet->device) {
 			current_output_lengths[n] = packet->length;
 		}
@@ -47,7 +47,7 @@ void net_flood(struct net_packet* packet)
 static void tinynf_packet_handler(uint8_t* packet, uint16_t packet_length, void* state, uint16_t* output_lengths)
 {
 #ifdef TN_MANY_OUTPUTS
-	for (size_t n = 0; n < devices_count; n++) {
+	for (device_t n = 0; n < devices_count; n++) {
 		output_lengths[n] = 0;
 	}
 #else
@@ -57,7 +57,7 @@ static void tinynf_packet_handler(uint8_t* packet, uint16_t packet_length, void*
 	current_output_lengths = output_lengths;
 	struct net_packet pkt = {
 		.data = packet,
-		.device = (uint16_t) (uintptr_t) state,
+		.device = (device_t) (uintptr_t) state,
 		.length = packet_length
 	};
 	nf_handle(&pkt);
@@ -79,7 +79,7 @@ int main(int argc, char** argv)
 	}
 
 	struct tn_net_device* devices[MAX_DEVICES];
-	for (size_t n = 0; n < devices_count; n++) {
+	for (device_t n = 0; n < devices_count; n++) {
 		if (!tn_net_device_init(pci_addresses[n], &(devices[n]))) {
 			os_fail("Couldn't init device");
 		}
@@ -104,13 +104,13 @@ int main(int argc, char** argv)
 	}
 
 	struct tn_net_agent* agents[MAX_DEVICES];
-	for (size_t n = 0; n < devices_count; n++) {
+	for (device_t n = 0; n < devices_count; n++) {
 		agents[n] = tn_net_agent_alloc();
 		if (!tn_net_agent_set_input(agents[n], devices[n])) {
 			os_fail("Couldn't set agent RX");
 		}
 #ifdef TN_MANY_OUTPUTS
-		for (size_t m = 0; m < devices_count; m++) {
+		for (device_t m = 0; m < devices_count; m++) {
 			if (!tn_net_agent_add_output(agents[n], devices[m])) {
 				os_fail("Couldn't set agent TX");
 			}
@@ -127,7 +127,7 @@ int main(int argc, char** argv)
 
 	tn_net_packet_handler* handlers[MAX_DEVICES];
 	void* states[MAX_DEVICES];
-	for (uint16_t n = 0; n < devices_count; n++) {
+	for (device_t n = 0; n < devices_count; n++) {
 		handlers[n] = tinynf_packet_handler;
 		states[n] = (void*) (uintptr_t) n;
 	}
