@@ -18,21 +18,25 @@ typedef unsigned hash_t;
 void* os_memory_alloc(size_t count, size_t size);
 //@ requires emp;
 //@ ensures chars(result, count * size, ?cs) &*& true == all_eq(cs, 0) &*& result + count * size <= (char*) UINTPTR_MAX;
+//@ terminates;
 
 // Maps the region of physical address memory defined by (address, size) into virtual memory.
 void* os_memory_phys_to_virt(uintptr_t addr, size_t size);
 //@ requires emp;
 //@ ensures emp;
+//@ terminates;
 
 // Gets the physical address corresponding to the given virtual address.
 uintptr_t os_memory_virt_to_phys(const void* addr);
 //@ requires emp;
 //@ ensures emp;
+//@ terminates;
 
 
 static inline bool os_memory_eq(const void* a, const void* b, size_t obj_size)
 //@ requires [?f1]chars(a, obj_size, ?ac) &*& [?f2]chars(b, obj_size, ?bc);
 //@ ensures [f1]chars(a, obj_size, ac) &*& [f2]chars(b, obj_size, bc) &*& result == (ac == bc);
+//@ terminates;
 {
 	//@ assume(false); // TODO
 	while (obj_size >= sizeof(uint64_t))
@@ -80,6 +84,7 @@ static inline hash_t os_memory_hash(const void* obj, size_t obj_size)
 //@ requires [?f]chars(obj, obj_size, ?value);
 /*@ ensures [f]chars(obj, obj_size, value) &*&
             result == hash_fp(value); @*/
+//@ terminates;
 {
 	//@ assume(false); // TODO
 	// Without these two VeriFast loses track of the original obj and obj_size
@@ -130,6 +135,7 @@ static inline hash_t os_memory_hash(const void* obj, size_t obj_size)
 static inline void os_memory_copy(const void* src, void* dst, size_t obj_size)
 //@ requires [?f]chars(src, obj_size, ?srccs) &*& chars(dst, obj_size, ?dstcs);
 //@ ensures [f]chars(src, obj_size, srccs) &*& chars(dst, obj_size, srccs);
+//@ terminates;
 {
 	//@ assume(false); // TODO
 	while (obj_size >= sizeof(uint64_t))

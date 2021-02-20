@@ -15,6 +15,7 @@ struct os_map;
 struct os_map* os_map_alloc(size_t key_size, size_t capacity);
 /*@ requires capacity <= SIZE_MAX / 2 + 1; @*/
 /*@ ensures mapp(result, key_size, capacity, nil, nil); @*/
+//@ terminates;
 
 bool os_map_get(struct os_map* map, void* key_ptr, size_t* out_value);
 /*@ requires mapp(map, ?key_size, ?capacity, ?values, ?addrs) &*&
@@ -26,6 +27,7 @@ bool os_map_get(struct os_map* map, void* key_ptr, size_t* out_value);
               case none: return result == false &*& *out_value |-> _;
               case some(v): return result == true &*& *out_value |-> v;
             }; @*/
+//@ terminates;
 
 void os_map_set(struct os_map* map, void* key_ptr, size_t value);
 /*@ requires mapp(map, ?key_size, ?capacity, ?values, ?addrs) &*&
@@ -34,6 +36,7 @@ void os_map_set(struct os_map* map, void* key_ptr, size_t value);
              ghostmap_get(values, key) == none &*&
              ghostmap_get(addrs, key) == none; @*/
 /*@ ensures mapp(map, key_size, capacity, ghostmap_set(values, key, value), ghostmap_set(addrs, key, key_ptr)); @*/
+//@ terminates;
 
 void os_map_remove(struct os_map* map, void* key_ptr);
 /*@ requires mapp(map, ?key_size, ?capacity, ?values, ?addrs) &*&
@@ -43,3 +46,4 @@ void os_map_remove(struct os_map* map, void* key_ptr);
              ghostmap_get(addrs, key) == some(key_ptr); @*/
 /*@ ensures mapp(map, key_size, capacity, ghostmap_remove(values, key), ghostmap_remove(addrs, key)) &*&
            [frac + 0.25]chars(key_ptr, key_size, key); @*/
+//@ terminates;

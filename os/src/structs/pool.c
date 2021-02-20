@@ -89,6 +89,7 @@ ensures poolp_truths(update(index, time, timestamps), time == TIME_INVALID ? gho
 struct os_pool* os_pool_alloc(size_t size, time_t expiration_time)
 /*@ requires emp; @*/
 /*@ ensures poolp(result, size, expiration_time, nil); @*/
+/*@ terminates; @*/
 {
 	struct os_pool* pool = (struct os_pool*) os_memory_alloc(1, sizeof(struct os_pool));
 	//@ close_struct_zero(pool);
@@ -101,6 +102,7 @@ struct os_pool* os_pool_alloc(size_t size, time_t expiration_time)
 	              chars((char*) raw_timestamps, n * sizeof(time_t), _) &*&
 	              raw_timestamps[n..size] |-> ?timestamps &*&
 	              true == all_eq(timestamps, TIME_INVALID); @*/
+	//@ decreases n;
 	{
 		//@ chars_split((char*) raw_timestamps, (n - 1) * sizeof(time_t));
 		//@ chars_to_integer_(raw_timestamps + n - 1, sizeof(time_t), IS_TIME_T_SIGNED);
@@ -160,6 +162,7 @@ bool os_pool_borrow(struct os_pool* pool, time_t time, size_t* out_index, bool* 
                    	case some(old): return used == true &*& old < time - exp_time;
                    	case none: return used == false;
             	   }); @*/
+/*@ terminates; @*/
 {
 	// Optimization:
 	// Instead of looping through the entire array from zero,
@@ -180,6 +183,7 @@ bool os_pool_borrow(struct os_pool* pool, time_t time, size_t* out_index, bool* 
 	              lbi <= size &*&
 	              forall_(size_t k; !(lbi <= k && k < n) || !nth_eq(k, timestamps, TIME_INVALID)) &*&
 	              forall_(size_t k; !(lbi <= k && k < n) || (time < exp_time || time - exp_time <= nth(k, timestamps))); @*/
+	//@ decreases size - n;
 	{
 		if (pool->timestamps[n] == TIME_INVALID) {
 			//@ ghostmap_array_max_size(items, size, n);
@@ -209,6 +213,7 @@ bool os_pool_borrow(struct os_pool* pool, time_t time, size_t* out_index, bool* 
 	              *out_used |-> _ &*&
 	              forall_(size_t k; !(0 <= k && k < n) || !nth_eq(k, timestamps, TIME_INVALID)) &*&
 	              forall_(size_t k; !(0 <= k && k < n) || (time < exp_time || time - exp_time <= nth(k, timestamps))); @*/
+	//@ decreases lbi - n;
 	{
 		if (pool->timestamps[n] == TIME_INVALID) {
 			//@ ghostmap_array_max_size(items, size, n);
@@ -245,6 +250,7 @@ void os_pool_refresh(struct os_pool* pool, time_t time, size_t index)
              index < size &*&
              ghostmap_get(items, index) != none; @*/
 /*@ ensures poolp(pool, size, exp_time, ghostmap_set(items, index, time)); @*/
+/*@ terminates; @*/
 {
 	//@ open poolp(pool, size, exp_time, items);
 	pool->timestamps[index] = time;
@@ -260,6 +266,7 @@ bool os_pool_used(struct os_pool* pool, size_t index, time_t* out_time)
               case none: return result == false &*& *out_time |-> _;
               case some(t): return result == true &*& *out_time |-> t;
             }; @*/
+/*@ terminates; @*/
 {
 	//@ open poolp(pool, size, exp_time, items);
 	//@ open poolp_truths(?timestamps, items);
@@ -279,6 +286,7 @@ void os_pool_return(struct os_pool* pool, size_t index)
              index < size &*&
              ghostmap_get(items, index) != none; @*/
 /*@ ensures poolp(pool, size, exp_time, ghostmap_remove(items, index)); @*/
+/*@ terminates; @*/
 {
 	//@ open poolp(pool, size, exp_time, items);
 	pool->timestamps[index] = TIME_INVALID;
