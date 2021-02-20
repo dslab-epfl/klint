@@ -7,6 +7,8 @@
 // The proof was then adapted to use ghost-map-based contracts.
 // Then, for performance, the implementation and proof were adapted to use array-of-structs rather than structs-of-array
 // (since the former has much better cache behavior).
+// VeriFast also improved in the meantime, meaning some workarounds in the original proof design
+// may not be necessary any more, while some new workarounds are needed to e.g. support target-independent mode.
 // The resulting code is neat, but to say the current proof is not pretty would be an understatement.
 
 
@@ -207,7 +209,7 @@ struct os_map {
   }
 
   // Chains + buckets => key options
-  predicate buckets_keys_insync(size_t capacity, list<hash_t> chains, list<bucket<list<char> > > buckets;
+  predicate buckets_keys_insync(size_t capacity, list<size_t> chains, list<bucket<list<char> > > buckets;
                                 list<option<list<char> > > key_opts) =
     chains == buckets_get_chns_fp(buckets) &*&
     true == buckets_ok(buckets) &*&
@@ -216,7 +218,7 @@ struct os_map {
     length(buckets) == capacity;
 
   // Partial: Chains + buckets => key options
-  predicate buckets_keys_insync_Xchain(size_t capacity, list<hash_t> chains, list<bucket<list<char> > > buckets, size_t start, size_t fin; list<option<list<char> > > key_opts) =
+  predicate buckets_keys_insync_Xchain(size_t capacity, list<size_t> chains, list<bucket<list<char> > > buckets, size_t start, size_t fin; list<option<list<char> > > key_opts) =
     chains == add_partial_chain_fp(start,
                                    (fin < start) ? capacity + fin - start :
                                                    fin - start,
@@ -313,14 +315,17 @@ static size_t get_real_capacity(size_t capacity)
   /*@ invariant is_pow2(real_capacity, N63) != none &*&
                 real_capacity <= capacity * 2; @*/
   {
+    //@ mul_mono(real_capacity, SIZE_MAX / 2, 2);
+    //@ div_exact_rev(SIZE_MAX, 2);
     real_capacity *= 2;
   }
   //@ assert none != is_pow2(real_capacity, N63);
   return real_capacity;
 }
 
-static size_t loop(size_t start, size_t i, size_t capacity)
+static size_t loop(hash_t start, size_t i, size_t capacity)
 /*@ requires i < capacity &*&
+             capacity <= SIZE_MAX / 2 + 1 &*&
              is_pow2(capacity, N63) != none; @*/
 /*@ ensures 0 <= result &*& result < capacity &*&
             result == loop_fp(start + i, capacity) &*&
@@ -330,10 +335,11 @@ static size_t loop(size_t start, size_t i, size_t capacity)
   //@ nat m = is_pow2_some(capacity, N63);
   //@ mod_bitand_equiv(start, capacity, m);
   //@ div_mod_gt_0(start % capacity, start, capacity);
-  size_t startmod = start & (capacity - 1);
+  size_t startmod = (size_t) start & (capacity - 1);
   //@ mod_bitand_equiv(startmod + i, capacity, m);
   //@ div_mod_gt_0((startmod + i) % capacity, startmod + i, capacity);
   //@ mod_mod(start, i, capacity);
+  //@ div_exact_rev(SIZE_MAX, 2);
   return (startmod + i) & (capacity - 1);
 }
 
@@ -507,6 +513,15 @@ lemma void produce_empty_map_valuesaddrs(size_t capacity, list<void*> kaddrs, li
       close map_valuesaddrs(kaddrs, repeat_n(nat_of_int(capacity), none), values, nil, nil);
   }
 }
+
+lemma void pow63_limits(size_t capacity)
+requires capacity >= 0 &*&
+         (capacity != 0) == (is_pow2(capacity, N63) != none);
+ensures capacity <= SIZE_MAX / 2 + 1;
+{
+  assume(false);
+}
+
 @*/
 
 struct os_map* os_map_alloc(size_t key_size, size_t capacity)
@@ -545,6 +560,7 @@ struct os_map* os_map_alloc(size_t key_size, size_t capacity)
   //@ produce_empty_map_valuesaddrs(real_capacity, kaddrs_lst, values_lst);
   //@ produce_empty_hash_list(kopts, hashes_lst);
   //@ repeat_none_is_opt_no_dups(nat_of_int(real_capacity), kopts);
+  //@ pow63_limits(real_capacity);
   //@ close mapp_core(key_size, real_capacity, kaddrs_lst, busybits_lst, hashes_lst, values_lst, kopts, nil, nil);
   //@ close mapp(m, key_size, capacity, nil, nil);
   return m;
@@ -1148,7 +1164,7 @@ lemma void zero_bbs_is_for_empty(list<bool> busybits, list<option<list<char> > >
 
 // ---
 
-lemma void start_Xchain(size_t capacity, list<hash_t> chains,  list<bucket<list<char> > > buckets, list<option<list<char> > > key_opts, size_t start)
+lemma void start_Xchain(size_t capacity, list<size_t> chains,  list<bucket<list<char> > > buckets, list<option<list<char> > > key_opts, size_t start)
   requires buckets_keys_insync(capacity, chains, buckets, key_opts) &*&
            0 <= start &*& start < capacity;
   ensures buckets_keys_insync_Xchain(capacity, chains, buckets, start, start, key_opts);
@@ -1430,6 +1446,15 @@ ensures map(fp, update(index, item, lst)) == update(index, fp(item), map(fp, lst
       }
   }
 }
+
+// ---
+
+lemma void size_wtf(size_t a, size_t b)
+requires a <= SIZE_MAX / 2 &*& b <= SIZE_MAX / 2;
+ensures a + b <= SIZE_MAX;
+{
+    div_exact_rev(SIZE_MAX, 2);
+}
 @*/
 
 void os_map_set(struct os_map* map, void* key_ptr, size_t value)
@@ -1506,7 +1531,8 @@ void os_map_set(struct os_map* map, void* key_ptr, size_t value)
     //@ outside_part_chn_no_effect(buckets_get_chns_fp(buckets), start, index, real_capacity);
     //@ assert item->chain |-> ?chn;
     //@ nth_map(index, map_item_chain, the_items);
-    //@ assert chn <= real_capacity;
+    //@ div_ge(4, SIZE_MAX, 2);
+    //@ size_wtf(SIZE_MAX / 2, 2);
     item->chain = item->chain + 1;
     //@ nth_map(index, map_item_busy, the_items);
     //@ bb_nonzero_cell_busy(busybits_lst, key_opts, index);

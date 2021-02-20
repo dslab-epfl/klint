@@ -6,10 +6,8 @@
 
 //@ #include <list.gh>
 
-// 32-bit hash because a 64-bit one is generally not useful for data structure purposes (unless you create tables with > 2**32 elements)
-typedef uint32_t hash_t;
-#define chars_to_hashes chars_to_uints
-//@ fixpoint hash_t hash_fp(list<char> value);
+// A larger hash type than this is generally not useful for data structure purposes
+typedef unsigned hash_t;
 
 
 // Allocates a pinned, zero-initialized memory block of the given length (size * count), aligned to the length.
@@ -76,6 +74,8 @@ static inline bool os_memory_eq(const void* a, const void* b, size_t obj_size)
 }
 
 
+//@ fixpoint hash_t hash_fp(list<char> value);
+
 static inline hash_t os_memory_hash(const void* obj, size_t obj_size)
 //@ requires [?f]chars(obj, obj_size, ?value);
 /*@ ensures [f]chars(obj, obj_size, value) &*&
@@ -123,16 +123,6 @@ static inline hash_t os_memory_hash(const void* obj, size_t obj_size)
 		//@ discarded_size += 1;
 		//@ chars_join(obj + 1 - discarded_size);
 	}
-
-	// Proving this with VeriFast is a huge pain because it currently does not support value-preserving char*-to-int* transformations (except for int32_t);
-	// but logically this is obvious since 'f' may be <1 and thus we do not have the right to modify 'value'!
-	//@ assert [f]chars(old_obj, old_obj_size, ?old_value);
-	//@ assume(value == old_value);
-
-	// Proving this is rather pointless since we're using externals for the intrinsics anyway (so they could misbehave if the CPU is buggy)
-	// all we care about is that this function is deterministic
-	//@ assume(hash == hash_fp(value));
-
 	return hash;
 }
 
