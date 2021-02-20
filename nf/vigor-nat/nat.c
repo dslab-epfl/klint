@@ -4,12 +4,12 @@
 #include "os/config.h"
 #include "os/debug.h"
 
-#include "flowtable.h"
+#include "flow_table.h"
 
 
 uint32_t external_addr;
 device_t wan_device;
-struct flowtable* table;
+struct flow_table* table;
 
 
 bool nf_init(device_t max_device)
@@ -24,7 +24,7 @@ bool nf_init(device_t max_device)
 	size_t max_flows = os_config_get_size("max flows");
 	time_t expiration_time = os_config_get_time("expiration time");
 	uint16_t start_port = os_config_get_u16("start port");
-	table = flowtable_alloc(start_port, expiration_time, max_flows);
+	table = flow_table_alloc(start_port, expiration_time, max_flows);
 
 	return true;
 }
@@ -44,7 +44,7 @@ void nf_handle(struct net_packet* packet)
 
 	if (packet->device == wan_device) {
 		struct flow internal_flow;
-		if (flowtable_get_external(table, time, tcpudp_header->dst_port, &internal_flow)) {
+		if (flow_table_get_external(table, time, tcpudp_header->dst_port, &internal_flow)) {
 			if ((internal_flow.dst_ip != ipv4_header->src_addr) | (internal_flow.dst_port != tcpudp_header->src_port) | (internal_flow.protocol != ipv4_header->next_proto_id)) {
 				os_debug("Spoofing attempt");
 				return;
@@ -68,7 +68,7 @@ void nf_handle(struct net_packet* packet)
 		};
 
 		uint16_t external_port;
-		if (!flowtable_get_internal(table, time, &flow, &external_port)) {
+		if (!flow_table_get_internal(table, time, &flow, &external_port)) {
 			os_debug("No space for the flow");
 			return;
 		}

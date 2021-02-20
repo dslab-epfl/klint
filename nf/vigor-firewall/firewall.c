@@ -4,11 +4,11 @@
 #include "os/config.h"
 #include "os/debug.h"
 
-#include "flowtable.h"
+#include "flow_table.h"
 
 
 device_t wan_device;
-struct flowtable* table;
+struct flow_table* table;
 
 
 bool nf_init(device_t max_device)
@@ -21,7 +21,7 @@ bool nf_init(device_t max_device)
 
 	size_t max_flows = os_config_get_size("max flows");
 	time_t expiration_time = os_config_get_time("expiration time");
-	table = flowtable_init(expiration_time, max_flows);
+	table = flow_table_alloc(expiration_time, max_flows);
 
 	return true;
 }
@@ -47,7 +47,7 @@ void nf_handle(struct net_packet* packet)
 			.dst_ip = ipv4_header->src_addr,
 			.protocol = ipv4_header->next_proto_id
 		};
-		if (!flowtable_has_external(table, time, &flow)) {
+		if (!flow_table_has_external(table, time, &flow)) {
 			os_debug("Unknown flow");
 			return;
 		}
@@ -60,7 +60,7 @@ void nf_handle(struct net_packet* packet)
 			.protocol = ipv4_header->next_proto_id,
 		};
 
-		flowtable_learn_internal(table, time, &flow);
+		flow_table_learn_internal(table, time, &flow);
 	}
 
 	net_transmit(packet, 1 - packet->device, 0);
