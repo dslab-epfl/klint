@@ -10,7 +10,11 @@
 // VeriFast also improved in the meantime, meaning some workarounds in the original proof design
 // may not be necessary any more, while some new workarounds are needed to e.g. support target-independent mode.
 // The resulting code is neat, but to say the current proof is not pretty would be an understatement.
-
+// Some thoughts on how to improve if this is ever rewritten:
+// - Isolate stuff more. The proof currently takes forever because it has to look at tens of thousands of lines of proof.
+// - See if any solver (e.g. Z3 or CVC4) is friendly to the mod-pow2 optimization, instead of manually proving bit tricks.
+// - Remove the intermediate "key_opts" layer between the raw map and the ghost maps, it's a historical artifact
+// - Consider using forall_, it sometimes works very well.
 
 //@ #include "proof/chain-buckets.gh"
 //@ #include "proof/listexex.gh"
@@ -120,7 +124,6 @@ lemma void extract_item(struct os_map_item* ptr, size_t i)
     open map_itemsp(ptr, count, items);
     switch(items) {
       case nil:
-        return;
       case cons(h, t):
         if (i != 0) {
           extract_item(ptr + 1, i - 1);
@@ -138,9 +141,6 @@ lemma void extract_item(struct os_map_item* ptr, size_t i)
   {
     switch(items) {
       case nil:
-        assert(0 <= i);
-        assert(i < 0);
-        return;
       case cons(h,t):
         open map_itemsp(ptr, i, take(i, items));
         if (i == 0) {
@@ -583,19 +583,18 @@ lemma list<char> extract_key_at_index(list<void*> kaddrs_b, list<bool> busybits_
   open key_opt_list(_, kaddrs, _, _);
   switch(busybits) {
     case nil:
-      return nil;
     case cons(bbh, bbt):
       switch(kaddrs) {
-        case nil: return nil;
+        case nil:
         case cons(kph, kpt):
           switch(key_opts) {
-            case nil: return nil;
+            case nil:
             case cons(kh, kt):
             if (n == 0) {
               switch(kh) {
                 case some(k):
                   return k;
-                case none: return nil;
+                case none:
               }
             } else {
               close key_opt_list(key_size, cons(kph, kaddrs_b), cons(bbh, busybits_b), cons(kh, key_opts_b));
@@ -694,16 +693,11 @@ lemma void no_hash_no_key(list<option<list<char> > > key_opts, list<hash_t> hash
   open hash_list(key_opts, hashes);
   switch(key_opts) {
     case nil:
-      assert hashes == nil;
     case cons(kh,kt):
       assert hashes == cons(?hh, ?ht);
       if (i == 0) {
         assert nth(i, key_opts) == kh;
         if (kh == some(k)) {
-          assert hh == hash_fp(k);
-          nth_0_head(hashes);
-          assert nth(i, hashes) == hh;
-          assert nth(i, hashes) == hash_fp(k);
         }
       } else {
         nth_cons(i, ht, hh);
@@ -724,7 +718,7 @@ lemma void no_bb_no_key(list<option<list<char> > > key_opts, list<bool> busybits
 {
   open key_opt_list(key_size, kaddrs, busybits, key_opts);
   switch(busybits) {
-    case nil: ;
+    case nil:
     case cons(bbh,bbt):
       if (i == 0) {
         nth_0_head(busybits);

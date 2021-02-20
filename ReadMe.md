@@ -6,3 +6,4 @@
 
 
 VeriFast commit used: 24560bb48b0c66900d05ec155d3383cfb246c3b6 (Feb 4, 2021)
+Structs need Redux, proof .c files need Z3 to prove

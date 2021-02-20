@@ -8,7 +8,6 @@
 //@ #include "listexex.gh"
 
 /*@
-
     lemma void mod_mul(int a, int b, int k)
         requires    0 <= a &*& 0 < b &*& 0 < k &*& a % b == 0;
         ensures     ((k*a) % (k*b)) == 0;
@@ -164,8 +163,9 @@
     }
 
     lemma void mod_bitand_equiv(int k, int capacity, nat m)
-        requires    0 <= k &*& k < pow_nat(2, N32) &*& 0 < capacity &*& capacity < INT_MAX &*& capacity == pow_nat(2, m) &*& int_of_nat(m) < 32;
-        ensures     (k % capacity) == (k & (capacity - 1)) &*& (k % capacity) == loop_fp(k, capacity);
+        requires 0 <= k &*& k < pow2(N64) &*& 0 < capacity &*& capacity == pow2(m) &*& int_of_nat(m) < 64;
+        ensures (k % capacity) == (k & (capacity - 1)) &*& (k % capacity) == loop_fp(k, capacity);
+    
     {
         int m_int = int_of_nat(m);
         list<bool> k_bits = snd(bits_of_int(k, N32));
@@ -469,8 +469,8 @@
     }
 
     lemma void check_pow2_valid(int x)
-        requires    0 < x &*& x < pow_nat(2, N32) &*& (x & (x - 1)) == 0;
-        ensures     is_pow2(x, N31) != none;
+      requires 0 < x &*& x < pow2(N64) &*& (x & (x - 1)) == 0;
+      ensures  is_pow2(x, N63) != none;
     {
 
         list<bool> x_bits = snd(bits_of_int(x, N32));

@@ -26,7 +26,9 @@
     {
         switch(n) {
             case zero:
-            case succ(n_pred): pow_nat_bounds(x, n_pred);
+            case succ(n_pred):
+                pow_nat_bounds(x, n_pred);
+                mul_nonzero(pow_nat(x, n_pred), x);
         }
     }
 
@@ -39,11 +41,11 @@
             case succ(m_pred):
                 switch(n) {
                     case zero: 
-                        assert (pow_nat(x, n) == 1);
-                        assert (pow_nat(x, m) == x * pow_nat(x, m_pred));
                         pow_nat_bounds(x, m_pred);
+                        mul_mono(1, pow_nat(x, m_pred), x);
                     case succ(n_pred): 
                         pow_nat_gt(x, n_pred, m_pred);
+                        mul_mono_strict(pow_nat(x, n_pred), pow_nat(x, m_pred), x);
                 }
         }
     }

@@ -24,11 +24,11 @@ lemma void some_is_pow2(int x, nat n, nat m);
     requires    x == pow2(n) &*& int_of_nat(n) <= int_of_nat(m);
     ensures     is_pow2(x, m) == some(n);
 
-lemma void mod_bitand_equiv(unsigned long long k, unsigned long long capacity, nat m);
+lemma void mod_bitand_equiv(int k, int capacity, nat m);
     requires    0 <= k &*& k < pow2(N64) &*& 0 < capacity &*& capacity == pow2(m) &*& int_of_nat(m) < 64;
     ensures     (k % capacity) == (k & (capacity - 1)) &*& (k % capacity) == loop_fp(k, capacity);
 
-lemma void check_pow2_valid(unsigned long long x);
+lemma void check_pow2_valid(int x);
     requires    0 < x &*& x < pow2(N64) &*& (x & (x - 1)) == 0;
     ensures     is_pow2(x, N63) != none;
 
