@@ -69,8 +69,10 @@ void* os_memory_alloc(const size_t count, const size_t size)
 		page_used_len = 0;
 	}
 
-	// OK because of the contract, this cannot overflow
 	const uintptr_t full_size = size * count;
+	if (size != 0 && full_size / size != count) {
+		os_fail("Overflow in computing the size, no way we have enough memory for that");
+	}
 
 	// Weird but valid; return a likely-invalid address for debugging convenience
 	if (full_size == 0) {
