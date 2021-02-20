@@ -10,7 +10,6 @@ struct flowtable
 	struct flow* flows;
 	struct os_map* flow_indexes;
 	struct os_pool* port_allocator;
-	time_t expiration_time;
 	size_t max_flows;
 	uint16_t start_port;
 	uint8_t _padding[6];
@@ -19,13 +18,12 @@ struct flowtable
 
 struct flowtable* flowtable_alloc(uint16_t start_port, time_t expiration_time, size_t max_flows)
 {
-	struct os_map* flow_indexes = os_map_alloc(sizeof(struct flow), max_flows); // TODO: 2*max_flows because it's only a small amount of additional space for a lot more tput when near full
+	struct os_map* flow_indexes = os_map_alloc(sizeof(struct flow), max_flows);
 	struct os_pool* port_allocator = os_pool_alloc(max_flows, expiration_time);
 	struct flowtable* table = os_memory_alloc(1, sizeof(struct flowtable));
 	table->flows = os_memory_alloc(max_flows, sizeof(struct flow));
 	table->flow_indexes = flow_indexes;
 	table->port_allocator = port_allocator;
-	table->expiration_time = expiration_time;
 	table->max_flows = max_flows;
 	table->start_port = start_port;
 	return table;
@@ -57,8 +55,7 @@ bool flowtable_get_internal(struct flowtable* table, time_t time, struct flow* f
 bool flowtable_get_external(struct flowtable* table, time_t time, uint16_t port, struct flow* out_flow)
 {
 	size_t index = (uint16_t) (port - table->start_port);
-	time_t flow_time;
-	if (!os_pool_used(table->port_allocator, index, &flow_time) || time - table->expiration_time > flow_time) { // TODO add that check to os_pool_used?
+	if (!os_pool_contains(table->port_allocator, time, index)) {
 		return false;
 	}
 

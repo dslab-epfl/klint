@@ -1,11 +1,8 @@
 #pragma once
 
-#include <stdint.h>
-
 #include "net/packet.h"
+#include "net/tx.h" // convenience for implementers
 
-
-typedef uint16_t device_t;
 
 enum net_transmit_flags {
 	UPDATE_ETHER_ADDRS = 1 << 0,

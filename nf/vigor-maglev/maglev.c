@@ -9,30 +9,27 @@
 // TODO fix formatting in maglev, and also inline stuff...
 
 struct ld_balancer *balancer;
-uint16_t wan_device;
+device_t wan_device;
 
-bool nf_init(uint16_t devices_count)
+bool nf_init(device_t max_device)
 {
-    wan_device = os_config_get_u16("wan device");
-    if (wan_device >= devices_count)
-    {
+    if (max_device == 0) {
         return false;
     }
 
-    size_t flow_capacity = os_config_get_u64("flow capacity"); // TODO get_size
-    if (flow_capacity > SIZE_MAX / 16 - 2) {
-    	return false;
-    }
-    size_t cht_height = os_config_get_u64("cht height"); // TODO get_size
-    if (cht_height == 0 || cht_height >= MAX_CHT_HEIGHT) {
+    wan_device = os_config_get_device("wan device", max_device);
+
+    size_t flow_capacity = os_config_get_size("flow capacity");
+    size_t cht_height = os_config_get_size("cht height");
+    if (cht_height == 0 || cht_height >= MAX_CHT_HEIGHT) { // TODO what can we do about this?
         return false;
     }
-    size_t backend_capacity = os_config_get_u64("backend capacity");
-    if (backend_capacity == 0 || backend_capacity >= cht_height || backend_capacity * cht_height >= UINT32_MAX || flow_capacity > SIZE_MAX / 16 - 2) {
+    size_t backend_capacity = os_config_get_size("backend capacity");
+    if (backend_capacity == 0 || backend_capacity >= cht_height || backend_capacity * cht_height >= UINT32_MAX) { // TODO and this?
         return false;
     }
-    time_t backend_expiration_time = os_config_get_u64("backend expiration time"); // TODO get_time
-    time_t flow_expiration_time = os_config_get_u64("flow expiration time"); // TODO get_time
+    time_t backend_expiration_time = os_config_get_time("backend expiration time");
+    time_t flow_expiration_time = os_config_get_time("flow expiration time");
 
     balancer = ld_balancer_alloc(flow_capacity, backend_capacity, cht_height, backend_expiration_time, flow_expiration_time);
 

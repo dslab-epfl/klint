@@ -3,8 +3,8 @@
 #include "os/config.h"
 #include "os/clock.h"
 #include "os/memory.h"
-#include "structs/pool.h"
 #include "structs/map.h"
+#include "structs/pool.h"
 
 
 struct policer_bucket {
@@ -13,28 +13,24 @@ struct policer_bucket {
 };
 
 
-uint16_t wan_device;
+device_t wan_device;
 uint64_t rate;
 uint64_t burst;
-size_t max_flows;
 struct policer_bucket* buckets;
 uint32_t* addresses;
 struct os_map* map;
 struct os_pool* pool;
 
-bool nf_init(uint16_t devices_count)
+bool nf_init(device_t max_device)
 {
-	if (devices_count != 2) {
+	if (max_device != 1) {
 		return false;
 	}
 
-	wan_device = os_config_get_u16("wan device"); // TODO can we do get_device which includes a devices_count check?
-	if (wan_device >= devices_count) {
-		return false;
-	}
+	wan_device = os_config_get_device("wan device", max_device);
 
 	rate = os_config_get_u64("rate");
-	if (rate == 0) { // TODO do we need these rate/burst != 0 constraints?
+	if (rate == 0) {
 		return false;
 	}
 
@@ -43,11 +39,7 @@ bool nf_init(uint16_t devices_count)
 		return false;
 	}
 
-	max_flows = os_config_get_u64("max flows"); // TODO get_size
-	if (max_flows == 0 || max_flows > SIZE_MAX / 2 + 1) {
-		return false;
-	}
-
+	size_t max_flows = os_config_get_size("max flows");
 	buckets = os_memory_alloc(max_flows, sizeof(struct policer_bucket));
 	addresses = os_memory_alloc(max_flows, sizeof(uint32_t));
 	map = os_map_alloc(sizeof(uint32_t), max_flows);
@@ -70,7 +62,7 @@ void nf_handle(struct net_packet* packet)
 		size_t index;
 		if (os_map_get(map, &(ipv4_header->dst_addr), &index)) {
 			os_pool_refresh(pool, time, index);
-			uint64_t time_diff = time - buckets[index].time;
+			time_t time_diff = time - buckets[index].time;
 			if (time_diff < burst / rate) {
 				buckets[index].size += time_diff * rate;
 				if (buckets[index].size > burst) {

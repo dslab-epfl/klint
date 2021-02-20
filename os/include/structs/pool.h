@@ -16,6 +16,7 @@ struct os_pool;
 struct os_pool* os_pool_alloc(size_t size, time_t expiration_time);
 /*@ requires emp; @*/
 /*@ ensures poolp(result, size, expiration_time, nil); @*/
+/*@ terminates; @*/
 
 bool os_pool_borrow(struct os_pool* pool, time_t time, size_t* out_index, bool* out_used);
 /*@ requires poolp(pool, ?size, ?exp_time, ?items) &*&
@@ -34,6 +35,7 @@ bool os_pool_borrow(struct os_pool* pool, time_t time, size_t* out_index, bool* 
                    	case some(old): return used == true &*& old < time - exp_time;
                    	case none: return used == false;
                    }); @*/
+/*@ terminates; @*/
 
 void os_pool_refresh(struct os_pool* pool, time_t time, size_t index);
 /*@ requires poolp(pool, ?size, ?exp_time, ?items) &*&
@@ -41,18 +43,20 @@ void os_pool_refresh(struct os_pool* pool, time_t time, size_t index);
              index < size &*&
              ghostmap_get(items, index) != none; @*/
 /*@ ensures poolp(pool, size, exp_time, ghostmap_set(items, index, time)); @*/
+/*@ terminates; @*/
 
-bool os_pool_used(struct os_pool* pool, size_t index, time_t* out_time);
-/*@ requires poolp(pool, ?size, ?exp_time, ?items) &*&
-             *out_time |-> _; @*/
+bool os_pool_contains(struct os_pool* pool, time_t time, size_t index);
+/*@ requires poolp(pool, ?size, ?exp_time, ?items); @*/
 /*@ ensures poolp(pool, size, exp_time, items) &*&
             switch (ghostmap_get(items, index)) {
-              case none: return result == false &*& *out_time |-> _;
-              case some(t): return result == true &*& *out_time |-> t;
+              case none: return result == false;
+              case some(t): return result == pool_young(time, exp_time, 0, t);
             }; @*/
+/*@ terminates; @*/
 
 void os_pool_return(struct os_pool* pool, size_t index);
 /*@ requires poolp(pool, ?size, ?exp_time, ?items) &*&
              index < size &*&
              ghostmap_get(items, index) != none; @*/
 /*@ ensures poolp(pool, size, exp_time, ghostmap_remove(items, index)); @*/
+/*@ terminates; @*/

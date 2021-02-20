@@ -1,21 +1,23 @@
 #include "net/skeleton.h"
 
-#include "os/memory.h"
 #include "os/debug.h"
 
 #include "lpm.h"
 
+
 struct lpm* lpm;
 
-bool nf_init(uint16_t devices_count)
+
+bool nf_init(device_t max_device)
 {
-	(void) devices_count;
+	(void) max_device;
 
 	// TODO: Split allocation and fill-from-config
 	lpm = lpm_alloc();
 
 	return true;
 }
+
 
 void nf_handle(struct net_packet* packet)
 {
@@ -51,7 +53,7 @@ void nf_handle(struct net_packet* packet)
 		return;
 	}
 
-	uint16_t dst_device;
+	device_t dst_device;
 	uint32_t out_prefix;
 	uint8_t out_prefixlen;
 	if (lpm_lookup_elem(lpm, ipv4_header->dst_addr, &dst_device, &out_prefix, &out_prefixlen)) {

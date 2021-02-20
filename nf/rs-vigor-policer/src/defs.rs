@@ -85,5 +85,5 @@ extern "C" {
     pub fn os_pool_borrow(pool: *mut OsPool, time: TimeT, out_index: *mut usize, was_used: *mut bool) -> bool;
     // pub fn os_pool_return(pool: *mut OsPool, index: usize);
     pub fn os_pool_refresh(pool: *mut OsPool, time: TimeT, index: usize);
-    // pub fn os_pool_used(pool: *mut OsPool, index: usize, out_time: *mut TimeT) -> bool;
+    // pub fn os_pool_contains(pool: *mut OsPool, time: TimeT, index: usize) -> bool;
 }

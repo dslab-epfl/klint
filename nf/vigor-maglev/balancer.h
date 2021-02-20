@@ -1,7 +1,11 @@
 #pragma once
 
+#include <stddef.h>
+#include <stdbool.h>
+
 #include "state.h"
 
+#include "net/packet.h"
 #include "os/clock.h"
 
 
@@ -20,8 +24,8 @@ struct ld_balancer *ld_balancer_alloc(size_t flow_capacity,
 bool lb_get_backend(struct ld_balancer *balancer,
                                  struct lb_flow *flow,
                                  time_t now,
-                                 uint16_t wan_device,
+                                 device_t wan_device,
                                  struct lb_backend** out_backend);
 void lb_process_heartbeat(struct ld_balancer *balancer,
                           struct lb_flow *flow,
-                          uint16_t nic, time_t now);
+                          device_t nic, time_t now);

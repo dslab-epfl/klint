@@ -258,13 +258,12 @@ void os_pool_refresh(struct os_pool* pool, time_t time, size_t index)
 	//@ close poolp(pool, size, exp_time, ghostmap_set(items, index, time));
 }
 
-bool os_pool_used(struct os_pool* pool, size_t index, time_t* out_time)
-/*@ requires poolp(pool, ?size, ?exp_time, ?items) &*&
-             *out_time |-> _; @*/
+bool os_pool_contains(struct os_pool* pool, time_t time, size_t index)
+/*@ requires poolp(pool, ?size, ?exp_time, ?items); @*/
 /*@ ensures poolp(pool, size, exp_time, items) &*&
             switch (ghostmap_get(items, index)) {
-              case none: return result == false &*& *out_time |-> _;
-              case some(t): return result == true &*& *out_time |-> t;
+              case none: return result == false;
+              case some(t): return result == pool_young(time, exp_time, 0, t);
             }; @*/
 /*@ terminates; @*/
 {
@@ -275,10 +274,19 @@ bool os_pool_used(struct os_pool* pool, size_t index, time_t* out_time)
 		//@ close poolp(pool, size, exp_time, items);
 		return false;
 	}
-	*out_time = pool->timestamps[index];
-	return *out_time != TIME_MAX;
+	if (pool->timestamps[index] == TIME_MAX) {
+		//@ close poolp_truths(timestamps, items);
+		//@ close poolp(pool, size, exp_time, items);
+		return false;
+	}
+	if (time >= pool->expiration_time && time - pool->expiration_time > pool->timestamps[index]) {
+		//@ close poolp_truths(timestamps, items);
+		//@ close poolp(pool, size, exp_time, items);
+		return false;
+	}
 	//@ close poolp_truths(timestamps, items);
 	//@ close poolp(pool, size, exp_time, items);
+	return true;
 }
 
 void os_pool_return(struct os_pool* pool, size_t index)

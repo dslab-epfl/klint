@@ -19,15 +19,14 @@ struct ld_balancer *ld_balancer_alloc(size_t flow_capacity,
 bool lb_get_backend(struct ld_balancer *balancer,
                                  struct lb_flow *flow,
                                  time_t now,
-                                 uint16_t wan_device,
+                                 device_t wan_device,
                                  struct lb_backend** out_backend)
 {
     size_t flow_index;
     if (os_map_get(balancer->state->flow_to_flow_id, flow, &flow_index))
     {
         size_t backend_index = balancer->state->flow_id_to_backend_id[flow_index];
-        time_t out_time;
-        if (os_pool_used(balancer->state->active_backends, backend_index, &out_time))
+        if (os_pool_contains(balancer->state->active_backends, now, backend_index))
         {
             os_pool_refresh(balancer->state->flow_chain, now, flow_index);
             *out_backend = &balancer->state->backends[backend_index];
@@ -66,8 +65,8 @@ bool lb_get_backend(struct ld_balancer *balancer,
 
 void lb_process_heartbeat(struct ld_balancer *balancer,
                           struct lb_flow *flow,
-                          uint16_t nic,
-                          uint64_t now)
+                          device_t nic,
+                          time_t now)
 {
     size_t backend_index;
     if (os_map_get(balancer->state->ip_to_backend_id, &flow->src_ip, &backend_index))

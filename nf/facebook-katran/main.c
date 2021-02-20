@@ -38,9 +38,9 @@ extern struct bpf_map_def lpm_src_v4;
 extern struct bpf_map_def lpm_src_v4;
 #endif
 
-bool nf_init(uint16_t devices_count)
+bool nf_init(device_t max_device)
 {
-	(void) devices_count;
+	(void) max_device;
 
 	bpf_map_init(&vip_map, true);
 	bpf_map_init(&lru_mapping, false); // is a map of maps; will lead to using fallback_cache as default

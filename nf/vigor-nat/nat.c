@@ -8,29 +8,21 @@
 
 
 uint32_t external_addr;
-uint16_t wan_device;
+device_t wan_device;
 struct flowtable* table;
 
 
-bool nf_init(uint16_t devices_count)
+bool nf_init(device_t max_device)
 {
-	if (devices_count != 2) {
+	if (max_device != 1) {
 		return false;
 	}
 
 	external_addr = os_config_get_u32("external addr");
+	wan_device = os_config_get_device("wan device", max_device);
 
-	wan_device = os_config_get_u16("wan device");
-	if (wan_device >= devices_count) {
-		return false;
-	}
-
-	size_t max_flows = os_config_get_u64("max flows"); // TODO get_size
-	if (max_flows > SIZE_MAX / 2 + 1) {
-		return false;
-	}
-
-	time_t expiration_time = os_config_get_u64("expiration time"); // TODO get_time
+	size_t max_flows = os_config_get_size("max flows");
+	time_t expiration_time = os_config_get_time("expiration time");
 	uint16_t start_port = os_config_get_u16("start port");
 	table = flowtable_alloc(start_port, expiration_time, max_flows);
 

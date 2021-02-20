@@ -3,27 +3,27 @@
 #include "os/config.h"
 #include "os/clock.h"
 #include "os/memory.h"
-#include "structs/pool.h"
 #include "structs/map.h"
+#include "structs/pool.h"
 
 
 net_ether_addr_t* addresses;
-uint16_t* devices;
+device_t* devices;
 struct os_map* map;
 struct os_pool* allocator;
 
-bool nf_init(uint16_t devices_count)
+
+bool nf_init(device_t max_device)
 {
-	if (devices_count < 2) {
+	if (max_device == 0) {
 		return false;
 	}
 
-	time_t expiration_time = os_config_get_u64("expiration time"); // TODO API should be get_time
-
-	uint64_t capacity = os_config_get_u64("capacity"); // TODO should be size_t (and in other NFs!)
+	time_t expiration_time = os_config_get_time("expiration time");
+	size_t capacity = os_config_get_size("capacity");
 
 	addresses = os_memory_alloc(capacity, sizeof(net_ether_addr_t));
-	devices = os_memory_alloc(capacity, sizeof(uint16_t));
+	devices = os_memory_alloc(capacity, sizeof(device_t));
 
 	map = os_map_alloc(sizeof(net_ether_addr_t), capacity);
 	allocator = os_pool_alloc(capacity, expiration_time);
@@ -38,7 +38,7 @@ void nf_handle(struct net_packet* packet)
 		return;
 	}
 
-	uint64_t time = os_clock_time_ns();
+	time_t time = os_clock_time_ns();
 
 	size_t index;
 	if (os_map_get(map, &(ether_header->src_addr), &index)) {

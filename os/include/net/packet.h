@@ -7,12 +7,14 @@
 #define IP_PROTOCOL_TCP 6
 #define IP_PROTOCOL_UDP 17
 
+typedef uint16_t device_t;
+
 typedef uint8_t net_ether_addr_t[6];
 
 // Packet received on a device
 struct net_packet {
 	uint8_t* data;
-	uint16_t device;
+	device_t device;
 	uint16_t length;
 	uint8_t _padding[4];
 	void* os_tag; // NFs must not touch this

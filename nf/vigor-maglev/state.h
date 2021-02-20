@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
 
 #include "structs.h"
@@ -8,6 +9,7 @@
 #include "structs/cht.h"
 
 #include "os/clock.h"
+
 
 struct State {
   struct os_map* flow_to_flow_id;

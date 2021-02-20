@@ -6,9 +6,9 @@
 extern struct bpf_map_def fwdtable;
 
 
-bool nf_init(uint16_t devices_count)
+bool nf_init(device_t max_device)
 {
-	(void) devices_count;
+	(void) max_device;
 
 	bpf_map_init(&fwdtable, false);
 
