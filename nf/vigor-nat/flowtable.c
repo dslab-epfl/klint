@@ -45,7 +45,7 @@ bool flowtable_get_internal(struct flowtable* table, time_t time, struct flow* f
 		}
 
 		table->flows[index] = *flow;
-		os_map_set(table->flow_indexes, &(table->flows[index]), index); // TODO allow map_set to overwrite?
+		os_map_set(table->flow_indexes, &(table->flows[index]), index);
 	}
 
 	*out_port = table->start_port + index;
