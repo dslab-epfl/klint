@@ -19,7 +19,7 @@ struct os_pool* os_pool_alloc(size_t size, time_t expiration_time);
 
 bool os_pool_borrow(struct os_pool* pool, time_t time, size_t* out_index, bool* out_used);
 /*@ requires poolp(pool, ?size, ?exp_time, ?items) &*&
-             time != TIME_INVALID &*&
+             time != TIME_MAX &*&
              *out_index |-> _ &*&
              *out_used |-> _; @*/
 /*@ ensures *out_index |-> ?index &*&
@@ -37,7 +37,7 @@ bool os_pool_borrow(struct os_pool* pool, time_t time, size_t* out_index, bool* 
 
 void os_pool_refresh(struct os_pool* pool, time_t time, size_t index);
 /*@ requires poolp(pool, ?size, ?exp_time, ?items) &*&
-             time != TIME_INVALID &*&
+             time != TIME_MAX &*&
              index < size &*&
              ghostmap_get(items, index) != none; @*/
 /*@ ensures poolp(pool, size, exp_time, ghostmap_set(items, index, time)); @*/
