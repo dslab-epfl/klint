@@ -153,8 +153,7 @@ ensures true == up_to(n, (nthProp)(tl, prop)) &*&
   up_to_covers_x(succ(n), (nthProp)(cons(hd,tl), prop), 0);
 }
 
-        lemma void
-        break_down_up_to_by_loop_rec<t>(nat i, list<t> lst,
+lemma void break_down_up_to_by_loop_rec<t>(nat i, list<t> lst,
                                         int start, int capacity,
                                         fixpoint (t,bool) prop)
 requires true == up_to(i, (byLoopNthProp)(lst, prop, capacity, start)) &*&
