@@ -1,9 +1,8 @@
 #pragma once
 
-// TODO should have a typdef for 'device_t' or something like that, to avoid the commonly-hardcoded uint16_t
-
 #include <stdbool.h>
 #include <stdint.h>
+
 
 #define IP_PROTOCOL_TCP 6
 #define IP_PROTOCOL_UDP 17
