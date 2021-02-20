@@ -7,7 +7,6 @@
 #include "structs/map.h"
 
 
-uint64_t expiration_time;
 net_ether_addr_t* addresses;
 uint16_t* devices;
 struct os_map* map;
@@ -19,18 +18,15 @@ bool nf_init(uint16_t devices_count)
 		return false;
 	}
 
-	expiration_time = os_config_get_u64("expiration time");
+	time_t expiration_time = os_config_get_u64("expiration time"); // TODO API should be get_time
 
 	uint64_t capacity = os_config_get_u64("capacity"); // TODO should be size_t (and in other NFs!)
-	if (capacity == 0 || capacity > 2*65536) {
-		return false;
-	}
 
 	addresses = os_memory_alloc(capacity, sizeof(net_ether_addr_t));
 	devices = os_memory_alloc(capacity, sizeof(uint16_t));
 
 	map = os_map_alloc(sizeof(net_ether_addr_t), capacity);
-	allocator = os_pool_alloc(capacity);
+	allocator = os_pool_alloc(capacity, expiration_time);
 
 	return true;
 }
@@ -49,17 +45,19 @@ void nf_handle(struct net_packet* packet)
 		// TODO this is obviously wrong, need to check if they match
 		os_pool_refresh(allocator, time, index);
 	} else {
-		if (os_pool_expire(allocator, time - expiration_time, &index)) {
-			os_map_remove(map, &(addresses[index]));
-		}
-		if (os_pool_borrow(allocator, time, &index)) {
+		bool was_used;
+		if (os_pool_borrow(allocator, time, &index, &was_used)) {
+			if (was_used) {
+				os_map_remove(map, &(addresses[index]));
+			}
+
 			os_memory_copy(ether_header->src_addr, addresses[index], sizeof(ether_header->src_addr));
 			devices[index] = packet->device;
 			os_map_set(map, &(addresses[index]), index);
 		}
 	} // It's OK if we can't get nor add, we can forward the packet anyway
 
-	if(os_map_get(map, &(ether_header->dst_addr), &index)) {
+	if (os_map_get(map, &(ether_header->dst_addr), &index)) {
 		if (devices[index] != packet->device) {
 			net_transmit(packet, devices[index], 0);
 		}

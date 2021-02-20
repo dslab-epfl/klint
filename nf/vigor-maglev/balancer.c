@@ -6,19 +6,19 @@
 struct ld_balancer *ld_balancer_alloc(size_t flow_capacity,
                                       size_t backend_capacity,
                                       size_t cht_height,
-                                      uint64_t backend_expiration_time,
-                                      uint64_t flow_expiration_time)
+                                      time_t backend_expiration_time,
+                                      time_t flow_expiration_time)
 {
     struct ld_balancer *balancer = os_memory_alloc(1, sizeof(struct ld_balancer));
     balancer->flow_expiration_time = flow_expiration_time;
     balancer->backend_expiration_time = backend_expiration_time;
-    balancer->state = state_alloc(backend_capacity, flow_capacity, cht_height);
+    balancer->state = state_alloc(backend_capacity, flow_capacity, cht_height, flow_expiration_time, backend_expiration_time);
     return balancer;
 }
 
 bool lb_get_backend(struct ld_balancer *balancer,
                                  struct lb_flow *flow,
-                                 uint64_t now,
+                                 time_t now,
                                  uint16_t wan_device,
                                  struct lb_backend** out_backend)
 {
@@ -26,7 +26,7 @@ bool lb_get_backend(struct ld_balancer *balancer,
     if (os_map_get(balancer->state->flow_to_flow_id, flow, &flow_index))
     {
         size_t backend_index = balancer->state->flow_id_to_backend_id[flow_index];
-        uint64_t out_time;
+        time_t out_time;
         if (os_pool_used(balancer->state->active_backends, backend_index, &out_time))
         {
             os_pool_refresh(balancer->state->flow_chain, now, flow_index);
@@ -46,15 +46,14 @@ bool lb_get_backend(struct ld_balancer *balancer,
             balancer->state->active_backends, &backend_index);
         if (found)
         {
-            uint64_t last_time = now - balancer->flow_expiration_time;
             size_t index;
-            if (os_pool_expire(balancer->state->flow_chain, last_time, &index))
+            bool was_used;
+            if (os_pool_borrow(balancer->state->flow_chain, now, &index, &was_used))
             {
-                os_map_remove(balancer->state->flow_to_flow_id, &balancer->state->flow_heap[index]);
-            }
+            	if (was_used) {
+	                os_map_remove(balancer->state->flow_to_flow_id, &balancer->state->flow_heap[index]);
+	        }
 
-            if (os_pool_borrow(balancer->state->flow_chain, now, &flow_index))
-            {
                 os_memory_copy(flow, &(balancer->state->flow_heap[flow_index]), sizeof(struct lb_flow));
                 balancer->state->flow_id_to_backend_id[flow_index] = backend_index;
                 os_map_set(balancer->state->flow_to_flow_id, &balancer->state->flow_heap[flow_index], flow_index);
@@ -77,15 +76,14 @@ void lb_process_heartbeat(struct ld_balancer *balancer,
     }
     else
     {
-        uint64_t last_time = now - balancer->backend_expiration_time;
         size_t index;
-        if (os_pool_expire(balancer->state->active_backends, last_time, &index))
+        bool was_used;
+        if (os_pool_borrow(balancer->state->active_backends, now, &index, &was_used))
         {
-            os_map_remove(balancer->state->ip_to_backend_id, &(balancer->state->backend_ips[index]));
-        }
+            if (was_used) {
+	            os_map_remove(balancer->state->ip_to_backend_id, &(balancer->state->backend_ips[index]));
+	    }
 
-        if (os_pool_borrow(balancer->state->active_backends, now, &backend_index))
-        {
             struct lb_backend *new_backend = &balancer->state->backends[backend_index];
             new_backend->ip = flow->src_ip;
             new_backend->nic = nic;

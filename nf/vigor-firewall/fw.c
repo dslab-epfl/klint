@@ -27,7 +27,7 @@ bool nf_init(uint16_t devices_count)
 		return false;
 	}
 
-	uint64_t expiration_time = os_config_get_u64("expiration time");
+	time_t expiration_time = os_config_get_u64("expiration time"); // TODO get_time
 	table = flowtable_init(expiration_time, max_flows);
 
 	return true;
@@ -44,7 +44,7 @@ void nf_handle(struct net_packet* packet)
 		return;
 	}
 
-	uint64_t time = os_clock_time_ns();
+	time_t time = os_clock_time_ns();
 
 	if (packet->device == wan_device) {
 		struct flow flow = { // inverted!

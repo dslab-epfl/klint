@@ -25,12 +25,12 @@ bool nf_init(uint16_t devices_count)
 		return false;
 	}
 
-	uint64_t max_flows = os_config_get_u64("max flows");
-	if (max_flows > SIZE_MAX / 16 - 2) {
+	size_t max_flows = os_config_get_u64("max flows"); // TODO get_size
+	if (max_flows > SIZE_MAX / 2 + 1) {
 		return false;
 	}
 
-	uint64_t expiration_time = os_config_get_u64("expiration time");
+	time_t expiration_time = os_config_get_u64("expiration time"); // TODO get_time
 	uint16_t start_port = os_config_get_u16("start port");
 	table = flowtable_alloc(start_port, expiration_time, max_flows);
 
@@ -48,7 +48,7 @@ void nf_handle(struct net_packet* packet)
 		return;
 	}
 
-	uint64_t time = os_clock_time_ns();
+	time_t time = os_clock_time_ns();
 
 	if (packet->device == wan_device) {
 		struct flow internal_flow;

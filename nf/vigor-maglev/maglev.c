@@ -19,11 +19,11 @@ bool nf_init(uint16_t devices_count)
         return false;
     }
 
-    size_t flow_capacity = os_config_get_u64("flow capacity");
+    size_t flow_capacity = os_config_get_u64("flow capacity"); // TODO get_size
     if (flow_capacity > SIZE_MAX / 16 - 2) {
     	return false;
     }
-    size_t cht_height = os_config_get_u64("cht height");
+    size_t cht_height = os_config_get_u64("cht height"); // TODO get_size
     if (cht_height == 0 || cht_height >= MAX_CHT_HEIGHT) {
         return false;
     }
@@ -31,8 +31,8 @@ bool nf_init(uint16_t devices_count)
     if (backend_capacity == 0 || backend_capacity >= cht_height || backend_capacity * cht_height >= UINT32_MAX || flow_capacity > SIZE_MAX / 16 - 2) {
         return false;
     }
-    uint64_t backend_expiration_time = os_config_get_u64("backend expiration time");
-    uint64_t flow_expiration_time = os_config_get_u64("flow expiration time");
+    time_t backend_expiration_time = os_config_get_u64("backend expiration time"); // TODO get_time
+    time_t flow_expiration_time = os_config_get_u64("flow expiration time"); // TODO get_time
 
     balancer = ld_balancer_alloc(flow_capacity, backend_capacity, cht_height, backend_expiration_time, flow_expiration_time);
 
@@ -56,7 +56,7 @@ void nf_handle(struct net_packet *packet)
                            .dst_port = tcpudp_header->dst_port,
                            .protocol = ipv4_header->next_proto_id};
 
-    uint64_t now = os_clock_time_ns();
+    time_t now = os_clock_time_ns();
 
     if (packet->device != wan_device)
     {

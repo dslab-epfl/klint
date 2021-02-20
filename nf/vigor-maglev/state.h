@@ -7,6 +7,8 @@
 #include "structs/pool.h"
 #include "structs/cht.h"
 
+#include "os/clock.h"
+
 struct State {
   struct os_map* flow_to_flow_id;
   struct lb_flow* flow_heap;
@@ -20,4 +22,4 @@ struct State {
   size_t flow_capacity;
 };
 
-struct State* state_alloc(size_t backend_capacity, size_t flow_capacity, size_t cht_height);
+struct State* state_alloc(size_t backend_capacity, size_t flow_capacity, size_t cht_height, time_t flow_expiration_time, time_t backend_expiration_time);

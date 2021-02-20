@@ -46,7 +46,7 @@ pub unsafe extern "C" fn nf_init(devices_count: u16) -> bool {
 
     MAX_FLOWS = {
         let max_flows = os_config_get_u64(cstr!("max flows"));
-        if max_flows == 0 || max_flows > (usize::MAX / 16 - 2) as u64 {
+        if max_flows == 0 || max_flows > (usize::MAX / 2 + 1) as u64 {
             return false;
         }
         max_flows
@@ -54,7 +54,7 @@ pub unsafe extern "C" fn nf_init(devices_count: u16) -> bool {
     ADDRESSES = os_memory_alloc(MAX_FLOWS as usize, size_of::<u32>() as usize) as *mut u32;
     BUCKETS = os_memory_alloc(MAX_FLOWS as usize, size_of::<PolicerBucket>() as usize) as *mut PolicerBucket;
     MAP = os_map_alloc(size_of::<u32>(), MAX_FLOWS as usize);
-    POOL = os_pool_alloc(MAX_FLOWS as usize);
+    POOL = os_pool_alloc(MAX_FLOWS as usize, 1000000000 * BURST / RATE);
 
     true
 }
@@ -102,11 +102,12 @@ pub unsafe extern "C" fn nf_handle(packet: *mut NetPacket) {
                 return;
             }
 
-            if os_pool_expire(POOL, time, &mut index as *mut usize) {
-                os_map_remove(MAP, ADDRESSES.offset(index as isize) as *mut u8);
-            }
+            let mut was_used: bool = false;
+            if os_pool_borrow(POOL, time, &mut index as *mut usize, &mut was_used as *mut bool) {
+                if was_used {
+                  os_map_remove(MAP, ADDRESSES.offset(index as isize) as *mut u8);
+                }
 
-            if os_pool_borrow(POOL, time, &mut index as *mut usize) {
                 *ADDRESSES.offset(index as isize) = (*ipv4_header).dst_addr;
                 os_map_set(
                     MAP,

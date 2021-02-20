@@ -4,6 +4,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "os/clock.h"
+
 
 struct flow {
 	uint32_t src_ip;
@@ -16,8 +18,8 @@ struct flow {
 
 struct flowtable;
 
-struct flowtable* flowtable_init(uint64_t expiration_time, size_t max_flows);
+struct flowtable* flowtable_init(time_t expiration_time, size_t max_flows);
 
-void flowtable_learn_internal(struct flowtable* table, uint64_t time, struct flow* flow);
+void flowtable_learn_internal(struct flowtable* table, time_t time, struct flow* flow);
 
-bool flowtable_has_external(struct flowtable* table, uint64_t time, struct flow* flow);
+bool flowtable_has_external(struct flowtable* table, time_t time, struct flow* flow);

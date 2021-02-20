@@ -3,7 +3,7 @@ use std::os::raw::c_int;
 
 pub const NET_ETHER_ADDR_SIZE: usize = 6;
 
-pub type TimeT = i64;
+pub type TimeT = u64;
 
 #[repr(C)]
 pub struct NetPacket {
@@ -81,10 +81,9 @@ extern "C" {
     pub fn os_map_remove(map: *mut OsMap, key_ptr: *mut u8);
 
     // Pool API
-    pub fn os_pool_alloc(size: usize) -> *mut OsPool;
-    pub fn os_pool_borrow(pool: *mut OsPool, time: TimeT, out_index: *mut usize) -> bool;
+    pub fn os_pool_alloc(size: usize, exp_time: TimeT) -> *mut OsPool;
+    pub fn os_pool_borrow(pool: *mut OsPool, time: TimeT, out_index: *mut usize, was_used: *mut bool) -> bool;
     // pub fn os_pool_return(pool: *mut OsPool, index: usize);
     pub fn os_pool_refresh(pool: *mut OsPool, time: TimeT, index: usize);
     // pub fn os_pool_used(pool: *mut OsPool, index: usize, out_time: *mut TimeT) -> bool;
-    pub fn os_pool_expire(pool: *mut OsPool, time: TimeT, out_index: *mut usize) -> bool;
 }
