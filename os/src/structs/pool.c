@@ -172,13 +172,14 @@ bool os_pool_borrow(struct os_pool* pool, time_t time, size_t* out_index, bool* 
 	//@ open poolp_truths(?timestamps, items);
 	//@ close poolp_truths(timestamps, items);
 	//@ assert poolp_raw(pool, size, exp_time, ?lbi, timestamps);
-	for (size_t n = 0; n < pool->last_borrowed_index; n++)
+	for (size_t n = pool->last_borrowed_index; n < pool->size; n++)
 	/*@ invariant poolp_raw(pool, size, exp_time, lbi, timestamps) &*&
 	              poolp_truths(timestamps, items) &*&
 	              *out_index |-> _ &*&
 	              *out_used |-> _ &*&
-	              forall_(size_t k; !(0 <= k && k < n) || !nth_eq(k, timestamps, TIME_INVALID)) &*&
-	              forall_(size_t k; !(0 <= k && k < n) || (time < exp_time || time - exp_time <= nth(k, timestamps))); @*/
+	              lbi <= size &*&
+	              forall_(size_t k; !(lbi <= k && k < n) || !nth_eq(k, timestamps, TIME_INVALID)) &*&
+	              forall_(size_t k; !(lbi <= k && k < n) || (time < exp_time || time - exp_time <= nth(k, timestamps))); @*/
 	{
 		if (pool->timestamps[n] == TIME_INVALID) {
 			//@ ghostmap_array_max_size(items, size, n);
@@ -201,14 +202,13 @@ bool os_pool_borrow(struct os_pool* pool, time_t time, size_t* out_index, bool* 
 			return true;
 		}
 	}
-	for (size_t n = pool->last_borrowed_index; n < pool->size; n++)
+	for (size_t n = 0; n < pool->last_borrowed_index; n++)
 	/*@ invariant poolp_raw(pool, size, exp_time, lbi, timestamps) &*&
 	              poolp_truths(timestamps, items) &*&
 	              *out_index |-> _ &*&
 	              *out_used |-> _ &*&
-	              lbi <= size &*&
-	              forall_(size_t k; !(lbi <= k && k < n) || !nth_eq(k, timestamps, TIME_INVALID)) &*&
-	              forall_(size_t k; !(lbi <= k && k < n) || (time < exp_time || time - exp_time <= nth(k, timestamps))); @*/
+	              forall_(size_t k; !(0 <= k && k < n) || !nth_eq(k, timestamps, TIME_INVALID)) &*&
+	              forall_(size_t k; !(0 <= k && k < n) || (time < exp_time || time - exp_time <= nth(k, timestamps))); @*/
 	{
 		if (pool->timestamps[n] == TIME_INVALID) {
 			//@ ghostmap_array_max_size(items, size, n);
