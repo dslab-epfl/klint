@@ -1392,6 +1392,36 @@ ensures opts_size(update(index, some(key), key_opts)) == opts_size(key_opts) + 1
       }
   }
 }
+
+// ---
+
+lemma void map_nth_nth_map<a, b>(fixpoint(a, b) fp, int index, list<a> lst)
+requires 0 <= index &*& index < length(lst);
+ensures fp(nth(index, lst)) == nth(index, map(fp, lst));
+{
+  switch(lst) {
+    case nil:
+    case cons(h, t):
+      if (index != 0) {
+        map_nth_nth_map(fp, index - 1, t);
+      }
+  }
+}
+
+// ---
+
+lemma void map_update_update_map<a, b>(fixpoint(a, b) fp, int index, a item, list<a> lst)
+requires 0 <= index &*& index < length(lst);
+ensures map(fp, update(index, item, lst)) == update(index, fp(item), map(fp, lst));
+{
+  switch(lst) {
+    case nil:
+    case cons(h, t):
+      if (index != 0) {
+        map_update_update_map(fp, index - 1, item, t);
+      }
+  }
+}
 @*/
 
 void os_map_set(struct os_map* map, void* key_ptr, size_t value)
@@ -1422,7 +1452,11 @@ void os_map_set(struct os_map* map, void* key_ptr, size_t value)
     //@ open mapp_core(key_size, real_capacity, kaddrs_lst, busybits_lst, hashes_lst, values_lst, key_opts, map_values, map_addrs);
     //@ open buckets_keys_insync_Xchain(real_capacity, chains_lst, buckets, start, index, key_opts);
     struct os_map_item* item = &(map->items[index]);
+    //@ assert map->items |-> ?raw_items;
+    //@ assert map_itemsp(raw_items, real_capacity, ?the_items);
+    //@ extract_item(raw_items, index);
     if (!item->busy) {
+      //@ nth_map(index, map_item_busy, the_items);
       //@ zero_bbs_is_for_empty(busybits_lst, key_opts, index);
       //@ map_values_has_not_implies_key_opts_has_not(map_values, key_opts, key);
       item->key_addr = key_ptr;
@@ -1437,18 +1471,36 @@ void os_map_set(struct os_map* map, void* key_ptr, size_t value)
       //@ put_preserves_no_dups(key_opts, index, key);
       //@ put_preserves_hash_list(key_opts, hashes_lst, index, key, key_hash);
       //@ put_increases_key_opts_size(key_opts, index, key);
-      //@ ghostmap_set_new_preserves_distinct(map_values, key, value);
-      //@ ghostmap_set_new_preserves_distinct(map_addrs, key, key_ptr);
+      //@ ghostmap_set_preserves_distinct(map_values, key, value);
+      //@ ghostmap_set_preserves_distinct(map_addrs, key, key_ptr);
       //@ assert true == ghostmap_distinct(ghostmap_set(map_values, key, value));
       //@ close mapp_core(key_size, real_capacity, ?new_kaddrs_lst, ?new_busybits_lst, ?new_hashes_lst, ?new_values_lst, ?new_key_opts, ?new_map_values, ?new_map_addrs);
+      //@ map_item new_item = map_item(key_ptr, value, map_item_chain(nth(index, the_items)), key_hash, true);
+      //@ take_update_unrelevant(index, index, new_item, the_items);
+      //@ drop_update_unrelevant(index + 1, index, new_item, the_items);
+      //@ map_preserves_length(map_item_key_addr, update(index, new_item, the_items));
+      //@ map_preserves_length(map_item_value, update(index, new_item, the_items));
+      //@ map_preserves_length(map_item_chain, update(index, new_item, the_items));
+      //@ map_preserves_length(map_item_key_hash, update(index, new_item, the_items));
+      //@ map_preserves_length(map_item_busy, update(index, new_item, the_items));
+      //@ map_update_update_map(map_item_key_addr, index, new_item, the_items);
+      //@ map_update_update_map(map_item_value, index, new_item, the_items);
+      //@ map_update_update_map(map_item_chain, index, new_item, the_items);
+      //@ map_update_update_map(map_item_key_hash, index, new_item, the_items);
+      //@ map_update_update_map(map_item_busy, index, new_item, the_items);
+      //@ map_nth_nth_map(map_item_chain, index, the_items);
+      //@ glue_items(raw_items, update(index, new_item, the_items), index);
       //@ close mapp(map, key_size, capacity, new_map_values, new_map_addrs);
       return;
     }
     //@ buckets_keys_chns_same_len(buckets);
     //@ buckets_ok_chn_bound(buckets, index);
     //@ outside_part_chn_no_effect(buckets_get_chns_fp(buckets), start, index, real_capacity);
+    //@ assert item->chain |-> ?chn;
+    //@ nth_map(index, map_item_chain, the_items);
     //@ assert chn <= real_capacity;
     item->chain = item->chain + 1;
+    //@ nth_map(index, map_item_busy, the_items);
     //@ bb_nonzero_cell_busy(busybits_lst, key_opts, index);
     //@ assert true == cell_busy(nth(loop_fp(i+start, real_capacity), key_opts));
     //@ assert nat_of_int(i+1) == succ(nat_of_int(i));
@@ -1483,6 +1535,24 @@ void os_map_set(struct os_map* map, void* key_ptr, size_t value)
       @*/
     //@ close buckets_keys_insync_Xchain(real_capacity, ?new_chains_lst, buckets, start, index, key_opts);
     //@ close mapp_core(key_size, real_capacity, kaddrs_lst, busybits_lst, hashes_lst, values_lst, key_opts, map_values, map_addrs);
+    //@ map_item new_item = map_item(map_item_key_addr(nth(index, the_items)), map_item_value(nth(index, the_items)), 1 + map_item_chain(nth(index, the_items)), map_item_key_hash(nth(index, the_items)), map_item_busy(nth(index, the_items)));
+    //@ take_update_unrelevant(index, index, new_item, the_items);
+    //@ drop_update_unrelevant(index + 1, index, new_item, the_items);
+    //@ map_preserves_length(map_item_key_addr, update(index, new_item, the_items));
+    //@ map_preserves_length(map_item_value, update(index, new_item, the_items));
+    //@ map_preserves_length(map_item_chain, update(index, new_item, the_items));
+    //@ map_preserves_length(map_item_key_hash, update(index, new_item, the_items));
+    //@ map_preserves_length(map_item_busy, update(index, new_item, the_items));
+    //@ map_update_update_map(map_item_key_addr, index, new_item, the_items);
+    //@ map_update_update_map(map_item_value, index, new_item, the_items);
+    //@ map_update_update_map(map_item_chain, index, new_item, the_items);
+    //@ map_update_update_map(map_item_key_hash, index, new_item, the_items);
+    //@ map_update_update_map(map_item_busy, index, new_item, the_items);
+    //@ map_nth_nth_map(map_item_key_addr, index, the_items);
+    //@ map_nth_nth_map(map_item_value, index, the_items);
+    //@ map_nth_nth_map(map_item_key_hash, index, the_items);
+    //@ map_nth_nth_map(map_item_busy, index, the_items);
+    //@ glue_items(raw_items, update(index, new_item, the_items), index);
   }
   //@ open mapp_core(key_size, real_capacity, ?kaddrs_lst, ?busybits_lst, ?hashes_lst, ?values_lst, key_opts, map_values, map_addrs);
   //@ by_loop_for_all(key_opts, cell_busy, start, real_capacity, nat_of_int(real_capacity));
