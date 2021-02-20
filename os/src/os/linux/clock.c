@@ -2,6 +2,8 @@
 
 #include <fcntl.h>
 #include <unistd.h>
+// We already have a time_t, don't re-define it
+#define __time_t_defined 1
 #include <time.h>
 
 #include "arch/tsc.h"

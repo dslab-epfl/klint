@@ -65,7 +65,7 @@ median_lat_comp = statistics.median(all_lats_comp)
 
 plt, ax, _ = common.get_pyplot_ax_fig()
 ax.set_ylim(bottom=0, top=median_lat_comp * 3)
-ax.set_xlim(0, 20.2) # just a little bit of margin to not hide the right side of the markers
+ax.set_xlim(0, math.ceil(max_tput) + 0.2) #20.2) # just a little bit of margin to not hide the right side of the markers
 
 # if any of the NFs are parallel, be clear the others are not
 explicit_one_core = any('parallel' in nf for nf in nfs)
@@ -83,16 +83,20 @@ for nf, val in numbers.items():
   all_y = [l for (t, l) in lats]
 
   ax.plot(all_x, all_y, color=color, alpha=0.4, linestyle='solid')
-  ax.fill_between(all_x, y_5, all_y, color=color, alpha=0.2)
-  ax.fill_between(all_x, all_y, y_95, color=color, alpha=0.2)
+  ax.fill_between(all_x, y_5, all_y, color=color, alpha=0.15)
+  ax.fill_between(all_x, all_y, y_95, color=color, alpha=0.15)
   ax.scatter(all_x, all_y, color=color, label=label, marker=marker)
 
 plt.xlabel('Throughput (Gb/s)')
 plt.ylabel(perc_str + ' latency (\u03BCs)')
-plt.legend(loc='upper left', handletextpad=0.3, borderaxespad=0.08, edgecolor='white')
+plt.legend(loc='upper left', handletextpad=0.3, borderaxespad=0.08, edgecolor='white', frameon=False)
 
 common.save_plot(plt, name)
 print("Done! Plot is in plots/" + name + ".svg")
+
+
+sys.exit(0)
+
 
 
 nf_click = numbers['bridge-click']

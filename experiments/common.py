@@ -29,7 +29,8 @@ def get_pyplot_ax_fig(title=None, figsize=None):
 
 def get_color_label_marker(nf, explicit_one_core=False):
   suffix = ', 1 core' if explicit_one_core else ''
-  # same colors as the figures
+  if 'vigor' in nf:
+    return ('#4472C4', 'Vigor', '^')
   if 'click' in nf or 'Click' in nf:
     #if 'batched' in nf:
     #  return ('#203864', 'Ixy, batched' + suffix, 'X')
@@ -38,6 +39,8 @@ def get_color_label_marker(nf, explicit_one_core=False):
     if 'batched' in nf:
       return ('#203864', 'Ixy, batched' + suffix, 'X')
     return ('#4472C4', 'Ixy' + suffix, 'x')
+  if 'dpdkcustom' in nf:
+    return ('#682E0A', 'Custom DPDK', 'x')
   if 'dpdk' in nf or 'DPDK' in nf:
     if 'batched' in nf:
       if 'parallel' in nf:
