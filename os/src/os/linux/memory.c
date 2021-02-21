@@ -10,7 +10,7 @@
 #include <unistd.h>
 #include <sys/mman.h>
 
-#include "os/fail.h"
+#include "os/error.h"
 
 
 // 1 GB hugepages
@@ -32,13 +32,13 @@ static size_t os_memory_pagesize(void)
 	// sysconf is documented to return -1 on error; let's check all negative cases along the way, to make sure the conversion to unsigned is sound
 	const long page_size_long = sysconf(_SC_PAGESIZE);
 	if (page_size_long < 0) {
-		os_fail("Page size is negative?!?");
+		os_fatal("Page size is negative?!?");
 	}
 	if ((unsigned long) page_size_long > SIZE_MAX) {
-		os_fail("Page size too big for size_t");
+		os_fatal("Page size too big for size_t");
 	}
 	if (page_size_long == 0) {
-		os_fail("Could not get page size");
+		os_fatal("Could not get page size");
 	}
 	return page_size_long;
 }
@@ -63,7 +63,7 @@ void* os_memory_alloc(const size_t count, const size_t size)
 			0
 		);
 		if (page_addr == MAP_FAILED) {
-			os_fail("Allocate mmap failed");
+			os_fatal("Allocate mmap failed");
 		}
 		page_allocated = true;
 		page_used_len = 0;
@@ -71,7 +71,7 @@ void* os_memory_alloc(const size_t count, const size_t size)
 
 	const uintptr_t full_size = size * count;
 	if (size != 0 && full_size / size != count) {
-		os_fail("Overflow in computing the size, no way we have enough memory for that");
+		os_fatal("Overflow in computing the size, no way we have enough memory for that");
 	}
 
 	// Weird but valid; return a likely-invalid address for debugging convenience
@@ -86,7 +86,7 @@ void* os_memory_alloc(const size_t count, const size_t size)
 	}
 
 	if (HUGEPAGE_SIZE - page_used_len < full_size) {
-		os_fail("Not enough space left to allocate");
+		os_fatal("Not enough space left to allocate");
 	}
 
 	void* result = page_addr + page_used_len;
@@ -97,12 +97,12 @@ void* os_memory_alloc(const size_t count, const size_t size)
 void* os_memory_phys_to_virt(const uintptr_t addr, const size_t size)
 {
 	if (addr != (uintptr_t) (off_t) addr) {
-		os_fail("Cannot phys-to-virt an addr that does not roundtrip to off_t");
+		os_fatal("Cannot phys-to-virt an addr that does not roundtrip to off_t");
 	}
 
 	int mem_fd = open("/dev/mem", O_SYNC | O_RDWR);
 	if (mem_fd == -1) {
-		os_fail("Could not open /dev/mem");
+		os_fatal("Could not open /dev/mem");
 	}
 
 	void* mapped = mmap(
@@ -124,7 +124,7 @@ void* os_memory_phys_to_virt(const uintptr_t addr, const size_t size)
 	close(mem_fd);
 
 	if (mapped == MAP_FAILED) {
-		os_fail("Phys-to-virt mmap failed");
+		os_fatal("Phys-to-virt mmap failed");
 	}
 
 	return mapped;
@@ -137,33 +137,33 @@ uintptr_t os_memory_virt_to_phys(const void* const addr)
 	const uintptr_t page = (uintptr_t) addr / page_size;
 	const uintptr_t map_offset = page * sizeof(uint64_t);
 	if (map_offset != (uintptr_t) (off_t) map_offset) {
-		os_fail("Cannot virt-to-phys with an offset that does not roundtrip to off_t");
+		os_fatal("Cannot virt-to-phys with an offset that does not roundtrip to off_t");
 	}
 
 	const int map_fd = open("/proc/self/pagemap", O_RDONLY);
 	if (map_fd < 0) {
-		os_fail("Could not open the pagemap");
+		os_fatal("Could not open the pagemap");
 	}
 
 	if (lseek(map_fd, (off_t) map_offset, SEEK_SET) == (off_t) -1) {
-		os_fail("Could not seek the pagemap");
+		os_fatal("Could not seek the pagemap");
 	}
 
 	uint64_t metadata;
 	const ssize_t read_result = read(map_fd, &metadata, sizeof(uint64_t));
 	close(map_fd);
 	if (read_result != sizeof(uint64_t)) {
-		os_fail("Could not read the pagemap");
+		os_fatal("Could not read the pagemap");
 	}
 
 	// We want the PFN, but it's only meaningful if the page is present; bit 63 indicates whether it is
 	if ((metadata & 0x8000000000000000) == 0) {
-		os_fail("Page not present");
+		os_fatal("Page not present");
 	}
 	// PFN = bits 0-54
 	const uint64_t pfn = metadata & 0x7FFFFFFFFFFFFF;
 	if (pfn == 0) {
-		os_fail("Page not mapped");
+		os_fatal("Page not mapped");
 	}
 
 	const uintptr_t addr_offset = (uintptr_t) addr % page_size;

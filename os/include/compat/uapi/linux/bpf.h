@@ -7,7 +7,7 @@
 #include "compat/string.h"
 
 #include "os/clock.h"
-#include "os/fail.h"
+#include "os/error.h"
 #include "os/memory.h"
 #include "structs/map2.h"
 
@@ -60,7 +60,7 @@ struct xdp_md {
 static inline long bpf_xdp_adjust_head(struct xdp_md* xdp_md, int delta)
 {
 	if (xdp_md->_adjust_used) {
-		os_fail("adjust already used");
+		os_fatal("adjust already used");
 	}
 	xdp_md->_adjust_used = true;
 
@@ -88,7 +88,7 @@ static inline long bpf_xdp_adjust_head(struct xdp_md* xdp_md, int delta)
 static inline long bpf_xdp_adjust_tail(struct xdp_md* xdp_md, int delta)
 {
 	if (xdp_md->_adjust_used) {
-		os_fail("adjust already used");
+		os_fatal("adjust already used");
 	}
 	xdp_md->_adjust_used = true;
 

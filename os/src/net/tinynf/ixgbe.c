@@ -5,7 +5,7 @@
 
 #include "arch/endian.h"
 #include "os/clock.h"
-#include "os/debug.h"
+#include "os/error.h"
 #include "os/memory.h"
 
 #ifndef __cplusplus

@@ -1,6 +1,6 @@
 #include "net/skeleton.h"
 
-#include "os/debug.h"
+#include "os/error.h"
 
 #include "lpm.h"
 

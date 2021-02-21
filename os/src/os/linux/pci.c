@@ -2,7 +2,7 @@
 
 #include <sys/io.h>
 
-#include "os/fail.h"
+#include "os/error.h"
 
 
 // Physical addresses at which we can talk to PCI via geographical addressing
@@ -23,7 +23,7 @@ static void ensure_ioport_access(void)
 	// We access port 0x80 to wait after an outl, since it's the POST port so safe to do anything with (it's what glibc uses in the _p versions of outl/inl)
 	// Also note that since reading an int32 is 4 bytes, we need to access 4 consecutive ports for PCI config/data.
 	if (ioperm(0x80, 1, 1) < 0 || ioperm(PCI_CONFIG_ADDR, 4, 1) < 0 || ioperm(PCI_CONFIG_DATA, 4, 1) < 0) {
-		os_fail("PCI ioperms failed");
+		os_fatal("PCI ioperms failed");
 	}
 }
 

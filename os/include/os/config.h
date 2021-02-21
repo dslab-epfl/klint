@@ -5,7 +5,7 @@
 #include <stdint.h>
 
 #include "os/clock.h"
-#include "os/fail.h"
+#include "os/error.h"
 
 
 // Attempts to get a parameter with the given name
@@ -17,16 +17,16 @@ static inline uintmax_t os_config_try_get(const char* name, uintmax_t min, uintm
 {
 	uintmax_t value;
 	if (!os_config_get(name, &value)) {
-		os_fail("No such value");
+		os_fatal("No such value");
 	}
 	if (min != 0) {
 		intmax_t as_signed = (intmax_t) value;
 		if (as_signed < (intmax_t) min) {
-			os_fail("Value is too small");
+			os_fatal("Value is too small");
 		}
 	}
 	if (value > max) {
-		os_fail("Value is too large");
+		os_fatal("Value is too large");
 	}
 	return value;
 }

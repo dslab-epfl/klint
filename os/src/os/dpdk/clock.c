@@ -5,7 +5,8 @@
 // We could do it in the time call, but that's on the critical path and would bias perf comparisons, so better do this
 #include <../../lib/librte_eal/common/eal_private.h>
 
-#include "os/fail.h"
+#include "os/error.h"
+
 
 // Otherwise the tsc*1e9/hz overflows (and doing tsc*(1e9/hz) would underflow the hz part)
 static uint64_t freq_numerator;
@@ -16,7 +17,7 @@ static void fetch_tsc_freq(void)
 {
 	freq_numerator = get_tsc_freq_arch();
 	if (freq_numerator == 0) {
-		os_fail("Could not get TSC freq");
+		os_fatal("Could not get TSC freq");
 	}
 	freq_denominator = 1000000000ull;
 	while (freq_numerator % 10 == 0) {

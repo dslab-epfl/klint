@@ -2,7 +2,7 @@
 
 #include "os/clock.h"
 #include "os/config.h"
-#include "os/debug.h"
+#include "os/error.h"
 
 #include "balancer.h"
 

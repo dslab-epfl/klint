@@ -2,7 +2,7 @@
 
 #include <string.h>
 
-#include "os/fail.h"
+#include "os/error.h"
 #include "os/pci.h"
 
 #include "network.h"
@@ -71,20 +71,20 @@ int main(int argc, char** argv)
 	struct os_pci_address* pci_addresses;
 	devices_count = os_pci_enumerate(&pci_addresses);
 	if (devices_count > MAX_DEVICES) {
-		os_fail("Too many devices, increase MAX_DEVICES");
+		os_fatal("Too many devices, increase MAX_DEVICES");
 	}
 
 	if (!nf_init(devices_count)) {
-		os_fail("NF failed to init");
+		os_fatal("NF failed to init");
 	}
 
 	struct tn_net_device* devices[MAX_DEVICES];
 	for (device_t n = 0; n < devices_count; n++) {
 		if (!tn_net_device_init(pci_addresses[n], &(devices[n]))) {
-			os_fail("Couldn't init device");
+			os_fatal("Couldn't init device");
 		}
 		if (!tn_net_device_set_promiscuous(devices[n])) {
-			os_fail("Couldn't make device promiscuous");
+			os_fatal("Couldn't make device promiscuous");
 		}
 		uint64_t device_mac = tn_net_device_get_mac(devices[n]);
 		// DST - TODO have it in config somehow, for now we just use a non-constant
@@ -107,20 +107,20 @@ int main(int argc, char** argv)
 	for (device_t n = 0; n < devices_count; n++) {
 		agents[n] = tn_net_agent_alloc();
 		if (!tn_net_agent_set_input(agents[n], devices[n])) {
-			os_fail("Couldn't set agent RX");
+			os_fatal("Couldn't set agent RX");
 		}
 #ifdef TN_MANY_OUTPUTS
 		for (device_t m = 0; m < devices_count; m++) {
 			if (!tn_net_agent_add_output(agents[n], devices[m])) {
-				os_fail("Couldn't set agent TX");
+				os_fatal("Couldn't set agent TX");
 			}
 		}
 #else
 		if (devices_count != 2) {
-			os_fail("TN_MANY_OUTPUTS must be set if devices_count != 2");
+			os_fatal("TN_MANY_OUTPUTS must be set if devices_count != 2");
 		}
 		if (!tn_net_agent_add_output(agents[n], devices[1 - n])) {
-			os_fail("Couldn't set agent TX");
+			os_fatal("Couldn't set agent TX");
 		}
 #endif
 	}

@@ -7,8 +7,7 @@
 #include <time.h>
 
 #include "arch/tsc.h"
-
-#include "os/fail.h"
+#include "os/error.h"
 
 
 // Fetch it at startup and store it, to make the time call as fast as possible, it's on the critical path
@@ -19,18 +18,18 @@ static uint64_t linux_read_msr(uint64_t index)
 {
 	int msr_fd = open("/dev/cpu/0/msr", O_RDONLY);
 	if (msr_fd == -1) {
-		os_fail("Could not open MSR file; are you root? did you modprobe msr?");
+		os_fatal("Could not open MSR file; are you root? did you modprobe msr?");
 	}
 
 	off_t seek_result = lseek(msr_fd, (off_t) index, SEEK_SET);
 	if (seek_result == (off_t) -1) {
-		os_fail("Could not seek into MSR file");
+		os_fatal("Could not seek into MSR file");
 	}
 
 	uint64_t msr = 0;
 	long read_result = read(msr_fd, (void*) &msr, sizeof(msr));
 	if (read_result != sizeof(msr)) {
-		os_fail("Could not read MSR file");
+		os_fatal("Could not read MSR file");
 	}
 
 	return msr;
@@ -59,6 +58,6 @@ void os_clock_sleep_ns(uint64_t ns)
 	int ret = nanosleep(&request, &remain);
 	if (ret != 0) {
 		// This can only happen due to EFAULT (should be impossible), EINVAL (should also be impossible), or EINTR (should not happen, we don't use signals)
-		os_fail("Could not sleep");
+		os_fatal("Could not sleep");
 	}
 }
