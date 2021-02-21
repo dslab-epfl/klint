@@ -7,8 +7,8 @@
 #include "flow_table.h"
 
 
-device_t wan_device;
-struct flow_table* table;
+static device_t wan_device;
+static struct flow_table* table;
 
 
 bool nf_init(device_t devices_count)

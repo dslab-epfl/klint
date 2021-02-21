@@ -1,8 +1,8 @@
 #include "net/skeleton.h"
 
 
-device_t wan_device;
-device_t lan_device;
+static device_t wan_device;
+static device_t lan_device;
 
 
 bool nf_init(device_t devices_count)

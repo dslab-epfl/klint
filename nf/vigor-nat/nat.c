@@ -7,9 +7,9 @@
 #include "flow_table.h"
 
 
-uint32_t external_addr;
-device_t wan_device;
-struct flow_table* table;
+static uint32_t external_addr;
+static device_t wan_device;
+static struct flow_table* table;
 
 
 bool nf_init(device_t devices_count)

@@ -7,8 +7,8 @@
 #include "balancer.h"
 
 
-struct balancer *balancer;
-device_t wan_device;
+static struct balancer *balancer;
+static device_t wan_device;
 
 
 bool nf_init(device_t devices_count)

@@ -9,7 +9,7 @@ struct config_item
 	uintmax_t value;
 };
 
-struct config_item items[] =
+static struct config_item items[] =
 {
 #include NF_CONFIG_FILENAME
 };

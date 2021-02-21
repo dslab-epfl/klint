@@ -13,13 +13,13 @@ struct policer_bucket {
 };
 
 
-device_t wan_device;
-uint64_t rate;
-uint64_t burst;
-struct policer_bucket* buckets;
-uint32_t* addresses;
-struct os_map* map;
-struct os_pool* pool;
+static device_t wan_device;
+static uint64_t rate;
+static uint64_t burst;
+static struct policer_bucket* buckets;
+static uint32_t* addresses;
+static struct os_map* map;
+static struct os_pool* pool;
 
 bool nf_init(device_t devices_count)
 {

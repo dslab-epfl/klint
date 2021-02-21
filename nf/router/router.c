@@ -5,7 +5,7 @@
 #include "lpm.h"
 
 
-struct lpm* lpm;
+static struct lpm* lpm;
 
 
 bool nf_init(device_t devices_count)

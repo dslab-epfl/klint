@@ -7,10 +7,10 @@
 #include "structs/pool.h"
 
 
-struct net_ether_addr* addresses;
-device_t* devices;
-struct os_map* map;
-struct os_pool* allocator;
+static struct net_ether_addr* addresses;
+static device_t* devices;
+static struct os_map* map;
+static struct os_pool* allocator;
 
 
 bool nf_init(device_t devices_count)
