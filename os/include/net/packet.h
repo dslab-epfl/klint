@@ -9,8 +9,6 @@
 
 typedef uint16_t device_t;
 
-typedef uint8_t net_ether_addr_t[6];
-
 // Packet received on a device
 struct net_packet {
 	uint8_t* data;
@@ -20,11 +18,17 @@ struct net_packet {
 	void* os_tag; // NFs must not touch this
 };
 
+// Ethernet address (separate type, instead of a typedef, so that one can use the assignment operator)
+struct net_ether_addr
+{
+	uint8_t bytes[6];
+} __attribute__((__packed__));
+
 // Ethernet header
 struct net_ether_header
 {
-	net_ether_addr_t dst_addr;
-	net_ether_addr_t src_addr;
+	struct net_ether_addr dst_addr;
+	struct net_ether_addr src_addr;
 	uint16_t ether_type;
 } __attribute__((__packed__));
 

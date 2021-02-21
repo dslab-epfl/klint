@@ -53,7 +53,7 @@ bool lb_get_backend(struct ld_balancer *balancer,
 	                os_map_remove(balancer->state->flow_to_flow_id, &balancer->state->flow_heap[index]);
 	        }
 
-                os_memory_copy(flow, &(balancer->state->flow_heap[flow_index]), sizeof(struct lb_flow));
+                *flow = balancer->state->flow_heap[flow_index];
                 balancer->state->flow_id_to_backend_id[flow_index] = backend_index;
                 os_map_set(balancer->state->flow_to_flow_id, &balancer->state->flow_heap[flow_index], flow_index);
             } // Doesn't matter if we can't insert

@@ -7,7 +7,7 @@
 #include "structs/pool.h"
 
 
-net_ether_addr_t* addresses;
+struct net_ether_addr* addresses;
 device_t* devices;
 struct os_map* map;
 struct os_pool* allocator;
@@ -22,10 +22,10 @@ bool nf_init(device_t devices_count)
 	time_t expiration_time = os_config_get_time("expiration time");
 	size_t capacity = os_config_get_size("capacity");
 
-	addresses = os_memory_alloc(capacity, sizeof(net_ether_addr_t));
+	addresses = os_memory_alloc(capacity, sizeof(struct net_ether_addr));
 	devices = os_memory_alloc(capacity, sizeof(device_t));
 
-	map = os_map_alloc(sizeof(net_ether_addr_t), capacity);
+	map = os_map_alloc(sizeof(struct net_ether_addr), capacity);
 	allocator = os_pool_alloc(capacity, expiration_time);
 
 	return true;
@@ -51,7 +51,7 @@ void nf_handle(struct net_packet* packet)
 				os_map_remove(map, &(addresses[index]));
 			}
 
-			os_memory_copy(ether_header->src_addr, addresses[index], sizeof(ether_header->src_addr));
+			ether_header->src_addr = addresses[index];
 			devices[index] = packet->device;
 			os_map_set(map, &(addresses[index]), index);
 		}
