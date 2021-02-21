@@ -1,7 +1,6 @@
 #pragma once
 
 #include "net/packet.h"
-#include "net/tx.h" // convenience for implementers
 
 
 enum net_transmit_flags {

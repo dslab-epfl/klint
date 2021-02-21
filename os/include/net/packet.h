@@ -19,22 +19,19 @@ struct net_packet {
 };
 
 // Ethernet address (separate type, instead of a typedef, so that one can use the assignment operator)
-struct net_ether_addr
-{
+struct net_ether_addr {
 	uint8_t bytes[6];
 } __attribute__((__packed__));
 
 // Ethernet header
-struct net_ether_header
-{
+struct net_ether_header {
 	struct net_ether_addr dst_addr;
 	struct net_ether_addr src_addr;
 	uint16_t ether_type;
 } __attribute__((__packed__));
 
 // IPv4 header
-struct net_ipv4_header
-{
+struct net_ipv4_header {
 	uint8_t  version : 4,
 	         ihl : 4;
 	uint8_t  type_of_service;
@@ -49,8 +46,7 @@ struct net_ipv4_header
 } __attribute__((__packed__));
 
 // Common part of TCP and UDP headers
-struct net_tcpudp_header
-{
+struct net_tcpudp_header {
 	uint16_t src_port;
 	uint16_t dst_port;
 } __attribute__((__packed__));
