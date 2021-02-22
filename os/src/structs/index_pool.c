@@ -152,16 +152,15 @@ bool index_pool_borrow(struct index_pool* pool, time_t time, size_t* out_index, 
              *out_used |-> _; @*/
 /*@ ensures *out_index |-> ?index &*&
             *out_used |-> ?used &*&
-            length(items) == size && ghostmap_forall(items, (pool_young)(time, exp_time)) ?
-            	  (result == false &*&
-            	   poolp(pool, size, exp_time, items))
-            	: (result == true &*&
-            	   poolp(pool, size, exp_time, ghostmap_set(items, index, time)) &*&
-            	   index < size &*&
-            	   switch (ghostmap_get(items, index)) {
-                   	case some(old): return used == true &*& old < time - exp_time;
-                   	case none: return used == false;
-            	   }); @*/
+            (length(items) == size ? (ghostmap_forall(items, (pool_young)(time, exp_time)) ? result == false
+                                                                                           : (result == true &*& used == true))
+                                   : result == true) &*&
+            result ? poolp(pool, size, exp_time, ghostmap_set(items, index, time)) &*&
+                     index < size &*&
+                     (used ? (ghostmap_get(items, index) == some(?old) &*&
+                              false == pool_young(time, exp_time, index, old))
+                           : (ghostmap_get(items, index) == none))
+                   : poolp(pool, size, exp_time, items); @*/
 /*@ terminates; @*/
 {
 	// Optimization:

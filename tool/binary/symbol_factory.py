@@ -2,6 +2,8 @@
 from angr.state_plugins.plugin import SimStatePlugin
 import claripy
 
+# TODO: Remove replay and this?
+
 # Use this within externals so that they can be replayed
 # But ONLY within externals, e.g. ghost maps shouldn't use it since the maps plugin is replaced during replay
 class SymbolFactoryPlugin(SimStatePlugin):
