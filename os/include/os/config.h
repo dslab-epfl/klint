@@ -49,7 +49,7 @@ static inline uint16_t os_config_get_u16(const char* name)
 static inline size_t os_config_get_size(const char* name)
 {
 	// Special max here for convenience, that's the max for some of our data structures
-	return (size_t) os_config_try_get(name, 0, SIZE_MAX / 2 + 1);
+	return (size_t) os_config_try_get(name, 0, SIZE_MAX / 64);
 }
 
 static inline time_t os_config_get_time(const char* name)

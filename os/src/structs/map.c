@@ -5,7 +5,7 @@
 // This map was originally written by Arseniy Zaostrovnykh as part of the Vigor project,
 // then optimized for the power-of-2-capacity case by Lucas Ramirez (since & is much cheaper than %).
 // The proof was then adapted to use ghost-map-based contracts.
-// Then, for performance, the implementation and proof were adapted to use array-of-structs rather than structs-of-array
+// Then, for performance, the implementation and proof were adapted to use array-of-structs rather than struct-of-arrays
 // (since the former has much better cache behavior).
 // VeriFast also improved in the meantime, meaning some workarounds in the original proof design
 // may not be necessary any more, while some new workarounds are needed to e.g. support target-independent mode.
@@ -15,6 +15,8 @@
 // - See if any solver (e.g. Z3 or CVC4) is friendly to the mod-pow2 optimization, instead of manually proving bit tricks.
 // - Remove the intermediate "key_opts" layer between the raw map and the ghost maps, it's a historical artifact
 // - Consider using forall_, it sometimes works very well.
+// - Avoid using the 'nat' type, it's just annoying to use
+// - Redo the proof/... structuring, right now all kinds of lemmas are in all kinds of places due to refactorings
 
 //@ #include "proof/chain-buckets.gh"
 //@ #include "proof/listexex.gh"
@@ -516,25 +518,21 @@ lemma void produce_empty_map_valuesaddrs(size_t capacity, list<void*> kaddrs, li
       close map_valuesaddrs(kaddrs, repeat_n(nat_of_int(capacity), none), values, nil, nil);
   }
 }
-
-lemma void pow63_limits(size_t capacity)
-requires capacity >= 0 &*&
-         (capacity != 0) == (is_pow2(capacity, N63) != none);
-ensures capacity <= SIZE_MAX / 2 + 1;
-{
-  assume(false);
-}
-
 @*/
 
 struct map* map_alloc(size_t key_size, size_t capacity)
-/*@ requires capacity <= SIZE_MAX / 2 + 1; @*/
+/*@ requires capacity * 64 <= SIZE_MAX; @*/
 /*@ ensures mapp(result, key_size, capacity, nil, nil); @*/
 //@ terminates;
 {
+  // NOTE: Technically, the 'requires' only needs to use 32 (= sizeof(struct map_item)), not 64, but that'd require proving that real_capacity == capacity in that case
   struct map* m = (struct map*) os_memory_alloc(1, sizeof(struct map));
   //@ close_struct_zero(m);
+  //@ div_ge(capacity * 32, SIZE_MAX + 2, 2);
+  //@ div_2_plus_2(SIZE_MAX);
+  //@ div_even(capacity, 32);
   size_t real_capacity = get_real_capacity(capacity);
+  //@ assume(sizeof(struct map_item) == 32); // TODO: Add __attribute__((packed)) support to VeriFast (+ new C2x [[attribute]] syntax?)
   m->items = (struct map_item*) os_memory_alloc(real_capacity, sizeof(struct map_item));
   m->capacity = real_capacity;
   m->key_size = key_size;
@@ -564,7 +562,6 @@ struct map* map_alloc(size_t key_size, size_t capacity)
   //@ produce_empty_map_valuesaddrs(real_capacity, kaddrs_lst, values_lst);
   //@ produce_empty_hash_list(kopts, hashes_lst);
   //@ repeat_none_is_opt_no_dups(nat_of_int(real_capacity), kopts);
-  //@ pow63_limits(real_capacity);
   //@ close mapp_core(key_size, real_capacity, kaddrs_lst, busybits_lst, hashes_lst, values_lst, kopts, nil, nil);
   //@ close mapp(m, key_size, capacity, nil, nil);
   return m;

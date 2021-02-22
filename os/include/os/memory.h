@@ -14,9 +14,9 @@ typedef unsigned hash_t;
 // "Pinned" here means "the virtual-to-physical mapping will never change", not just that it will always be in memory.
 // This allows the allocated memory's physical address to be given to a device for DMA.
 // For simplicity, never fails; if there is not enough memory available, crashes the program.
-// TODO: Fix impls & contract in the tool to do the overflow check or something
+// The contract looks a bit odd to explicitly allow for the 'alloc(1, sizeof(...))' pattern; TODO fix VeriFast to have sizeof(...) <= SIZE_MAX since sizeof is a size_t
 void* os_memory_alloc(size_t count, size_t size);
-//@ requires emp;
+//@ requires count == 1 || count * size <= SIZE_MAX;
 //@ ensures chars(result, count * size, ?cs) &*& true == all_eq(cs, 0) &*& result + count * size <= (char*) UINTPTR_MAX;
 //@ terminates;
 

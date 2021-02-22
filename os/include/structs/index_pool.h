@@ -14,7 +14,7 @@ struct index_pool;
 //@ fixpoint bool pool_young(time_t time, time_t expiration_time, size_t k, time_t v) { return time < expiration_time || time - expiration_time <= v; }
 
 struct index_pool* index_pool_alloc(size_t size, time_t expiration_time);
-/*@ requires emp; @*/
+/*@ requires size * sizeof(time_t) <= SIZE_MAX; @*/
 /*@ ensures poolp(result, size, expiration_time, nil); @*/
 /*@ terminates; @*/
 

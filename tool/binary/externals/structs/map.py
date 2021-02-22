@@ -14,7 +14,7 @@ from binary.exceptions import SymbexException
 Map = namedtuple('mapp', ['key_size', 'capacity', 'values', 'addrs'])
 
 # struct map* map_alloc(size_t key_size, size_t capacity);
-# requires capacity <= SIZE_MAX / 2 + 1;
+# requires capacity * 64 <= SIZE_MAX;
 # ensures mapp(result, key_size, capacity, nil, nil);
 class map_alloc(angr.SimProcedure):
     def run(self, key_size, capacity):
@@ -27,8 +27,8 @@ class map_alloc(angr.SimProcedure):
             raise SymbexException("key_size cannot be symbolic")
 
         # Preconditions
-        if utils.can_be_false(self.state.solver, capacity.ULE(((2 ** bitsizes.size_t - 1) // 2 + 1))):
-            raise SymbexException("Precondition does not hold: capacity <= SIZE_MAX / 2 + 1)")
+        if utils.can_be_false(self.state.solver, (capacity * 64).ULE(2 ** bitsizes.size_t - 1)):
+            raise SymbexException("Precondition does not hold: capacity * 64 <= SIZE_MAX")
 
         # Postconditions
         result = self.state.memory.allocate_opaque("map")

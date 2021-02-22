@@ -87,7 +87,7 @@ ensures poolp_truths(update(index, time, timestamps), time == TIME_MAX ? ghostma
 
 
 struct index_pool* index_pool_alloc(size_t size, time_t expiration_time)
-/*@ requires emp; @*/
+/*@ requires size * sizeof(time_t) <= SIZE_MAX; @*/
 /*@ ensures poolp(result, size, expiration_time, nil); @*/
 /*@ terminates; @*/
 {

@@ -69,10 +69,8 @@ void* os_memory_alloc(const size_t count, const size_t size)
 		page_used_len = 0;
 	}
 
-	const uintptr_t full_size = size * count;
-	if (size != 0 && full_size / size != count) {
-		os_fatal("Overflow in computing the size, no way we have enough memory for that");
-	}
+	// Cannot overflow, guaranteed by the contract
+	const size_t full_size = size * count;
 
 	// Weird but valid; return a likely-invalid address for debugging convenience
 	if (full_size == 0) {
@@ -80,7 +78,7 @@ void* os_memory_alloc(const size_t count, const size_t size)
 	}
 
 	// Align as required by the contract
-	const uintptr_t align_diff = (uintptr_t) (page_addr + page_used_len) % full_size;
+	const size_t align_diff = (size_t) (page_addr + page_used_len) % full_size;
 	if (align_diff != 0) {
 		page_used_len = page_used_len + (full_size - align_diff);
 	}

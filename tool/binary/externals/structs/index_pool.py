@@ -14,13 +14,17 @@ from binary.exceptions import SymbexException
 Pool = namedtuple('poolp', ['size', 'expiration_time', 'items'])
 
 # struct index_pool* index_pool_alloc(size_t size, time_t expiration_time);
-# requires emp;
+# requires size * sizeof(time_t) <= SIZE_MAX;
 # ensures poolp(result, size, expiration_time, nil);
 class index_pool_alloc(angr.SimProcedure):
     def run(self, size, expiration_time):
         # Casts
         size = cast.size_t(size)
         expiration_time = cast.uint64_t(expiration_time)
+
+        # Preconditions
+        if utils.can_be_false(self.state.solver, (size * bitsizes.uint64_t).ULE(2 ** bitsizes.size_t - 1)):
+            raise SymbexException("Precondition does not hold: size * sizeof(time_t) <= SIZE_MAX")
 
         # Postconditions
         result = self.state.memory.allocate_opaque("index_pool")

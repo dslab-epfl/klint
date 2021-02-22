@@ -13,7 +13,7 @@ struct map;
 
 
 struct map* map_alloc(size_t key_size, size_t capacity);
-/*@ requires capacity <= SIZE_MAX / 2 + 1; @*/
+/*@ requires capacity * 64 <= SIZE_MAX; @*/
 /*@ ensures mapp(result, key_size, capacity, nil, nil); @*/
 //@ terminates;
 
