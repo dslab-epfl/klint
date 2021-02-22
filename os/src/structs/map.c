@@ -35,11 +35,11 @@ struct map_item {
 /*@
   inductive map_item = map_item(void*, size_t, size_t, hash_t, bool);
 
-  fixpoint void* map_item_key_addr(map_item item) { switch(item) { case map_item(key_addr, value, chain, key_hash, busy): return key_addr; } }
-  fixpoint size_t map_item_value(map_item item) { switch(item) { case map_item(key_addr, value, chain, key_hash, busy): return value; } }
-  fixpoint size_t map_item_chain(map_item item) { switch(item) { case map_item(key_addr, value, chain, key_hash, busy): return chain; } }
-  fixpoint hash_t map_item_key_hash(map_item item) { switch(item) { case map_item(key_addr, value, chain, key_hash, busy): return key_hash; } }
-  fixpoint bool map_item_busy(map_item item) { switch(item) { case map_item(key_addr, value, chain, key_hash, busy): return busy; } }
+  fixpoint void* map_item_key_addr_(map_item item) { switch(item) { case map_item(key_addr, value, chain, key_hash, busy): return key_addr; } }
+  fixpoint size_t map_item_value_(map_item item) { switch(item) { case map_item(key_addr, value, chain, key_hash, busy): return value; } }
+  fixpoint size_t map_item_chain_(map_item item) { switch(item) { case map_item(key_addr, value, chain, key_hash, busy): return chain; } }
+  fixpoint hash_t map_item_key_hash_(map_item item) { switch(item) { case map_item(key_addr, value, chain, key_hash, busy): return key_hash; } }
+  fixpoint bool map_item_busy_(map_item item) { switch(item) { case map_item(key_addr, value, chain, key_hash, busy): return busy; } }
 
   predicate map_itemp(struct map_item* ptr; map_item item) =
     ptr->key_addr |-> ?key_addr &*&
@@ -97,8 +97,8 @@ struct map_item {
     requires chars(ptr, int_of_nat(count) * sizeof(struct map_item), ?cs) &*&
              true == all_eq(cs, 0);
     ensures map_itemsp((struct map_item*) ptr, int_of_nat(count), ?is) &*&
-            true == forall(map(map_item_chain, is), (eq)(0)) &*&
-            true == forall(map(map_item_busy, is), (eq)(false));
+            true == forall(map(map_item_chain_, is), (eq)(0)) &*&
+            true == forall(map(map_item_busy_, is), (eq)(false));
   {
     switch (count) {
       case zero:
@@ -277,11 +277,11 @@ struct map {
     m->capacity |-> capacity &*&
     m->items |-> ?raw_items &*&
     map_itemsp(raw_items, capacity, ?items) &*&
-    kaddrs == map(map_item_key_addr, items) &*&
-    busybits == map(map_item_busy, items) &*&
-    hashes == map(map_item_key_hash, items) &*&
-    values == map(map_item_value, items) &*&
-    chains == map(map_item_chain, items) &*&
+    kaddrs == map(map_item_key_addr_, items) &*&
+    busybits == map(map_item_busy_, items) &*&
+    hashes == map(map_item_key_hash_, items) &*&
+    values == map(map_item_value_, items) &*&
+    chains == map(map_item_chain_, items) &*&
     capacity == length(items) &*&
     capacity == length(kaddrs) &*&
     capacity == length(busybits) &*&
@@ -542,16 +542,16 @@ struct map* map_alloc(size_t key_size, size_t capacity)
   //@ bytes_to_map_items((char*) raw_items, nat_of_int(real_capacity));
   //@ assert map_itemsp(raw_items, real_capacity, ?items);
   //@ length_map_items(real_capacity);
-  //@ map_preserves_length(map_item_key_addr, items);
-  //@ map_preserves_length(map_item_value, items);
-  //@ map_preserves_length(map_item_chain, items);
-  //@ map_preserves_length(map_item_key_hash, items);
-  //@ map_preserves_length(map_item_busy, items);
-  //@ list<bool> busybits_lst = map(map_item_busy, items);
-  //@ list<void*> kaddrs_lst = map(map_item_key_addr, items);
-  //@ list<hash_t> hashes_lst = map(map_item_key_hash, items);
-  //@ list<size_t> chains_lst = map(map_item_chain, items);
-  //@ list<size_t> values_lst = map(map_item_value, items);
+  //@ map_preserves_length(map_item_key_addr_, items);
+  //@ map_preserves_length(map_item_value_, items);
+  //@ map_preserves_length(map_item_chain_, items);
+  //@ map_preserves_length(map_item_key_hash_, items);
+  //@ map_preserves_length(map_item_busy_, items);
+  //@ list<bool> busybits_lst = map(map_item_busy_, items);
+  //@ list<void*> kaddrs_lst = map(map_item_key_addr_, items);
+  //@ list<hash_t> hashes_lst = map(map_item_key_hash_, items);
+  //@ list<size_t> chains_lst = map(map_item_chain_, items);
+  //@ list<size_t> values_lst = map(map_item_value_, items);
   //@ close mapp_raw(m, kaddrs_lst, busybits_lst, hashes_lst, chains_lst, values_lst, key_size, real_capacity);
   //@ repeat_n_contents(nat_of_int(real_capacity), false);
   //@ produce_key_opt_list(key_size, hashes_lst, kaddrs_lst, busybits_lst);
@@ -1037,13 +1037,13 @@ bool map_get(struct map* map, void* key_ptr, size_t* out_value)
     //@ extract_item(raw_items, index);
     if (it->busy && it->key_hash == key_hash) {
       //@ close key_opt_list(key_size, nil, nil, nil);
-      //@ assert nth(index, busybits_lst) == nth(index, map(map_item_busy, the_items));
-      //@ nth_map(index, map_item_busy, the_items);
+      //@ assert nth(index, busybits_lst) == nth(index, map(map_item_busy_, the_items));
+      //@ nth_map(index, map_item_busy_, the_items);
       //@ extract_key_at_index(nil, nil, nil, index, busybits_lst, key_opts);
       //@ append_nil(reverse(take(index, kaddrs_lst)));
       //@ append_nil(reverse(take(index, busybits_lst)));
       //@ append_nil(reverse(take(index, key_opts)));
-      //@ nth_map(index, map_item_key_addr, the_items);
+      //@ nth_map(index, map_item_key_addr_, the_items);
       if (os_memory_eq(it->key_addr, key_ptr, map->key_size)) {
         //@ recover_key_opt_list(kaddrs_lst, busybits_lst, key_opts, index);
         //@ open map_valuesaddrs(kaddrs_lst, key_opts, values_lst, map_values, map_addrs);
@@ -1052,7 +1052,7 @@ bool map_get(struct map* map, void* key_ptr, size_t* out_value)
         //@ key_opt_list_find_key(key_opts, index, key);
         //@ close buckets_keys_insync(real_capacity, chains_lst, buckets, key_opts);
         //@ map_values_reflects_keyopts_mem(key, index);
-        //@ nth_map(index, map_item_value, the_items);
+        //@ nth_map(index, map_item_value_, the_items);
         *out_value = it->value;
         //@ close mapp_core(key_size, real_capacity, kaddrs_lst, busybits_lst, hashes_lst, values_lst, key_opts, map_values, map_addrs);
         //@ glue_items(raw_items, the_items, index);
@@ -1062,14 +1062,14 @@ bool map_get(struct map* map, void* key_ptr, size_t* out_value)
       }
       //@ recover_key_opt_list(kaddrs_lst, busybits_lst, key_opts, index);
     } else {
-      //@ nth_map(index, map_item_busy, the_items);
-      //@ nth_map(index, map_item_key_hash, the_items);
-      //@ if (nth(index, map(map_item_busy, the_items))) no_hash_no_key(key_opts, hashes_lst, key, index); else no_bb_no_key(key_opts, busybits_lst, index);
+      //@ nth_map(index, map_item_busy_, the_items);
+      //@ nth_map(index, map_item_key_hash_, the_items);
+      //@ if (nth(index, map(map_item_busy_, the_items))) no_hash_no_key(key_opts, hashes_lst, key, index); else no_bb_no_key(key_opts, busybits_lst, index);
       if (it->chain == 0) {
         //@ assert length(chains_lst) == real_capacity;
         //@ buckets_keys_chns_same_len(buckets);
         //@ assert length(buckets) == real_capacity;
-        //@ nth_map(index, map_item_chain, the_items);
+        //@ nth_map(index, map_item_chain_, the_items);
         //@ no_crossing_chains_here(buckets, index);
         //@ assert nil == get_crossing_chains_fp(buckets, index);
         //@ key_is_contained_in_the_bucket(buckets, real_capacity, key);
@@ -1491,7 +1491,7 @@ void map_set(struct map* map, void* key_ptr, size_t value)
     //@ assert map_itemsp(raw_items, real_capacity, ?the_items);
     //@ extract_item(raw_items, index);
     if (!item->busy) {
-      //@ nth_map(index, map_item_busy, the_items);
+      //@ nth_map(index, map_item_busy_, the_items);
       //@ zero_bbs_is_for_empty(busybits_lst, key_opts, index);
       //@ map_values_has_not_implies_key_opts_has_not(map_values, key_opts, key);
       item->key_addr = key_ptr;
@@ -1510,20 +1510,20 @@ void map_set(struct map* map, void* key_ptr, size_t value)
       //@ ghostmap_set_preserves_distinct(map_addrs, key, key_ptr);
       //@ assert true == ghostmap_distinct(ghostmap_set(map_values, key, value));
       //@ close mapp_core(key_size, real_capacity, ?new_kaddrs_lst, ?new_busybits_lst, ?new_hashes_lst, ?new_values_lst, ?new_key_opts, ?new_map_values, ?new_map_addrs);
-      //@ map_item new_item = map_item(key_ptr, value, map_item_chain(nth(index, the_items)), key_hash, true);
+      //@ map_item new_item = map_item(key_ptr, value, map_item_chain_(nth(index, the_items)), key_hash, true);
       //@ take_update_unrelevant(index, index, new_item, the_items);
       //@ drop_update_unrelevant(index + 1, index, new_item, the_items);
-      //@ map_preserves_length(map_item_key_addr, update(index, new_item, the_items));
-      //@ map_preserves_length(map_item_value, update(index, new_item, the_items));
-      //@ map_preserves_length(map_item_chain, update(index, new_item, the_items));
-      //@ map_preserves_length(map_item_key_hash, update(index, new_item, the_items));
-      //@ map_preserves_length(map_item_busy, update(index, new_item, the_items));
-      //@ map_update_update_map(map_item_key_addr, index, new_item, the_items);
-      //@ map_update_update_map(map_item_value, index, new_item, the_items);
-      //@ map_update_update_map(map_item_chain, index, new_item, the_items);
-      //@ map_update_update_map(map_item_key_hash, index, new_item, the_items);
-      //@ map_update_update_map(map_item_busy, index, new_item, the_items);
-      //@ map_nth_nth_map(map_item_chain, index, the_items);
+      //@ map_preserves_length(map_item_key_addr_, update(index, new_item, the_items));
+      //@ map_preserves_length(map_item_value_, update(index, new_item, the_items));
+      //@ map_preserves_length(map_item_chain_, update(index, new_item, the_items));
+      //@ map_preserves_length(map_item_key_hash_, update(index, new_item, the_items));
+      //@ map_preserves_length(map_item_busy_, update(index, new_item, the_items));
+      //@ map_update_update_map(map_item_key_addr_, index, new_item, the_items);
+      //@ map_update_update_map(map_item_value_, index, new_item, the_items);
+      //@ map_update_update_map(map_item_chain_, index, new_item, the_items);
+      //@ map_update_update_map(map_item_key_hash_, index, new_item, the_items);
+      //@ map_update_update_map(map_item_busy_, index, new_item, the_items);
+      //@ map_nth_nth_map(map_item_chain_, index, the_items);
       //@ glue_items(raw_items, update(index, new_item, the_items), index);
       //@ close mapp(map, key_size, capacity, new_map_values, new_map_addrs);
       return;
@@ -1532,11 +1532,11 @@ void map_set(struct map* map, void* key_ptr, size_t value)
     //@ buckets_ok_chn_bound(buckets, index);
     //@ outside_part_chn_no_effect(buckets_get_chns_fp(buckets), start, index, real_capacity);
     //@ assert item->chain |-> ?chn;
-    //@ nth_map(index, map_item_chain, the_items);
+    //@ nth_map(index, map_item_chain_, the_items);
     //@ div_ge(4, SIZE_MAX, 2);
     //@ size_wtf(SIZE_MAX / 2, 2);
     item->chain = item->chain + 1;
-    //@ nth_map(index, map_item_busy, the_items);
+    //@ nth_map(index, map_item_busy_, the_items);
     //@ bb_nonzero_cell_busy(busybits_lst, key_opts, index);
     //@ assert true == cell_busy(nth(loop_fp(i+start, real_capacity), key_opts));
     //@ assert nat_of_int(i+1) == succ(nat_of_int(i));
@@ -1571,23 +1571,23 @@ void map_set(struct map* map, void* key_ptr, size_t value)
       @*/
     //@ close buckets_keys_insync_Xchain(real_capacity, ?new_chains_lst, buckets, start, index, key_opts);
     //@ close mapp_core(key_size, real_capacity, kaddrs_lst, busybits_lst, hashes_lst, values_lst, key_opts, map_values, map_addrs);
-    //@ map_item new_item = map_item(map_item_key_addr(nth(index, the_items)), map_item_value(nth(index, the_items)), 1 + map_item_chain(nth(index, the_items)), map_item_key_hash(nth(index, the_items)), map_item_busy(nth(index, the_items)));
+    //@ map_item new_item = map_item(map_item_key_addr_(nth(index, the_items)), map_item_value_(nth(index, the_items)), 1 + map_item_chain_(nth(index, the_items)), map_item_key_hash_(nth(index, the_items)), map_item_busy_(nth(index, the_items)));
     //@ take_update_unrelevant(index, index, new_item, the_items);
     //@ drop_update_unrelevant(index + 1, index, new_item, the_items);
-    //@ map_preserves_length(map_item_key_addr, update(index, new_item, the_items));
-    //@ map_preserves_length(map_item_value, update(index, new_item, the_items));
-    //@ map_preserves_length(map_item_chain, update(index, new_item, the_items));
-    //@ map_preserves_length(map_item_key_hash, update(index, new_item, the_items));
-    //@ map_preserves_length(map_item_busy, update(index, new_item, the_items));
-    //@ map_update_update_map(map_item_key_addr, index, new_item, the_items);
-    //@ map_update_update_map(map_item_value, index, new_item, the_items);
-    //@ map_update_update_map(map_item_chain, index, new_item, the_items);
-    //@ map_update_update_map(map_item_key_hash, index, new_item, the_items);
-    //@ map_update_update_map(map_item_busy, index, new_item, the_items);
-    //@ map_nth_nth_map(map_item_key_addr, index, the_items);
-    //@ map_nth_nth_map(map_item_value, index, the_items);
-    //@ map_nth_nth_map(map_item_key_hash, index, the_items);
-    //@ map_nth_nth_map(map_item_busy, index, the_items);
+    //@ map_preserves_length(map_item_key_addr_, update(index, new_item, the_items));
+    //@ map_preserves_length(map_item_value_, update(index, new_item, the_items));
+    //@ map_preserves_length(map_item_chain_, update(index, new_item, the_items));
+    //@ map_preserves_length(map_item_key_hash_, update(index, new_item, the_items));
+    //@ map_preserves_length(map_item_busy_, update(index, new_item, the_items));
+    //@ map_update_update_map(map_item_key_addr_, index, new_item, the_items);
+    //@ map_update_update_map(map_item_value_, index, new_item, the_items);
+    //@ map_update_update_map(map_item_chain_, index, new_item, the_items);
+    //@ map_update_update_map(map_item_key_hash_, index, new_item, the_items);
+    //@ map_update_update_map(map_item_busy_, index, new_item, the_items);
+    //@ map_nth_nth_map(map_item_key_addr_, index, the_items);
+    //@ map_nth_nth_map(map_item_value_, index, the_items);
+    //@ map_nth_nth_map(map_item_key_hash_, index, the_items);
+    //@ map_nth_nth_map(map_item_busy_, index, the_items);
     //@ glue_items(raw_items, update(index, new_item, the_items), index);
   }
   //@ open mapp_core(key_size, real_capacity, ?kaddrs_lst, ?busybits_lst, ?hashes_lst, ?values_lst, key_opts, map_values, map_addrs);
@@ -1809,14 +1809,14 @@ void map_remove(struct map* map, void* key_ptr)
     //@ assert map_itemsp(raw_items, real_capacity, ?the_items);
     //@ extract_item(raw_items, index);
     if (item->busy && item->key_hash == key_hash) {
-      //@ nth_map(index, map_item_busy, the_items);
-      //@ nth_map(index, map_item_key_hash, the_items);
+      //@ nth_map(index, map_item_busy_, the_items);
+      //@ nth_map(index, map_item_key_hash_, the_items);
       //@ close key_opt_list(key_size, nil, nil, nil);
       //@ extract_key_at_index(nil, nil, nil, index, busybits_lst, key_opts);
       //@ append_nil(reverse(take(index, kaddrs_lst)));
       //@ append_nil(reverse(take(index, busybits_lst)));
       //@ append_nil(reverse(take(index, key_opts)));
-      //@ nth_map(index, map_item_key_addr, the_items);
+      //@ nth_map(index, map_item_key_addr_, the_items);
       if (os_memory_eq(item->key_addr, key_ptr, map->key_size)) {
         //@ recover_key_opt_list(kaddrs_lst, busybits_lst, key_opts, index);
         //@ key_opt_list_find_key(key_opts, index, key);
@@ -1836,40 +1836,40 @@ void map_remove(struct map* map, void* key_ptr)
         //@ ghostmap_remove_preserves_distinct(map_values, key);
         //@ ghostmap_remove_preserves_distinct(map_addrs, key);
         //@ close mapp_core(key_size, real_capacity, kaddrs_lst, _, hashes_lst, values_lst, _, ghostmap_remove(map_values, key), ghostmap_remove(map_addrs, key));
-        //@ map_item new_item = map_item(map_item_key_addr(nth(index, the_items)), map_item_value(nth(index, the_items)), map_item_chain(nth(index, the_items)), map_item_key_hash(nth(index, the_items)), false);
+        //@ map_item new_item = map_item(map_item_key_addr_(nth(index, the_items)), map_item_value_(nth(index, the_items)), map_item_chain_(nth(index, the_items)), map_item_key_hash_(nth(index, the_items)), false);
         //@ take_update_unrelevant(index, index, new_item, the_items);
         //@ drop_update_unrelevant(index + 1, index, new_item, the_items);
-        //@ map_preserves_length(map_item_key_addr, update(index, new_item, the_items));
-        //@ map_preserves_length(map_item_value, update(index, new_item, the_items));
-        //@ map_preserves_length(map_item_chain, update(index, new_item, the_items));
-        //@ map_preserves_length(map_item_key_hash, update(index, new_item, the_items));
-        //@ map_preserves_length(map_item_busy, update(index, new_item, the_items));
-        //@ map_update_update_map(map_item_key_addr, index, new_item, the_items);
-        //@ map_update_update_map(map_item_value, index, new_item, the_items);
-        //@ map_update_update_map(map_item_chain, index, new_item, the_items);
-        //@ map_update_update_map(map_item_key_hash, index, new_item, the_items);
-        //@ map_update_update_map(map_item_busy, index, new_item, the_items);
-        //@ map_nth_nth_map(map_item_key_addr, index, the_items);
-        //@ map_nth_nth_map(map_item_value, index, the_items);
-        //@ map_nth_nth_map(map_item_chain, index, the_items);
-        //@ map_nth_nth_map(map_item_key_hash, index, the_items);
-        //@ map_nth_nth_map(map_item_busy, index, the_items);
+        //@ map_preserves_length(map_item_key_addr_, update(index, new_item, the_items));
+        //@ map_preserves_length(map_item_value_, update(index, new_item, the_items));
+        //@ map_preserves_length(map_item_chain_, update(index, new_item, the_items));
+        //@ map_preserves_length(map_item_key_hash_, update(index, new_item, the_items));
+        //@ map_preserves_length(map_item_busy_, update(index, new_item, the_items));
+        //@ map_update_update_map(map_item_key_addr_, index, new_item, the_items);
+        //@ map_update_update_map(map_item_value_, index, new_item, the_items);
+        //@ map_update_update_map(map_item_chain_, index, new_item, the_items);
+        //@ map_update_update_map(map_item_key_hash_, index, new_item, the_items);
+        //@ map_update_update_map(map_item_busy_, index, new_item, the_items);
+        //@ map_nth_nth_map(map_item_key_addr_, index, the_items);
+        //@ map_nth_nth_map(map_item_value_, index, the_items);
+        //@ map_nth_nth_map(map_item_chain_, index, the_items);
+        //@ map_nth_nth_map(map_item_key_hash_, index, the_items);
+        //@ map_nth_nth_map(map_item_busy_, index, the_items);
         //@ glue_items(raw_items, update(index, new_item, the_items), index);
         //@ close mapp(map, key_size, capacity, ghostmap_remove(map_values, key), ghostmap_remove(map_addrs, key));
         return;
       }
       //@ recover_key_opt_list(kaddrs_lst, busybits_lst, key_opts, index);
     } else {
-      //@ nth_map(index, map_item_busy, the_items);
-      //@ nth_map(index, map_item_key_hash, the_items);
-      //@ if (nth(index, map(map_item_busy, the_items))) no_hash_no_key(key_opts, hashes_lst, key, index); else no_bb_no_key(key_opts, busybits_lst, index);
+      //@ nth_map(index, map_item_busy_, the_items);
+      //@ nth_map(index, map_item_key_hash_, the_items);
+      //@ if (nth(index, map(map_item_busy_, the_items))) no_hash_no_key(key_opts, hashes_lst, key, index); else no_bb_no_key(key_opts, busybits_lst, index);
     }
     //@ buckets_remove_key_same_len(buckets, key);
     //@ buckets_keys_chns_same_len(buckets_remove_key_fp(buckets, key));
     //@ buckets_get_chain_longer(buckets, start, i, key, real_capacity);
     //@ buckets_get_chns_nonneg(buckets_remove_key_fp(buckets, key));
     //@ add_part_chn_gt0(index, buckets_get_chain_fp(buckets, key, start) - i, buckets_get_chns_fp(buckets_remove_key_fp(buckets, key)));
-    //@ nth_map(index, map_item_chain, the_items);
+    //@ nth_map(index, map_item_chain_, the_items);
     item->chain = item->chain - 1;
     //@ assert nth(index, key_opts) != some(key);
     //@ assert true == neq(some(key), nth(index, key_opts));
@@ -1888,23 +1888,23 @@ void map_remove(struct map* map, void* key_ptr)
     //@ assert loop_fp(loop_fp(start + i, real_capacity) + 1, real_capacity) == loop_fp(start + i + 1, real_capacity);
     //@ chains_lst = add_partial_chain_fp(loop_fp(start + i + 1, real_capacity), buckets_get_chain_fp(buckets, key, start) - i - 1, buckets_get_chns_fp(buckets_remove_key_fp(buckets, key)));
     //@ close mapp_core(key_size, real_capacity, kaddrs_lst, busybits_lst, hashes_lst, values_lst, key_opts, map_values, map_addrs);
-    //@ map_item new_item = map_item(map_item_key_addr(nth(index, the_items)), map_item_value(nth(index, the_items)), map_item_chain(nth(index, the_items)) - 1, map_item_key_hash(nth(index, the_items)), map_item_busy(nth(index, the_items)));
+    //@ map_item new_item = map_item(map_item_key_addr_(nth(index, the_items)), map_item_value_(nth(index, the_items)), map_item_chain_(nth(index, the_items)) - 1, map_item_key_hash_(nth(index, the_items)), map_item_busy_(nth(index, the_items)));
     //@ take_update_unrelevant(index, index, new_item, the_items);
     //@ drop_update_unrelevant(index + 1, index, new_item, the_items);
-    //@ map_preserves_length(map_item_key_addr, update(index, new_item, the_items));
-    //@ map_preserves_length(map_item_value, update(index, new_item, the_items));
-    //@ map_preserves_length(map_item_chain, update(index, new_item, the_items));
-    //@ map_preserves_length(map_item_key_hash, update(index, new_item, the_items));
-    //@ map_preserves_length(map_item_busy, update(index, new_item, the_items));
-    //@ map_update_update_map(map_item_key_addr, index, new_item, the_items);
-    //@ map_update_update_map(map_item_value, index, new_item, the_items);
-    //@ map_update_update_map(map_item_chain, index, new_item, the_items);
-    //@ map_update_update_map(map_item_key_hash, index, new_item, the_items);
-    //@ map_update_update_map(map_item_busy, index, new_item, the_items);
-    //@ map_nth_nth_map(map_item_key_addr, index, the_items);
-    //@ map_nth_nth_map(map_item_value, index, the_items);
-    //@ map_nth_nth_map(map_item_key_hash, index, the_items);
-    //@ map_nth_nth_map(map_item_busy, index, the_items);
+    //@ map_preserves_length(map_item_key_addr_, update(index, new_item, the_items));
+    //@ map_preserves_length(map_item_value_, update(index, new_item, the_items));
+    //@ map_preserves_length(map_item_chain_, update(index, new_item, the_items));
+    //@ map_preserves_length(map_item_key_hash_, update(index, new_item, the_items));
+    //@ map_preserves_length(map_item_busy_, update(index, new_item, the_items));
+    //@ map_update_update_map(map_item_key_addr_, index, new_item, the_items);
+    //@ map_update_update_map(map_item_value_, index, new_item, the_items);
+    //@ map_update_update_map(map_item_chain_, index, new_item, the_items);
+    //@ map_update_update_map(map_item_key_hash_, index, new_item, the_items);
+    //@ map_update_update_map(map_item_busy_, index, new_item, the_items);
+    //@ map_nth_nth_map(map_item_key_addr_, index, the_items);
+    //@ map_nth_nth_map(map_item_value_, index, the_items);
+    //@ map_nth_nth_map(map_item_key_hash_, index, the_items);
+    //@ map_nth_nth_map(map_item_busy_, index, the_items);
     //@ glue_items(raw_items, update(index, new_item, the_items), index);
   }
   //@ open mapp_core(key_size, real_capacity, kaddrs_lst, busybits_lst, hashes_lst, values_lst, key_opts, map_values, map_addrs);

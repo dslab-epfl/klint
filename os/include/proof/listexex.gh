@@ -927,27 +927,6 @@ ensures true == distinct(lst);
   }
 }
 
-lemma void map_remove<t1,t2>(fixpoint (t1,t2) f, t1 x, list<t1> l)
-requires true == distinct(map(f, l)) &*&
-         true == mem(x, l);
-ensures map(f, remove(x, l)) == remove(f(x), map(f, l));
-{
-  switch(l) {
-    case nil:
-    case cons(h,t):
-      if (f(h) == f(x)) {
-        if (h != x) {
-          mem_map(x, t, f);
-          assert true == mem(f(h), map(f, t));
-          assert false;
-        }
-        assert h == x;
-      } else {
-        map_remove(f, x, t);
-      }
-  }
-}//took 2m
-
 lemma void remove_append_swap<t>(t x, list<t> l1, list<t> l2)
 requires true;
 ensures remove(x, append(l1, l2)) ==
