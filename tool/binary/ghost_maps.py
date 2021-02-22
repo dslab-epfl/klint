@@ -698,7 +698,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
             #   if length(M1) <= length(M2) across all states,
             #   then assume this holds in the merged state
             if all(utils.definitely_true(st.solver, st.maps.length(o1) <= st.maps.length(o2)) for st in orig_states):
-                print("Inferred: Length of", o1, "is always <= that of", o2)
+                #print("Inferred: Length of", o1, "is always <= that of", o2)
                 results.put((ResultType.LENGTH_LTE, [o1, o2], lambda st, ms: st.add_constraints(ms[0].length() <= ms[1].length())))
 
             # Step 3: Map relationships.
@@ -759,7 +759,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                     if fv and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk, fv=fv: \
                                                                                              Implies(fp(MapItem(k, v, None)), MapHas(o2, fk(MapItem(k, v, None)), value=fv(MapItem(k, v, None)))))) for st in states):
                         to_cache.put([o1, o2, "v", fv])
-                        log_text += f"\n\tin addition, the value is {fv(log_item)}"
+                        log_text += f"\n          in addition, the value is {fv(log_item)}"
                         results.put((ResultType.CROSS_VAL, [o1, o2],
                                      lambda state, maps, o2=o2, fp=fp, fk=fk, fv=fv: maps[0].add_invariant_conjunction(state, lambda i: Implies(i.present, Implies(fp(i), MapHas(o2, fk(i), value=fv(i)))))))
                     else:
