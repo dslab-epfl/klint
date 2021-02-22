@@ -1,3 +1,3 @@
 """
-Contains OS stubs.
+Contains os/ models.
 """

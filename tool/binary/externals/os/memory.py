@@ -3,15 +3,13 @@ import angr
 import claripy
 
 # Us
-from ... import bitsizes
 from ... import cast
-from ... import utils
 from ...exceptions import SymbexException
 
 # void* os_memory_alloc(size_t count, size_t size);
-# requires count == 1 || count * size <= SIZE_MAX;
+# requires emp;
 # ensures chars(result, count * size, ?cs) &*& true == all_eq(cs, 0) &*& result + count * size <= (char*) UINTPTR_MAX;
-class OsMemoryAlloc(angr.SimProcedure):
+class os_memory_alloc(angr.SimProcedure):
     def run(self, count, size):
         # Casts
         count = cast.size_t(count)
@@ -21,17 +19,13 @@ class OsMemoryAlloc(angr.SimProcedure):
         if size.symbolic:
             raise SymbexException("size cannot be symbolic")
 
-        # Preconditions
-        if utils.can_be_false(self.state.solver, (count == 1) | (count * size <= (2 ** bitsizes.size_t - 1))):
-            raise SymbexException("Precondition does not hold: count == 1 || count * size <= SIZE_MAX")
-
         # Postconditions
         result = self.state.memory.allocate(count, size, name="allocated", default=claripy.BVV(0, self.state.solver.eval_one(size, cast_to=int) * 8))
         print("!!! os_memory_alloc", count, size, "->", result)
         return result
 
 # No contract, not exposed publicly, only for symbex harnesses
-class OsMemoryHavoc(angr.SimProcedure):
+class os_memory_havoc(angr.SimProcedure):
     def run(self, ptr):
         ptr = cast.ptr(ptr)
         print("!!! os_memory_havoc", ptr)

@@ -1,52 +1,31 @@
 # Standard/External libraries
 import angr
-import archinfo
 import claripy
 from collections import namedtuple
 
 # Us
+from ... import bitsizes
 from ... import cast
 from ... import utils
 from ...exceptions import SymbexException
 
 ConfigMetadata = namedtuple('ConfigMetadata', ['items'])
 
-class ConfigU(angr.SimProcedure):
-  def size(self):
-    raise "please override"
+# bool os_config_get(const char* name, uintmax_t* out_value);
+class os_config_get(angr.SimProcedure):
+    def run(self, name, out_value):
+        name = cast.ptr(name)
+        out_value = cast.ptr(out_value)
 
-  def run(self, name):
-    name = cast.ptr(name)
+        if name.symbolic:
+            raise SymbexException("name cannot be symbolic")
 
-    if name.symbolic:
-      raise SymbexException("Cannot use symbolic names for config")
+        py_name = utils.read_str(self.state, name)
+        metadata = self.state.metadata.get(ConfigMetadata, None, default=ConfigMetadata({}))
+        if py_name not in metadata.items:
+            value = claripy.BVS(py_name, bitsizes.uintmax_t) # not using symbol_factory since this is not replayed
+            metadata.items[py_name] = value
 
-    py_name = utils.read_str(self.state, name)
+        value = metadata.items[py_name]
 
-    metadata = self.state.metadata.get(ConfigMetadata, None, default=ConfigMetadata({}))
-
-    if py_name not in metadata.items:
-      value = claripy.BVS(py_name, self.size()) # not using symbol_factory since this is not replayed
-      metadata.items[py_name] = value
-
-    value = metadata.items[py_name]
-
-    # Not sure why this is necessary. TODO investigate. Endness in angr seems hard to get in general...
-    # the 16 is particularly weird but really, the comparison to a device needs .reversed to make sense
-    # while the policer burst (u64) should not have it
-    if self.state.arch.memory_endness == archinfo.Endness.LE and self.size() == 16:
-        value = value.reversed
-
-    return value
-
-class ConfigU16(ConfigU):
-  def size(self): return 16
-
-class ConfigU32(ConfigU):
-  def size(self): return 32
-
-class ConfigU64(ConfigU):
-  def size(self): return 64
-
-class ConfigTime(ConfigU):
-  def size(self): return 64
+        return value

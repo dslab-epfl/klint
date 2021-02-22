@@ -7,6 +7,8 @@ uint16_t = 16
 uint32_t = 32
 uint64_t = 64
 
+uintmax_t = 64
+
 bool = 8
 int64_t = 64
 ptr = 64

@@ -28,3 +28,6 @@ def ptr(o):
 
 def size_t(o):
     return uint64_t(o)
+
+def enum(o):
+    return _fix(o) # ???
