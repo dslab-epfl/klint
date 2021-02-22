@@ -19,8 +19,8 @@ bool nf_init(device_t devices_count)
 
 	wan_device = os_config_get_device("wan device", devices_count);
 
-	size_t max_flows = os_config_get_size("max flows");
 	time_t expiration_time = os_config_get_time("expiration time");
+	size_t max_flows = os_config_get_size("max flows");
 	table = flow_table_alloc(expiration_time, max_flows);
 
 	return true;

@@ -4,10 +4,9 @@ import claripy
 from collections import namedtuple
 
 # Us
-from .pool import Pool
+from .index_pool import Pool
 import binary.bitsizes as bitsizes
 import binary.cast as cast
-import binary.clock as clock
 import binary.utils as utils
 from binary.exceptions import SymbexException
 
@@ -39,13 +38,14 @@ class ChtAlloc(angr.SimProcedure):
 
 
 class ChtFindPreferredAvailableBackend(angr.SimProcedure):
-    def run(self, cht, obj, obj_size, active_backends, chosen_backend):
+    def run(self, cht, obj, obj_size, active_backends, chosen_backend, time):
         # Casts
         cht = cast.ptr(cht)
         obj = cast.ptr(obj)
         obj_size = cast.size_t(obj_size)
         active_backends = cast.ptr(active_backends)
         chosen_backend = cast.ptr(chosen_backend)
+        time = cast.uint64_t(time)
         print(  f"!!! cht_find_preferred_available_backend [obj: {obj}, obj_size: {obj_size}, " +
                 f"active_backends: {active_backends}, chosen_backend: {chosen_backend}]" )
 
@@ -69,4 +69,4 @@ class ChtFindPreferredAvailableBackend(angr.SimProcedure):
             return claripy.BVV(1, bitsizes.bool)
 
         guard = self.state.maps.forall(active_backends.items, lambda k, v: claripy.Or(k < 0, k >= cht.backend_capacity))
-        return utils.fork_guarded(self, guard, case_true, case_false)
+        return utils.fork_guarded(self, self.state, guard, case_true, case_false)

@@ -82,4 +82,4 @@ class LpmLookupElem(angr.SimProcedure):
             )
             return claripy.BVV(1, bitsizes.bool)
 
-        return utils.fork_guarded(self, self.state.maps.forall(lpmp.table, lambda k, v: ~matches(k)), case_none, case_some)
+        return utils.fork_guarded(self, self.state, self.state.maps.forall(lpmp.table, lambda k, v: ~matches(k)), case_none, case_some)

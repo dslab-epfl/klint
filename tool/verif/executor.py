@@ -9,8 +9,6 @@ from pathlib import Path
 from .common import *
 from binary import bitsizes
 from binary import utils
-from binary.externals.os import config as os_config
-from binary.externals.os import network as os_network
 from binary.ghost_maps import *
 from python import executor as py_executor
 
@@ -137,9 +135,9 @@ def verify(data, spec):
         current_state.maps = SpecMaps(current_state, data.maps)
         current_state.path = data.path # useful for debugging
 
-        packet = SpecPacket(current_state, data.network.received, data.network.received_length, SpecSingleDevice(current_state, data.network.received_device))
+        pkt = SpecPacket(current_state, data.network.received, data.network.received_length, SpecSingleDevice(current_state, data.network.received_device))
 
-        transmitted_packet = None
+        transmitted_pkt = None
         if data.network.transmitted:
             if len(data.network.transmitted) > 1:
                 raise "TODO support multiple transmitted packets"
@@ -148,13 +146,13 @@ def verify(data, spec):
                 transmitted_device = SpecFloodedDevice(current_state, data.network.received_device, data.devices_count)
             else:
                 transmitted_device = SpecSingleDevice(current_state, tx_dev_int)
-            transmitted_packet = SpecPacket(current_state, data.network.transmitted[0][0], data.network.transmitted[0][1], transmitted_device)
+            transmitted_pkt = SpecPacket(current_state, data.network.transmitted[0][0], data.network.transmitted[0][1], transmitted_device)
 
         try:
             result = py_executor.execute(
                 spec_text=spec,
                 spec_fun_name="spec",
-                spec_args=[packet, SpecConfig(current_state, data.config, data.devices_count), transmitted_packet],
+                spec_args=[pkt, SpecConfig(current_state, data.config, data.devices_count), transmitted_pkt],
                 spec_external_names=externals.keys(),
                 spec_external_handler=handle_externals
             )

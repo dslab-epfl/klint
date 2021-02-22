@@ -20,7 +20,7 @@ def get_data_addr(state, packet_addr):
     return state.memory.load(packet_addr, bitsizes.size_t // 8, endness=state.arch.memory_endness)
 
 def get_data(state, packet_addr):
-    return state.memory.load(packet_get_data_addr(state, packet_addr), PACKET_MTU , endness=state.arch.memory_endness)
+    return state.memory.load(get_data_addr(state, packet_addr), PACKET_MTU , endness=state.arch.memory_endness)
 
 def get_device(state, packet_addr):
     return state.memory.load(packet_addr + bitsizes.ptr, bitsizes.uint16_t // 8, endness=state.arch.memory_endness)
@@ -42,5 +42,5 @@ def alloc(state, devices_count):
     state.memory.store(packet_addr + bitsizes.ptr, packet_device, endness=state.arch.memory_endness)
     state.memory.store(packet_addr + bitsizes.ptr + bitsizes.uint16_t, packet_length, endness=state.arch.memory_endness)
     # attach to packet_addr just because we need something to attach to... TODO it'd be nice to have statewide metadata
-    state.metadata.set(packet_addr, NetworkMetadata(packet_get_data(state, packet_addr), data_addr, packet_device, packet_length, []))
+    state.metadata.set(packet_addr, NetworkMetadata(get_data(state, packet_addr), data_addr, packet_device, packet_length, []))
     return packet_addr

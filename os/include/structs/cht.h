@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 
-#include "structs/pool.h"
+#include "structs/index_pool.h"
 
 //@ #include "proof/ghost_map.gh"
 
@@ -33,7 +33,7 @@ struct cht *cht_alloc(size_t cht_height, size_t backend_capacity);
 /*@ ensures
         chtp(result); @*/
 
-bool cht_find_preferred_available_backend(struct cht *cht, void* obj, size_t obj_size, struct os_pool *active_backends, size_t *chosen_backend, time_t time);
+bool cht_find_preferred_available_backend(struct cht *cht, void* obj, size_t obj_size, struct index_pool *active_backends, size_t *chosen_backend, time_t time);
 /*@ requires
         chtp(cht) &*&
         poolp(active_backends, ?size, ?backends) &*& cht->backend_capacity <= size &*&

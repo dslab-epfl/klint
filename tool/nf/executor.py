@@ -11,50 +11,48 @@ import binary.utils as utils
 from binary.ghost_maps import GhostMapsPlugin
 from binary.externals.os import clock
 from binary.externals.os import config
-from binary.externals.os import debug
+from binary.externals.os import error
 from binary.externals.os import memory
-from binary.externals.os import memcpy
-from binary.externals.os import network
-from binary.externals.os.structs import map
-from binary.externals.os.structs import map2
-from binary.externals.os.structs import pool
-from binary.externals.os.structs import cht
-from binary.externals.os.structs import lpm
+from binary.externals.compat import memcpy
+from binary.externals.net import packet
+from binary.externals.net import tx
+from binary.externals.structs import map
+from binary.externals.structs import map2
+from binary.externals.structs import index_pool
+from binary.externals.structs import cht
+from binary.externals.structs import lpm
 from binary.exceptions import SymbexException
 
 init_externals = {
-    'os_config_get_u16': config.ConfigU16,
-    'os_config_get_u32': config.ConfigU32,
-    'os_config_get_u64': config.ConfigU64,
-    'os_config_get_time': config.ConfigTime,
-    'os_memory_alloc': memory.OsMemoryAlloc,
-    'os_map_alloc': map.OsMapAlloc,
+    'os_config_get': config.os_config_get,
+    'os_memory_alloc': memory.os_memory_alloc,
+    'map_alloc': map.map_alloc,
     'os_map2_alloc': map2.OsMap2Alloc,
-    'os_pool_alloc': pool.OsPoolAlloc,
+    'index_pool_alloc': index_pool.index_pool_alloc,
+    'os_exit': error.os_exit,
     'cht_alloc': cht.ChtAlloc,
     'lpm_alloc': lpm.LpmAlloc,
     'lpm_update_elem': lpm.LpmUpdateElem,
     # unfortunately needed to mimic BPF userspace
     'os_map2_havoc': map2.OsMap2Havoc,
-    'os_memory_havoc': memory.OsMemoryHavoc
+    'os_memory_havoc': memory.os_memory_havoc
 }
 
 handle_externals = {
-    'os_clock_time': clock.Time,
-    'os_debug': debug.Debug,
-    'os_net_transmit': network.Transmit,
-    'os_net_flood': network.Flood,
-    'os_map_get': map.OsMapGet,
-    'os_map_set': map.OsMapSet,
-    'os_map_remove': map.OsMapRemove,
+    'os_clock_time_ns': clock.os_clock_time_ns,
+    'os_debug': error.os_debug,
+    'net_transmit': tx.net_transmit,
+    'net_flood': tx.net_flood,
+    'map_get': map.map_get,
+    'map_set': map.map_set,
+    'map_remove': map.map_remove,
     'os_map2_get': map2.OsMap2Get,
     'os_map2_set': map2.OsMap2Set,
     'os_map2_remove': map2.OsMap2Remove,
-    'os_pool_borrow': pool.OsPoolBorrow,
-    'os_pool_return': pool.OsPoolReturn,
-    'os_pool_refresh': pool.OsPoolRefresh,
-    'os_pool_used': pool.OsPoolUsed,
-    'os_pool_expire': pool.OsPoolExpire,
+    'index_pool_borrow': index_pool.index_pool_borrow,
+    'index_pool_return': index_pool.index_pool_return,
+    'index_pool_refresh': index_pool.index_pool_refresh,
+    'index_pool_used': index_pool.index_pool_used,
     'cht_find_preferred_available_backend': cht.ChtFindPreferredAvailableBackend,
     'lpm_lookup_elem': lpm.LpmLookupElem,
     # whyyy
@@ -65,14 +63,15 @@ def nf_init(bin_path, devices_count):
     # subprocess.check_call(["make", "-f" "../Makefile.nf"], cwd=nf_folder)
     args = [devices_count]
     sm = bin_exec.create_sim_manager(bin_path, init_externals, "nf_init", *args)
+    sm.active[0].add_constraints(devices_count.UGT(0))
     sm.run()
     if len(sm.errored) > 0:
         sm.errored[0].reraise()
     return sm.deadended
 
 def nf_handle(bin_path, state, devices_count):
-    packet = network.packet_init(state, devices_count)
-    args = [packet]
+    pkt = packet.alloc(state, devices_count)
+    args = [pkt]
     sm = bin_exec.create_sim_manager(bin_path, handle_externals, "nf_handle", *args, base_state=state)
     sm.run()
     if len(sm.errored) > 0:

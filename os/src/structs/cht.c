@@ -52,7 +52,7 @@ bool cht_find_preferred_available_backend(struct cht *cht, void* obj, size_t obj
     for (size_t i = 0; i < cht->backend_capacity; ++i)
     {
         size_t candidate = cht->data[cht_bucket + i];
-        if (os_pool_contains(active_backends, time, candidate))
+        if (os_pool_used(active_backends, time, candidate))
         {
             *chosen_backend = candidate;
             return true;

@@ -258,7 +258,7 @@ void index_pool_refresh(struct index_pool* pool, time_t time, size_t index)
 	//@ close poolp(pool, size, exp_time, ghostmap_set(items, index, time));
 }
 
-bool index_pool_contains(struct index_pool* pool, time_t time, size_t index)
+bool index_pool_used(struct index_pool* pool, time_t time, size_t index)
 /*@ requires poolp(pool, ?size, ?exp_time, ?items); @*/
 /*@ ensures poolp(pool, size, exp_time, items) &*&
             switch (ghostmap_get(items, index)) {

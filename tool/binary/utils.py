@@ -64,13 +64,13 @@ def get_exact_match(solver, item, candidates, assumptions=[], selector=lambda i:
 
     return None
 
-def fork_always(proc, case_true, case_false):
+def fork_always(proc, state, case_true, case_false):
     false_was_unsat = False
-    if not proc.state.satisfiable():
+    if not state.satisfiable():
         raise SymbexException("too lazy to handle this :/")
 
     try:
-        state_copy = proc.state.copy()
+        state_copy = state.copy()
         ret_expr = case_false(state_copy)
         state_copy.path.end_record(ret_expr) # hacky, see Path
         ret_addr = proc.cc.teardown_callsite(state_copy, ret_expr, arg_types=[False]*proc.num_args if proc.cc.args is None else None)
@@ -80,18 +80,18 @@ def fork_always(proc, case_true, case_false):
         proc.successors.add_successor(state_copy, ret_addr, claripy.true, 'Ijk_Ret')
 
     try:
-        return case_true(proc.state)
+        return case_true(state)
     except angr.errors.SimUnsatError as e:
         if false_was_unsat:
             raise SymbexException("Both cases were unsat!")
         else:
             raise e # let it bubble up to angr
 
-def fork_guarded(proc, guard, case_true, case_false):
-    if definitely_true(proc.state.solver, guard):
-        return case_true(proc.state)
-    elif definitely_false(proc.state.solver, guard):
-        return case_false(proc.state)
+def fork_guarded(proc, state, guard, case_true, case_false):
+    if definitely_true(state.solver, guard):
+        return case_true(state)
+    elif definitely_false(state.solver, guard):
+        return case_false(state)
     else:
         def case_true_prime(state):
             add_constraints_and_check_sat(state, guard)
@@ -99,15 +99,15 @@ def fork_guarded(proc, guard, case_true, case_false):
         def case_false_prime(state):
             add_constraints_and_check_sat(state, ~guard)
             return case_false(state)
-        return fork_always(proc, case_true_prime, case_false_prime)
+        return fork_always(proc, state, case_true_prime, case_false_prime)
 
-def fork_guarded_has(proc, ghost_map, key, case_has, case_not):
-    (value, present) = proc.state.maps.get(ghost_map, key)
+def fork_guarded_has(proc, state, ghost_map, key, case_has, case_not):
+    (value, present) = state.maps.get(ghost_map, key)
     def case_true(state):
         return case_has(state, value)
     def case_false(state):
         return case_not(state)
-    return fork_guarded(proc, present, case_true, case_false)
+    return fork_guarded(proc, state, present, case_true, case_false)
 
 
 def structural_eq(a, b):

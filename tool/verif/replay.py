@@ -12,7 +12,7 @@ from binary import bitsizes
 from binary import utils
 from binary.externals.os import config as os_config
 from binary.externals.os import memory as os_memory
-from binary.externals.os import network as os_network
+from binary.externals.net import packet
 from binary.externals.os import structs as os_structs
 from binary.ghost_maps import *
 from binary.memory_fractional import FractionalMemory, RecordAllocateOpaque
@@ -109,7 +109,7 @@ class GhostMapsReplayPlugin:
 
 def init_network_if_needed(state):
     if current_state.metadata.get_unique(os_network.NetworkMetadata) is None:
-        os_network.packet_init(current_state, current_devices_count)
+        packet.alloc(current_state, current_devices_count)
 
 def ptr_alloc(state, type):
     size = type_size(type)

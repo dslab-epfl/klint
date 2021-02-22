@@ -7,9 +7,9 @@
 #include "net/packet.h"
 #include "os/clock.h"
 #include "os/memory.h"
-#include "structs/map.h"
-#include "structs/pool.h"
 #include "structs/cht.h"
+#include "structs/index_pool.h"
+#include "structs/map.h"
 
 
 struct backend {
@@ -28,14 +28,14 @@ struct flow {
 };
 
 struct balancer {
-	struct os_map* flow_to_flow_id;
+	struct map* flow_to_flow_id;
 	struct flow* flow_heap;
-	struct os_pool* flow_chain;
+	struct index_pool* flow_chain;
 	size_t* flow_id_to_backend_id;
-	struct os_map* ip_to_backend_id;
+	struct map* ip_to_backend_id;
 	uint32_t* backend_ips;
 	struct backend* backends;
-	struct os_pool* active_backends;
+	struct index_pool* active_backends;
 	struct cht* cht;
 };
 
@@ -43,14 +43,14 @@ struct balancer {
 static inline struct balancer *balancer_alloc(size_t flow_capacity, time_t flow_expiration_time, size_t backend_capacity, time_t backend_expiration_time, size_t cht_height)
 {
 	struct balancer *balancer = os_memory_alloc(1, sizeof(struct balancer));
-	balancer->flow_to_flow_id = os_map_alloc(sizeof(struct flow), flow_capacity);
+	balancer->flow_to_flow_id = map_alloc(sizeof(struct flow), flow_capacity);
 	balancer->flow_heap = os_memory_alloc(flow_capacity, sizeof(struct flow));
-	balancer->flow_chain = os_pool_alloc(flow_capacity, flow_expiration_time);
+	balancer->flow_chain = index_pool_alloc(flow_capacity, flow_expiration_time);
 	balancer->flow_id_to_backend_id = os_memory_alloc(flow_capacity, sizeof(size_t));
-	balancer->ip_to_backend_id = os_map_alloc(sizeof(uint32_t), backend_capacity);
+	balancer->ip_to_backend_id = map_alloc(sizeof(uint32_t), backend_capacity);
 	balancer->backend_ips = os_memory_alloc(backend_capacity, sizeof(uint32_t));
 	balancer->backends = os_memory_alloc(backend_capacity, sizeof(struct backend));
-	balancer->active_backends = os_pool_alloc(backend_capacity, backend_expiration_time);
+	balancer->active_backends = index_pool_alloc(backend_capacity, backend_expiration_time);
 	balancer->cht = cht_alloc(cht_height, backend_capacity);
 	return balancer;
 }
@@ -58,15 +58,15 @@ static inline struct balancer *balancer_alloc(size_t flow_capacity, time_t flow_
 static inline bool balancer_get_backend(struct balancer* balancer, struct flow* flow, time_t now, struct backend** out_backend)
 {
 	size_t flow_index;
-	if (os_map_get(balancer->flow_to_flow_id, flow, &flow_index)) {
+	if (map_get(balancer->flow_to_flow_id, flow, &flow_index)) {
 		size_t backend_index = balancer->flow_id_to_backend_id[flow_index];
-		if (os_pool_contains(balancer->active_backends, now, backend_index)) {
-			os_pool_refresh(balancer->flow_chain, now, flow_index);
+		if (index_pool_used(balancer->active_backends, now, backend_index)) {
+			index_pool_refresh(balancer->flow_chain, now, flow_index);
 			*out_backend = &(balancer->backends[backend_index]);
 			return true;
 		} else {
-			os_map_remove(balancer->flow_to_flow_id, &(balancer->flow_heap[flow_index]));
-			os_pool_return(balancer->flow_chain, flow_index);
+			map_remove(balancer->flow_to_flow_id, &(balancer->flow_heap[flow_index]));
+			index_pool_return(balancer->flow_chain, flow_index);
 			return balancer_get_backend(balancer, flow, now, out_backend);
 		}
 	}
@@ -78,13 +78,13 @@ static inline bool balancer_get_backend(struct balancer* balancer, struct flow* 
 
 	size_t index;
 	bool was_used;
-	if (os_pool_borrow(balancer->flow_chain, now, &index, &was_used)) {
+	if (index_pool_borrow(balancer->flow_chain, now, &index, &was_used)) {
 		if (was_used) {
-			os_map_remove(balancer->flow_to_flow_id, &(balancer->flow_heap[index]));
+			map_remove(balancer->flow_to_flow_id, &(balancer->flow_heap[index]));
 		}
 		*flow = balancer->flow_heap[flow_index];
 		balancer->flow_id_to_backend_id[flow_index] = backend_index;
-		os_map_set(balancer->flow_to_flow_id, &(balancer->flow_heap[flow_index]), flow_index);
+		map_set(balancer->flow_to_flow_id, &(balancer->flow_heap[flow_index]), flow_index);
 	} // Doesn't matter if we can't insert
 
 	*out_backend = &(balancer->backends[backend_index]);
@@ -94,20 +94,20 @@ static inline bool balancer_get_backend(struct balancer* balancer, struct flow* 
 static inline void balancer_process_heartbeat(struct balancer* balancer, struct flow* flow, device_t device, time_t now)
 {
 	size_t backend_index;
-	if (os_map_get(balancer->ip_to_backend_id, &flow->src_ip, &backend_index)) {
-		os_pool_refresh(balancer->active_backends, now, backend_index);
+	if (map_get(balancer->ip_to_backend_id, &flow->src_ip, &backend_index)) {
+		index_pool_refresh(balancer->active_backends, now, backend_index);
 	} else {
 		size_t index;
 		bool was_used;
-		if (os_pool_borrow(balancer->active_backends, now, &index, &was_used)) {
+		if (index_pool_borrow(balancer->active_backends, now, &index, &was_used)) {
 			if (was_used) {
-				os_map_remove(balancer->ip_to_backend_id, &(balancer->backend_ips[index]));
+				map_remove(balancer->ip_to_backend_id, &(balancer->backend_ips[index]));
 			}
 			struct backend *new_backend = &(balancer->backends[backend_index]);
 			new_backend->ip = flow->src_ip;
 			new_backend->device = device;
 			balancer->backend_ips[backend_index] = flow->src_ip;
-			os_map_set(balancer->ip_to_backend_id, &(balancer->backend_ips[backend_index]), backend_index);
+			map_set(balancer->ip_to_backend_id, &(balancer->backend_ips[backend_index]), backend_index);
 		}
 		// Otherwise ignore this backend, we are full.
 	}

@@ -10,7 +10,7 @@
 
 struct index_pool;
 
-//@ predicate poolp(struct index_pool* pool, size_t size, time_t expiration_time, list<pair<size_t, time_t> > used_items);
+//@ predicate poolp(struct index_pool* pool, size_t size, time_t expiration_time, list<pair<size_t, time_t> > items);
 //@ fixpoint bool pool_young(time_t time, time_t expiration_time, size_t k, time_t v) { return time < expiration_time || time - expiration_time <= v; }
 
 struct index_pool* index_pool_alloc(size_t size, time_t expiration_time);
@@ -45,7 +45,7 @@ void index_pool_refresh(struct index_pool* pool, time_t time, size_t index);
 /*@ ensures poolp(pool, size, exp_time, ghostmap_set(items, index, time)); @*/
 /*@ terminates; @*/
 
-bool index_pool_contains(struct index_pool* pool, time_t time, size_t index);
+bool index_pool_used(struct index_pool* pool, time_t time, size_t index);
 /*@ requires poolp(pool, ?size, ?exp_time, ?items); @*/
 /*@ ensures poolp(pool, size, exp_time, items) &*&
             switch (ghostmap_get(items, index)) {

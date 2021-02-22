@@ -84,7 +84,7 @@ class OsMap2Get(angr.SimProcedure):
         def case_not(state):
             print("!!! os_map2_get not")
             return claripy.BVV(0, bitsizes.bool)
-        return utils.fork_guarded_has(self, mapp.items, key, case_has, case_not)
+        return utils.fork_guarded_has(self, self.state, mapp.items, key, case_has, case_not)
 
 # void os_map2_set(struct os_map2* map, void* key_ptr, void* value_ptr);
 # requires mapp2(map, ?key_size, ?value_size, ?capacity, ?items) &*&
@@ -117,7 +117,7 @@ class OsMap2Set(angr.SimProcedure):
             return claripy.BVV(1, bitsizes.bool)
         def case_false(state):
             return claripy.BVV(0, bitsizes.bool)
-        return utils.fork_guarded(self, self.state.maps.length(mapp.items).ULT(mapp.capacity), case_true, case_false)
+        return utils.fork_guarded(self, self.state, self.state.maps.length(mapp.items).ULT(mapp.capacity), case_true, case_false)
 
 
 # void os_map2_remove(struct os_map2* map, void* key_ptr);

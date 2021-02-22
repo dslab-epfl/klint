@@ -3,14 +3,14 @@
 #include "os/config.h"
 #include "os/clock.h"
 #include "os/memory.h"
+#include "structs/index_pool.h"
 #include "structs/map.h"
-#include "structs/pool.h"
 
 
 static struct net_ether_addr* addresses;
 static device_t* devices;
-static struct os_map* map;
-static struct os_pool* allocator;
+static struct map* map;
+static struct index_pool* allocator;
 
 
 bool nf_init(device_t devices_count)
@@ -25,8 +25,8 @@ bool nf_init(device_t devices_count)
 	addresses = os_memory_alloc(capacity, sizeof(struct net_ether_addr));
 	devices = os_memory_alloc(capacity, sizeof(device_t));
 
-	map = os_map_alloc(sizeof(struct net_ether_addr), capacity);
-	allocator = os_pool_alloc(capacity, expiration_time);
+	map = map_alloc(sizeof(struct net_ether_addr), capacity);
+	allocator = index_pool_alloc(capacity, expiration_time);
 
 	return true;
 }
@@ -41,23 +41,23 @@ void nf_handle(struct net_packet* packet)
 	time_t time = os_clock_time_ns();
 
 	size_t index;
-	if (os_map_get(map, &(ether_header->src_addr), &index)) {
+	if (map_get(map, &(ether_header->src_addr), &index)) {
 		// TODO this is obviously wrong, need to check if they match
-		os_pool_refresh(allocator, time, index);
+		index_pool_refresh(allocator, time, index);
 	} else {
 		bool was_used;
-		if (os_pool_borrow(allocator, time, &index, &was_used)) {
+		if (index_pool_borrow(allocator, time, &index, &was_used)) {
 			if (was_used) {
-				os_map_remove(map, &(addresses[index]));
+				map_remove(map, &(addresses[index]));
 			}
 
 			ether_header->src_addr = addresses[index];
 			devices[index] = packet->device;
-			os_map_set(map, &(addresses[index]), index);
+			map_set(map, &(addresses[index]), index);
 		}
 	} // It's OK if we can't get nor add, we can forward the packet anyway
 
-	if (os_map_get(map, &(ether_header->dst_addr), &index)) {
+	if (map_get(map, &(ether_header->dst_addr), &index)) {
 		if (devices[index] != packet->device) {
 			net_transmit(packet, devices[index], 0);
 		}
