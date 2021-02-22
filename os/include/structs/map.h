@@ -7,17 +7,17 @@
 //@ #include "proof/ghost_map.gh"
 
 
-struct os_map;
+struct map;
 
-//@ predicate mapp(struct os_map* map, size_t key_size, size_t capacity, list<pair<list<char>, size_t> > values, list<pair<list<char>, void*> > addrs);
+//@ predicate mapp(struct map* map, size_t key_size, size_t capacity, list<pair<list<char>, size_t> > values, list<pair<list<char>, void*> > addrs);
 
 
-struct os_map* os_map_alloc(size_t key_size, size_t capacity);
+struct map* map_alloc(size_t key_size, size_t capacity);
 /*@ requires capacity <= SIZE_MAX / 2 + 1; @*/
 /*@ ensures mapp(result, key_size, capacity, nil, nil); @*/
 //@ terminates;
 
-bool os_map_get(struct os_map* map, void* key_ptr, size_t* out_value);
+bool map_get(struct map* map, void* key_ptr, size_t* out_value);
 /*@ requires mapp(map, ?key_size, ?capacity, ?values, ?addrs) &*&
              [?frac]chars(key_ptr, key_size, ?key) &*&
              *out_value |-> _; @*/
@@ -29,7 +29,7 @@ bool os_map_get(struct os_map* map, void* key_ptr, size_t* out_value);
             }; @*/
 //@ terminates;
 
-void os_map_set(struct os_map* map, void* key_ptr, size_t value);
+void map_set(struct map* map, void* key_ptr, size_t value);
 /*@ requires mapp(map, ?key_size, ?capacity, ?values, ?addrs) &*&
              [0.25]chars(key_ptr, key_size, ?key) &*&
              length(values) < capacity &*&
@@ -38,7 +38,7 @@ void os_map_set(struct os_map* map, void* key_ptr, size_t value);
 /*@ ensures mapp(map, key_size, capacity, ghostmap_set(values, key, value), ghostmap_set(addrs, key, key_ptr)); @*/
 //@ terminates;
 
-void os_map_remove(struct os_map* map, void* key_ptr);
+void map_remove(struct map* map, void* key_ptr);
 /*@ requires mapp(map, ?key_size, ?capacity, ?values, ?addrs) &*&
              [?frac]chars(key_ptr, key_size, ?key) &*&
              frac != 0.0 &*&

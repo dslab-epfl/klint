@@ -23,7 +23,7 @@
 //@ #include "proof/nth-prop.gh"
 //@ #include "proof/stdex.gh"
 
-struct os_map_item {
+struct map_item {
 	void* key_addr;
 	size_t value;
 	size_t chain;
@@ -34,14 +34,14 @@ struct os_map_item {
 
 /*@
   inductive map_item = map_item(void*, size_t, size_t, hash_t, bool);
-  
+
   fixpoint void* map_item_key_addr(map_item item) { switch(item) { case map_item(key_addr, value, chain, key_hash, busy): return key_addr; } }
   fixpoint size_t map_item_value(map_item item) { switch(item) { case map_item(key_addr, value, chain, key_hash, busy): return value; } }
   fixpoint size_t map_item_chain(map_item item) { switch(item) { case map_item(key_addr, value, chain, key_hash, busy): return chain; } }
   fixpoint hash_t map_item_key_hash(map_item item) { switch(item) { case map_item(key_addr, value, chain, key_hash, busy): return key_hash; } }
   fixpoint bool map_item_busy(map_item item) { switch(item) { case map_item(key_addr, value, chain, key_hash, busy): return busy; } }
-  
-  predicate map_itemp(struct os_map_item* ptr; map_item item) =
+
+  predicate map_itemp(struct map_item* ptr; map_item item) =
     ptr->key_addr |-> ?key_addr &*&
     ptr->value |-> ?value &*&
     ptr->chain |-> ?chain &*&
@@ -49,8 +49,8 @@ struct os_map_item {
     ptr->busy |-> ?busy &*&
     ptr->_padding |-> ?_padding &*&
     item == map_item(key_addr, value, chain, key_hash, busy);
-    
-  predicate map_itemsp(struct os_map_item* ptr, size_t count; list<map_item> items) =
+
+  predicate map_itemsp(struct map_item* ptr, size_t count; list<map_item> items) =
       count == 0 ?
         items == nil
       :
@@ -72,16 +72,16 @@ struct os_map_item {
   }
 
   lemma void bytes_to_map_item(char* ptr)
-    requires chars(ptr, sizeof(struct os_map_item), ?cs) &*&
+    requires chars(ptr, sizeof(struct map_item), ?cs) &*&
              true == all_eq(cs, 0);
-    ensures map_itemp((struct os_map_item*) ptr, ?i) &*&
+    ensures map_itemp((struct map_item*) ptr, ?i) &*&
             i == map_item(?ka, ?va, ?ch, ?ha, ?bu) &*&
             ch == 0 &*&
             bu == false;
   {
     assume(false);
   }
-  
+
   lemma void all_eq_append<t>(list<t> xs1, list<t> xs2, t x)
     requires emp;
     ensures all_eq(append(xs1, xs2), x) == (all_eq(xs1, x) && all_eq(xs2, x));
@@ -94,27 +94,27 @@ struct os_map_item {
   }
 
   lemma void bytes_to_map_items(char* ptr, nat count)
-    requires chars(ptr, int_of_nat(count) * sizeof(struct os_map_item), ?cs) &*&
+    requires chars(ptr, int_of_nat(count) * sizeof(struct map_item), ?cs) &*&
              true == all_eq(cs, 0);
-    ensures map_itemsp((struct os_map_item*) ptr, int_of_nat(count), ?is) &*&
+    ensures map_itemsp((struct map_item*) ptr, int_of_nat(count), ?is) &*&
             true == forall(map(map_item_chain, is), (eq)(0)) &*&
             true == forall(map(map_item_busy, is), (eq)(false));
   {
     switch (count) {
       case zero:
-        close map_itemsp((struct os_map_item*) ptr, 0, nil);
+        close map_itemsp((struct map_item*) ptr, 0, nil);
       case succ(next):
-        mul_mono(1, int_of_nat(count), sizeof(struct os_map_item));
-        chars_split(ptr, sizeof(struct os_map_item));
-        all_eq_append(take(sizeof(struct os_map_item), cs), drop(sizeof(struct os_map_item), cs), 0);
-        mul_subst(int_of_nat(count)-1, int_of_nat(next), sizeof(struct os_map_item));
-        bytes_to_map_items(ptr + sizeof(struct os_map_item), next);
+        mul_mono(1, int_of_nat(count), sizeof(struct map_item));
+        chars_split(ptr, sizeof(struct map_item));
+        all_eq_append(take(sizeof(struct map_item), cs), drop(sizeof(struct map_item), cs), 0);
+        mul_subst(int_of_nat(count)-1, int_of_nat(next), sizeof(struct map_item));
+        bytes_to_map_items(ptr + sizeof(struct map_item), next);
         bytes_to_map_item(ptr);
-        close map_itemsp((struct os_map_item*) ptr, int_of_nat(count), _);
+        close map_itemsp((struct map_item*) ptr, int_of_nat(count), _);
     }
   }
 
-lemma void extract_item(struct os_map_item* ptr, size_t i)
+lemma void extract_item(struct map_item* ptr, size_t i)
   requires map_itemsp(ptr, ?count, ?items) &*&
            0 <= i &*& i < count;
   ensures map_itemsp(ptr, i, take(i, items)) &*&
@@ -132,9 +132,9 @@ lemma void extract_item(struct os_map_item* ptr, size_t i)
     close map_itemsp(ptr, i, take(i, items));
   }
 
-  lemma void glue_items(struct os_map_item* ptr, list<map_item> items, int i)
+  lemma void glue_items(struct map_item* ptr, list<map_item> items, int i)
   requires 0 <= i &*& i < length(items) &*&
-           map_itemsp(ptr, i, take(i, items)) &*& 
+           map_itemsp(ptr, i, take(i, items)) &*&
            map_itemp(ptr + i, nth(i, items)) &*&
            map_itemsp(ptr + i + 1, length(items) - i - 1, drop(i + 1, items));
   ensures map_itemsp(ptr, length(items), items);
@@ -152,8 +152,8 @@ lemma void extract_item(struct os_map_item* ptr, size_t i)
   }
 @*/
 
-struct os_map {
-	struct os_map_item* items;
+struct map {
+	struct map_item* items;
 	size_t key_size;
 	size_t capacity;
 };
@@ -271,8 +271,8 @@ struct os_map {
      length(map_values) == length(map_addrs);
 
   // Map => its contents
-  predicate mapp_raw(struct os_map* m; list<void*> kaddrs, list<bool> busybits, list<hash_t> hashes, list<size_t> chains, list<size_t> values, size_t key_size, size_t capacity) =
-    struct_os_map_padding(m) &*&
+  predicate mapp_raw(struct map* m; list<void*> kaddrs, list<bool> busybits, list<hash_t> hashes, list<size_t> chains, list<size_t> values, size_t key_size, size_t capacity) =
+    struct_map_padding(m) &*&
     m->key_size |-> key_size &*&
     m->capacity |-> capacity &*&
     m->items |-> ?raw_items &*&
@@ -290,7 +290,7 @@ struct os_map {
     capacity == length(chains);
 
   // Combine everything, including the chains optimization
-  predicate mapp(struct os_map* map, size_t key_size, size_t capacity, list<pair<list<char>, size_t> > map_values, list<pair<list<char>, void*> > map_addrs) =
+  predicate mapp(struct map* map, size_t key_size, size_t capacity, list<pair<list<char>, size_t> > map_values, list<pair<list<char>, void*> > map_addrs) =
     mapp_raw(map, ?kaddrs, ?busybits, ?hashes, ?chains, ?values, key_size, ?real_capacity) &*&
     mapp_core(key_size, real_capacity, kaddrs, busybits, hashes, values, ?key_opts, map_values, map_addrs) &*&
     buckets_keys_insync(real_capacity, chains, ?buckets, key_opts) &*&
@@ -527,15 +527,15 @@ ensures capacity <= SIZE_MAX / 2 + 1;
 
 @*/
 
-struct os_map* os_map_alloc(size_t key_size, size_t capacity)
+struct map* map_alloc(size_t key_size, size_t capacity)
 /*@ requires capacity <= SIZE_MAX / 2 + 1; @*/
 /*@ ensures mapp(result, key_size, capacity, nil, nil); @*/
 //@ terminates;
 {
-  struct os_map* m = (struct os_map*) os_memory_alloc(1, sizeof(struct os_map));
+  struct map* m = (struct map*) os_memory_alloc(1, sizeof(struct map));
   //@ close_struct_zero(m);
   size_t real_capacity = get_real_capacity(capacity);
-  m->items = (struct os_map_item*) os_memory_alloc(real_capacity, sizeof(struct os_map_item));
+  m->items = (struct map_item*) os_memory_alloc(real_capacity, sizeof(struct map_item));
   m->capacity = real_capacity;
   m->key_size = key_size;
   //@ assert m->items |-> ?raw_items;
@@ -572,7 +572,7 @@ struct os_map* os_map_alloc(size_t key_size, size_t capacity)
 
 
 /*@
-lemma list<char> extract_key_at_index(list<void*> kaddrs_b, list<bool> busybits_b, list<option<list<char> > > key_opts_b, size_t n, 
+lemma list<char> extract_key_at_index(list<void*> kaddrs_b, list<bool> busybits_b, list<option<list<char> > > key_opts_b, size_t n,
                                       list<bool> busybits, list<option<list<char> > > key_opts)
   requires key_opt_list(?key_size, ?kaddrs, busybits, key_opts) &*&
            key_opt_list(key_size, kaddrs_b, busybits_b, key_opts_b) &*&
@@ -617,7 +617,7 @@ lemma list<char> extract_key_at_index(list<void*> kaddrs_b, list<bool> busybits_
 
 // ---
 
-lemma void reconstruct_key_opt_list(list<void*> kaddrs1, list<bool> busybits1, 
+lemma void reconstruct_key_opt_list(list<void*> kaddrs1, list<bool> busybits1,
                                     list<void*> kaddrs2, list<bool> busybits2)
   requires key_opt_list(?key_size, kaddrs1, busybits1, ?key_opts1) &*&
            key_opt_list(key_size, kaddrs2, busybits2, ?key_opts2);
@@ -999,7 +999,7 @@ ensures map_valuesaddrs(kaddrs, key_opts, values, map_values, map_addrs) &*&
 }
 @*/
 
-bool os_map_get(struct os_map* map, void* key_ptr, size_t* out_value)
+bool map_get(struct map* map, void* key_ptr, size_t* out_value)
 /*@ requires mapp(map, ?key_size, ?capacity, ?map_values, ?map_addrs) &*&
              [?frac]chars(key_ptr, key_size, ?key) &*&
              *out_value |-> _; @*/
@@ -1031,7 +1031,7 @@ bool os_map_get(struct os_map* map, void* key_ptr, size_t* out_value)
     //@ open mapp_core(key_size, real_capacity, kaddrs_lst, busybits_lst, hashes_lst, values_lst, key_opts, map_values, map_addrs);
     //@ open buckets_keys_insync(real_capacity, chains_lst, buckets, key_opts);
     size_t index = loop(key_hash, i, map->capacity);
-    struct os_map_item* it = &(map->items[index]);
+    struct map_item* it = &(map->items[index]);
     //@ assert map->items |-> ?raw_items;
     //@ assert map_itemsp(raw_items, real_capacity, ?the_items);
     //@ extract_item(raw_items, index);
@@ -1328,7 +1328,7 @@ lemma void buckets_keys_put_key_insync(size_t capacity, list<size_t> chains, siz
 // ---
 
 lemma void put_preserves_no_dups(list<option<list<char> > > key_opts, size_t i, list<char> k)
-  requires false == mem(some(k), key_opts) &*& 
+  requires false == mem(some(k), key_opts) &*&
            true == opt_no_dups(key_opts);
   ensures true == opt_no_dups(update(i, some(k), key_opts));
 {
@@ -1457,7 +1457,7 @@ ensures a + b <= SIZE_MAX;
 }
 @*/
 
-void os_map_set(struct os_map* map, void* key_ptr, size_t value)
+void map_set(struct map* map, void* key_ptr, size_t value)
 /*@ requires mapp(map, ?key_size, ?capacity, ?map_values, ?map_addrs) &*&
              [0.25]chars(key_ptr, key_size, ?key) &*&
              length(map_values) < capacity &*&
@@ -1486,7 +1486,7 @@ void os_map_set(struct os_map* map, void* key_ptr, size_t value)
     size_t index = loop(key_hash, i, map->capacity);
     //@ open mapp_core(key_size, real_capacity, kaddrs_lst, busybits_lst, hashes_lst, values_lst, key_opts, map_values, map_addrs);
     //@ open buckets_keys_insync_Xchain(real_capacity, chains_lst, buckets, start, index, key_opts);
-    struct os_map_item* item = &(map->items[index]);
+    struct map_item* item = &(map->items[index]);
     //@ assert map->items |-> ?raw_items;
     //@ assert map_itemsp(raw_items, real_capacity, ?the_items);
     //@ extract_item(raw_items, index);
@@ -1764,7 +1764,7 @@ ensures opts_size(key_opts) >= 1;
 
 @*/
 
-void os_map_remove(struct os_map* map, void* key_ptr)
+void map_remove(struct map* map, void* key_ptr)
 /*@ requires mapp(map, ?key_size, ?capacity, ?map_values, ?map_addrs) &*&
              [?frac]chars(key_ptr, key_size, ?key) &*&
              frac != 0.0 &*&
@@ -1804,7 +1804,7 @@ void os_map_remove(struct os_map* map, void* key_ptr)
   {
     //@ open mapp_core(key_size, real_capacity, kaddrs_lst, busybits_lst, hashes_lst, values_lst, key_opts, map_values, map_addrs);
     size_t index = loop(key_hash, i, map->capacity);
-    struct os_map_item* item = &(map->items[index]);
+    struct map_item* item = &(map->items[index]);
     //@ assert map->items |-> ?raw_items;
     //@ assert map_itemsp(raw_items, real_capacity, ?the_items);
     //@ extract_item(raw_items, index);

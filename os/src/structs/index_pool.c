@@ -1,4 +1,4 @@
-#include "structs/pool.h"
+#include "structs/index_pool.h"
 
 #include "os/memory.h"
 
@@ -10,7 +10,7 @@
 // in general, only expressions that are direct arguments to calls can be "trigger" terms for forall_ expansion,
 // see VeriFast's examples/fm2012/problem1-alternative.c
 
-struct os_pool {
+struct index_pool {
 	time_t* timestamps;
 	size_t size;
 	time_t expiration_time;
@@ -21,8 +21,8 @@ struct os_pool {
 fixpoint bool idx_in_bounds<t>(size_t i, list<t> xs) { return 0 <= i && i < length(xs); }
 fixpoint bool nth_eq<t>(size_t i, list<t> xs, t x) { return nth(i, xs) == x; }
 
-predicate poolp_raw(struct os_pool* pool; size_t size, time_t expiration_time, size_t last_borrowed_index, list<time_t> timestamps) =
-	struct_os_pool_padding(pool) &*&
+predicate poolp_raw(struct index_pool* pool; size_t size, time_t expiration_time, size_t last_borrowed_index, list<time_t> timestamps) =
+	struct_index_pool_padding(pool) &*&
 	pool->timestamps |-> ?raw_timestamps &*&
 	pool->size |-> size &*&
 	pool->expiration_time |-> expiration_time &*&
@@ -34,7 +34,7 @@ predicate poolp_truths(list<time_t> timestamps, list<pair<size_t, time_t> > item
 	forall_(size_t k; (idx_in_bounds(k, timestamps) && !nth_eq(k, timestamps, TIME_MAX)) == ghostmap_has(items, k)) &*&
 	forall_(size_t k; !ghostmap_has(items, k) || ghostmap_get(items, k) == some(nth(k, timestamps)));
 
-predicate poolp(struct os_pool* pool, size_t size, time_t expiration_time, list<pair<size_t, time_t> > items) =
+predicate poolp(struct index_pool* pool, size_t size, time_t expiration_time, list<pair<size_t, time_t> > items) =
 	poolp_raw(pool, size, expiration_time, ?last_borrowed_index, ?timestamps) &*&
 	poolp_truths(timestamps, items) &*&
 	last_borrowed_index <= size;
@@ -86,12 +86,12 @@ ensures poolp_truths(update(index, time, timestamps), time == TIME_MAX ? ghostma
 @*/
 
 
-struct os_pool* os_pool_alloc(size_t size, time_t expiration_time)
+struct index_pool* index_pool_alloc(size_t size, time_t expiration_time)
 /*@ requires emp; @*/
 /*@ ensures poolp(result, size, expiration_time, nil); @*/
 /*@ terminates; @*/
 {
-	struct os_pool* pool = (struct os_pool*) os_memory_alloc(1, sizeof(struct os_pool));
+	struct index_pool* pool = (struct index_pool*) os_memory_alloc(1, sizeof(struct index_pool));
 	//@ close_struct_zero(pool);
 	pool->timestamps = (time_t*) os_memory_alloc(size, sizeof(time_t));
 	pool->size = size;
@@ -145,7 +145,7 @@ ensures true == ghostmap_forall(items, (pool_young)(time, exp_time));
 }
 @*/
 
-bool os_pool_borrow(struct os_pool* pool, time_t time, size_t* out_index, bool* out_used)
+bool index_pool_borrow(struct index_pool* pool, time_t time, size_t* out_index, bool* out_used)
 /*@ requires poolp(pool, ?size, ?exp_time, ?items) &*&
              time != TIME_MAX &*&
              *out_index |-> _ &*&
@@ -244,7 +244,7 @@ bool os_pool_borrow(struct os_pool* pool, time_t time, size_t* out_index, bool* 
 	return false;
 }
 
-void os_pool_refresh(struct os_pool* pool, time_t time, size_t index)
+void index_pool_refresh(struct index_pool* pool, time_t time, size_t index)
 /*@ requires poolp(pool, ?size, ?exp_time, ?items) &*&
              time != TIME_MAX &*&
              index < size &*&
@@ -258,7 +258,7 @@ void os_pool_refresh(struct os_pool* pool, time_t time, size_t index)
 	//@ close poolp(pool, size, exp_time, ghostmap_set(items, index, time));
 }
 
-bool os_pool_contains(struct os_pool* pool, time_t time, size_t index)
+bool index_pool_contains(struct index_pool* pool, time_t time, size_t index)
 /*@ requires poolp(pool, ?size, ?exp_time, ?items); @*/
 /*@ ensures poolp(pool, size, exp_time, items) &*&
             switch (ghostmap_get(items, index)) {
@@ -289,7 +289,7 @@ bool os_pool_contains(struct os_pool* pool, time_t time, size_t index)
 	return true;
 }
 
-void os_pool_return(struct os_pool* pool, size_t index)
+void index_pool_return(struct index_pool* pool, size_t index)
 /*@ requires poolp(pool, ?size, ?exp_time, ?items) &*&
              index < size &*&
              ghostmap_get(items, index) != none; @*/

@@ -8,17 +8,17 @@
 //@ #include "proof/ghost_map.gh"
 
 
-struct os_pool;
+struct index_pool;
 
-//@ predicate poolp(struct os_pool* pool, size_t size, time_t expiration_time, list<pair<size_t, time_t> > used_items);
+//@ predicate poolp(struct index_pool* pool, size_t size, time_t expiration_time, list<pair<size_t, time_t> > used_items);
 //@ fixpoint bool pool_young(time_t time, time_t expiration_time, size_t k, time_t v) { return time < expiration_time || time - expiration_time <= v; }
 
-struct os_pool* os_pool_alloc(size_t size, time_t expiration_time);
+struct index_pool* index_pool_alloc(size_t size, time_t expiration_time);
 /*@ requires emp; @*/
 /*@ ensures poolp(result, size, expiration_time, nil); @*/
 /*@ terminates; @*/
 
-bool os_pool_borrow(struct os_pool* pool, time_t time, size_t* out_index, bool* out_used);
+bool index_pool_borrow(struct index_pool* pool, time_t time, size_t* out_index, bool* out_used);
 /*@ requires poolp(pool, ?size, ?exp_time, ?items) &*&
              time != TIME_MAX &*&
              *out_index |-> _ &*&
@@ -37,7 +37,7 @@ bool os_pool_borrow(struct os_pool* pool, time_t time, size_t* out_index, bool* 
                    }); @*/
 /*@ terminates; @*/
 
-void os_pool_refresh(struct os_pool* pool, time_t time, size_t index);
+void index_pool_refresh(struct index_pool* pool, time_t time, size_t index);
 /*@ requires poolp(pool, ?size, ?exp_time, ?items) &*&
              time != TIME_MAX &*&
              index < size &*&
@@ -45,7 +45,7 @@ void os_pool_refresh(struct os_pool* pool, time_t time, size_t index);
 /*@ ensures poolp(pool, size, exp_time, ghostmap_set(items, index, time)); @*/
 /*@ terminates; @*/
 
-bool os_pool_contains(struct os_pool* pool, time_t time, size_t index);
+bool index_pool_contains(struct index_pool* pool, time_t time, size_t index);
 /*@ requires poolp(pool, ?size, ?exp_time, ?items); @*/
 /*@ ensures poolp(pool, size, exp_time, items) &*&
             switch (ghostmap_get(items, index)) {
@@ -54,7 +54,7 @@ bool os_pool_contains(struct os_pool* pool, time_t time, size_t index);
             }; @*/
 /*@ terminates; @*/
 
-void os_pool_return(struct os_pool* pool, size_t index);
+void index_pool_return(struct index_pool* pool, size_t index);
 /*@ requires poolp(pool, ?size, ?exp_time, ?items) &*&
              index < size &*&
              ghostmap_get(items, index) != none; @*/
