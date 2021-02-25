@@ -8,7 +8,7 @@ import os
 # Us
 import binary.executor as bin_exec
 import binary.utils as utils
-from binary.ghost_maps import GhostMapsPlugin
+import binary.ghost_maps as ghost_maps
 from binary.externals.os import clock
 from binary.externals.os import config
 from binary.externals.os import error
@@ -78,30 +78,20 @@ def nf_handle(bin_path, state, devices_count):
         sm.errored[0].reraise()
     return sm.deadended
 
-def havoc_iter(bin_path, state, devices_count):
-    print("Running an iteration of handle, at " + str(datetime.now()) + "\n")
+def havoc_iter(bin_path, state, devices_count, previous_results):
+    print("Running an iteration of handle, at", datetime.now(), "\n")
     original_state = state.copy()
     handled_states = list(nf_handle(bin_path, state, devices_count))
-    handled_states_copy = [s.copy() for s in handled_states]
     for s in handled_states:
         print("State", id(s), "has", len(s.solver.constraints), "constraints")
         s.path.print()
         #s.path.ghost_print()
 
-    # HACK: Katran merging triggers a bug in angr that results in extremely large expressions during merging, causing recursion depth errors
-    # Anyway there is nothing to merge (we know because this bug used to not be triggered...)
-    if "facebook-katran" in str(bin_path):
-        return (handled_states, None, True)
-
-    print("Merging... at " + str(datetime.now()))
-    opaque_metadata_value = handled_states[0].metadata.notify_impending_merge(handled_states[1:], original_state)
-    (new_state, _, merged) = handled_states[0].merge(*handled_states[1:], common_ancestor=original_state)
-    if not merged:
-        raise SymbexException("Not merged...")
-    reached_fixpoint = new_state.metadata.notify_completed_merge(opaque_metadata_value)
+    print("Inferring invariants... at ", datetime.now())
+    (new_state, new_results, reached_fixpoint) = ghost_maps.infer_invariants(original_state, handled_states, previous_results)
 
     print("")
-    return (handled_states, new_state, reached_fixpoint)
+    return (handled_states, new_state, new_results, reached_fixpoint)
 
 
 def execute(bin_path):
@@ -116,8 +106,9 @@ def execute(bin_path):
         except angr.errors.SimUnsatError:
             continue
         reached_fixpoint = False
+        previous_results = None
         while not reached_fixpoint:
-            (handled_states, state, reached_fixpoint) = havoc_iter(bin_path, state, devices_count)
+            (handled_states, state, previous_results, reached_fixpoint) = havoc_iter(bin_path, state, devices_count, previous_results)
             if reached_fixpoint:
                 results += handled_states
     print("NF symbex done! at", datetime.now())

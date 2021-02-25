@@ -13,7 +13,6 @@ from enum import Enum
 from . import bitsizes
 from . import utils
 from .exceptions import SymbexException
-from .metadata import MetadataPlugin
 
 
 # Helper function to make expressions clearer
@@ -456,16 +455,20 @@ class GhostMapsPlugin(SimStatePlugin):
     def havoc(self, obj, max_length, is_array):
         self[obj].havoc(self.state, max_length, is_array)
 
-    # === Get all, for exporting ===
+    # === Import/Export ===
 
     def get_all(self):
         return list(self.state.metadata.get_all(Map))
+
+    def set_all(self, items):
+        self.state.metadata.remove_all(Map)
+        for (obj, m) in items:
+            self.state.metadata.set(obj, m)
 
     # === Private API, including for invariant inference ===
 
     def __init__(self):
         SimStatePlugin.__init__(self)
-        MetadataPlugin.set_merge_funcs(Map, maps_merge_across, maps_merge_one)
 
     @SimStatePlugin.memo
     def copy(self, memo):
@@ -896,3 +899,48 @@ def maps_merge_one(states_to_merge, obj, ancestor_state):
         invariant_conjs.append(conjunction)
 
     return (ancestor_state.maps[obj].flatten().with_invariant_conjunctions(invariant_conjs), changed)
+
+
+# Returns (new_state, new_results, reached_fixpoint), where
+# new_state is the new state to use instead of the ancestor,
+# new_results is the results to pass as previous_results next time,
+# reached_fixpoint is self-explanatory
+def infer_invariants(ancestor_state, states, previous_results=None):
+    # note that we keep track of objs as their string representations to avoid comparing Claripy ASTs (which don't like ==)
+    previous_results = copy.deepcopy(previous_results or [])
+    ancestor_objs = [o for (o, _) in ancestor_state.maps.get_all()]
+
+    across_results = maps_merge_across(states, ancestor_objs, ancestor_state)
+    # To check if we have reached a superset of the previous results, remove all values we now have
+    for (id, objs, _) in across_results:
+        try:
+            previous_results.remove((id, list(map(str, objs))))
+        except ValueError:
+            pass # was not in previous_results, that's OK
+
+    # Merge individual values, keeping track of whether any of them changed
+    any_individual_changed = False
+    merged_maps = []
+    for obj in ancestor_objs:
+        (merged_value, has_changed) = maps_merge_one(states, obj, ancestor_state)
+        any_individual_changed = any_individual_changed or has_changed
+        merged_maps.append((obj, merged_value))
+
+    # Fixpoint if all merges resulted in the old result and the across_results are a superset
+    reached_fixpoint = not any_individual_changed and len(previous_results) == 0
+    if not reached_fixpoint:
+        print("### No fixpoint yet, because:")
+        if any_individual_changed:
+            print("### - Individual items changed")
+        if len(previous_results) != 0:
+            print("### - Invariants were removed: " + str(previous_results))
+
+    new_results = [(id, list(map(str, objs))) for (id, objs, _) in across_results]
+    new_state = ancestor_state.copy()
+    new_state.maps.set_all(merged_maps)
+
+    for (_, objs, func) in across_results:
+        vals = [new_state.maps[obj] for obj in objs]
+        func(new_state, vals)
+
+    return (new_state, new_results, reached_fixpoint)
