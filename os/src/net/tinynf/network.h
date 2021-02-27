@@ -12,7 +12,6 @@
 
 #include <stdbool.h>
 #include <stddef.h>
-#include <stdint.h>
 
 #include "os/pci.h"
 
@@ -27,7 +26,7 @@ bool tn_net_device_init(struct os_pci_address pci_address, struct tn_net_device*
 bool tn_net_device_set_promiscuous(struct tn_net_device* device);
 uint64_t tn_net_device_get_mac(struct tn_net_device* device); // only the lowest 48 bits are nonzero, in big-endian
 
-struct tn_net_agent* tn_net_agent_alloc(void);
+struct tn_net_agent* tn_net_agent_alloc(size_t outputs_count);
 bool tn_net_agent_set_input(struct tn_net_agent* agent, struct tn_net_device* device);
 bool tn_net_agent_add_output(struct tn_net_agent* agent, struct tn_net_device* device);
 
@@ -36,6 +35,6 @@ bool tn_net_agent_add_output(struct tn_net_agent* agent, struct tn_net_device* d
 // ---------------------
 
 // Sets outputs[N] = length of the packet on queue N, where 0 means drop (queues are in the order they were added)
-typedef void tn_net_packet_handler(uint8_t* packet, uint16_t packet_length, void* state, uint16_t* output_lengths);
+typedef void tn_net_packet_handler(uint8_t* packet, size_t packet_length, void* state, size_t* output_lengths);
 // Runs the agents forever using the given handlers
 _Noreturn void tn_net_run(size_t agents_count, struct tn_net_agent** agents, tn_net_packet_handler** handlers, void** states);

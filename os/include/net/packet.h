@@ -12,9 +12,9 @@ typedef uint16_t device_t;
 // Packet received on a device
 struct net_packet {
 	uint8_t* data;
+	size_t length;
 	device_t device;
-	uint16_t length;
-	uint8_t _padding[4];
+	uint8_t _padding[6];
 	void* os_tag; // NFs must not touch this
 };
 

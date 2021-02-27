@@ -3,6 +3,8 @@
 
 #include "network.h"
 
+#include <stdint.h>
+
 #include "arch/endian.h"
 #include "os/clock.h"
 #include "os/error.h"
@@ -355,7 +357,7 @@ static_assert(IXGBE_RING_SIZE <= 8096, "Ring size cannot be above 8K");
 
 // Maximum number of transmit queues assigned to an agent.
 // No constraints here... can be basically anything, the agent struct is allocated as a hugepage so taking up space is not a problem
-#define IXGBE_AGENT_OUTPUTS_MAX 4u
+//#define IXGBE_AGENT_OUTPUTS_MAX 4u
 
 // Max number of packets before updating the transmit tail
 #define IXGBE_AGENT_FLUSH_PERIOD 8
@@ -1010,27 +1012,38 @@ struct tn_net_agent
 {
 	uint8_t* buffer;
 	volatile uint32_t* receive_tail_addr;
-	uint64_t processed_delimiter;
-	uint64_t outputs_count;
-	uint64_t flush_counter;
-	uint8_t _padding[3*8];
+	size_t processed_delimiter;
+	size_t outputs_count;
+	size_t flush_counter;
+	size_t* output_lengths;
+	uint8_t _padding[2*8];
 	// transmit heads must be 16-byte aligned; see alignment remarks in transmit queue setup
 	// (there is also a runtime check to make sure the array itself is aligned properly)
 	// plus, we want each head on its own cache line to avoid conflicts
 	// thus, using assumption CACHE, we multiply indices by 16
 	#define TRANSMIT_HEAD_MULTIPLIER 16
-	volatile uint32_t transmit_heads[IXGBE_AGENT_OUTPUTS_MAX * TRANSMIT_HEAD_MULTIPLIER];
-	volatile uint64_t* rings[IXGBE_AGENT_OUTPUTS_MAX]; // 0 == shared receive/transmit, rest are exclusive transmit
-	volatile uint32_t* transmit_tail_addrs[IXGBE_AGENT_OUTPUTS_MAX];
+//	volatile uint32_t transmit_heads[IXGBE_AGENT_OUTPUTS_MAX * TRANSMIT_HEAD_MULTIPLIER];
+//	volatile uint64_t* rings[IXGBE_AGENT_OUTPUTS_MAX]; // 0 == shared receive/transmit, rest are exclusive transmit
+//	volatile uint32_t* transmit_tail_addrs[IXGBE_AGENT_OUTPUTS_MAX];
+	volatile uint32_t* transmit_heads; //[IXGBE_AGENT_OUTPUTS_MAX * TRANSMIT_HEAD_MULTIPLIER];
+	volatile uint64_t** rings; //[IXGBE_AGENT_OUTPUTS_MAX]; // 0 == shared receive/transmit, rest are exclusive transmit
+	volatile uint32_t** transmit_tail_addrs; //[IXGBE_AGENT_OUTPUTS_MAX];
 };
 
 // --------------------
 // Agent initialization
 // --------------------
 
-struct tn_net_agent* tn_net_agent_alloc(void)
+struct tn_net_agent* tn_net_agent_alloc(size_t outputs_count)
 {
 	struct tn_net_agent* agent = os_memory_alloc(1, sizeof(struct tn_net_agent));
+
+	agent->output_lengths = os_memory_alloc(outputs_count, sizeof(size_t));
+	agent->transmit_heads = os_memory_alloc(outputs_count * TRANSMIT_HEAD_MULTIPLIER, sizeof(uint32_t));
+	agent->rings = os_memory_alloc(outputs_count, sizeof(uint64_t*));
+	agent->transmit_tail_addrs = os_memory_alloc(outputs_count, sizeof(uint32_t*));
+
+
 	agent->buffer = os_memory_alloc(IXGBE_RING_SIZE, PACKET_BUFFER_SIZE);
 	// Allocate the shared ring now, further rings are allocated as needed
 	agent->rings[0] = os_memory_alloc(IXGBE_RING_SIZE, 16); // 16 bytes per descriptor, i.e., 2x64 bits
@@ -1049,7 +1062,7 @@ bool tn_net_agent_set_input(struct tn_net_agent* const agent, struct tn_net_devi
 	}
 
 	// The 82599 has more than one receive queue, but we only need queue 0
-	uint32_t queue_index = 0;
+	size_t queue_index = 0;
 
 	// See later for details of RXDCTL.ENABLE
 	if (!reg_is_field_cleared(device->addr, REG_RXDCTL(queue_index), REG_RXDCTL_ENABLE)) {
@@ -1139,12 +1152,7 @@ bool tn_net_agent_set_input(struct tn_net_agent* const agent, struct tn_net_devi
 
 bool tn_net_agent_add_output(struct tn_net_agent* const agent, struct tn_net_device* const device)
 {
-	if (agent->outputs_count == IXGBE_AGENT_OUTPUTS_MAX) {
-		os_debug("The agent is already using the maximum amount of transmit queues");
-		return false;
-	}
-
-	uint32_t queue_index = 0;
+	size_t queue_index = 0;
 	for (; queue_index < TRANSMIT_QUEUES_COUNT; queue_index++) {
 		// See later for details of TXDCTL.ENABLE
 		if (reg_is_field_cleared(device->addr, REG_TXDCTL(queue_index), REG_TXDCTL_ENABLE)) {
@@ -1241,7 +1249,7 @@ bool tn_net_agent_add_output(struct tn_net_agent* const agent, struct tn_net_dev
 // Packet reception
 // ----------------
 
-bool tn_net_agent_receive(struct tn_net_agent* agent, uint8_t** out_packet, uint16_t* out_packet_length)
+bool tn_net_agent_receive(struct tn_net_agent* agent, uint8_t** out_packet, size_t* out_packet_length)
 {
 #ifdef VIGOR_SYMBEX
 	// Not great; but less assumptions than Vigor makes in the DPDK driver patches
@@ -1282,7 +1290,7 @@ bool tn_net_agent_receive(struct tn_net_agent* agent, uint8_t** out_packet, uint
 // Packet transmission
 // -------------------
 
-void tn_net_agent_transmit(struct tn_net_agent* agent, uint16_t* output_lengths)
+void tn_net_agent_transmit(struct tn_net_agent* agent)
 {
 	// INTERPRETATION-MISSING: The data sheet does not specify the endianness of transmit descriptor metadata fields, nor of the written-back head pointer.
 	// Since Section 1.5.3 Byte Ordering states "Registers not transferred on the wire are defined in little endian notation.", we will assume they are little-endian.
@@ -1319,8 +1327,8 @@ void tn_net_agent_transmit(struct tn_net_agent* agent, uint16_t* output_lengths)
 	// Not setting the RS bit every time is a huge perf win in throughput (a few Gb/s) with no apparent impact on latency.
 	uint64_t rs_bit = (uint64_t) ((agent->processed_delimiter & (IXGBE_AGENT_RECYCLE_PERIOD - 1)) == (IXGBE_AGENT_RECYCLE_PERIOD - 1)) << (24+3);
 	for (size_t n = 0; n < agent->outputs_count; n++) {
-		agent->rings[n][2u*agent->processed_delimiter + 1] = cpu_to_le64((uint64_t) output_lengths[n] | rs_bit | BITL(24+1) | BITL(24));
-		output_lengths[n] = 0;
+		agent->rings[n][2u*agent->processed_delimiter + 1] = cpu_to_le64((uint64_t) agent->output_lengths[n] | rs_bit | BITL(24+1) | BITL(24));
+		agent->output_lengths[n] = 0;
 	}
 
 	// Increment the processed delimiter, modulo the ring size
@@ -1361,19 +1369,19 @@ void tn_net_agent_transmit(struct tn_net_agent* agent, uint16_t* output_lengths)
 
 void tn_net_run(size_t agents_count, struct tn_net_agent** agents, tn_net_packet_handler** handlers, void** states)
 {
-	uint16_t output_lengths[IXGBE_AGENT_OUTPUTS_MAX] = {0};
+//	uint16_t output_lengths[IXGBE_AGENT_OUTPUTS_MAX] = {0};
 	while (true) {
 		for (size_t a = 0; a < agents_count; a++) {
 			for (size_t p = 0; p < IXGBE_AGENT_FLUSH_PERIOD; p++) {
 				uint8_t* packet;
-				uint16_t receive_packet_length;
+				size_t receive_packet_length;
 				if (!tn_net_agent_receive(agents[a], &packet, &receive_packet_length)) {
 					break;
 				}
 
-				handlers[a](packet, receive_packet_length, states[a], output_lengths);
+				handlers[a](packet, receive_packet_length, states[a], agents[a]->output_lengths);
 
-				tn_net_agent_transmit(agents[a], output_lengths);
+				tn_net_agent_transmit(agents[a]);
 			}
 		}
 	}

@@ -9,7 +9,7 @@ from ... import cast
 from . import packet
 
 # void net_transmit(struct net_packet* packet, device_t device, enum net_transmit_flags flags);
-class net_transmit(angr.SimProcedure):  
+class net_transmit(angr.SimProcedure):
     def run(self, pkt, device, flags):
         pkt = cast.ptr(pkt)
         device = cast.uint16_t(device)

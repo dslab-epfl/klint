@@ -9,13 +9,13 @@
 
 // change at will...
 #define MAX_DEVICES 10
-//#define TN_MANY_OUTPUTS
+#define TN_MANY_OUTPUTS
 
 static device_t devices_count;
 static uint8_t device_mac_pairs[12 * MAX_DEVICES];
-static uint16_t* current_output_lengths;
+static size_t* current_output_lengths;
 
-void net_transmit(struct net_packet* packet, uint16_t device, enum net_transmit_flags flags)
+void net_transmit(struct net_packet* packet, device_t device, enum net_transmit_flags flags)
 {
 	// TODO: Explicitly verify TinyNF assumptions during verif (including TN_MANY_OUTPUTS)
 	if (flags & UPDATE_ETHER_ADDRS) {
@@ -42,7 +42,7 @@ void net_flood(struct net_packet* packet)
 }
 
 
-static void tinynf_packet_handler(uint8_t* packet, uint16_t packet_length, void* state, uint16_t* output_lengths)
+static void tinynf_packet_handler(uint8_t* packet, size_t packet_length, void* state, size_t* output_lengths)
 {
 	current_output_lengths = output_lengths;
 	struct net_packet pkt = {
@@ -95,7 +95,13 @@ int main(int argc, char** argv)
 
 	struct tn_net_agent* agents[MAX_DEVICES];
 	for (device_t n = 0; n < devices_count; n++) {
-		agents[n] = tn_net_agent_alloc();
+		agents[n] = tn_net_agent_alloc(
+#ifdef TN_MANY_OUTPUTS
+devices_count
+#else
+1
+#endif
+		);
 		if (!tn_net_agent_set_input(agents[n], devices[n])) {
 			os_fatal("Couldn't set agent RX");
 		}
