@@ -379,7 +379,7 @@ static bool timed_out;
 #define IF_AFTER_TIMEOUT(timeout_in_us, condition) \
 		timed_out = true; \
 		os_clock_sleep_ns((timeout_in_us) % 10 * 1000); \
-		for (uint8_t i = 0; i < 10; i++) { \
+		for (size_t i = 0; i < 10; i++) { \
 			if (!(condition)) { \
 				timed_out = false; \
 				break; \
@@ -576,7 +576,7 @@ bool tn_net_device_init(const struct os_pci_address pci_address, struct tn_net_d
 	// "Prior to issuing software reset, the driver needs to execute the master disable algorithm as defined in Section 5.2.5.3.2."
 	//   Section 5.2.5.3.2 Master Disable:
 	//   "The device driver disables any reception to the Rx queues as described in Section 4.6.7.1"
-	for (uint8_t queue = 0; queue < RECEIVE_QUEUES_COUNT; queue++) {
+	for (size_t queue = 0; queue < RECEIVE_QUEUES_COUNT; queue++) {
 		// Section 4.6.7.1.2 [Dynamic] Disabling [of Receive Queues]
 		// "Disable the queue by clearing the RXDCTL.ENABLE bit."
 		reg_clear_field(device.addr, REG_RXDCTL(queue), REG_RXDCTL_ENABLE);
@@ -640,7 +640,7 @@ bool tn_net_device_init(const struct os_pci_address pci_address, struct tn_net_d
 	//	"Writing a 1b to any bit clears its corresponding bit in the EIMS register disabling the corresponding interrupt in the EICR register. Writing 0b has no impact"
 	//	Note that the first register has its bit 31 reserved.
 	reg_write(device.addr, REG_EIMC(0), 0x7FFFFFFFu);
-	for (uint8_t n = 1; n < INTERRUPT_REGISTERS_COUNT; n++) {
+	for (size_t n = 1; n < INTERRUPT_REGISTERS_COUNT; n++) {
 		reg_write(device.addr, REG_EIMC(n), 0xFFFFFFFFu);
 	}
 	//	"To enable flow control, program the FCTTV, FCRTL, FCRTH, FCRTV and FCCFG registers.
@@ -714,7 +714,7 @@ bool tn_net_device_init(const struct os_pci_address pci_address, struct tn_net_d
 	//	Section 8.2.3.27.12 PF Unicast Table Array (PFUTA[n]):
 	//		"There is one register per 32 bits of the unicast address table"
 	//		"This table should be zeroed by software before start of operation."
-	for (uint32_t n = 0; n < UNICAST_TABLE_ARRAY_SIZE / 32; n++) {
+	for (size_t n = 0; n < UNICAST_TABLE_ARRAY_SIZE / 32; n++) {
 		reg_clear(device.addr, REG_PFUTA(n));
 	}
 	//	"- VLAN Filter Table Array (VFTA[n])."
@@ -727,7 +727,7 @@ bool tn_net_device_init(const struct os_pci_address pci_address, struct tn_net_d
 	// INTERPRETATION-MISSING: While the spec appears to mention PFVLVF only in conjunction with VLNCTRL.VFE being enabled, let's be conservative and initialize them anyway.
 	// 	Section 8.2.3.27.15 PF VM VLAN Pool Filter (PFVLVF[n]):
 	//		"Software should initialize these registers before transmit and receive are enabled."
-	for (uint8_t n = 0; n < POOLS_COUNT; n++) {
+	for (size_t n = 0; n < POOLS_COUNT; n++) {
 		reg_clear(device.addr, REG_PFVLVF(n));
 	}
 	//	"- MAC Pool Select Array (MPSAR[n])."
@@ -739,20 +739,20 @@ bool tn_net_device_init(const struct os_pci_address pci_address, struct tn_net_d
 	//		 Bit 'i' in register '2*n+1' is associated with POOL '32+i'."
 	// INTERPRETATION-MISSING: We should enable pool 0 with address 0 and disable everything else since we only have 1 MAC address.
 	reg_write(device.addr, REG_MPSAR(0), 1);
-	for (uint16_t n = 1; n < RECEIVE_ADDRS_COUNT * 2; n++) {
+	for (size_t n = 1; n < RECEIVE_ADDRS_COUNT * 2; n++) {
 		reg_clear(device.addr, REG_MPSAR(n));
 	}
 	//	"- VLAN Pool Filter Bitmap (PFVLVFB[n])."
 	// INTERPRETATION-MISSING: See above remark on PFVLVF
 	//	Section 8.2.3.27.16: PF VM VLAN Pool Filter Bitmap
-	for (uint8_t n = 0; n < POOLS_COUNT * 2; n++) {
+	for (size_t n = 0; n < POOLS_COUNT * 2; n++) {
 		reg_clear(device.addr, REG_PFVLVFB(n));
 	}
 	//	"Set up the Multicast Table Array (MTA) registers.
 	//	 This entire table should be zeroed and only the desired multicast addresses should be permitted (by writing 0x1 to the corresponding bit location).
 	//	 Set the MCSTCTRL.MFE bit if multicast filtering is required."
 	// Section 8.2.3.7.7 Multicast Table Array (MTA[n]): "Word wide bit vector specifying 32 bits in the multicast address filter table."
-	for (uint32_t n = 0; n < MULTICAST_TABLE_ARRAY_SIZE / 32; n++) {
+	for (size_t n = 0; n < MULTICAST_TABLE_ARRAY_SIZE / 32; n++) {
 		reg_clear(device.addr, REG_MTA(n));
 	}
 	//	"Initialize the flexible filters 0...5 - Flexible Host Filter Table registers (FHFT)."
@@ -803,7 +803,7 @@ bool tn_net_device_init(const struct os_pci_address pci_address, struct tn_net_d
 	//		"Mask, bits 29:25: Mask bits for the 5-tuple fields (1b = don’t compare)."
 	//		"Queue Enable, bit 31; When set, enables filtering of Rx packets by the 5-tuple defined in this filter to the queue indicated in register L34TIMIR."
 	// We clear Queue Enable. We then do not need to deal with SAQF, DAQF, SDPQF, SYNQF, by assumption NOWANT
-	for (uint8_t n = 0; n < FIVETUPLE_FILTERS_COUNT; n++) {
+	for (size_t n = 0; n < FIVETUPLE_FILTERS_COUNT; n++) {
 		reg_clear_field(device.addr, REG_FTQF(n), REG_FTQF_QUEUE_ENABLE);
 	}
 	//	Section 7.1.2.3 L2 Ethertype Filters:
@@ -837,7 +837,7 @@ bool tn_net_device_init(const struct os_pci_address pci_address, struct tn_net_d
 	//			"SIZE, Init val 0x200"
 	//			"The default size of PB[1-7] is also 512 KB but it is meaningless in non-DCB mode."
 	// INTERPRETATION-CONTRADICTION: We're told to clear PB[1-7] but also that it's meaningless. Let's clear it just in case...
-	for (uint8_t n = 1; n < TRAFFIC_CLASSES_COUNT; n++) {
+	for (size_t n = 1; n < TRAFFIC_CLASSES_COUNT; n++) {
 		reg_clear(device.addr, REG_RXPBSIZE(n));
 	}
 	//		"- MRQC"
@@ -863,7 +863,7 @@ bool tn_net_device_init(const struct os_pci_address pci_address, struct tn_net_d
 	reg_write_field(device.addr, REG_FCCFG, REG_FCCFG_TFCE, 1);
 	//		"Reset all arbiters:"
 	//		"- Clear RTTDT1C register, per each queue, via setting RTTDQSEL first"
-	for (uint8_t n = 0; n < TRANSMIT_QUEUES_COUNT; n++) {
+	for (size_t n = 0; n < TRANSMIT_QUEUES_COUNT; n++) {
 		reg_write(device.addr, REG_RTTDQSEL, n);
 		reg_clear(device.addr, REG_RTTDT1C);
 	}
@@ -931,7 +931,7 @@ bool tn_net_device_init(const struct os_pci_address pci_address, struct tn_net_d
 	//				"SIZE, Init val 0xA0"
 	//				"At default setting (no DCB) only packet buffer 0 is enabled and TXPBSIZE values for TC 1-7 are meaningless."
 	// INTERPRETATION-CONTRADICTION: We're both told to clear TXPBSIZE[1-7] and that it's meaningless. Let's clear it to be safe.
-	for (uint8_t n = 1; n < TRAFFIC_CLASSES_COUNT; n++) {
+	for (size_t n = 1; n < TRAFFIC_CLASSES_COUNT; n++) {
 		reg_clear(device.addr, REG_TXPBSIZE(n));
 	}
 	//			"- TXPBTHRESH.THRESH[0]=0xA0 - Maximum expected Tx packet length in this TC TXPBTHRESH.THRESH[1-7]=0x0"
@@ -1032,11 +1032,8 @@ struct tn_net_agent* tn_net_agent_alloc(void)
 {
 	struct tn_net_agent* agent = os_memory_alloc(1, sizeof(struct tn_net_agent));
 	agent->buffer = os_memory_alloc(IXGBE_RING_SIZE, PACKET_BUFFER_SIZE);
-
-	for (uint64_t n = 0; n < IXGBE_AGENT_OUTPUTS_MAX; n++) {
-		agent->rings[n] = os_memory_alloc(IXGBE_RING_SIZE, 16); // 16 bytes per descriptor, i.e. 2x64bits
-	}
-
+	// Allocate the shared ring now, further rings are allocated as needed
+	agent->rings[0] = os_memory_alloc(IXGBE_RING_SIZE, 16); // 16 bytes per descriptor, i.e., 2x64 bits
 	return agent;
 }
 
@@ -1062,7 +1059,7 @@ bool tn_net_agent_set_input(struct tn_net_agent* const agent, struct tn_net_devi
 
 	// "The following should be done per each receive queue:"
 	// "- Allocate a region of memory for the receive descriptor list."
-	// This is already done in agent initialization as agent->rings[0]
+	// Already done in init
 	// "- Receive buffers of appropriate size should be allocated and pointers to these buffers should be stored in the descriptor ring."
 	// This will be done when setting up the first transmit ring
 	// Note that only the first line (buffer address) needs to be configured, the second line is only for write-back except End Of Packet (bit 33)
@@ -1161,10 +1158,13 @@ bool tn_net_agent_add_output(struct tn_net_agent* const agent, struct tn_net_dev
 
 	// "The following steps should be done once per transmit queue:"
 	// "- Allocate a region of memory for the transmit descriptor list."
-	// This is already done in agent initialization as agent->rings[*]
+	// Ring 0 is already allocated in init
+	if (agent->outputs_count != 0) {
+		agent->rings[agent->outputs_count] = os_memory_alloc(IXGBE_RING_SIZE, 16); // 16 bytes per descriptor, i.e., 2x64 bits
+	}
 	volatile uint64_t* ring = agent->rings[agent->outputs_count];
 	// Program all descriptors' buffer addresses now
-	for (uint64_t n = 0; n < IXGBE_RING_SIZE; n++) {
+	for (size_t n = 0; n < IXGBE_RING_SIZE; n++) {
 		// Section 7.2.3.2.2 Legacy Transmit Descriptor Format:
 		// "Buffer Address (64)", 1st line offset 0
 		void* packet_addr = agent->buffer + n * PACKET_BUFFER_SIZE;
@@ -1261,7 +1261,7 @@ bool tn_net_agent_receive(struct tn_net_agent* agent, uint8_t** out_packet, uint
 		// No packet; flush if we need to.
 		// This is technically a part of transmission, but we must eventually flush after processing a packet even if no more packets are received
 		if (agent->flush_counter != 0) {
-			for (uint64_t n = 0; n < agent->outputs_count; n++) {
+			for (size_t n = 0; n < agent->outputs_count; n++) {
 				reg_write_raw(agent->transmit_tail_addrs[n], (uint32_t) agent->processed_delimiter);
 			}
 			agent->flush_counter = 0;
@@ -1318,8 +1318,9 @@ void tn_net_agent_transmit(struct tn_net_agent* agent, uint16_t* output_lengths)
 	// Importantly, since bit 32 will stay at 0, and we share the receive ring and the first transmit ring, it will clear the Descriptor Done flag of the receive descriptor.
 	// Not setting the RS bit every time is a huge perf win in throughput (a few Gb/s) with no apparent impact on latency.
 	uint64_t rs_bit = (uint64_t) ((agent->processed_delimiter & (IXGBE_AGENT_RECYCLE_PERIOD - 1)) == (IXGBE_AGENT_RECYCLE_PERIOD - 1)) << (24+3);
-	for (uint64_t n = 0; n < agent->outputs_count; n++) {
+	for (size_t n = 0; n < agent->outputs_count; n++) {
 		agent->rings[n][2u*agent->processed_delimiter + 1] = cpu_to_le64((uint64_t) output_lengths[n] | rs_bit | BITL(24+1) | BITL(24));
+		output_lengths[n] = 0;
 	}
 
 	// Increment the processed delimiter, modulo the ring size
@@ -1328,7 +1329,7 @@ void tn_net_agent_transmit(struct tn_net_agent* agent, uint16_t* output_lengths)
 	// Flush if we need to; not doing so every time is a huge performance win
 	agent->flush_counter = agent->flush_counter + 1;
 	if (agent->flush_counter == IXGBE_AGENT_FLUSH_PERIOD) {
-		for (uint64_t n = 0; n < agent->outputs_count; n++) {
+		for (size_t n = 0; n < agent->outputs_count; n++) {
 			reg_write_raw(agent->transmit_tail_addrs[n], (uint32_t) agent->processed_delimiter);
 		}
 		agent->flush_counter = 0;
@@ -1341,7 +1342,7 @@ void tn_net_agent_transmit(struct tn_net_agent* agent, uint16_t* output_lengths)
 		uint64_t min_diff = (uint64_t) -1;
 		// There is an implicit race condition with the hardware: a transmit head could be updated just after we've read it
 		// but before we write to the receive tail. This is fine; it just means our "earliest transmit head" is not as high as it could be.
-		for (uint64_t n = 0; n < agent->outputs_count; n++) {
+		for (size_t n = 0; n < agent->outputs_count; n++) {
 			uint32_t head = le_to_cpu32(agent->transmit_heads[n * TRANSMIT_HEAD_MULTIPLIER]);
 			uint64_t diff = head - agent->processed_delimiter;
 			if (diff <= min_diff) {
@@ -1358,21 +1359,21 @@ void tn_net_agent_transmit(struct tn_net_agent* agent, uint16_t* output_lengths)
 // High-level API
 // --------------
 
-void tn_net_run(uint64_t agents_count, struct tn_net_agent** agents, tn_net_packet_handler** handlers, void** states)
+void tn_net_run(size_t agents_count, struct tn_net_agent** agents, tn_net_packet_handler** handlers, void** states)
 {
 	uint16_t output_lengths[IXGBE_AGENT_OUTPUTS_MAX] = {0};
 	while (true) {
-		for (uint64_t n = 0; n < agents_count; n++) {
-			for (uint64_t p = 0; p < IXGBE_AGENT_FLUSH_PERIOD; p++) {
+		for (size_t a = 0; a < agents_count; a++) {
+			for (size_t p = 0; p < IXGBE_AGENT_FLUSH_PERIOD; p++) {
 				uint8_t* packet;
 				uint16_t receive_packet_length;
-				if (!tn_net_agent_receive(agents[n], &packet, &receive_packet_length)) {
+				if (!tn_net_agent_receive(agents[a], &packet, &receive_packet_length)) {
 					break;
 				}
 
-				handlers[n](packet, receive_packet_length, states[n], output_lengths);
+				handlers[a](packet, receive_packet_length, states[a], output_lengths);
 
-				tn_net_agent_transmit(agents[n], output_lengths);
+				tn_net_agent_transmit(agents[a], output_lengths);
 			}
 		}
 	}

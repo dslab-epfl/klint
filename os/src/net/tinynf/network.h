@@ -11,6 +11,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #include "os/pci.h"
@@ -37,4 +38,4 @@ bool tn_net_agent_add_output(struct tn_net_agent* agent, struct tn_net_device* d
 // Sets outputs[N] = length of the packet on queue N, where 0 means drop (queues are in the order they were added)
 typedef void tn_net_packet_handler(uint8_t* packet, uint16_t packet_length, void* state, uint16_t* output_lengths);
 // Runs the agents forever using the given handlers
-_Noreturn void tn_net_run(uint64_t agents_count, struct tn_net_agent** agents, tn_net_packet_handler** handlers, void** states);
+_Noreturn void tn_net_run(size_t agents_count, struct tn_net_agent** agents, tn_net_packet_handler** handlers, void** states);

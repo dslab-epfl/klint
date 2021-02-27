@@ -9,6 +9,7 @@
 
 // change at will...
 #define MAX_DEVICES 10
+//#define TN_MANY_OUTPUTS
 
 static device_t devices_count;
 static uint8_t device_mac_pairs[12 * MAX_DEVICES];
@@ -30,14 +31,11 @@ void net_transmit(struct net_packet* packet, uint16_t device, enum net_transmit_
 
 void net_flood(struct net_packet* packet)
 {
-	(void) packet;
-
 #ifdef TN_MANY_OUTPUTS
 	for (device_t n = 0; n < devices_count; n++) {
-		if (n != packet->device) {
-			current_output_lengths[n] = packet->length;
-		}
+		current_output_lengths[n] = packet->length;
 	}
+	current_output_lengths[packet->device] = 0;
 #else
 	current_output_lengths[0] = packet->length;
 #endif
@@ -46,14 +44,6 @@ void net_flood(struct net_packet* packet)
 
 static void tinynf_packet_handler(uint8_t* packet, uint16_t packet_length, void* state, uint16_t* output_lengths)
 {
-#ifdef TN_MANY_OUTPUTS
-	for (device_t n = 0; n < devices_count; n++) {
-		output_lengths[n] = 0;
-	}
-#else
-	output_lengths[0] = 0;
-#endif
-
 	current_output_lengths = output_lengths;
 	struct net_packet pkt = {
 		.data = packet,
