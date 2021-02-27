@@ -7,7 +7,7 @@
 
 #include "network.h"
 
-// change at will...
+// change at will... TODO remove it entirely
 #define MAX_DEVICES 10
 #define TN_MANY_OUTPUTS
 
@@ -42,13 +42,13 @@ void net_flood(struct net_packet* packet)
 }
 
 
-static void tinynf_packet_handler(uint8_t* packet, size_t packet_length, void* state, size_t* output_lengths)
+static void tinynf_packet_handler(size_t index, uint8_t* packet, size_t length, size_t* output_lengths)
 {
 	current_output_lengths = output_lengths;
 	struct net_packet pkt = {
 		.data = packet,
-		.device = (device_t) (uintptr_t) state,
-		.length = packet_length
+		.device = (device_t) index,
+		.length = length
 	};
 	nf_handle(&pkt);
 }
@@ -121,11 +121,5 @@ devices_count
 #endif
 	}
 
-	tn_net_packet_handler* handlers[MAX_DEVICES];
-	void* states[MAX_DEVICES];
-	for (device_t n = 0; n < devices_count; n++) {
-		handlers[n] = tinynf_packet_handler;
-		states[n] = (void*) (uintptr_t) n;
-	}
-	tn_net_run(devices_count, agents, handlers, states);
+	tn_net_run(devices_count, agents, tinynf_packet_handler);
 }
