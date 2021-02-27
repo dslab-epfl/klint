@@ -51,7 +51,7 @@ void nf_handle(struct net_packet* packet)
 				map_remove(map, &(addresses[index]));
 			}
 
-			ether_header->src_addr = addresses[index];
+			addresses[index] = ether_header->src_addr;
 			devices[index] = packet->device;
 			map_set(map, &(addresses[index]), index);
 		}

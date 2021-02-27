@@ -82,7 +82,7 @@ static inline bool balancer_get_backend(struct balancer* balancer, struct flow* 
 		if (was_used) {
 			map_remove(balancer->flow_to_flow_id, &(balancer->flow_heap[index]));
 		}
-		*flow = balancer->flow_heap[flow_index];
+		balancer->flow_heap[flow_index] = *flow;
 		balancer->flow_id_to_backend_id[flow_index] = backend_index;
 		map_set(balancer->flow_to_flow_id, &(balancer->flow_heap[flow_index]), flow_index);
 	} // Doesn't matter if we can't insert
