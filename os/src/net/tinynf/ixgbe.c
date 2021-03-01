@@ -1009,34 +1009,14 @@ struct tn_net_agent
 	volatile uint32_t** transmit_tail_addrs;
 };
 
-// --------------------
-// Agent initialization
-// --------------------
-
-struct tn_net_agent* tn_net_agent_alloc(size_t outputs_count)
-{
-	struct tn_net_agent* agent = os_memory_alloc(1, sizeof(struct tn_net_agent));
-	agent->buffer = os_memory_alloc(IXGBE_RING_SIZE, PACKET_BUFFER_SIZE);
-	agent->lengths = os_memory_alloc(outputs_count, sizeof(size_t));
-	agent->transmit_heads = os_memory_alloc(outputs_count, TRANSMIT_HEAD_MULTIPLIER * sizeof(uint32_t));
-	agent->rings = os_memory_alloc(outputs_count, sizeof(uint64_t*));
-	agent->transmit_tail_addrs = os_memory_alloc(outputs_count, sizeof(uint32_t*));
-
-	for (size_t n = 0; n < outputs_count; n++) {
-		agent->rings[n] = os_memory_alloc(IXGBE_RING_SIZE, 16); // 16 bytes per descriptor, i.e., 2x64 bits
-	}
-	return agent;
-}
-
 // ------------------------------------
 // Section 4.6.7 Receive Initialization
 // ------------------------------------
 
-bool tn_net_agent_set_input(struct tn_net_agent* const agent, struct tn_net_device* const device)
+static void tn_net_agent_set_input(struct tn_net_agent* const agent, struct tn_net_device* const device)
 {
 	if (agent->receive_tail_addr != 0) {
-		os_debug("Agent receive was already set");
-		return false;
+		os_fatal("Agent receive was already set");
 	}
 
 	// The 82599 has more than one receive queue, but we only need queue 0
@@ -1044,13 +1024,12 @@ bool tn_net_agent_set_input(struct tn_net_agent* const agent, struct tn_net_devi
 
 	// See later for details of RXDCTL.ENABLE
 	if (!reg_is_field_cleared(device->addr, REG_RXDCTL(queue_index), REG_RXDCTL_ENABLE)) {
-		os_debug("Receive queue is already in use");
-		return false;
+		os_fatal("Receive queue is already in use");
 	}
 
 	// "The following should be done per each receive queue:"
 	// "- Allocate a region of memory for the receive descriptor list."
-	// Already done in init
+	// Already done in alloc
 	// "- Receive buffers of appropriate size should be allocated and pointers to these buffers should be stored in the descriptor ring."
 	// This will be done when setting up the first transmit ring
 	// Note that only the first line (buffer address) needs to be configured, the second line is only for write-back except End Of Packet (bit 33)
@@ -1085,8 +1064,7 @@ bool tn_net_agent_set_input(struct tn_net_agent* const agent, struct tn_net_devi
 	// "- Poll the RXDCTL register until the Enable bit is set. The tail should not be bumped before this bit was read as 1b."
 	// INTERPRETATION-MISSING: No timeout is mentioned here, let's say 1s to be safe.
 	IF_AFTER_TIMEOUT(1000 * 1000, reg_is_field_cleared(device->addr, REG_RXDCTL(queue_index), REG_RXDCTL_ENABLE)) {
-		os_debug("RXDCTL.ENABLE did not set, cannot enable queue");
-		return false;
+		os_fatal("RXDCTL.ENABLE did not set, cannot enable queue");
 	}
 	// "- Bump the tail pointer (RDT) to enable descriptors fetching by setting it to the ring length minus one."
 	// 	Section 7.1.9 Receive Descriptor Queue Structure:
@@ -1100,8 +1078,7 @@ bool tn_net_agent_set_input(struct tn_net_agent* const agent, struct tn_net_devi
 		//	"- Wait for the data paths to be emptied by HW. Poll the SECRXSTAT.SECRX_RDY bit until it is asserted by HW."
 		// INTERPRETATION-MISSING: Another undefined timeout, assuming 1s as usual
 		IF_AFTER_TIMEOUT(1000 * 1000, reg_is_field_cleared(device->addr, REG_SECRXSTAT, REG_SECRXSTAT_SECRX_RDY)) {
-			os_debug("SECRXSTAT.SECRXRDY timed out, cannot start device");
-			return false;
+			os_fatal("SECRXSTAT.SECRXRDY timed out, cannot start device");
 		}
 		//	"- Set RXCTRL.RXEN"
 		reg_set_field(device->addr, REG_RXCTRL, REG_RXCTRL_RXEN);
@@ -1121,31 +1098,30 @@ bool tn_net_agent_set_input(struct tn_net_agent* const agent, struct tn_net_devi
 	reg_clear_field(device->addr, REG_DCARXCTRL(queue_index), REG_DCARXCTRL_UNKNOWN);
 
 	agent->receive_tail_addr = (volatile uint32_t*) ((uint8_t*) device->addr + REG_RDT(queue_index));
-	return true;
 }
 
 // -------------------------------------
 // Section 4.6.8 Transmit Initialization
 // -------------------------------------
 
-bool tn_net_agent_add_output(struct tn_net_agent* const agent, struct tn_net_device* const device)
+static void tn_net_agent_add_output(struct tn_net_agent* const agent, struct tn_net_device* const device, size_t output_index, size_t queue_index)
 {
-	size_t queue_index = 0;
-	for (; queue_index < TRANSMIT_QUEUES_COUNT; queue_index++) {
-		// See later for details of TXDCTL.ENABLE
-		if (reg_is_field_cleared(device->addr, REG_TXDCTL(queue_index), REG_TXDCTL_ENABLE)) {
-			break;
-		}
+	if (agent->transmit_tail_addrs[output_index] != 0) {
+		os_fatal("Output is already in use");
 	}
-	if (queue_index == TRANSMIT_QUEUES_COUNT) {
-		os_debug("No available transmit queues");
-		return false;
+
+	if (queue_index >= TRANSMIT_QUEUES_COUNT) {
+		os_fatal("Transmit queue index is too large");
+	}
+	// See later for details of TXDCTL.ENABLE
+	if (!reg_is_field_cleared(device->addr, REG_TXDCTL(queue_index), REG_TXDCTL_ENABLE)) {
+		os_fatal("Transmit queue is already in use");
 	}
 
 	// "The following steps should be done once per transmit queue:"
 	// "- Allocate a region of memory for the transmit descriptor list."
-	// Already done in init
-	volatile uint64_t* ring = agent->rings[agent->outputs_count];
+	// Already done in alloc
+	volatile uint64_t* ring = agent->rings[output_index];
 	// Program all descriptors' buffer addresses now
 	for (size_t n = 0; n < IXGBE_RING_SIZE; n++) {
 		// Section 7.2.3.2.2 Legacy Transmit Descriptor Format:
@@ -1178,7 +1154,7 @@ bool tn_net_agent_add_output(struct tn_net_agent* const agent, struct tn_net_dev
 	reg_write_field(device->addr, REG_TXDCTL(queue_index), REG_TXDCTL_PTHRESH, 60);
 	reg_write_field(device->addr, REG_TXDCTL(queue_index), REG_TXDCTL_HTHRESH, 4);
 	// "- If needed, set TDWBAL/TWDBAH to enable head write back."
-	uintptr_t head_phys_addr = os_memory_virt_to_phys((void*) &(agent->transmit_heads[agent->outputs_count * TRANSMIT_HEAD_MULTIPLIER]));
+	uintptr_t head_phys_addr = os_memory_virt_to_phys((void*) &(agent->transmit_heads[output_index * TRANSMIT_HEAD_MULTIPLIER]));
 	//	Section 7.2.3.5.2 Tx Head Pointer Write Back:
 	//	"The low register's LSB hold the control bits.
 	// 	 * The Head_WB_EN bit enables activation of tail write back. In this case, no descriptor write back is executed.
@@ -1188,8 +1164,7 @@ bool tn_net_agent_add_output(struct tn_net_agent* const agent, struct tn_net_dev
 	// INTERPRETATION-CONTRADICTION: There is an obvious contradiction here; qword-aligned seems like a safe option since it will also be dword-aligned.
 	// INTERPRETATION-INCORRECT: Empirically, the answer is... 16 bytes. Write-back has no effect otherwise. So both versions are wrong.
 	if (head_phys_addr % 16u != 0) {
-		os_debug("Transmit head's physical address is not aligned properly");
-		return false;
+		os_fatal("Transmit head's physical address is not aligned properly");
 	}
 	//	Section 8.2.3.9.11 Tx Descriptor Completion Write Back Address Low (TDWBAL[n]):
 	//	"Head_WB_En, bit 0 [...] 1b = Head write-back is enabled."
@@ -1209,15 +1184,41 @@ bool tn_net_agent_add_output(struct tn_net_agent* const agent, struct tn_net_dev
 	// INTERPRETATION-MISSING: No timeout is mentioned here, let's say 1s to be safe.
 	reg_set_field(device->addr, REG_TXDCTL(queue_index), REG_TXDCTL_ENABLE);
 	IF_AFTER_TIMEOUT(1000 * 1000, reg_is_field_cleared(device->addr, REG_TXDCTL(queue_index), REG_TXDCTL_ENABLE)) {
-		os_debug("TXDCTL.ENABLE did not set, cannot enable queue");
-		return false;
+		os_fatal("TXDCTL.ENABLE did not set, cannot enable queue");
 	}
 	// "Note: The tail register of the queue (TDT) should not be bumped until the queue is enabled."
 	// Nothing to transmit yet, so leave TDT alone.
 
-	agent->transmit_tail_addrs[agent->outputs_count] = (volatile uint32_t*) ((uint8_t*) device->addr + REG_TDT(queue_index));
-	agent->outputs_count = agent->outputs_count + 1;
-	return true;
+	agent->transmit_tail_addrs[output_index] = (volatile uint32_t*) ((uint8_t*) device->addr + REG_TDT(queue_index));
+}
+
+// -----------
+// Agent alloc
+// -----------
+
+struct tn_net_agent* tn_net_agent_alloc(size_t input_index, size_t devices_count, struct tn_net_device** devices)
+{
+	struct tn_net_agent* agent = os_memory_alloc(1, sizeof(struct tn_net_agent));
+	agent->buffer = os_memory_alloc(IXGBE_RING_SIZE, PACKET_BUFFER_SIZE);
+	agent->lengths = os_memory_alloc(devices_count, sizeof(size_t));
+	agent->transmit_heads = os_memory_alloc(devices_count, TRANSMIT_HEAD_MULTIPLIER * sizeof(uint32_t));
+	agent->rings = os_memory_alloc(devices_count, sizeof(uint64_t*));
+	agent->transmit_tail_addrs = os_memory_alloc(devices_count, sizeof(uint32_t*));
+
+	for (size_t n = 0; n < devices_count; n++) {
+		agent->rings[n] = os_memory_alloc(IXGBE_RING_SIZE, 16); // 16 bytes per descriptor, i.e., 2x64 bits
+	}
+
+	tn_net_agent_set_input(agent, devices[input_index]);
+os_debug("alloc");
+	for (size_t n = 0; n < devices_count; n++) {
+os_debug("add output");
+		tn_net_agent_add_output(agent, devices[n], n, input_index * devices_count + n);
+	}
+
+	agent->outputs_count = devices_count;
+
+	return agent;
 }
 
 // ----------------

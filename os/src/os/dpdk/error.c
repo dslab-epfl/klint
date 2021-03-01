@@ -8,7 +8,7 @@ _Noreturn void os_exit(void)
 	rte_panic("os_exit");
 }
 
-#if DEBUG_LEVEL > 1
+#if DEBUG_LEVEL > 0
 #include <rte_log.h>
 
 void os_debug(const char* message)

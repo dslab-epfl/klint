@@ -9,7 +9,7 @@ _Noreturn void os_exit(void)
 }
 
 
-#if DEBUG_LEVEL > 1
+#if DEBUG_LEVEL > 0
 #include <stdio.h>
 
 void os_debug(const char* message)
