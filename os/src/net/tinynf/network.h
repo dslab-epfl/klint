@@ -26,6 +26,7 @@ struct tn_net_device* tn_net_device_alloc(struct os_pci_address pci_address);
 void tn_net_device_set_promiscuous(struct tn_net_device* device);
 uint64_t tn_net_device_get_mac(struct tn_net_device* device); // only the lowest 48 bits are nonzero, in big-endian
 
+// Assumes the input should not be an output. (It'd be nice to have the flexibility, but in practice we don't need it for now)
 struct tn_net_agent* tn_net_agent_alloc(size_t input_index, size_t devices_count, struct tn_net_device** devices);
 
 

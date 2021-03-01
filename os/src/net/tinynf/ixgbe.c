@@ -1198,25 +1198,37 @@ static void tn_net_agent_add_output(struct tn_net_agent* const agent, struct tn_
 
 struct tn_net_agent* tn_net_agent_alloc(size_t input_index, size_t devices_count, struct tn_net_device** devices)
 {
-	struct tn_net_agent* agent = os_memory_alloc(1, sizeof(struct tn_net_agent));
-	agent->buffer = os_memory_alloc(IXGBE_RING_SIZE, PACKET_BUFFER_SIZE);
-	agent->lengths = os_memory_alloc(devices_count, sizeof(size_t));
-	agent->transmit_heads = os_memory_alloc(devices_count, TRANSMIT_HEAD_MULTIPLIER * sizeof(uint32_t));
-	agent->rings = os_memory_alloc(devices_count, sizeof(uint64_t*));
-	agent->transmit_tail_addrs = os_memory_alloc(devices_count, sizeof(uint32_t*));
+	if (devices_count == 0) {
+		os_fatal("No devices given");
+	}
+	if (input_index >= devices_count) {
+		os_fatal("Input index out of range");
+	}
 
-	for (size_t n = 0; n < devices_count; n++) {
+	struct tn_net_agent* agent = os_memory_alloc(1, sizeof(struct tn_net_agent));
+	agent->outputs_count = devices_count - 1;
+	if (agent->outputs_count == 0) {
+		os_fatal("No outputs given");
+	}
+
+	agent->buffer = os_memory_alloc(IXGBE_RING_SIZE, PACKET_BUFFER_SIZE);
+	agent->lengths = os_memory_alloc(agent->outputs_count, sizeof(size_t));
+	agent->transmit_heads = os_memory_alloc(agent->outputs_count, TRANSMIT_HEAD_MULTIPLIER * sizeof(uint32_t));
+	agent->rings = os_memory_alloc(agent->outputs_count, sizeof(uint64_t*));
+	agent->transmit_tail_addrs = os_memory_alloc(agent->outputs_count, sizeof(uint32_t*));
+
+	for (size_t n = 0; n < agent->outputs_count; n++) {
 		agent->rings[n] = os_memory_alloc(IXGBE_RING_SIZE, 16); // 16 bytes per descriptor, i.e., 2x64 bits
 	}
 
 	tn_net_agent_set_input(agent, devices[input_index]);
-os_debug("alloc");
-	for (size_t n = 0; n < devices_count; n++) {
-os_debug("add output");
-		tn_net_agent_add_output(agent, devices[n], n, input_index * devices_count + n);
-	}
 
-	agent->outputs_count = devices_count;
+	for (size_t n = 0; n < devices_count; n++) {
+		if (n != input_index) {
+			size_t true_n = n >= input_index ? (n - 1) : n;
+			tn_net_agent_add_output(agent, devices[n], true_n, input_index * agent->outputs_count + true_n);
+		}
+	}
 
 	return agent;
 }

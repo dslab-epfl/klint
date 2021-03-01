@@ -9,26 +9,28 @@
 
 #include "network.h"
 
+// TODO: Explicitly verify TinyNF assumptions during verif
+
 static device_t devices_count;
 static uint8_t* device_mac_pairs;
 static size_t* current_output_lengths;
 
 void net_transmit(struct net_packet* packet, device_t device, enum net_transmit_flags flags)
 {
-	// TODO: Explicitly verify TinyNF assumptions during verif (including TN_MANY_OUTPUTS)
-	if (flags & UPDATE_ETHER_ADDRS) {
+	if ((flags & UPDATE_ETHER_ADDRS) != 0) {
 		memcpy(packet->data, device_mac_pairs + 12 * device, 12);
 	}
 
-	current_output_lengths[device] = packet->length;
+	device_t true_device = device >= packet->device ? (device - 1) : device;
+if(true_device != 0) os_fatal("not zero");
+	current_output_lengths[true_device] = packet->length;
 }
 
 void net_flood(struct net_packet* packet)
 {
-	for (device_t n = 0; n < devices_count; n++) {
+	for (device_t n = 0; n < devices_count - 1; n++) {
 		current_output_lengths[n] = packet->length;
 	}
-	current_output_lengths[packet->device] = 0;
 }
 
 
