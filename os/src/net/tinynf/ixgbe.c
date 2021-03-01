@@ -1123,7 +1123,7 @@ static void tn_net_agent_add_output(struct tn_net_agent* const agent, struct tn_
 	// Already done in alloc
 	volatile uint64_t* ring = agent->rings[output_index];
 	// Program all descriptors' buffer addresses now
-	for (size_t n = 0; n < IXGBE_RING_SIZE; n++) {
+	for (size_t n = 0; n < IXGBE_RING_SIZE; n++) { //! MAP IDX -> uint64_t (with cond for % 2, if we remove alloc)
 		// Section 7.2.3.2.2 Legacy Transmit Descriptor Format:
 		// "Buffer Address (64)", 1st line offset 0
 		void* packet_addr = agent->buffer + n * PACKET_BUFFER_SIZE;
@@ -1217,13 +1217,13 @@ struct tn_net_agent* tn_net_agent_alloc(size_t input_index, size_t devices_count
 	agent->rings = os_memory_alloc(agent->outputs_count, sizeof(uint64_t*));
 	agent->transmit_tail_addrs = os_memory_alloc(agent->outputs_count, sizeof(uint32_t*));
 
-	for (size_t n = 0; n < agent->outputs_count; n++) {
+	for (size_t n = 0; n < agent->outputs_count; n++) { //! MAP IDX -> PTRARRAY
 		agent->rings[n] = os_memory_alloc(IXGBE_RING_SIZE, 16); // 16 bytes per descriptor, i.e., 2x64 bits
 	}
 
 	tn_net_agent_set_input(agent, devices[input_index]);
 
-	for (size_t n = 0; n < devices_count; n++) {
+	for (size_t n = 0; n < devices_count; n++) { //! FOREACH-EXCEPT IDX
 		if (n != input_index) {
 			size_t true_n = n >= input_index ? (n - 1) : n;
 			tn_net_agent_add_output(agent, devices[n], true_n, input_index * agent->outputs_count + true_n);
@@ -1257,7 +1257,7 @@ size_t tn_net_agent_receive(struct tn_net_agent* agent)
 		// No packet; flush if we need to.
 		// This is technically a part of transmission, but we must eventually flush after processing a packet even if no more packets are received
 		if (agent->flush_counter != 0) {
-			for (size_t n = 0; n < agent->outputs_count; n++) {
+			for (size_t n = 0; n < agent->outputs_count; n++) { //! FOREACH ARRAY
 				reg_write_raw(agent->transmit_tail_addrs[n], (uint32_t) agent->processed_delimiter);
 			}
 			agent->flush_counter = 0;
@@ -1310,7 +1310,7 @@ void tn_net_agent_transmit(struct tn_net_agent* agent)
 	// Importantly, since bit 32 will stay at 0, and we share the receive ring and the first transmit ring, it will clear the Descriptor Done flag of the receive descriptor.
 	// Not setting the RS bit every time is a huge perf win in throughput (a few Gb/s) with no apparent impact on latency.
 	uint64_t rs_bit = (uint64_t) ((agent->processed_delimiter & (IXGBE_AGENT_RECYCLE_PERIOD - 1)) == (IXGBE_AGENT_RECYCLE_PERIOD - 1)) << (24+3);
-	for (size_t n = 0; n < agent->outputs_count; n++) {
+	for (size_t n = 0; n < agent->outputs_count; n++) { //! FOREACH ARRAY  &&  SETZERO ARRAY
 		agent->rings[n][2u*agent->processed_delimiter + 1] = cpu_to_le64((uint64_t) agent->lengths[n] | rs_bit | BITL(24+1) | BITL(24));
 		agent->lengths[n] = 0;
 	}
@@ -1321,7 +1321,7 @@ void tn_net_agent_transmit(struct tn_net_agent* agent)
 	// Flush if we need to; not doing so every time is a huge performance win
 	agent->flush_counter = agent->flush_counter + 1;
 	if (agent->flush_counter == IXGBE_AGENT_FLUSH_PERIOD) {
-		for (size_t n = 0; n < agent->outputs_count; n++) {
+		for (size_t n = 0; n < agent->outputs_count; n++) { // FOREACH ARRAY
 			reg_write_raw(agent->transmit_tail_addrs[n], (uint32_t) agent->processed_delimiter);
 		}
 		agent->flush_counter = 0;
@@ -1334,7 +1334,7 @@ void tn_net_agent_transmit(struct tn_net_agent* agent)
 		uint64_t min_diff = (uint64_t) -1;
 		// There is an implicit race condition with the hardware: a transmit head could be updated just after we've read it
 		// but before we write to the receive tail. This is fine; it just means our "earliest transmit head" is not as high as it could be.
-		for (size_t n = 0; n < agent->outputs_count; n++) {
+		for (size_t n = 0; n < agent->outputs_count; n++) { //! FOLD ARRAY
 			uint32_t head = le_to_cpu32(agent->transmit_heads[n * TRANSMIT_HEAD_MULTIPLIER]);
 			uint64_t diff = head - agent->processed_delimiter;
 			if (diff <= min_diff) {
@@ -1353,8 +1353,8 @@ void tn_net_agent_transmit(struct tn_net_agent* agent)
 
 void tn_net_run(size_t agents_count, struct tn_net_agent** agents, tn_net_packet_handler* handler)
 {
-	while (true) {
-		for (size_t a = 0; a < agents_count; a++) {
+	while (true) { //! FOREVER
+		for (size_t a = 0; a < agents_count; a++) { //! FOREACH PTRARRAY
 			size_t length = tn_net_agent_receive(agents[a]);
 			if (length != 0) {
 				// This cannot overflow because the packet is by definition in an allocated block of memory
