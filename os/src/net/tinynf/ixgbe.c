@@ -1356,18 +1356,13 @@ void tn_net_run(size_t agents_count, struct tn_net_agent** agents, tn_net_packet
 {
 	while (true) {
 		for (size_t a = 0; a < agents_count; a++) {
-//			for (size_t p = 0; p < IXGBE_AGENT_FLUSH_PERIOD; p++) {
-				size_t length = tn_net_agent_receive(agents[a]);
-				if (length == 0) {
-continue;//					break;
-				}
-
+			size_t length = tn_net_agent_receive(agents[a]);
+			if (length != 0) {
 				// This cannot overflow because the packet is by definition in an allocated block of memory
 				uint8_t* packet = agents[a]->buffer + (PACKET_BUFFER_SIZE * agents[a]->processed_delimiter);
 				handler(a, packet, length, agents[a]->lengths);
-
 				tn_net_agent_transmit(agents[a]);
-//			}
+			}
 		}
 	}
 }
