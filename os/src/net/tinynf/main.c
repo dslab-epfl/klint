@@ -1,8 +1,5 @@
 #include "net/skeleton.h"
 
-// TODO remove this dependency
-#include <string.h>
-
 #include "os/error.h"
 #include "os/memory.h"
 #include "os/pci.h"
@@ -12,17 +9,19 @@
 // TODO: Explicitly verify TinyNF assumptions during verif
 
 static device_t devices_count;
-static uint8_t* device_mac_pairs;
+static struct net_ether_addr* endpoint_macs;
+static struct net_ether_addr* device_macs;
 static size_t* current_output_lengths;
 
 void net_transmit(struct net_packet* packet, device_t device, enum net_transmit_flags flags)
 {
 	if ((flags & UPDATE_ETHER_ADDRS) != 0) {
-		memcpy(packet->data, device_mac_pairs + 12 * device, 12);
+		struct net_ether_header* header = (struct net_ether_header*) packet->data;
+		header->dst_addr = endpoint_macs[device];
+		header->src_addr = device_macs[device];
 	}
 
 	device_t true_device = device >= packet->device ? (device - 1) : device;
-if(true_device != 0) os_fatal("not zero");
 	current_output_lengths[true_device] = packet->length;
 }
 
@@ -58,25 +57,16 @@ int main(int argc, char** argv)
 	}
 
 	struct tn_net_device** devices = os_memory_alloc(devices_count, sizeof(struct tn_net_device*));;
-	device_mac_pairs = os_memory_alloc(devices_count, 12);
+	endpoint_macs = os_memory_alloc(devices_count, sizeof(struct net_ether_addr));
+	device_macs = os_memory_alloc(devices_count, sizeof(struct net_ether_addr));
 	for (device_t n = 0; n < devices_count; n++) {
 		devices[n] = tn_net_device_alloc(pci_addresses[n]);
 		tn_net_device_set_promiscuous(devices[n]);
 		uint64_t device_mac = tn_net_device_get_mac(devices[n]);
 		// DST - TODO have it in config somehow, for now we just use a non-constant
-		device_mac_pairs[n * 12 + 0] = 0;
-		device_mac_pairs[n * 12 + 1] = device_mac >> 10;
-		device_mac_pairs[n * 12 + 2] = device_mac >> 20;
-		device_mac_pairs[n * 12 + 3] = device_mac >> 30;
-		device_mac_pairs[n * 12 + 4] = device_mac >> 40;
-		device_mac_pairs[n * 12 + 5] = 0;
+		endpoint_macs[n] = (struct net_ether_addr) { .bytes = { 0, device_mac >> 10, device_mac >> 20, device_mac >> 30, device_mac >> 40, 0 } };
 		// SRC
-		device_mac_pairs[n * 12 + 0] = device_mac >> 0;
-		device_mac_pairs[n * 12 + 1] = device_mac >> 8;
-		device_mac_pairs[n * 12 + 2] = device_mac >> 16;
-		device_mac_pairs[n * 12 + 3] = device_mac >> 24;
-		device_mac_pairs[n * 12 + 4] = device_mac >> 32;
-		device_mac_pairs[n * 12 + 5] = device_mac >> 40;
+		device_macs[n] = (struct net_ether_addr) { .bytes = { device_mac >> 0, device_mac >> 8, device_mac >> 16, device_mac >> 24, device_mac >> 32, device_mac >> 40 } };
 	}
 
 	struct tn_net_agent** agents = os_memory_alloc(devices_count, sizeof(struct tn_net_agent*));
