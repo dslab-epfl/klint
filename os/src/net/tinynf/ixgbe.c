@@ -505,7 +505,7 @@ struct tn_net_device
 // Section 4.6.3 Initialization Sequence
 // -------------------------------------
 
-bool tn_net_device_init(const struct os_pci_address pci_address, struct tn_net_device** out_device)
+struct tn_net_device* tn_net_device_alloc(const struct os_pci_address pci_address)
 {
 	// The NIC supports 64-bit addresses, so pointers can't be larger
 	static_assert(UINTPTR_MAX <= UINT64_MAX, "uintptr_t must fit in an uint64_t");
@@ -515,8 +515,7 @@ bool tn_net_device_init(const struct os_pci_address pci_address, struct tn_net_d
 	// (Section 9.3.3.2 Device ID Register mentions 0x10D8 as the default, but the card has to overwrite that default with its actual ID)
 	uint32_t pci_id = pcireg_read(pci_address, PCIREG_ID);
 	if (pci_id != ((0x10FBu << 16) | 0x8086u)) {
-		os_debug("PCI device is not what was expected");
-		return false;
+		os_fatal("PCI device is not what was expected");
 	}
 
 	// By assumption PCIBRIDGES, the bridges will not get in our way
@@ -525,8 +524,7 @@ bool tn_net_device_init(const struct os_pci_address pci_address, struct tn_net_d
 	// "No_Soft_Reset. This bit is always set to 0b to indicate that the 82599 performs an internal reset upon transitioning from D3hot to D0 via software control of the PowerState bits."
 	// Thus, the device cannot go from D3 to D0 without resetting, which would mean losing the BARs.
 	if (!pcireg_is_field_cleared(pci_address, PCIREG_PMCSR, PCIREG_PMCSR_POWER_STATE)) {
-		os_debug("PCI device not in D0.");
-		return false;
+		os_fatal("PCI device not in D0.");
 	}
 	// The bus master may not be enabled; enable it just in case.
 	pcireg_set_field(pci_address, PCIREG_COMMAND, PCIREG_COMMAND_BUS_MASTER_ENABLE);
@@ -539,22 +537,21 @@ bool tn_net_device_init(const struct os_pci_address pci_address, struct tn_net_d
 	uint32_t pci_bar0low = pcireg_read(pci_address, PCIREG_BAR0_LOW);
 	// Sanity check: a 64-bit BAR must have bit 2 of low as 1 and bit 1 of low as 0 as per Table 9-4 Base Address Registers' Fields
 	if ((pci_bar0low & BIT(2)) == 0 || (pci_bar0low & BIT(1)) != 0) {
-		os_debug("BAR0 is not a 64-bit BAR");
-		return false;
+		os_fatal("BAR0 is not a 64-bit BAR");
 	}
 	uint32_t pci_bar0high = pcireg_read(pci_address, PCIREG_BAR0_HIGH);
 	// No need to detect the size, since we know exactly which device we're dealing with. (This also means no writes to BARs, one less chance to mess everything up)
 
-	struct tn_net_device device = { 0 };
+	struct tn_net_device* device = os_memory_alloc(1, sizeof(struct tn_net_device));
 	// Section 9.3.6.1 Memory and IO Base Address Registers:
 	// As indicated in Table 9-4, the low 4 bits are read-only and not part of the address
 	uintptr_t dev_phys_addr = (((uint64_t) pci_bar0high) << 32) | (pci_bar0low & ~BITS(0,3));
 	// Section 8.1 Address Regions: "Region Size" of "Internal registers memories and Flash (memory BAR)" is "128 KB + Flash_Size"
 	// Thus we can ask for 128KB, since we don't know the flash size (and don't need it thus no need to actually check it)
-	device.addr = os_memory_phys_to_virt(dev_phys_addr, 128 * 1024);
+	device->addr = os_memory_phys_to_virt(dev_phys_addr, 128 * 1024);
 
 	// TODO either make os_debug support formatting or remove this
-	//os_debug("Device %02" PRIx8 ":%02" PRIx8 ".%" PRIx8 " mapped to %p", pci_address.bus, pci_address.device, pci_address.function, device.addr);
+	//os_debug("Device %02" PRIx8 ":%02" PRIx8 ".%" PRIx8 " mapped to %p", pci_address.bus, pci_address.device, pci_address.function, device->addr);
 
 	// "The following sequence of commands is typically issued to the device by the software device driver in order to initialize the 82599 for normal operation.
 	//  The major initialization steps are:"
@@ -577,56 +574,54 @@ bool tn_net_device_init(const struct os_pci_address pci_address, struct tn_net_d
 	for (size_t queue = 0; queue < RECEIVE_QUEUES_COUNT; queue++) {
 		// Section 4.6.7.1.2 [Dynamic] Disabling [of Receive Queues]
 		// "Disable the queue by clearing the RXDCTL.ENABLE bit."
-		reg_clear_field(device.addr, REG_RXDCTL(queue), REG_RXDCTL_ENABLE);
+		reg_clear_field(device->addr, REG_RXDCTL(queue), REG_RXDCTL_ENABLE);
 		// "The 82599 clears the RXDCTL.ENABLE bit only after all pending memory accesses to the descriptor ring are done.
 		//  The driver should poll this bit before releasing the memory allocated to this queue."
 		// INTERPRETATION-MISSING: There is no mention of what to do if the 82599 never clears the bit; 1s seems like a decent timeout
-		IF_AFTER_TIMEOUT(1000 * 1000, !reg_is_field_cleared(device.addr, REG_RXDCTL(queue), REG_RXDCTL_ENABLE)) {
-			os_debug("RXDCTL.ENABLE did not clear, cannot disable receive to reset");
-			return false;
+		IF_AFTER_TIMEOUT(1000 * 1000, !reg_is_field_cleared(device->addr, REG_RXDCTL(queue), REG_RXDCTL_ENABLE)) {
+			os_fatal("RXDCTL.ENABLE did not clear, cannot disable receive to reset");
 		}
 		// "Once the RXDCTL.ENABLE bit is cleared the driver should wait additional amount of time (~100 us) before releasing the memory allocated to this queue."
 		os_clock_sleep_ns(100 * 1000);
 	}
 	//   "Then the device driver sets the PCIe Master Disable bit [in the Device Status register] when notified of a pending master disable (or D3 entry)."
-	reg_set_field(device.addr, REG_CTRL, REG_CTRL_MASTER_DISABLE);
+	reg_set_field(device->addr, REG_CTRL, REG_CTRL_MASTER_DISABLE);
 	//   "The 82599 then blocks new requests and proceeds to issue any pending requests by this function.
 	//    The driver then reads the change made to the PCIe Master Disable bit and then polls the PCIe Master Enable Status bit.
 	//    Once the bit is cleared, it is guaranteed that no requests are pending from this function."
 	// INTERPRETATION-MISSING: The next sentence refers to "a given time"; let's say 1 second should be plenty...
 	//   "The driver might time out if the PCIe Master Enable Status bit is not cleared within a given time."
-	IF_AFTER_TIMEOUT(1000 * 1000, !reg_is_field_cleared(device.addr, REG_STATUS, REG_STATUS_PCIE_MASTER_ENABLE_STATUS)) {
+	IF_AFTER_TIMEOUT(1000 * 1000, !reg_is_field_cleared(device->addr, REG_STATUS, REG_STATUS_PCIE_MASTER_ENABLE_STATUS)) {
 		// "In these cases, the driver should check that the Transaction Pending bit (bit 5) in the Device Status register in the PCI config space is clear before proceeding.
 		//  In such cases the driver might need to initiate two consecutive software resets with a larger delay than 1 us between the two of them."
 		// INTERPRETATION-MISSING: Might? Let's say this is a must, and that we assume the software resets work...
 		if (!pcireg_is_field_cleared(pci_address, PCIREG_DEVICESTATUS, PCIREG_DEVICESTATUS_TRANSACTIONPENDING)) {
-			os_debug("DEVICESTATUS.TRANSACTIONPENDING did not clear, cannot perform master disable to reset");
-			return false;
+			os_fatal("DEVICESTATUS.TRANSACTIONPENDING did not clear, cannot perform master disable to reset");
 		}
 
 		// "In the above situation, the data path must be flushed before the software resets the 82599.
 		//  The recommended method to flush the transmit data path is as follows:"
 		// "- Inhibit data transmission by setting the HLREG0.LPBK bit and clearing the RXCTRL.RXEN bit.
 		//    This configuration avoids transmission even if flow control or link down events are resumed."
-		reg_set_field(device.addr, REG_HLREG0, REG_HLREG0_LPBK);
-		reg_clear_field(device.addr, REG_RXCTRL, REG_RXCTRL_RXEN);
+		reg_set_field(device->addr, REG_HLREG0, REG_HLREG0_LPBK);
+		reg_clear_field(device->addr, REG_RXCTRL, REG_RXCTRL_RXEN);
 
 		// "- Set the GCR_EXT.Buffers_Clear_Func bit for 20 microseconds to flush internal buffers."
-		reg_set_field(device.addr, REG_GCREXT, REG_GCREXT_BUFFERS_CLEAR_FUNC);
+		reg_set_field(device->addr, REG_GCREXT, REG_GCREXT_BUFFERS_CLEAR_FUNC);
 		os_clock_sleep_ns(20 * 1000);
 
 		// "- Clear the HLREG0.LPBK bit and the GCR_EXT.Buffers_Clear_Func"
-		reg_clear_field(device.addr, REG_HLREG0, REG_HLREG0_LPBK);
-		reg_clear_field(device.addr, REG_GCREXT, REG_GCREXT_BUFFERS_CLEAR_FUNC);
+		reg_clear_field(device->addr, REG_HLREG0, REG_HLREG0_LPBK);
+		reg_clear_field(device->addr, REG_GCREXT, REG_GCREXT_BUFFERS_CLEAR_FUNC);
 
 		// "- It is now safe to issue a software reset."
 		// see just below for an explanation of this line
-		reg_set_field(device.addr, REG_CTRL, REG_CTRL_RST);
+		reg_set_field(device->addr, REG_CTRL, REG_CTRL_RST);
 		os_clock_sleep_ns(2 * 1000);
 	}
 	// happy path, back to Section 4.2.1.6.1:
 	// "Software reset is done by writing to the Device Reset bit of the Device Control register (CTRL.RST)."
-	reg_set_field(device.addr, REG_CTRL, REG_CTRL_RST);
+	reg_set_field(device->addr, REG_CTRL, REG_CTRL_RST);
 	// Section 8.2.3.1.1 Device Control Register
 	// "To ensure that a global device reset has fully completed and that the 82599 responds to subsequent accesses,
 	//  programmers must wait approximately 1 ms after setting before attempting to check if the bit has cleared or to access (read or write) any other device register."
@@ -637,9 +632,9 @@ bool tn_net_device_init(const struct os_pci_address pci_address, struct tn_net_d
 	//	Section 8.2.3.5.4 Extended Interrupt Mask Clear Register (EIMC):
 	//	"Writing a 1b to any bit clears its corresponding bit in the EIMS register disabling the corresponding interrupt in the EICR register. Writing 0b has no impact"
 	//	Note that the first register has its bit 31 reserved.
-	reg_write(device.addr, REG_EIMC(0), 0x7FFFFFFFu);
+	reg_write(device->addr, REG_EIMC(0), 0x7FFFFFFFu);
 	for (size_t n = 1; n < INTERRUPT_REGISTERS_COUNT; n++) {
-		reg_write(device.addr, REG_EIMC(n), 0xFFFFFFFFu);
+		reg_write(device->addr, REG_EIMC(n), 0xFFFFFFFFu);
 	}
 	//	"To enable flow control, program the FCTTV, FCRTL, FCRTH, FCRTV and FCCFG registers.
 	//	 If flow control is not enabled, these registers should be written with 0x0.
@@ -668,26 +663,23 @@ bool tn_net_device_init(const struct os_pci_address pci_address, struct tn_net_d
 	// INTERPRETATION-MISSING: We assume that the "RXPBSIZE[n]-0x6000" calculation above refers to the RXPBSIZE in bytes (otherwise the size of FCRTH[n].RTH would be negative by default...)
 	// INTERPRETATION-CONTRADICTION: The granularity has to refer to the reserved bits, otherwise there is not enough space for meaningful values.
 	//                         Thus we set FCRTH[0].RTH = (512 * 1024 - 0x6000) / 32
-	reg_write_field(device.addr, REG_FCRTH(0), REG_FCRTH_RTH, (512 * 1024 - 0x6000) / 32);
+	reg_write_field(device->addr, REG_FCRTH(0), REG_FCRTH_RTH, (512 * 1024 - 0x6000) / 32);
 	// "- Wait for EEPROM auto read completion."
 	// INTERPRETATION-MISSING: This refers to Section 8.2.3.2.1 EEPROM/Flash Control Register (EEC), Bit 9 "EEPROM Auto-Read Done"
 	// INTERPRETATION-MISSING: No timeout is mentioned, so we use 1s.
-	IF_AFTER_TIMEOUT(1000 * 1000, reg_is_field_cleared(device.addr, REG_EEC, REG_EEC_AUTO_RD)) {
-		os_debug("EEPROM auto read timed out");
-		return false;
+	IF_AFTER_TIMEOUT(1000 * 1000, reg_is_field_cleared(device->addr, REG_EEC, REG_EEC_AUTO_RD)) {
+		os_fatal("EEPROM auto read timed out");
 	}
 	// INTERPRETATION-MISSING: We also need to check bit 8 of the same register, "EEPROM Present", which indicates "EEPROM is present and has the correct signature field. This bit is read-only.",
 	//                 since bit 9 "is also set when the EEPROM is not present or whether its signature field is not valid."
 	// INTERPRETATION-MISSING: We also need to check whether the EEPROM has a valid checksum, using the FWSM's register EXT_ERR_IND, where "0x00 = No error"
-	if (reg_is_field_cleared(device.addr, REG_EEC, REG_EEC_EE_PRES) || !reg_is_field_cleared(device.addr, REG_FWSM, REG_FWSM_EXT_ERR_IND)) {
-		os_debug("EEPROM not present or invalid");
-		return false;
+	if (reg_is_field_cleared(device->addr, REG_EEC, REG_EEC_EE_PRES) || !reg_is_field_cleared(device->addr, REG_FWSM, REG_FWSM_EXT_ERR_IND)) {
+		os_fatal("EEPROM not present or invalid");
 	}
 	// "- Wait for DMA initialization done (RDRXCTL.DMAIDONE)."
 	// INTERPRETATION-MISSING: Once again, no timeout mentioned, so we use 1s
-	IF_AFTER_TIMEOUT(1000 * 1000, reg_is_field_cleared(device.addr, REG_RDRXCTL, REG_RDRXCTL_DMAIDONE)) {
-		os_debug("DMA init timed out");
-		return false;
+	IF_AFTER_TIMEOUT(1000 * 1000, reg_is_field_cleared(device->addr, REG_RDRXCTL, REG_RDRXCTL_DMAIDONE)) {
+		os_fatal("DMA init timed out");
 	}
 	// "- Setup the PHY and the link (see Section 4.6.4)."
 	//	Section 8.2.3.22.19 Auto Negotiation Control Register (AUTOC):
@@ -713,7 +705,7 @@ bool tn_net_device_init(const struct os_pci_address pci_address, struct tn_net_d
 	//		"There is one register per 32 bits of the unicast address table"
 	//		"This table should be zeroed by software before start of operation."
 	for (size_t n = 0; n < UNICAST_TABLE_ARRAY_SIZE / 32; n++) {
-		reg_clear(device.addr, REG_PFUTA(n));
+		reg_clear(device->addr, REG_PFUTA(n));
 	}
 	//	"- VLAN Filter Table Array (VFTA[n])."
 	//	Section 7.1.1.2 VLAN Filtering:
@@ -726,7 +718,7 @@ bool tn_net_device_init(const struct os_pci_address pci_address, struct tn_net_d
 	// 	Section 8.2.3.27.15 PF VM VLAN Pool Filter (PFVLVF[n]):
 	//		"Software should initialize these registers before transmit and receive are enabled."
 	for (size_t n = 0; n < POOLS_COUNT; n++) {
-		reg_clear(device.addr, REG_PFVLVF(n));
+		reg_clear(device->addr, REG_PFVLVF(n));
 	}
 	//	"- MAC Pool Select Array (MPSAR[n])."
 	//	Section 8.2.3.7.10 MAC Pool Select Array (MPSAR[n]):
@@ -736,22 +728,22 @@ bool tn_net_device_init(const struct os_pci_address pci_address, struct tn_net_d
 	//		 Bit 'i' in register '2*n' is associated with POOL 'i'.
 	//		 Bit 'i' in register '2*n+1' is associated with POOL '32+i'."
 	// INTERPRETATION-MISSING: We should enable pool 0 with address 0 and disable everything else since we only have 1 MAC address.
-	reg_write(device.addr, REG_MPSAR(0), 1);
+	reg_write(device->addr, REG_MPSAR(0), 1);
 	for (size_t n = 1; n < RECEIVE_ADDRS_COUNT * 2; n++) {
-		reg_clear(device.addr, REG_MPSAR(n));
+		reg_clear(device->addr, REG_MPSAR(n));
 	}
 	//	"- VLAN Pool Filter Bitmap (PFVLVFB[n])."
 	// INTERPRETATION-MISSING: See above remark on PFVLVF
 	//	Section 8.2.3.27.16: PF VM VLAN Pool Filter Bitmap
 	for (size_t n = 0; n < POOLS_COUNT * 2; n++) {
-		reg_clear(device.addr, REG_PFVLVFB(n));
+		reg_clear(device->addr, REG_PFVLVFB(n));
 	}
 	//	"Set up the Multicast Table Array (MTA) registers.
 	//	 This entire table should be zeroed and only the desired multicast addresses should be permitted (by writing 0x1 to the corresponding bit location).
 	//	 Set the MCSTCTRL.MFE bit if multicast filtering is required."
 	// Section 8.2.3.7.7 Multicast Table Array (MTA[n]): "Word wide bit vector specifying 32 bits in the multicast address filter table."
 	for (size_t n = 0; n < MULTICAST_TABLE_ARRAY_SIZE / 32; n++) {
-		reg_clear(device.addr, REG_MTA(n));
+		reg_clear(device->addr, REG_MTA(n));
 	}
 	//	"Initialize the flexible filters 0...5 - Flexible Host Filter Table registers (FHFT)."
 	//	Section 5.3.3.2 Flexible Filter:
@@ -802,7 +794,7 @@ bool tn_net_device_init(const struct os_pci_address pci_address, struct tn_net_d
 	//		"Queue Enable, bit 31; When set, enables filtering of Rx packets by the 5-tuple defined in this filter to the queue indicated in register L34TIMIR."
 	// We clear Queue Enable. We then do not need to deal with SAQF, DAQF, SDPQF, SYNQF, by assumption NOWANT
 	for (size_t n = 0; n < FIVETUPLE_FILTERS_COUNT; n++) {
-		reg_clear_field(device.addr, REG_FTQF(n), REG_FTQF_QUEUE_ENABLE);
+		reg_clear_field(device->addr, REG_FTQF(n), REG_FTQF_QUEUE_ENABLE);
 	}
 	//	Section 7.1.2.3 L2 Ethertype Filters:
 	//		"The following flow is used by the Ethertype filters:
@@ -813,15 +805,15 @@ bool tn_net_device_init(const struct os_pci_address pci_address, struct tn_net_d
 	//	Section 8.2.3.8.8 Receive DMA Control Register (RDRXCTL):
 	//		The only non-reserved, non-RO bit is "CRCStrip, bit 1, Init val 0; 0b = No CRC Strip by HW."
 	// By assumption CRC, we enable CRCStrip
-	reg_set_field(device.addr, REG_RDRXCTL, REG_RDRXCTL_CRC_STRIP);
+	reg_set_field(device->addr, REG_RDRXCTL, REG_RDRXCTL_CRC_STRIP);
 	//	"Note that RDRXCTL.CRCStrip and HLREG0.RXCRCSTRP must be set to the same value. At the same time the RDRXCTL.RSCFRSTSIZE should be set to 0x0 as opposed to its hardware default."
 	// As explained earlier, HLREG0.RXCRCSTRP is already set to 1, so that's fine
-	reg_clear_field(device.addr, REG_RDRXCTL, REG_RDRXCTL_RSCFRSTSIZE);
+	reg_clear_field(device->addr, REG_RDRXCTL, REG_RDRXCTL_RSCFRSTSIZE);
 	//	Section 8.2.3.8.8 Receive DMA Control Register (RDRXCTL):
 	//		"RSCACKC [...] Software should set this bit to 1b."
-	reg_set_field(device.addr, REG_RDRXCTL, REG_RDRXCTL_RSCACKC);
+	reg_set_field(device->addr, REG_RDRXCTL, REG_RDRXCTL_RSCACKC);
 	//		"FCOE_WRFIX [...] Software should set this bit to 1b."
-	reg_set_field(device.addr, REG_RDRXCTL, REG_RDRXCTL_FCOE_WRFIX);
+	reg_set_field(device->addr, REG_RDRXCTL, REG_RDRXCTL_FCOE_WRFIX);
 	// INTERPRETATION-MISSING: The setup forgets to mention RSCACKC and FCOE_WRFIX, but we should set those properly anyway.
 	//	Section 8.2.3.8.12 RSC Data Buffer Control Register (RSCDBU):
 	//		The only non-reserved bit is "RSCACKDIS, bit 7, init val 0b; Disable RSC for ACK Packets."
@@ -836,7 +828,7 @@ bool tn_net_device_init(const struct os_pci_address pci_address, struct tn_net_d
 	//			"The default size of PB[1-7] is also 512 KB but it is meaningless in non-DCB mode."
 	// INTERPRETATION-CONTRADICTION: We're told to clear PB[1-7] but also that it's meaningless. Let's clear it just in case...
 	for (size_t n = 1; n < TRAFFIC_CLASSES_COUNT; n++) {
-		reg_clear(device.addr, REG_RXPBSIZE(n));
+		reg_clear(device->addr, REG_RXPBSIZE(n));
 	}
 	//		"- MRQC"
 	//			"- Set MRQE to 0xxxb, with the three least significant bits set according to the RSS mode"
@@ -856,14 +848,14 @@ bool tn_net_device_init(const struct os_pci_address pci_address, struct tn_net_d
 	//		Section 8.2.3.22.34 MAC Flow Control Register (MFLCN): "RPFCE, Init val 0b"
 	// Thus we do not need to modify MFLCN.RPFCE.
 	//		"- Enable receive legacy flow control via: MFLCN.RFCE=1b"
-	reg_set_field(device.addr, REG_MFLCN, REG_MFLCN_RFCE);
+	reg_set_field(device->addr, REG_MFLCN, REG_MFLCN_RFCE);
 	//		"- Enable transmit legacy flow control via: FCCFG.TFCE=01b"
-	reg_write_field(device.addr, REG_FCCFG, REG_FCCFG_TFCE, 1);
+	reg_write_field(device->addr, REG_FCCFG, REG_FCCFG_TFCE, 1);
 	//		"Reset all arbiters:"
 	//		"- Clear RTTDT1C register, per each queue, via setting RTTDQSEL first"
 	for (size_t n = 0; n < TRANSMIT_QUEUES_COUNT; n++) {
-		reg_write(device.addr, REG_RTTDQSEL, n);
-		reg_clear(device.addr, REG_RTTDT1C);
+		reg_write(device->addr, REG_RTTDQSEL, n);
+		reg_clear(device->addr, REG_RTTDT1C);
 	}
 	//		"- Clear RTTDT2C[0-7] registers"
 	// INTERPRETATION-POINTLESS: Section 8.2.3.10.9 DCB Transmit Descriptor Plane T2 Config (RTTDT2C) states the init val of all fields is 0, thus they are already cleared
@@ -920,7 +912,7 @@ bool tn_net_device_init(const struct os_pci_address pci_address, struct tn_net_d
 	// We do not need to modify DTXTCPFLGL/H by assumption TRUST.
 	// We do not need to modify DCA parameters by assumption NOWANT.
 	//		"- Set RTTDCS.ARBDIS to 1b."
-	reg_set_field(device.addr, REG_RTTDCS, REG_RTTDCS_ARBDIS);
+	reg_set_field(device->addr, REG_RTTDCS, REG_RTTDCS_ARBDIS);
 	//		"- Program DTXMXSZRQ, TXPBSIZE, TXPBTHRESH, MTQC, and MNGTXMAP, according to the DCB and virtualization modes (see Section 4.6.11.3)."
 	//		Section 4.6.11.3.4 DCB-Off, VT-Off:
 	//			"Set the configuration bits as specified in Section 4.6.11.3.1 with the following exceptions:"
@@ -930,7 +922,7 @@ bool tn_net_device_init(const struct os_pci_address pci_address, struct tn_net_d
 	//				"At default setting (no DCB) only packet buffer 0 is enabled and TXPBSIZE values for TC 1-7 are meaningless."
 	// INTERPRETATION-CONTRADICTION: We're both told to clear TXPBSIZE[1-7] and that it's meaningless. Let's clear it to be safe.
 	for (size_t n = 1; n < TRAFFIC_CLASSES_COUNT; n++) {
-		reg_clear(device.addr, REG_TXPBSIZE(n));
+		reg_clear(device->addr, REG_TXPBSIZE(n));
 	}
 	//			"- TXPBTHRESH.THRESH[0]=0xA0 - Maximum expected Tx packet length in this TC TXPBTHRESH.THRESH[1-7]=0x0"
 	// INTERPRETATION-TYPO: Typo in the spec; should be TXPBTHRESH[0].THRESH
@@ -939,7 +931,7 @@ bool tn_net_device_init(const struct os_pci_address pci_address, struct tn_net_d
 	// INTERPRETATION-TYPO: Typo in the spec, this refers to TXPBTHRESH, not TXPBSIZE.
 	// Thus we need to set TXPBTHRESH[0] but not TXPBTHRESH[1-7].
 	// Note that TXPBTHRESH is in kilobytes, so we should convert the packet buffer size accordingly
-	reg_write_field(device.addr, REG_TXPBTHRESH(0), REG_TXPBTHRESH_THRESH, 0xA0u - (PACKET_BUFFER_SIZE / 1024u));
+	reg_write_field(device->addr, REG_TXPBTHRESH(0), REG_TXPBTHRESH_THRESH, 0xA0u - (PACKET_BUFFER_SIZE / 1024u));
 	//		"- MTQC"
 	//			"- Clear both RT_Ena and VT_Ena bits in the MTQC register."
 	//			"- Set MTQC.NUM_TC_OR_Q to 00b."
@@ -949,26 +941,23 @@ bool tn_net_device_init(const struct os_pci_address pci_address, struct tn_net_d
 	//				"NUM_TC_OR_Q, Init val 00b"
 	// Thus we do not need to modify MTQC.
 	//		"- DMA TX TCP Maximum Allowed Size Requests (DTXMXSZRQ) - set Max_byte_num_req = 0xFFF = 1 MB"
-	reg_write_field(device.addr, REG_DTXMXSZRQ, REG_DTXMXSZRQ_MAX_BYTES_NUM_REQ, 0xFFF);
+	reg_write_field(device->addr, REG_DTXMXSZRQ, REG_DTXMXSZRQ_MAX_BYTES_NUM_REQ, 0xFFF);
 	// INTERPRETATION-MISSING: Section 4.6.11.3 does not refer to MNGTXMAP, but since it's a management-related register we can ignore it here.
 	//		"- Clear RTTDCS.ARBDIS to 0b"
-	reg_clear_field(device.addr, REG_RTTDCS, REG_RTTDCS_ARBDIS);
+	reg_clear_field(device->addr, REG_RTTDCS, REG_RTTDCS_ARBDIS);
 	// We've already done DCB/VT config earlier, no need to do anything here.
 	// "- Enable interrupts (see Section 4.6.3.1)."
 	// 	Section 4.6.3.1 Interrupts During Initialization "After initialization completes, a typical driver enables the desired interrupts by writing to the IMS register."
 	// We don't need to do anything here by assumption NOWANT
 
-	// Do the memory alloc here so we don't have to free it if we fail earlier
-	*out_device = os_memory_alloc(1, sizeof(struct tn_net_device));
-	**out_device = device;
-	return true;
+	return device;
 }
 
 // ----------------------------
 // Section 7.1.1.1 L2 Filtering
 // ----------------------------
 
-bool tn_net_device_set_promiscuous(struct tn_net_device* const device)
+void tn_net_device_set_promiscuous(struct tn_net_device* const device)
 {
 	// "A packet passes successfully through L2 Ethernet MAC address filtering if any of the following conditions are met:"
 	// 	Section 8.2.3.7.1 Filter Control Register:
@@ -988,9 +977,6 @@ bool tn_net_device_set_promiscuous(struct tn_net_device* const device)
 	if (was_rx_enabled) {
 		reg_set_field(device->addr, REG_RXCTRL, REG_RXCTRL_RXEN);
 	}
-
-	// This function cannot fail (for now?)
-	return true;
 }
 
 uint64_t tn_net_device_get_mac(struct tn_net_device* device)

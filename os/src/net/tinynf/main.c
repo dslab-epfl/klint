@@ -70,12 +70,8 @@ int main(int argc, char** argv)
 
 	struct tn_net_device* devices[MAX_DEVICES];
 	for (device_t n = 0; n < devices_count; n++) {
-		if (!tn_net_device_init(pci_addresses[n], &(devices[n]))) {
-			os_fatal("Couldn't init device");
-		}
-		if (!tn_net_device_set_promiscuous(devices[n])) {
-			os_fatal("Couldn't make device promiscuous");
-		}
+		devices[n] = tn_net_device_alloc(pci_addresses[n]);
+		tn_net_device_set_promiscuous(devices[n]);
 		uint64_t device_mac = tn_net_device_get_mac(devices[n]);
 		// DST - TODO have it in config somehow, for now we just use a non-constant
 		device_mac_pairs[n * 12 + 0] = 0;

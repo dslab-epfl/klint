@@ -20,6 +20,9 @@ CFLAGS += -fPIC
 # Don't emit unneeded stuff in the binary
 CFLAGS += -fno-asynchronous-unwind-tables
 
+# Don't protect the stack, the code is verified
+CFLAGS += -fno-stack-protector
+
 # Good warnings, and make them fatal errors to avoid walls of output for minor mistakes
 CFLAGS += -Wall -Wextra -Werror -pedantic -Wshadow -Wstrict-aliasing -Wpadded -Wfatal-errors
 

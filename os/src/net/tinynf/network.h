@@ -1,5 +1,4 @@
-// Originally from the TinyNF project, slightly modified to use the new abstractions
-// The main visible change is the move from a bool* to an uint16_t* for outputs, to allow per-output length
+// Originally from the TinyNF project, modified to use new abstractions
 
 // Network abstractions.
 // A 'device' represents a physical network card: https://en.wikipedia.org/wiki/Network_interface_controller
@@ -12,6 +11,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #include "os/pci.h"
 
@@ -22,9 +22,12 @@
 struct tn_net_device;
 struct tn_net_agent;
 
-bool tn_net_device_init(struct os_pci_address pci_address, struct tn_net_device** out_device);
-bool tn_net_device_set_promiscuous(struct tn_net_device* device);
+struct tn_net_device* tn_net_device_alloc(struct os_pci_address pci_address);
+void tn_net_device_set_promiscuous(struct tn_net_device* device);
 uint64_t tn_net_device_get_mac(struct tn_net_device* device); // only the lowest 48 bits are nonzero, in big-endian
+
+//struct tn_net_agent* tn_net_agent_alloc(struct tn_net_device* input_device, size_t outputs_count, struct tn_net_device* output_devices);
+
 
 struct tn_net_agent* tn_net_agent_alloc(size_t outputs_count);
 bool tn_net_agent_set_input(struct tn_net_agent* agent, struct tn_net_device* device);
@@ -34,7 +37,7 @@ bool tn_net_agent_add_output(struct tn_net_agent* agent, struct tn_net_device* d
 // Packet processing API
 // ---------------------
 
-// Sets outputs[N] = length of the packet on queue N, where 0 means drop (queues are in the order they were added)
+// Sets outputs[N] = length of the packet on device N, where 0 means drop (devices are in the order they were added)
 typedef void tn_net_packet_handler(size_t index, uint8_t* packet, size_t length, size_t* output_lengths);
-// Runs the agents forever using the given handlers
+// Runs the agents forever using the given handler
 _Noreturn void tn_net_run(size_t agents_count, struct tn_net_agent** agents, tn_net_packet_handler* handler);
