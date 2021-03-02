@@ -1009,6 +1009,98 @@ struct tn_net_agent
 	volatile uint32_t** transmit_tail_addrs;
 };
 
+// -------------------------------------
+// Section 4.6.8 Transmit Initialization
+// -------------------------------------
+
+static void tn_net_agent_add_output(struct tn_net_agent* const agent, struct tn_net_device* const device, size_t output_index, size_t queue_index)
+{
+	if (agent->transmit_tail_addrs[output_index] != 0) {
+		os_fatal("Output is already in use");
+	}
+
+	if (queue_index >= TRANSMIT_QUEUES_COUNT) {
+		os_fatal("Transmit queue index is too large");
+	}
+	// See later for details of TXDCTL.ENABLE
+	if (!reg_is_field_cleared(device->addr, REG_TXDCTL(queue_index), REG_TXDCTL_ENABLE)) {
+		os_fatal("Transmit queue is already in use");
+	}
+
+	// "The following steps should be done once per transmit queue:"
+	// "- Allocate a region of memory for the transmit descriptor list."
+	// Already done in alloc
+	agent->rings[output_index] = os_memory_alloc(IXGBE_RING_SIZE, 2 * sizeof(uint64_t)); // 2x64 bits per descriptor
+	// Program all descriptors' buffer addresses now
+	for (size_t n = 0; n < IXGBE_RING_SIZE; n++) { //! MAP IDX -> uint64_t (with cond for % 2)
+		// Section 7.2.3.2.2 Legacy Transmit Descriptor Format:
+		// "Buffer Address (64)", 1st line offset 0
+		void* packet_addr = agent->buffer + n * PACKET_BUFFER_SIZE;
+		uintptr_t packet_phys_addr = os_memory_virt_to_phys(packet_addr);
+		// INTERPRETATION-MISSING: The data sheet does not specify the endianness of descriptor buffer addresses..
+		// Since Section 1.5.3 Byte Ordering states "Registers not transferred on the wire are defined in little endian notation.", we will assume they are little-endian.
+		agent->rings[output_index][n * 2u] = cpu_to_le64(packet_phys_addr);
+	}
+	// "- Program the descriptor base address with the address of the region (TDBAL, TDBAH)."
+	// 	Section 8.2.3.9.5 Transmit Descriptor Base Address Low (TDBAL[n]):
+	// 	"The Transmit Descriptor Base Address must point to a 128 byte-aligned block of data."
+	// This alignment is guaranteed by the agent initialization
+	uintptr_t ring_phys_addr = os_memory_virt_to_phys((void*) agent->rings[output_index]);
+	reg_write(device->addr, REG_TDBAH(queue_index), (uint32_t) (ring_phys_addr >> 32));
+	reg_write(device->addr, REG_TDBAL(queue_index), (uint32_t) ring_phys_addr);
+	// "- Set the length register to the size of the descriptor ring (TDLEN)."
+	// 	Section 8.2.3.9.7 Transmit Descriptor Length (TDLEN[n]):
+	// 	"This register sets the number of bytes allocated for descriptors in the circular descriptor buffer."
+	// Note that each descriptor is 16 bytes.
+	reg_write(device->addr, REG_TDLEN(queue_index), IXGBE_RING_SIZE * 16u);
+	// "- Program the TXDCTL register with the desired TX descriptor write back policy (see Section 8.2.3.9.10 for recommended values)."
+	//	Section 8.2.3.9.10 Transmit Descriptor Control (TXDCTL[n]):
+	//	"HTHRESH should be given a non-zero value each time PTHRESH is used."
+	//	"For PTHRESH and HTHRESH recommended setting please refer to Section 7.2.3.4."
+	// INTERPRETATION-MISSING: The "recommended values" are in 7.2.3.4.1 very vague; we use (cache line size)/(descriptor size) for HTHRESH (i.e. 64/16 by assumption CACHE),
+	//                         and a completely arbitrary value for PTHRESH
+	// PERFORMANCE: This is required to forward 10G traffic on a single NIC.
+	reg_write_field(device->addr, REG_TXDCTL(queue_index), REG_TXDCTL_PTHRESH, 60);
+	reg_write_field(device->addr, REG_TXDCTL(queue_index), REG_TXDCTL_HTHRESH, 4);
+	// "- If needed, set TDWBAL/TWDBAH to enable head write back."
+	uintptr_t head_phys_addr = os_memory_virt_to_phys((void*) &(agent->transmit_heads[output_index * TRANSMIT_HEAD_MULTIPLIER]));
+	//	Section 7.2.3.5.2 Tx Head Pointer Write Back:
+	//	"The low register's LSB hold the control bits.
+	// 	 * The Head_WB_EN bit enables activation of tail write back. In this case, no descriptor write back is executed.
+	// 	 * The 30 upper bits of this register hold the lowest 32 bits of the head write-back address, assuming that the two last bits are zero."
+	//	"software should [...] make sure the TDBAL value is Dword-aligned."
+	//	Section 8.2.3.9.11 Tx Descriptor completion Write Back Address Low (TDWBAL[n]): "the actual address is Qword aligned"
+	// INTERPRETATION-CONTRADICTION: There is an obvious contradiction here; qword-aligned seems like a safe option since it will also be dword-aligned.
+	// INTERPRETATION-INCORRECT: Empirically, the answer is... 16 bytes. Write-back has no effect otherwise. So both versions are wrong.
+	if (head_phys_addr % 16u != 0) {
+		os_fatal("Transmit head's physical address is not aligned properly");
+	}
+	//	Section 8.2.3.9.11 Tx Descriptor Completion Write Back Address Low (TDWBAL[n]):
+	//	"Head_WB_En, bit 0 [...] 1b = Head write-back is enabled."
+	//	"Reserved, bit 1"
+	reg_write(device->addr, REG_TDWBAH(queue_index), (uint32_t) (head_phys_addr >> 32));
+	reg_write(device->addr, REG_TDWBAL(queue_index), (uint32_t) head_phys_addr | 1u);
+	// INTERPRETATION-MISSING: We must disable relaxed ordering of head pointer write-back, since it could cause the head pointer to be updated backwards
+	reg_clear_field(device->addr, REG_DCATXCTRL(queue_index), REG_DCATXCTRL_TX_DESC_WB_RO_EN);
+	// "- Enable transmit path by setting DMATXCTL.TE.
+	//    This step should be executed only for the first enabled transmit queue and does not need to be repeated for any following queues."
+	if (!device->tx_enabled) {
+		reg_set_field(device->addr, REG_DMATXCTL, REG_DMATXCTL_TE);
+		device->tx_enabled = true;
+	}
+	// "- Enable the queue using TXDCTL.ENABLE.
+	//    Poll the TXDCTL register until the Enable bit is set."
+	// INTERPRETATION-MISSING: No timeout is mentioned here, let's say 1s to be safe.
+	reg_set_field(device->addr, REG_TXDCTL(queue_index), REG_TXDCTL_ENABLE);
+	IF_AFTER_TIMEOUT(1000 * 1000, reg_is_field_cleared(device->addr, REG_TXDCTL(queue_index), REG_TXDCTL_ENABLE)) {
+		os_fatal("TXDCTL.ENABLE did not set, cannot enable queue");
+	}
+	// "Note: The tail register of the queue (TDT) should not be bumped until the queue is enabled."
+	// Nothing to transmit yet, so leave TDT alone.
+
+	agent->transmit_tail_addrs[output_index] = (volatile uint32_t*) ((uint8_t*) device->addr + REG_TDT(queue_index));
+}
+
 // ------------------------------------
 // Section 4.6.7 Receive Initialization
 // ------------------------------------
@@ -1017,6 +1109,9 @@ static void tn_net_agent_set_input(struct tn_net_agent* const agent, struct tn_n
 {
 	if (agent->receive_tail_addr != 0) {
 		os_fatal("Agent receive was already set");
+	}
+	if (agent->transmit_tail_addrs[0] == 0) {
+		os_fatal("Agent transmit was not called for output 0, but must be since descriptor ring 0 is shared");
 	}
 
 	// The 82599 has more than one receive queue, but we only need queue 0
@@ -1029,7 +1124,7 @@ static void tn_net_agent_set_input(struct tn_net_agent* const agent, struct tn_n
 
 	// "The following should be done per each receive queue:"
 	// "- Allocate a region of memory for the receive descriptor list."
-	// Already done in alloc
+	// Already done in add_output 0
 	// "- Receive buffers of appropriate size should be allocated and pointers to these buffers should be stored in the descriptor ring."
 	// This will be done when setting up the first transmit ring
 	// Note that only the first line (buffer address) needs to be configured, the second line is only for write-back except End Of Packet (bit 33)
@@ -1100,98 +1195,6 @@ static void tn_net_agent_set_input(struct tn_net_agent* const agent, struct tn_n
 	agent->receive_tail_addr = (volatile uint32_t*) ((uint8_t*) device->addr + REG_RDT(queue_index));
 }
 
-// -------------------------------------
-// Section 4.6.8 Transmit Initialization
-// -------------------------------------
-
-static void tn_net_agent_add_output(struct tn_net_agent* const agent, struct tn_net_device* const device, size_t output_index, size_t queue_index)
-{
-	if (agent->transmit_tail_addrs[output_index] != 0) {
-		os_fatal("Output is already in use");
-	}
-
-	if (queue_index >= TRANSMIT_QUEUES_COUNT) {
-		os_fatal("Transmit queue index is too large");
-	}
-	// See later for details of TXDCTL.ENABLE
-	if (!reg_is_field_cleared(device->addr, REG_TXDCTL(queue_index), REG_TXDCTL_ENABLE)) {
-		os_fatal("Transmit queue is already in use");
-	}
-
-	// "The following steps should be done once per transmit queue:"
-	// "- Allocate a region of memory for the transmit descriptor list."
-	// Already done in alloc
-	volatile uint64_t* ring = agent->rings[output_index];
-	// Program all descriptors' buffer addresses now
-	for (size_t n = 0; n < IXGBE_RING_SIZE; n++) { //! MAP IDX -> uint64_t (with cond for % 2, if we remove alloc)
-		// Section 7.2.3.2.2 Legacy Transmit Descriptor Format:
-		// "Buffer Address (64)", 1st line offset 0
-		void* packet_addr = agent->buffer + n * PACKET_BUFFER_SIZE;
-		uintptr_t packet_phys_addr = os_memory_virt_to_phys(packet_addr);
-		// INTERPRETATION-MISSING: The data sheet does not specify the endianness of descriptor buffer addresses..
-		// Since Section 1.5.3 Byte Ordering states "Registers not transferred on the wire are defined in little endian notation.", we will assume they are little-endian.
-		ring[n * 2u] = cpu_to_le64(packet_phys_addr);
-	}
-	// "- Program the descriptor base address with the address of the region (TDBAL, TDBAH)."
-	// 	Section 8.2.3.9.5 Transmit Descriptor Base Address Low (TDBAL[n]):
-	// 	"The Transmit Descriptor Base Address must point to a 128 byte-aligned block of data."
-	// This alignment is guaranteed by the agent initialization
-	uintptr_t ring_phys_addr = os_memory_virt_to_phys((void*) ring);
-	reg_write(device->addr, REG_TDBAH(queue_index), (uint32_t) (ring_phys_addr >> 32));
-	reg_write(device->addr, REG_TDBAL(queue_index), (uint32_t) ring_phys_addr);
-	// "- Set the length register to the size of the descriptor ring (TDLEN)."
-	// 	Section 8.2.3.9.7 Transmit Descriptor Length (TDLEN[n]):
-	// 	"This register sets the number of bytes allocated for descriptors in the circular descriptor buffer."
-	// Note that each descriptor is 16 bytes.
-	reg_write(device->addr, REG_TDLEN(queue_index), IXGBE_RING_SIZE * 16u);
-	// "- Program the TXDCTL register with the desired TX descriptor write back policy (see Section 8.2.3.9.10 for recommended values)."
-	//	Section 8.2.3.9.10 Transmit Descriptor Control (TXDCTL[n]):
-	//	"HTHRESH should be given a non-zero value each time PTHRESH is used."
-	//	"For PTHRESH and HTHRESH recommended setting please refer to Section 7.2.3.4."
-	// INTERPRETATION-MISSING: The "recommended values" are in 7.2.3.4.1 very vague; we use (cache line size)/(descriptor size) for HTHRESH (i.e. 64/16 by assumption CACHE),
-	//                         and a completely arbitrary value for PTHRESH
-	// PERFORMANCE: This is required to forward 10G traffic on a single NIC.
-	reg_write_field(device->addr, REG_TXDCTL(queue_index), REG_TXDCTL_PTHRESH, 60);
-	reg_write_field(device->addr, REG_TXDCTL(queue_index), REG_TXDCTL_HTHRESH, 4);
-	// "- If needed, set TDWBAL/TWDBAH to enable head write back."
-	uintptr_t head_phys_addr = os_memory_virt_to_phys((void*) &(agent->transmit_heads[output_index * TRANSMIT_HEAD_MULTIPLIER]));
-	//	Section 7.2.3.5.2 Tx Head Pointer Write Back:
-	//	"The low register's LSB hold the control bits.
-	// 	 * The Head_WB_EN bit enables activation of tail write back. In this case, no descriptor write back is executed.
-	// 	 * The 30 upper bits of this register hold the lowest 32 bits of the head write-back address, assuming that the two last bits are zero."
-	//	"software should [...] make sure the TDBAL value is Dword-aligned."
-	//	Section 8.2.3.9.11 Tx Descriptor completion Write Back Address Low (TDWBAL[n]): "the actual address is Qword aligned"
-	// INTERPRETATION-CONTRADICTION: There is an obvious contradiction here; qword-aligned seems like a safe option since it will also be dword-aligned.
-	// INTERPRETATION-INCORRECT: Empirically, the answer is... 16 bytes. Write-back has no effect otherwise. So both versions are wrong.
-	if (head_phys_addr % 16u != 0) {
-		os_fatal("Transmit head's physical address is not aligned properly");
-	}
-	//	Section 8.2.3.9.11 Tx Descriptor Completion Write Back Address Low (TDWBAL[n]):
-	//	"Head_WB_En, bit 0 [...] 1b = Head write-back is enabled."
-	//	"Reserved, bit 1"
-	reg_write(device->addr, REG_TDWBAH(queue_index), (uint32_t) (head_phys_addr >> 32));
-	reg_write(device->addr, REG_TDWBAL(queue_index), (uint32_t) head_phys_addr | 1u);
-	// INTERPRETATION-MISSING: We must disable relaxed ordering of head pointer write-back, since it could cause the head pointer to be updated backwards
-	reg_clear_field(device->addr, REG_DCATXCTRL(queue_index), REG_DCATXCTRL_TX_DESC_WB_RO_EN);
-	// "- Enable transmit path by setting DMATXCTL.TE.
-	//    This step should be executed only for the first enabled transmit queue and does not need to be repeated for any following queues."
-	if (!device->tx_enabled) {
-		reg_set_field(device->addr, REG_DMATXCTL, REG_DMATXCTL_TE);
-		device->tx_enabled = true;
-	}
-	// "- Enable the queue using TXDCTL.ENABLE.
-	//    Poll the TXDCTL register until the Enable bit is set."
-	// INTERPRETATION-MISSING: No timeout is mentioned here, let's say 1s to be safe.
-	reg_set_field(device->addr, REG_TXDCTL(queue_index), REG_TXDCTL_ENABLE);
-	IF_AFTER_TIMEOUT(1000 * 1000, reg_is_field_cleared(device->addr, REG_TXDCTL(queue_index), REG_TXDCTL_ENABLE)) {
-		os_fatal("TXDCTL.ENABLE did not set, cannot enable queue");
-	}
-	// "Note: The tail register of the queue (TDT) should not be bumped until the queue is enabled."
-	// Nothing to transmit yet, so leave TDT alone.
-
-	agent->transmit_tail_addrs[output_index] = (volatile uint32_t*) ((uint8_t*) device->addr + REG_TDT(queue_index));
-}
-
 // -----------
 // Agent alloc
 // -----------
@@ -1217,18 +1220,14 @@ struct tn_net_agent* tn_net_agent_alloc(size_t input_index, size_t devices_count
 	agent->rings = os_memory_alloc(agent->outputs_count, sizeof(uint64_t*));
 	agent->transmit_tail_addrs = os_memory_alloc(agent->outputs_count, sizeof(uint32_t*));
 
-	for (size_t n = 0; n < agent->outputs_count; n++) { //! MAP IDX -> PTRARRAY
-		agent->rings[n] = os_memory_alloc(IXGBE_RING_SIZE, 16); // 16 bytes per descriptor, i.e., 2x64 bits
-	}
-
-	tn_net_agent_set_input(agent, devices[input_index]);
-
 	for (size_t n = 0; n < devices_count; n++) { //! FOREACH-EXCEPT IDX
 		if (n != input_index) {
 			size_t true_n = n >= input_index ? (n - 1) : n;
 			tn_net_agent_add_output(agent, devices[n], true_n, input_index * agent->outputs_count + true_n);
 		}
 	}
+
+	tn_net_agent_set_input(agent, devices[input_index]);
 
 	return agent;
 }
