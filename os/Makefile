@@ -29,6 +29,9 @@ CFLAGS += '-D NF_CONFIG_FILENAME="$(abspath $(NF_CONFIG_FILENAME))"'
 # Build with the libnf
 LDFLAGS += $(NF)/libnf.so
 
+# Verif
+SRCS += $(shell echo $(THIS_DIR)/src/verif/*.c)
+
 # OS
 include $(THIS_DIR)/src/os/$(OS)/Makefile
 

@@ -9,6 +9,7 @@
 #include "os/clock.h"
 #include "os/error.h"
 #include "os/memory.h"
+#include "verif/functions.h"
 
 #ifndef __cplusplus
 // Don't include <assert.h> since that's not allowed in freestanding implementations
@@ -1032,7 +1033,7 @@ static void tn_net_agent_add_output(struct tn_net_agent* const agent, struct tn_
 	// Already done in alloc
 	agent->rings[output_index] = os_memory_alloc(IXGBE_RING_SIZE, 2 * sizeof(uint64_t)); // 2x64 bits per descriptor
 	// Program all descriptors' buffer addresses now
-	for (size_t n = 0; n < IXGBE_RING_SIZE; n++) { //! MAP IDX -> uint64_t (with cond for % 2)
+	for (size_t n = 0; n < IXGBE_RING_SIZE; n++) { //! MAP IDX -> uint64_t (with cond for % 2) (COLD)
 		// Section 7.2.3.2.2 Legacy Transmit Descriptor Format:
 		// "Buffer Address (64)", 1st line offset 0
 		void* packet_addr = agent->buffer + n * PACKET_BUFFER_SIZE;
@@ -1220,7 +1221,7 @@ struct tn_net_agent* tn_net_agent_alloc(size_t input_index, size_t devices_count
 	agent->rings = os_memory_alloc(agent->outputs_count, sizeof(uint64_t*));
 	agent->transmit_tail_addrs = os_memory_alloc(agent->outputs_count, sizeof(uint32_t*));
 
-	for (size_t n = 0; n < devices_count; n++) { //! FOREACH-EXCEPT IDX
+	for (size_t n = 0; n < devices_count; n++) { //! FOREACH-EXCEPT IDX (COLD)
 		if (n != input_index) {
 			size_t true_n = n >= input_index ? (n - 1) : n;
 			tn_net_agent_add_output(agent, devices[n], true_n, input_index * agent->outputs_count + true_n);
@@ -1236,15 +1237,14 @@ struct tn_net_agent* tn_net_agent_alloc(size_t input_index, size_t devices_count
 // Packet reception
 // ----------------
 
+static void tn_net_agent_flushloop(size_t index, void* state)
+{
+	struct tn_net_agent* agent = (struct tn_net_agent*) state;
+	reg_write_raw(agent->transmit_tail_addrs[index], (uint32_t) agent->processed_delimiter);
+}
+
 size_t tn_net_agent_receive(struct tn_net_agent* agent)
 {
-#ifdef VIGOR_SYMBEX
-	// Not great; but less assumptions than Vigor makes in the DPDK driver patches
-	// The core reason is the same: KLEE cannot reason about "any descriptor in the ring", the descriptor index must be concrete
-	agent->processed_delimiter = 0;
-	agent->flush_counter = IXGBE_AGENT_FLUSH_PERIOD - 1;
-#endif
-
 	// INTERPRETATION-MISSING: The data sheet does not specify the endianness of receive descriptor metadata fields.
 	// Since Section 1.5.3 Byte Ordering states "Registers not transferred on the wire are defined in little endian notation.", we will assume they are little-endian.
 
@@ -1256,9 +1256,7 @@ size_t tn_net_agent_receive(struct tn_net_agent* agent)
 		// No packet; flush if we need to.
 		// This is technically a part of transmission, but we must eventually flush after processing a packet even if no more packets are received
 		if (agent->flush_counter != 0) {
-			for (size_t n = 0; n < agent->outputs_count; n++) { //! FOREACH ARRAY
-				reg_write_raw(agent->transmit_tail_addrs[n], (uint32_t) agent->processed_delimiter);
-			}
+			foreach_index(agent->outputs_count, tn_net_agent_flushloop, agent);
 			agent->flush_counter = 0;
 		}
 
@@ -1272,6 +1270,21 @@ size_t tn_net_agent_receive(struct tn_net_agent* agent)
 // -------------------
 // Packet transmission
 // -------------------
+
+static void tn_net_agent_transmit_descriptorsloop(size_t index, void* state)
+{
+	struct tn_net_agent* agent = (struct tn_net_agent*) state;
+	uint64_t rs_bit = (uint64_t) ((agent->processed_delimiter & (IXGBE_AGENT_RECYCLE_PERIOD - 1)) == (IXGBE_AGENT_RECYCLE_PERIOD - 1)) << (24+3);
+	agent->rings[index][2u*agent->processed_delimiter + 1] = cpu_to_le64((uint64_t) agent->lengths[index] | rs_bit | BITL(24+1) | BITL(24));
+	agent->lengths[index] = 0;
+}
+
+static uint32_t tn_net_agent_transmit_earliesthead(size_t index, void* state, uint32_t* out_arg)
+{
+	struct tn_net_agent* agent = (struct tn_net_agent*) state;
+	*out_arg = le_to_cpu32(agent->transmit_heads[index * TRANSMIT_HEAD_MULTIPLIER]);
+	return *out_arg - agent->processed_delimiter;
+}
 
 void tn_net_agent_transmit(struct tn_net_agent* agent)
 {
@@ -1309,10 +1322,7 @@ void tn_net_agent_transmit(struct tn_net_agent* agent)
 	// Importantly, since bit 32 will stay at 0, and we share the receive ring and the first transmit ring, it will clear the Descriptor Done flag of the receive descriptor.
 	// Not setting the RS bit every time is a huge perf win in throughput (a few Gb/s) with no apparent impact on latency.
 	uint64_t rs_bit = (uint64_t) ((agent->processed_delimiter & (IXGBE_AGENT_RECYCLE_PERIOD - 1)) == (IXGBE_AGENT_RECYCLE_PERIOD - 1)) << (24+3);
-	for (size_t n = 0; n < agent->outputs_count; n++) { //! FOREACH ARRAY  &&  SETZERO ARRAY
-		agent->rings[n][2u*agent->processed_delimiter + 1] = cpu_to_le64((uint64_t) agent->lengths[n] | rs_bit | BITL(24+1) | BITL(24));
-		agent->lengths[n] = 0;
-	}
+	foreach_index(agent->outputs_count, tn_net_agent_transmit_descriptorsloop, agent);
 
 	// Increment the processed delimiter, modulo the ring size
 	agent->processed_delimiter = (agent->processed_delimiter + 1u) & (IXGBE_RING_SIZE - 1);
@@ -1320,28 +1330,16 @@ void tn_net_agent_transmit(struct tn_net_agent* agent)
 	// Flush if we need to; not doing so every time is a huge performance win
 	agent->flush_counter = agent->flush_counter + 1;
 	if (agent->flush_counter == IXGBE_AGENT_FLUSH_PERIOD) {
-		for (size_t n = 0; n < agent->outputs_count; n++) { // FOREACH ARRAY
-			reg_write_raw(agent->transmit_tail_addrs[n], (uint32_t) agent->processed_delimiter);
-		}
+		foreach_index(agent->outputs_count, tn_net_agent_flushloop, agent);
 		agent->flush_counter = 0;
 	}
 
 	// Recycle transmitted descriptors back to receiving
 	// This should happen as rarely as asking the NIC for transmit head updates, thus we reuse rs_bit
 	if (rs_bit != 0) {
-		uint32_t earliest_transmit_head = (uint32_t) agent->processed_delimiter;
-		uint64_t min_diff = (uint64_t) -1;
 		// There is an implicit race condition with the hardware: a transmit head could be updated just after we've read it
 		// but before we write to the receive tail. This is fine; it just means our "earliest transmit head" is not as high as it could be.
-		for (size_t n = 0; n < agent->outputs_count; n++) { //! FOLD ARRAY
-			uint32_t head = le_to_cpu32(agent->transmit_heads[n * TRANSMIT_HEAD_MULTIPLIER]);
-			uint64_t diff = head - agent->processed_delimiter;
-			if (diff <= min_diff) {
-				earliest_transmit_head = head;
-				min_diff = diff;
-			}
-		}
-
+		uint32_t earliest_transmit_head = argmin_uint32(agent->outputs_count, tn_net_agent_transmit_earliesthead, agent);
 		reg_write_raw(agent->receive_tail_addr, (earliest_transmit_head - 1) & (IXGBE_RING_SIZE - 1));
 	}
 }
@@ -1350,17 +1348,29 @@ void tn_net_agent_transmit(struct tn_net_agent* agent)
 // High-level API
 // --------------
 
+struct tn_net_run_state
+{
+	struct tn_net_agent** agents;
+	tn_net_packet_handler* handler;
+};
+
+static void tn_net_run_peragent(size_t index, void* state_)
+{
+	struct tn_net_run_state* state = (struct tn_net_run_state*) state_;
+	size_t length = tn_net_agent_receive(state->agents[index]);
+	if (length != 0) {
+		// This cannot overflow because the packet is by definition in an allocated block of memory
+		uint8_t* packet = state->agents[index]->buffer + (PACKET_BUFFER_SIZE * state->agents[index]->processed_delimiter);
+		state->handler(index, packet, length, state->agents[index]->lengths);
+		tn_net_agent_transmit(state->agents[index]);
+	}
+}
+
 void tn_net_run(size_t agents_count, struct tn_net_agent** agents, tn_net_packet_handler* handler)
 {
-	while (true) { //! FOREVER
-		for (size_t a = 0; a < agents_count; a++) { //! FOREACH PTRARRAY
-			size_t length = tn_net_agent_receive(agents[a]);
-			if (length != 0) {
-				// This cannot overflow because the packet is by definition in an allocated block of memory
-				uint8_t* packet = agents[a]->buffer + (PACKET_BUFFER_SIZE * agents[a]->processed_delimiter);
-				handler(a, packet, length, agents[a]->lengths);
-				tn_net_agent_transmit(agents[a]);
-			}
-		}
-	}
+	struct tn_net_run_state state = {
+		.agents = agents,
+		.handler = handler
+	};
+	foreach_index_forever(agents_count, tn_net_run_peragent, &state);
 }
