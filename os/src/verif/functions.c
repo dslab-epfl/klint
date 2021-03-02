@@ -1,19 +1,17 @@
 #include "verif/functions.h"
 
-#include <stdbool.h>
-
-//#include "os/memory.h"
+#include "os/memory.h"
 
 
-/*void** ptrarray_map(size_t items_count, void** items, map_function* mapper)
+__attribute__((noinline))
+void* map_array(size_t items_size, size_t items_count, void* items, size_t results_size, map_function* mapper)
 {
-	void** result = os_memory_alloc(items_count, sizeof(void*));
-	for (size_t n = 0; n < items_count; n++) {
-		result[n] = mapper(items[n], n);
+	uint8_t* result = os_memory_alloc(items_count, results_size);
+	for (size_t index = 0; index < items_count; index++) {
+		mapper(&(((uint8_t*) items)[index * items_size]), index, &(result[index * results_size]));
 	}
 	return result;
 }
-*/
 
 __attribute__((noinline))
 void foreach_index(size_t length, foreach_index_function* func, void* state)

@@ -3,8 +3,6 @@
 
 #include "network.h"
 
-#include <stdint.h>
-
 #include "arch/endian.h"
 #include "os/clock.h"
 #include "os/error.h"
@@ -468,45 +466,33 @@ static bool reg_is_field_cleared(void* addr, uint32_t reg, uint32_t field)
 }
 
 // Get the value of PCI register 'reg' on the device at address 'addr'
-static uint32_t pcireg_read(struct os_pci_address addr, uint8_t reg)
+static uint32_t pcireg_read(const struct os_pci_address* addr, uint8_t reg)
 {
-	uint32_t value = os_pci_read(addr, reg);
+	uint32_t value = os_pci_read(*addr, reg);
 	//os_debug("IXGBE PCI read: 0x%02" PRIx8 " -> 0x%08" PRIx32, reg, value);
 	return value;
 }
 
 // Check if the field 'field' (from the PCIREG_... #defines) of register 'reg' on the device at address 'addr' is cleared (i.e., reads as all 0s)
-static bool pcireg_is_field_cleared(struct os_pci_address addr, uint8_t reg, uint32_t field)
+static bool pcireg_is_field_cleared(const struct os_pci_address* addr, uint8_t reg, uint32_t field)
 {
 	return (pcireg_read(addr, reg) & field) == 0;
 }
 
 // Set (i.e., write all 1s) the field 'field' (from the PCIREG_... #defines) of register 'reg' on the device at address 'addr'
-static void pcireg_set_field(struct os_pci_address addr, uint8_t reg, uint32_t field)
+static void pcireg_set_field(const struct os_pci_address* addr, uint8_t reg, uint32_t field)
 {
 	uint32_t old_value = pcireg_read(addr, reg);
 	uint32_t new_value = old_value | field;
-	os_pci_write(addr, reg, new_value);
+	os_pci_write(*addr, reg, new_value);
 	//os_debug("IXGBE PCI write: 0x%02" PRIx8 " := 0x%08" PRIx32, reg, new_value);
 }
-
-// -----------------
-// Device definition
-// -----------------
-
-struct tn_net_device
-{
-	void* addr;
-	bool rx_enabled;
-	bool tx_enabled;
-	uint8_t _padding[6];
-};
 
 // -------------------------------------
 // Section 4.6.3 Initialization Sequence
 // -------------------------------------
 
-struct tn_net_device* tn_net_device_alloc(const struct os_pci_address pci_address)
+void tn_device_init(const struct os_pci_address* pci_address, struct tn_device* device)
 {
 	// The NIC supports 64-bit addresses, so pointers can't be larger
 	static_assert(UINTPTR_MAX <= UINT64_MAX, "uintptr_t must fit in an uint64_t");
@@ -543,7 +529,6 @@ struct tn_net_device* tn_net_device_alloc(const struct os_pci_address pci_addres
 	uint32_t pci_bar0high = pcireg_read(pci_address, PCIREG_BAR0_HIGH);
 	// No need to detect the size, since we know exactly which device we're dealing with. (This also means no writes to BARs, one less chance to mess everything up)
 
-	struct tn_net_device* device = os_memory_alloc(1, sizeof(struct tn_net_device));
 	// Section 9.3.6.1 Memory and IO Base Address Registers:
 	// As indicated in Table 9-4, the low 4 bits are read-only and not part of the address
 	uintptr_t dev_phys_addr = (((uint64_t) pci_bar0high) << 32) | (pci_bar0low & ~BITS(0,3));
@@ -552,7 +537,7 @@ struct tn_net_device* tn_net_device_alloc(const struct os_pci_address pci_addres
 	device->addr = os_memory_phys_to_virt(dev_phys_addr, 128 * 1024);
 
 	// TODO either make os_debug support formatting or remove this
-	//os_debug("Device %02" PRIx8 ":%02" PRIx8 ".%" PRIx8 " mapped to %p", pci_address.bus, pci_address.device, pci_address.function, device->addr);
+	//os_debug("Device %02" PRIx8 ":%02" PRIx8 ".%" PRIx8 " mapped to %p", pci_address->bus, pci_address->device, pci_address->function, device->addr);
 
 	// "The following sequence of commands is typically issued to the device by the software device driver in order to initialize the 82599 for normal operation.
 	//  The major initialization steps are:"
@@ -950,15 +935,13 @@ struct tn_net_device* tn_net_device_alloc(const struct os_pci_address pci_addres
 	// "- Enable interrupts (see Section 4.6.3.1)."
 	// 	Section 4.6.3.1 Interrupts During Initialization "After initialization completes, a typical driver enables the desired interrupts by writing to the IMS register."
 	// We don't need to do anything here by assumption NOWANT
-
-	return device;
 }
 
 // ----------------------------
 // Section 7.1.1.1 L2 Filtering
 // ----------------------------
 
-void tn_net_device_set_promiscuous(struct tn_net_device* const device)
+void tn_device_set_promiscuous(struct tn_device* const device)
 {
 	// "A packet passes successfully through L2 Ethernet MAC address filtering if any of the following conditions are met:"
 	// 	Section 8.2.3.7.1 Filter Control Register:
@@ -980,53 +963,30 @@ void tn_net_device_set_promiscuous(struct tn_net_device* const device)
 	}
 }
 
-uint64_t tn_net_device_get_mac(struct tn_net_device* device)
+uint64_t tn_device_get_mac(struct tn_device* device)
 {
 	uint32_t ral = reg_read(device->addr, REG_RAL(0));
 	uint32_t rah = reg_read(device->addr, REG_RAH(0));
 	return ((uint64_t) ral) | ((uint64_t) rah << 32);
 }
 
-// ----------------
-// Agent definition
-// ----------------
-
-struct tn_descriptor
-{
-	uint64_t addr;
-	uint64_t metadata;
-};
-
-struct tn_net_agent
-{
-	uint8_t* buffer;
-	volatile uint32_t* receive_tail_addr;
-	size_t processed_delimiter;
-	size_t outputs_count;
-	size_t flush_counter;
-	size_t* lengths;
-	uint8_t _padding[2*8];
-	// transmit heads must be 16-byte aligned; see alignment remarks in transmit queue setup
-	// (there is also a runtime check to make sure the array itself is aligned properly)
-	// plus, we want each head on its own cache line to avoid conflicts
-	// thus, using assumption CACHE, we multiply indices by 16
-	#define TRANSMIT_HEAD_MULTIPLIER 16
-	volatile uint32_t* transmit_heads;
-	volatile struct tn_descriptor** rings; // 0 == shared receive/transmit, rest are exclusive transmit
-	volatile uint32_t** transmit_tail_addrs;
-};
-
 // -------------------------------------
 // Section 4.6.8 Transmit Initialization
 // -------------------------------------
 
+// Transmit heads must be 16-byte aligned; see alignment remarks in transmit queue setup
+// (there is also a runtime check to make sure the array itself is aligned properly)
+// plus, we want each head on its own cache line to avoid conflicts
+// thus, using assumption CACHE, we multiply indices by 16
+#define TRANSMIT_HEAD_MULTIPLIER 16
+
 struct tn_agent_output_state
 {
-	struct tn_net_agent* agent;
+	struct tn_agent* agent;
 	size_t output_index;
 };
 
-static void tn_net_agent_add_output_ringconfig(size_t index, void* state_)
+static void tn_agent_add_output_ringconfig(size_t index, void* state_)
 {
 	struct tn_agent_output_state* state = (struct tn_agent_output_state*) state_;
 	// Section 7.2.3.2.2 Legacy Transmit Descriptor Format:
@@ -1038,7 +998,7 @@ static void tn_net_agent_add_output_ringconfig(size_t index, void* state_)
 	state->agent->rings[state->output_index][index].addr = cpu_to_le64(packet_phys_addr);
 }
 
-static void tn_net_agent_add_output(struct tn_net_agent* const agent, struct tn_net_device* const device, size_t output_index, size_t queue_index)
+static void tn_agent_add_output(struct tn_agent* const agent, struct tn_device* const device, size_t output_index, size_t queue_index)
 {
 	if (agent->transmit_tail_addrs[output_index] != 0) {
 		os_fatal("Output is already in use");
@@ -1060,7 +1020,7 @@ static void tn_net_agent_add_output(struct tn_net_agent* const agent, struct tn_
 		.agent = agent,
 		.output_index = output_index
 	};
-	foreach_index(IXGBE_RING_SIZE, tn_net_agent_add_output_ringconfig, &ringconfig_state);
+	foreach_index(IXGBE_RING_SIZE, tn_agent_add_output_ringconfig, &ringconfig_state);
 	// "- Program the descriptor base address with the address of the region (TDBAL, TDBAH)."
 	// 	Section 8.2.3.9.5 Transmit Descriptor Base Address Low (TDBAL[n]):
 	// 	"The Transmit Descriptor Base Address must point to a 128 byte-aligned block of data."
@@ -1125,7 +1085,7 @@ static void tn_net_agent_add_output(struct tn_net_agent* const agent, struct tn_
 // Section 4.6.7 Receive Initialization
 // ------------------------------------
 
-static void tn_net_agent_set_input(struct tn_net_agent* const agent, struct tn_net_device* const device)
+static void tn_agent_set_input(struct tn_agent* const agent, struct tn_device* const device)
 {
 	if (agent->receive_tail_addr != 0) {
 		os_fatal("Agent receive was already set");
@@ -1219,23 +1179,23 @@ static void tn_net_agent_set_input(struct tn_net_agent* const agent, struct tn_n
 // Agent alloc
 // -----------
 
-struct tn_net_agent_alloc_state
+struct tn_agent_init_state
 {
 	size_t input_index;
-	struct tn_net_device** devices;
-	struct tn_net_agent* agent;
+	struct tn_device* devices;
+	struct tn_agent* agent;
 };
 
-static void tn_net_agent_alloc_addoutput(size_t index, void* state_)
+static void tn_agent_init_addoutput(size_t index, void* state_)
 {
-	struct tn_net_agent_alloc_state* state = (struct tn_net_agent_alloc_state*) state_;
+	struct tn_agent_init_state* state = (struct tn_agent_init_state*) state_;
 	if (index != state->input_index) {
 		size_t true_index = index > state->input_index ? (index - 1) : index;
-		tn_net_agent_add_output(state->agent, state->devices[index], true_index, state->input_index * state->agent->outputs_count + true_index);
+		tn_agent_add_output(state->agent, &(state->devices[index]), true_index, state->input_index * state->agent->outputs_count + true_index);
 	}
 }
 
-struct tn_net_agent* tn_net_agent_alloc(size_t input_index, size_t devices_count, struct tn_net_device** devices)
+void tn_agent_init(size_t input_index, size_t devices_count, struct tn_device* devices, struct tn_agent* agent)
 {
 	if (devices_count == 0) {
 		os_fatal("No devices given");
@@ -1244,7 +1204,6 @@ struct tn_net_agent* tn_net_agent_alloc(size_t input_index, size_t devices_count
 		os_fatal("Input index out of range");
 	}
 
-	struct tn_net_agent* agent = os_memory_alloc(1, sizeof(struct tn_net_agent));
 	agent->outputs_count = devices_count - 1;
 	if (agent->outputs_count == 0) {
 		os_fatal("No outputs given");
@@ -1252,33 +1211,31 @@ struct tn_net_agent* tn_net_agent_alloc(size_t input_index, size_t devices_count
 
 	agent->buffer = os_memory_alloc(IXGBE_RING_SIZE, PACKET_BUFFER_SIZE);
 	agent->lengths = os_memory_alloc(agent->outputs_count, sizeof(size_t));
-	agent->transmit_heads = os_memory_alloc(agent->outputs_count, TRANSMIT_HEAD_MULTIPLIER * sizeof(uint32_t));
+	agent->transmit_heads = os_memory_alloc(agent->outputs_count * TRANSMIT_HEAD_MULTIPLIER, sizeof(uint32_t));
 	agent->rings = os_memory_alloc(agent->outputs_count, sizeof(struct tn_descriptor*));
 	agent->transmit_tail_addrs = os_memory_alloc(agent->outputs_count, sizeof(uint32_t*));
 
-	struct tn_net_agent_alloc_state state = {
+	struct tn_agent_init_state state = {
 		.input_index = input_index,
 		.devices = devices,
 		.agent = agent
 	};
-	foreach_index(devices_count, tn_net_agent_alloc_addoutput, &state);
+	foreach_index(devices_count, tn_agent_init_addoutput, &state);
 
-	tn_net_agent_set_input(agent, devices[input_index]);
-
-	return agent;
+	tn_agent_set_input(agent, &(devices[input_index]));
 }
 
 // ----------------
 // Packet reception
 // ----------------
 
-static void tn_net_agent_flushloop(size_t index, void* state)
+static void tn_agent_flushloop(size_t index, void* state)
 {
-	struct tn_net_agent* agent = (struct tn_net_agent*) state;
+	struct tn_agent* agent = (struct tn_agent*) state;
 	reg_write_raw(agent->transmit_tail_addrs[index], (uint32_t) agent->processed_delimiter);
 }
 
-size_t tn_net_agent_receive(struct tn_net_agent* agent)
+size_t tn_agent_receive(struct tn_agent* agent)
 {
 	// INTERPRETATION-MISSING: The data sheet does not specify the endianness of receive descriptor metadata fields.
 	// Since Section 1.5.3 Byte Ordering states "Registers not transferred on the wire are defined in little endian notation.", we will assume they are little-endian.
@@ -1290,7 +1247,7 @@ size_t tn_net_agent_receive(struct tn_net_agent* agent)
 		// No packet; flush if we need to.
 		// This is technically a part of transmission, but we must eventually flush after processing a packet even if no more packets are received
 		if (agent->flush_counter != 0) {
-			foreach_index(agent->outputs_count, tn_net_agent_flushloop, agent);
+			foreach_index(agent->outputs_count, tn_agent_flushloop, agent);
 			agent->flush_counter = 0;
 		}
 
@@ -1305,22 +1262,22 @@ size_t tn_net_agent_receive(struct tn_net_agent* agent)
 // Packet transmission
 // -------------------
 
-static void tn_net_agent_transmit_descriptorsloop(size_t index, void* state)
+static void tn_agent_transmit_descriptorsloop(size_t index, void* state)
 {
-	struct tn_net_agent* agent = (struct tn_net_agent*) state;
+	struct tn_agent* agent = (struct tn_agent*) state;
 	uint64_t rs_bit = (uint64_t) ((agent->processed_delimiter & (IXGBE_AGENT_RECYCLE_PERIOD - 1)) == (IXGBE_AGENT_RECYCLE_PERIOD - 1)) << (24+3);
 	agent->rings[index][agent->processed_delimiter].metadata = cpu_to_le64((uint64_t) agent->lengths[index] | rs_bit | BITL(24+1) | BITL(24));
 	agent->lengths[index] = 0;
 }
 
-static uint32_t tn_net_agent_transmit_earliesthead(size_t index, void* state, uint32_t* out_arg)
+static uint32_t tn_agent_transmit_earliesthead(size_t index, void* state, uint32_t* out_arg)
 {
-	struct tn_net_agent* agent = (struct tn_net_agent*) state;
+	struct tn_agent* agent = (struct tn_agent*) state;
 	*out_arg = le_to_cpu32(agent->transmit_heads[index * TRANSMIT_HEAD_MULTIPLIER]);
 	return *out_arg - agent->processed_delimiter;
 }
 
-void tn_net_agent_transmit(struct tn_net_agent* agent)
+void tn_agent_transmit(struct tn_agent* agent)
 {
 	// INTERPRETATION-MISSING: The data sheet does not specify the endianness of transmit descriptor metadata fields, nor of the written-back head pointer.
 	// Since Section 1.5.3 Byte Ordering states "Registers not transferred on the wire are defined in little endian notation.", we will assume they are little-endian.
@@ -1356,7 +1313,7 @@ void tn_net_agent_transmit(struct tn_net_agent* agent)
 	// Importantly, since bit 32 will stay at 0, and we share the receive ring and the first transmit ring, it will clear the Descriptor Done flag of the receive descriptor.
 	// Not setting the RS bit every time is a huge perf win in throughput (a few Gb/s) with no apparent impact on latency.
 	uint64_t rs_bit = (uint64_t) ((agent->processed_delimiter & (IXGBE_AGENT_RECYCLE_PERIOD - 1)) == (IXGBE_AGENT_RECYCLE_PERIOD - 1)) << (24+3);
-	foreach_index(agent->outputs_count, tn_net_agent_transmit_descriptorsloop, agent);
+	foreach_index(agent->outputs_count, tn_agent_transmit_descriptorsloop, agent);
 
 	// Increment the processed delimiter, modulo the ring size
 	agent->processed_delimiter = (agent->processed_delimiter + 1u) & (IXGBE_RING_SIZE - 1);
@@ -1364,7 +1321,7 @@ void tn_net_agent_transmit(struct tn_net_agent* agent)
 	// Flush if we need to; not doing so every time is a huge performance win
 	agent->flush_counter = agent->flush_counter + 1;
 	if (agent->flush_counter == IXGBE_AGENT_FLUSH_PERIOD) {
-		foreach_index(agent->outputs_count, tn_net_agent_flushloop, agent);
+		foreach_index(agent->outputs_count, tn_agent_flushloop, agent);
 		agent->flush_counter = 0;
 	}
 
@@ -1373,7 +1330,7 @@ void tn_net_agent_transmit(struct tn_net_agent* agent)
 	if (rs_bit != 0) {
 		// There is an implicit race condition with the hardware: a transmit head could be updated just after we've read it
 		// but before we write to the receive tail. This is fine; it just means our "earliest transmit head" is not as high as it could be.
-		uint32_t earliest_transmit_head = argmin_uint32(agent->outputs_count, tn_net_agent_transmit_earliesthead, agent);
+		uint32_t earliest_transmit_head = argmin_uint32(agent->outputs_count, tn_agent_transmit_earliesthead, agent);
 		reg_write_raw(agent->receive_tail_addr, (earliest_transmit_head - 1) & (IXGBE_RING_SIZE - 1));
 	}
 }
@@ -1382,31 +1339,31 @@ void tn_net_agent_transmit(struct tn_net_agent* agent)
 // High-level API
 // --------------
 
-struct tn_net_run_state
+struct tn_run_state
 {
-	struct tn_net_agent** agents;
-	tn_net_packet_handler* handler;
+	struct tn_agent* agents;
+	tn_packet_handler* handler;
 };
 
-static bool tn_net_run_peragent(size_t index, void* state_)
+static bool tn_run_peragent(size_t index, void* state_)
 {
-	struct tn_net_run_state* state = (struct tn_net_run_state*) state_;
-	size_t length = tn_net_agent_receive(state->agents[index]);
+	struct tn_run_state* state = (struct tn_run_state*) state_;
+	size_t length = tn_agent_receive(&(state->agents[index]));
 	if (length == 0) {
 		return false;
 	}
 	// This cannot overflow because the packet is by definition in an allocated block of memory
-	uint8_t* packet = state->agents[index]->buffer + (PACKET_BUFFER_SIZE * state->agents[index]->processed_delimiter);
-	state->handler(index, packet, length, state->agents[index]->lengths);
-	tn_net_agent_transmit(state->agents[index]);
+	uint8_t* packet = state->agents[index].buffer + (PACKET_BUFFER_SIZE * state->agents[index].processed_delimiter);
+	state->handler(index, packet, length, state->agents[index].lengths);
+	tn_agent_transmit(&(state->agents[index]));
 	return true;
 }
 
-void tn_net_run(size_t agents_count, struct tn_net_agent** agents, tn_net_packet_handler* handler)
+void tn_run(size_t agents_count, struct tn_agent* agents, tn_packet_handler* handler)
 {
-	struct tn_net_run_state state = {
+	struct tn_run_state state = {
 		.agents = agents,
 		.handler = handler
 	};
-	foreach_index_forever(agents_count, IXGBE_AGENT_FLUSH_PERIOD, tn_net_run_peragent, &state);
+	foreach_index_forever(agents_count, IXGBE_AGENT_FLUSH_PERIOD, tn_run_peragent, &state);
 }

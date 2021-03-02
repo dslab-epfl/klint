@@ -21,7 +21,8 @@ CFLAGS += -fPIC
 CFLAGS += -fno-asynchronous-unwind-tables
 
 # Don't protect the stack, the code is verified
-CFLAGS += -fno-stack-protector
+# NOTE: This is an easy way to change the binary a little bit in case some unrelated change causes the hot path to be slower
+#CFLAGS += -fno-stack-protector
 
 # Good warnings, and make them fatal errors to avoid walls of output for minor mistakes
 CFLAGS += -Wall -Wextra -Werror -pedantic -Wshadow -Wstrict-aliasing -Wpadded -Wfatal-errors

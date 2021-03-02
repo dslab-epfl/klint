@@ -9,6 +9,7 @@
 
 // TODO: Explicitly verify TinyNF assumptions during verif
 
+static struct tn_device* devices;
 static device_t devices_count;
 static struct net_ether_addr* endpoint_macs;
 static struct net_ether_addr* device_macs;
@@ -43,6 +44,38 @@ static void tinynf_packet_handler(size_t index, uint8_t* packet, size_t length, 
 	nf_handle(&pkt);
 }
 
+static void pci_address_to_device(void* item, size_t index, void* result)
+{
+	(void) index;
+	tn_device_init((struct os_pci_address*) item, (struct tn_device*) result);
+}
+
+void device_to_endpoint_mac(void* item, size_t index, void* result)
+{
+	(void) item;
+	// TODO have it in config somehow, in the meantime use a non-constant
+	*((struct net_ether_addr*) result) = (struct net_ether_addr) { .bytes = { 0, index >> 10, index >> 20, index >> 30, index >> 40, 0 } };
+}
+
+static void device_to_device_mac(void* item, size_t index, void* result)
+{
+	(void) index;
+	// TODO maybe network.h should directly use net_ether_addr?
+	uint64_t device_mac = tn_device_get_mac((struct tn_device*) item);
+	*((struct net_ether_addr*) result) = (struct net_ether_addr) { .bytes = { device_mac >> 0, device_mac >> 8, device_mac >> 16, device_mac >> 24, device_mac >> 32, device_mac >> 40 } };
+}
+
+static void device_make_promiscuous(size_t index, void* state)
+{
+	tn_device_set_promiscuous(&(((struct tn_device*) state)[index]));
+}
+
+static void device_to_agent(void* item, size_t index, void* result)
+{
+	(void) item;
+	tn_agent_init(index, devices_count, devices, (struct tn_agent*) result);
+}
+
 int main(int argc, char** argv)
 {
 	(void) argc;
@@ -55,23 +88,13 @@ int main(int argc, char** argv)
 		os_fatal("NF failed to init");
 	}
 
-	struct tn_net_device** devices = os_memory_alloc(devices_count, sizeof(struct tn_net_device*));;
-	endpoint_macs = os_memory_alloc(devices_count, sizeof(struct net_ether_addr));
-	device_macs = os_memory_alloc(devices_count, sizeof(struct net_ether_addr));
-	for (device_t n = 0; n < devices_count; n++) {
-		devices[n] = tn_net_device_alloc(pci_addresses[n]);
-		tn_net_device_set_promiscuous(devices[n]);
-		uint64_t device_mac = tn_net_device_get_mac(devices[n]);
-		// DST - TODO have it in config somehow, in the meantime use a non-constant
-		endpoint_macs[n] = (struct net_ether_addr) { .bytes = { 0, device_mac >> 10, device_mac >> 20, device_mac >> 30, device_mac >> 40, 0 } };
-		// SRC
-		device_macs[n] = (struct net_ether_addr) { .bytes = { device_mac >> 0, device_mac >> 8, device_mac >> 16, device_mac >> 24, device_mac >> 32, device_mac >> 40 } };
-	}
+	devices = map_array(sizeof(struct os_pci_address), devices_count, pci_addresses, sizeof(struct tn_device), pci_address_to_device);
+	foreach_index(devices_count, device_make_promiscuous, devices);
 
-	struct tn_net_agent** agents = os_memory_alloc(devices_count, sizeof(struct tn_net_agent*));
-	for (device_t n = 0; n < devices_count; n++) {
-		agents[n] = tn_net_agent_alloc(n, devices_count, devices);
-	}
+	endpoint_macs = map_array(sizeof(struct tn_device), devices_count, devices, sizeof(struct net_ether_addr), device_to_endpoint_mac);
+	device_macs = map_array(sizeof(struct tn_device), devices_count, devices, sizeof(struct net_ether_addr), device_to_device_mac);
 
-	tn_net_run(devices_count, agents, tinynf_packet_handler);
+	struct tn_agent* agents = map_array(sizeof(struct tn_device), devices_count, devices, sizeof(struct tn_agent), device_to_agent);
+
+	tn_run(devices_count, agents, tinynf_packet_handler);
 }

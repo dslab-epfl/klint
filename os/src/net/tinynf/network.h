@@ -16,24 +16,51 @@
 #include "os/pci.h"
 
 
+// Definitions (should be within ixgbe, but we need sizeof(...) to work, and let's not complicate our life with a void* driver_private or something)
+// -----------
+
+struct tn_device
+{
+	void* addr;
+	bool rx_enabled;
+	bool tx_enabled;
+	uint8_t _padding[6];
+};
+
+struct tn_descriptor
+{
+	uint64_t addr;
+	uint64_t metadata;
+};
+
+struct tn_agent
+{
+	uint8_t* buffer;
+	volatile uint32_t* receive_tail_addr;
+	size_t processed_delimiter;
+	size_t outputs_count;
+	size_t flush_counter;
+	size_t* lengths;
+	volatile uint32_t* transmit_heads;
+	volatile struct tn_descriptor** rings; // 0 == shared receive/transmit, rest are exclusive transmit
+	volatile uint32_t** transmit_tail_addrs;
+};
+
 // Configuration API
 // -----------------
 
-struct tn_net_device;
-struct tn_net_agent;
-
-struct tn_net_device* tn_net_device_alloc(struct os_pci_address pci_address);
-void tn_net_device_set_promiscuous(struct tn_net_device* device);
-uint64_t tn_net_device_get_mac(struct tn_net_device* device); // only the lowest 48 bits are nonzero, in big-endian
+void tn_device_init(const struct os_pci_address* pci_address, struct tn_device* device); // device must be preallocated, will be overwritten
+void tn_device_set_promiscuous(struct tn_device* device);
+uint64_t tn_device_get_mac(struct tn_device* device); // only the lowest 48 bits are nonzero, in big-endian
 
 // Assumes the input should not be an output. (It'd be nice to have the flexibility, but in practice we don't need it for now)
-struct tn_net_agent* tn_net_agent_alloc(size_t input_index, size_t devices_count, struct tn_net_device** devices);
+void tn_agent_init(size_t input_index, size_t devices_count, struct tn_device* devices, struct tn_agent* agent); // agent must be preallocated, will be overwritten
 
 
 // Packet processing API
 // ---------------------
 
 // Sets outputs[N] = length of the packet on device N, where 0 means drop (devices are in the order they were added)
-typedef void tn_net_packet_handler(size_t index, uint8_t* packet, size_t length, size_t* output_lengths);
+typedef void tn_packet_handler(size_t index, uint8_t* packet, size_t length, size_t* output_lengths);
 // Runs the agents forever using the given handler
-_Noreturn void tn_net_run(size_t agents_count, struct tn_net_agent** agents, tn_net_packet_handler* handler);
+_Noreturn void tn_run(size_t agents_count, struct tn_agent* agents, tn_packet_handler* handler);
