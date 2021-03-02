@@ -3,6 +3,7 @@
 #include "os/error.h"
 #include "os/memory.h"
 #include "os/pci.h"
+#include "verif/functions.h"
 
 #include "network.h"
 
@@ -21,15 +22,13 @@ void net_transmit(struct net_packet* packet, device_t device, enum net_transmit_
 		header->src_addr = device_macs[device];
 	}
 
-	device_t true_device = device >= packet->device ? (device - 1) : device;
+	device_t true_device = device > packet->device ? (device - 1) : device;
 	current_output_lengths[true_device] = packet->length;
 }
 
 void net_flood(struct net_packet* packet)
 {
-	for (device_t n = 0; n < devices_count - 1; n++) {
-		current_output_lengths[n] = packet->length;
-	}
+	foreach_index_set(devices_count - 1, current_output_lengths, packet->length);
 }
 
 
@@ -63,7 +62,7 @@ int main(int argc, char** argv)
 		devices[n] = tn_net_device_alloc(pci_addresses[n]);
 		tn_net_device_set_promiscuous(devices[n]);
 		uint64_t device_mac = tn_net_device_get_mac(devices[n]);
-		// DST - TODO have it in config somehow, for now we just use a non-constant
+		// DST - TODO have it in config somehow, in the meantime use a non-constant
 		endpoint_macs[n] = (struct net_ether_addr) { .bytes = { 0, device_mac >> 10, device_mac >> 20, device_mac >> 30, device_mac >> 40, 0 } };
 		// SRC
 		device_macs[n] = (struct net_ether_addr) { .bytes = { device_mac >> 0, device_mac >> 8, device_mac >> 16, device_mac >> 24, device_mac >> 32, device_mac >> 40 } };

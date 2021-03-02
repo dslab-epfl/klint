@@ -42,6 +42,14 @@ void foreach_index_forever(size_t length, size_t batch_hint, foreach_index_forev
 }
 
 __attribute__((noinline))
+void foreach_index_set(size_t length, size_t* array, size_t value)
+{
+	for (size_t index = 0; index < length; index++) {
+		array[index] = value;
+	}
+}
+
+__attribute__((noinline))
 uint32_t argmin_uint32(size_t length, argmin_uint32_function* func, void* state)
 {
 	uint32_t min = (uint32_t) -1;
