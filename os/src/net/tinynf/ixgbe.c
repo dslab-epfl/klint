@@ -991,6 +991,12 @@ uint64_t tn_net_device_get_mac(struct tn_net_device* device)
 // Agent definition
 // ----------------
 
+struct tn_descriptor
+{
+	uint64_t addr;
+	uint64_t metadata;
+};
+
 struct tn_net_agent
 {
 	uint8_t* buffer;
@@ -1006,13 +1012,31 @@ struct tn_net_agent
 	// thus, using assumption CACHE, we multiply indices by 16
 	#define TRANSMIT_HEAD_MULTIPLIER 16
 	volatile uint32_t* transmit_heads;
-	volatile uint64_t** rings; // 0 == shared receive/transmit, rest are exclusive transmit
+	volatile struct tn_descriptor** rings; // 0 == shared receive/transmit, rest are exclusive transmit
 	volatile uint32_t** transmit_tail_addrs;
 };
 
 // -------------------------------------
 // Section 4.6.8 Transmit Initialization
 // -------------------------------------
+
+struct tn_agent_output_state
+{
+	struct tn_net_agent* agent;
+	size_t output_index;
+};
+
+static void tn_net_agent_add_output_ringconfig(size_t index, void* state_)
+{
+	struct tn_agent_output_state* state = (struct tn_agent_output_state*) state_;
+	// Section 7.2.3.2.2 Legacy Transmit Descriptor Format:
+	// "Buffer Address (64)", 1st line offset 0
+	void* packet_addr = state->agent->buffer + index * PACKET_BUFFER_SIZE;
+	uintptr_t packet_phys_addr = os_memory_virt_to_phys(packet_addr);
+	// INTERPRETATION-MISSING: The data sheet does not specify the endianness of descriptor buffer addresses..
+	// Since Section 1.5.3 Byte Ordering states "Registers not transferred on the wire are defined in little endian notation.", we will assume they are little-endian.
+	state->agent->rings[state->output_index][index].addr = cpu_to_le64(packet_phys_addr);
+}
 
 static void tn_net_agent_add_output(struct tn_net_agent* const agent, struct tn_net_device* const device, size_t output_index, size_t queue_index)
 {
@@ -1030,18 +1054,13 @@ static void tn_net_agent_add_output(struct tn_net_agent* const agent, struct tn_
 
 	// "The following steps should be done once per transmit queue:"
 	// "- Allocate a region of memory for the transmit descriptor list."
-	// Already done in alloc
-	agent->rings[output_index] = os_memory_alloc(IXGBE_RING_SIZE, 2 * sizeof(uint64_t)); // 2x64 bits per descriptor
+	agent->rings[output_index] = os_memory_alloc(IXGBE_RING_SIZE, sizeof(struct tn_descriptor));
 	// Program all descriptors' buffer addresses now
-	for (size_t n = 0; n < IXGBE_RING_SIZE; n++) { //! MAP IDX -> uint64_t (with cond for % 2) (COLD)
-		// Section 7.2.3.2.2 Legacy Transmit Descriptor Format:
-		// "Buffer Address (64)", 1st line offset 0
-		void* packet_addr = agent->buffer + n * PACKET_BUFFER_SIZE;
-		uintptr_t packet_phys_addr = os_memory_virt_to_phys(packet_addr);
-		// INTERPRETATION-MISSING: The data sheet does not specify the endianness of descriptor buffer addresses..
-		// Since Section 1.5.3 Byte Ordering states "Registers not transferred on the wire are defined in little endian notation.", we will assume they are little-endian.
-		agent->rings[output_index][n * 2u] = cpu_to_le64(packet_phys_addr);
-	}
+	struct tn_agent_output_state ringconfig_state = {
+		.agent = agent,
+		.output_index = output_index
+	};
+	foreach_index(IXGBE_RING_SIZE, tn_net_agent_add_output_ringconfig, &ringconfig_state);
 	// "- Program the descriptor base address with the address of the region (TDBAL, TDBAH)."
 	// 	Section 8.2.3.9.5 Transmit Descriptor Base Address Low (TDBAL[n]):
 	// 	"The Transmit Descriptor Base Address must point to a 128 byte-aligned block of data."
@@ -1218,7 +1237,7 @@ struct tn_net_agent* tn_net_agent_alloc(size_t input_index, size_t devices_count
 	agent->buffer = os_memory_alloc(IXGBE_RING_SIZE, PACKET_BUFFER_SIZE);
 	agent->lengths = os_memory_alloc(agent->outputs_count, sizeof(size_t));
 	agent->transmit_heads = os_memory_alloc(agent->outputs_count, TRANSMIT_HEAD_MULTIPLIER * sizeof(uint32_t));
-	agent->rings = os_memory_alloc(agent->outputs_count, sizeof(uint64_t*));
+	agent->rings = os_memory_alloc(agent->outputs_count, sizeof(struct tn_descriptor*));
 	agent->transmit_tail_addrs = os_memory_alloc(agent->outputs_count, sizeof(uint32_t*));
 
 	for (size_t n = 0; n < devices_count; n++) { //! FOREACH-EXCEPT IDX (COLD)
@@ -1248,8 +1267,7 @@ size_t tn_net_agent_receive(struct tn_net_agent* agent)
 	// INTERPRETATION-MISSING: The data sheet does not specify the endianness of receive descriptor metadata fields.
 	// Since Section 1.5.3 Byte Ordering states "Registers not transferred on the wire are defined in little endian notation.", we will assume they are little-endian.
 
-	// Since descriptors are 16 bytes, the index must be doubled
-	uint64_t receive_metadata = le_to_cpu64(agent->rings[0][2u*agent->processed_delimiter + 1]);
+	uint64_t receive_metadata = le_to_cpu64(agent->rings[0][agent->processed_delimiter].metadata);
 	// Section 7.1.5 Legacy Receive Descriptor Format:
 	// "Status Field (8-bit offset 32, 2nd line)": Bit 0 = DD, "Descriptor Done."
 	if ((receive_metadata & BITL(32)) == 0) {
@@ -1275,7 +1293,7 @@ static void tn_net_agent_transmit_descriptorsloop(size_t index, void* state)
 {
 	struct tn_net_agent* agent = (struct tn_net_agent*) state;
 	uint64_t rs_bit = (uint64_t) ((agent->processed_delimiter & (IXGBE_AGENT_RECYCLE_PERIOD - 1)) == (IXGBE_AGENT_RECYCLE_PERIOD - 1)) << (24+3);
-	agent->rings[index][2u*agent->processed_delimiter + 1] = cpu_to_le64((uint64_t) agent->lengths[index] | rs_bit | BITL(24+1) | BITL(24));
+	agent->rings[index][agent->processed_delimiter].metadata = cpu_to_le64((uint64_t) agent->lengths[index] | rs_bit | BITL(24+1) | BITL(24));
 	agent->lengths[index] = 0;
 }
 
