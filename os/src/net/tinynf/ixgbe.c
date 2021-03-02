@@ -1219,6 +1219,22 @@ static void tn_net_agent_set_input(struct tn_net_agent* const agent, struct tn_n
 // Agent alloc
 // -----------
 
+struct tn_net_agent_alloc_state
+{
+	size_t input_index;
+	struct tn_net_device** devices;
+	struct tn_net_agent* agent;
+};
+
+static void tn_net_agent_alloc_addoutput(size_t index, void* state_)
+{
+	struct tn_net_agent_alloc_state* state = (struct tn_net_agent_alloc_state*) state_;
+	if (index != state->input_index) {
+		size_t true_index = index > state->input_index ? (index - 1) : index;
+		tn_net_agent_add_output(state->agent, state->devices[index], true_index, state->input_index * state->agent->outputs_count + true_index);
+	}
+}
+
 struct tn_net_agent* tn_net_agent_alloc(size_t input_index, size_t devices_count, struct tn_net_device** devices)
 {
 	if (devices_count == 0) {
@@ -1240,12 +1256,12 @@ struct tn_net_agent* tn_net_agent_alloc(size_t input_index, size_t devices_count
 	agent->rings = os_memory_alloc(agent->outputs_count, sizeof(struct tn_descriptor*));
 	agent->transmit_tail_addrs = os_memory_alloc(agent->outputs_count, sizeof(uint32_t*));
 
-	for (size_t n = 0; n < devices_count; n++) { //! FOREACH-EXCEPT IDX (COLD)
-		if (n != input_index) {
-			size_t true_n = n >= input_index ? (n - 1) : n;
-			tn_net_agent_add_output(agent, devices[n], true_n, input_index * agent->outputs_count + true_n);
-		}
-	}
+	struct tn_net_agent_alloc_state state = {
+		.input_index = input_index,
+		.devices = devices,
+		.agent = agent
+	};
+	foreach_index(devices_count, tn_net_agent_alloc_addoutput, &state);
 
 	tn_net_agent_set_input(agent, devices[input_index]);
 
