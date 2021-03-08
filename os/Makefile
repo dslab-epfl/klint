@@ -26,6 +26,12 @@ CFLAGS += -I$(THIS_DIR)/include
 CFLAGS += '-D OS_CONFIG_FILENAME="$(abspath $(OS_CONFIG_FILENAME))"'
 CFLAGS += '-D NF_CONFIG_FILENAME="$(abspath $(NF_CONFIG_FILENAME))"'
 
+ifeq ($(OS),none)
+# Include the libnf directly
+SRCS += $(shell echo $(NF)/*.c)
+# Shared lib
+CFLAGS += -shared
+else
 # Build with the libnf
 LDFLAGS += $(NF)/libnf.so
 
@@ -37,6 +43,8 @@ include $(THIS_DIR)/src/os/$(OS)/Makefile
 
 # Structs
 SRCS += $(shell echo $(THIS_DIR)/src/structs/*.c)
+endif
+
 
 # Network
 include $(THIS_DIR)/src/net/$(NET)/Makefile

@@ -13,6 +13,7 @@ from binary.externals.os import clock
 from binary.externals.os import config
 from binary.externals.os import error
 from binary.externals.os import memory
+from binary.externals.os import pci
 from binary.externals.compat import memcpy
 from binary.externals.net import packet
 from binary.externals.net import tx
@@ -21,6 +22,7 @@ from binary.externals.structs import map2
 from binary.externals.structs import index_pool
 from binary.externals.structs import cht
 from binary.externals.structs import lpm
+from binary.externals.verif import functions
 from binary.exceptions import SymbexException
 
 init_externals = {
@@ -57,6 +59,17 @@ handle_externals = {
     'lpm_lookup_elem': lpm.LpmLookupElem,
     # whyyy
     'memcpy': memcpy.Memcpy
+}
+
+total_externals = {
+    'os_clock_time_ns': clock.os_clock_time_ns,
+    'os_config_get': config.os_config_get,
+    'os_exit': error.os_exit,
+    'os_memory_alloc': memory.os_memory_alloc,
+    'os_pci_enumerate': pci.os_pci_enumerate,
+    'os_pci_read': pci.os_pci_read,
+    'os_pci_write': pci.os_pci_write,
+    'foreach_index': functions.foreach_index
 }
 
 def nf_init(bin_path, devices_count):
@@ -113,3 +126,9 @@ def execute(bin_path):
                 results += handled_states
     print("NF symbex done! at", datetime.now())
     return (results, devices_count)
+
+def execute_full(bin_path):
+    sm = bin_exec.create_sim_manager(bin_path, total_externals, "main", [0, 0]) # args = argc, argv
+    sm.run()
+    if len(sm.errored) > 0:
+        sm.errored[0].reraise()

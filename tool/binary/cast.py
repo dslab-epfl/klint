@@ -31,3 +31,6 @@ def size_t(o):
 
 def enum(o):
     return _fix(o) # ???
+
+def struct(o):
+    return _fix(o)

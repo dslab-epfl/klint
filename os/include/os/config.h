@@ -9,6 +9,7 @@
 
 
 // Attempts to get a parameter with the given name
+// TODO invert get/try_get names, given semantics...
 bool os_config_get(const char* name, uintmax_t* out_value);
 
 
