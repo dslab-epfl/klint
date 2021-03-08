@@ -5,9 +5,6 @@
 #include <stdint.h>
 
 
-typedef void map_function(void* item, size_t index, void* result);
-void* map_array(size_t items_size, size_t items_count, void* items, size_t results_size, map_function* mapper);
-
 typedef void foreach_index_function(size_t index, void* state);
 void foreach_index(size_t length, foreach_index_function* func, void* state);
 

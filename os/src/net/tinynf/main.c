@@ -70,10 +70,9 @@ static void device_to_device_mac(size_t index, void* state)
 	device_macs[index] = (struct net_ether_addr) { .bytes = { device_mac >> 0, device_mac >> 8, device_mac >> 16, device_mac >> 24, device_mac >> 32, device_mac >> 40 } };
 }
 
-static void device_to_agent(void* item, size_t index, void* result)
+static void device_to_agent(size_t index, void* state)
 {
-	(void) item;
-	tn_agent_init(index, devices_count, devices, (struct tn_agent*) result);
+	tn_agent_init(index, devices_count, devices, &(((struct tn_agent*) state)[index]));
 }
 
 int main(int argc, char** argv)
@@ -97,7 +96,8 @@ int main(int argc, char** argv)
 	device_macs = os_memory_alloc(devices_count, sizeof(struct net_ether_addr));
 	foreach_index(devices_count, device_to_device_mac, (void*) 0);
 
-	struct tn_agent* agents = map_array(sizeof(struct tn_device), devices_count, devices, sizeof(struct tn_agent), device_to_agent);
+	struct tn_agent* agents = os_memory_alloc(devices_count, sizeof(struct tn_agent));
+	foreach_index(devices_count, device_to_agent, agents);
 
 	tn_run(devices_count, agents, tinynf_packet_handler);
 }
