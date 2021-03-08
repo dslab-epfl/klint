@@ -27,7 +27,7 @@ static void fetch_tsc_freq(void)
 }
 
 
-uint64_t os_clock_time_ns(void)
+time_t os_clock_time_ns(void)
 {
 	return rte_rdtsc() * freq_denominator / freq_numerator;
 }

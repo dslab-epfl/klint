@@ -14,7 +14,7 @@
 static uint64_t cpu_freq_numerator;
 static uint64_t cpu_freq_denominator;
 
-static uint64_t linux_read_msr(uint64_t index)
+static uint64_t linux_msr_read(uint64_t index)
 {
 	int msr_fd = open("/dev/cpu/0/msr", O_RDONLY);
 	if (msr_fd == -1) {
@@ -38,11 +38,11 @@ static uint64_t linux_read_msr(uint64_t index)
 __attribute__((constructor))
 static void fetch_tsc_freq(void)
 {
-	tsc_get_nhz(linux_read_msr, &cpu_freq_numerator, &cpu_freq_denominator);
+	tsc_get_nhz(linux_msr_read, &cpu_freq_numerator, &cpu_freq_denominator);
 }
 
 
-uint64_t os_clock_time_ns(void)
+time_t os_clock_time_ns(void)
 {
 	return tsc_get() * cpu_freq_denominator / cpu_freq_numerator;
 }

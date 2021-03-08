@@ -3,9 +3,9 @@
 #include "os/error.h"
 
 
-size_t os_pci_enumerate(struct os_pci_address** out_devices)
+size_t os_pci_enumerate(struct os_pci_address** out_addresses)
 {
-	(void) out_devices;
+	(void) out_addresses;
 
 	os_fatal("os_pci_enumerate is not supported");
 }

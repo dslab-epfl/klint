@@ -13,7 +13,7 @@ struct os_pci_address {
 
 
 // Returns the number of devices
-size_t os_pci_enumerate(struct os_pci_address** out_devices);
+size_t os_pci_enumerate(struct os_pci_address** out_addresses);
 
 // Reads the given register of the device at the given address and return its value.
 uint32_t os_pci_read(struct os_pci_address address, uint8_t reg);
