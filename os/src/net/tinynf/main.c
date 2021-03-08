@@ -44,33 +44,18 @@ static void tinynf_packet_handler(size_t index, uint8_t* packet, size_t length, 
 	nf_handle(&pkt);
 }
 
-static void pci_address_to_device(size_t index, void* state)
+static void device_setup(size_t index, void* state)
 {
 	tn_device_init(&(((struct os_pci_address*) state)[index]), &(devices[index]));
-}
-
-static void device_make_promiscuous(size_t index, void* state)
-{
-	(void) state;
 	tn_device_set_promiscuous(&(devices[index]));
-}
-
-static void device_to_endpoint_mac(size_t index, void* state)
-{
-	(void) state;
 	// TODO have it in config somehow, in the meantime use a non-constant
 	endpoint_macs[index] = (struct net_ether_addr) { .bytes = { 0, index >> 10, index >> 20, index >> 30, index >> 40, 0 } };
-}
-
-static void device_to_device_mac(size_t index, void* state)
-{
-	(void) state;
 	// TODO maybe network.h should directly use net_ether_addr?
 	uint64_t device_mac = tn_device_get_mac(&(devices[index]));
 	device_macs[index] = (struct net_ether_addr) { .bytes = { device_mac >> 0, device_mac >> 8, device_mac >> 16, device_mac >> 24, device_mac >> 32, device_mac >> 40 } };
 }
 
-static void device_to_agent(size_t index, void* state)
+static void agent_setup(size_t index, void* state)
 {
 	tn_agent_init(index, devices_count, devices, &(((struct tn_agent*) state)[index]));
 }
@@ -88,16 +73,12 @@ int main(int argc, char** argv)
 	}
 
 	devices = os_memory_alloc(devices_count, sizeof(struct tn_device));
-	foreach_index(devices_count, pci_address_to_device, pci_addresses);
-	foreach_index(devices_count, device_make_promiscuous, devices);
-
 	endpoint_macs = os_memory_alloc(devices_count, sizeof(struct net_ether_addr));
-	foreach_index(devices_count, device_to_endpoint_mac, (void*) 0);
 	device_macs = os_memory_alloc(devices_count, sizeof(struct net_ether_addr));
-	foreach_index(devices_count, device_to_device_mac, (void*) 0);
+	foreach_index(devices_count, device_setup, pci_addresses);
 
 	struct tn_agent* agents = os_memory_alloc(devices_count, sizeof(struct tn_agent));
-	foreach_index(devices_count, device_to_agent, agents);
+	foreach_index(devices_count, agent_setup, agents);
 
 	tn_run(devices_count, agents, tinynf_packet_handler);
 }
