@@ -55,19 +55,19 @@ static void device_make_promiscuous(size_t index, void* state)
 	tn_device_set_promiscuous(&(devices[index]));
 }
 
-static void device_to_endpoint_mac(void* item, size_t index, void* result)
+static void device_to_endpoint_mac(size_t index, void* state)
 {
-	(void) item;
+	(void) state;
 	// TODO have it in config somehow, in the meantime use a non-constant
-	*((struct net_ether_addr*) result) = (struct net_ether_addr) { .bytes = { 0, index >> 10, index >> 20, index >> 30, index >> 40, 0 } };
+	endpoint_macs[index] = (struct net_ether_addr) { .bytes = { 0, index >> 10, index >> 20, index >> 30, index >> 40, 0 } };
 }
 
-static void device_to_device_mac(void* item, size_t index, void* result)
+static void device_to_device_mac(size_t index, void* state)
 {
-	(void) index;
+	(void) state;
 	// TODO maybe network.h should directly use net_ether_addr?
-	uint64_t device_mac = tn_device_get_mac((struct tn_device*) item);
-	*((struct net_ether_addr*) result) = (struct net_ether_addr) { .bytes = { device_mac >> 0, device_mac >> 8, device_mac >> 16, device_mac >> 24, device_mac >> 32, device_mac >> 40 } };
+	uint64_t device_mac = tn_device_get_mac(&(devices[index]));
+	device_macs[index] = (struct net_ether_addr) { .bytes = { device_mac >> 0, device_mac >> 8, device_mac >> 16, device_mac >> 24, device_mac >> 32, device_mac >> 40 } };
 }
 
 static void device_to_agent(void* item, size_t index, void* result)
@@ -92,8 +92,10 @@ int main(int argc, char** argv)
 	foreach_index(devices_count, pci_address_to_device, pci_addresses);
 	foreach_index(devices_count, device_make_promiscuous, devices);
 
-	endpoint_macs = map_array(sizeof(struct tn_device), devices_count, devices, sizeof(struct net_ether_addr), device_to_endpoint_mac);
-	device_macs = map_array(sizeof(struct tn_device), devices_count, devices, sizeof(struct net_ether_addr), device_to_device_mac);
+	endpoint_macs = os_memory_alloc(devices_count, sizeof(struct net_ether_addr));
+	foreach_index(devices_count, device_to_endpoint_mac, (void*) 0);
+	device_macs = os_memory_alloc(devices_count, sizeof(struct net_ether_addr));
+	foreach_index(devices_count, device_to_device_mac, (void*) 0);
 
 	struct tn_agent* agents = map_array(sizeof(struct tn_device), devices_count, devices, sizeof(struct tn_agent), device_to_agent);
 
