@@ -3,9 +3,9 @@
 #include <rte_debug.h>
 
 
-_Noreturn void os_exit(void)
+_Noreturn void os_halt(void)
 {
-	rte_panic("os_exit");
+	rte_panic("os_halt");
 }
 
 #if DEBUG_LEVEL > 0

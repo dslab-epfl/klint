@@ -5,8 +5,8 @@
 #endif
 
 
-// Causes the entire application to exit.
-_Noreturn void os_exit(void);
+// Causes the entire system to stop.
+_Noreturn void os_halt(void);
 
 
 #if DEBUG_LEVEL > 0
@@ -22,5 +22,5 @@ static inline void os_debug(const char* message)
 _Noreturn static inline void os_fatal(const char* message)
 {
 	os_debug(message);
-	os_exit();
+	os_halt();
 }

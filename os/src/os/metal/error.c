@@ -3,7 +3,7 @@
 #include <stdbool.h>
 
 
-_Noreturn void os_exit(void)
+_Noreturn void os_halt(void)
 {
 	while (true) {
 		// Nothing

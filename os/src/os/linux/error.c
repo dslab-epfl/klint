@@ -3,7 +3,7 @@
 #include <stdlib.h>
 
 
-_Noreturn void os_exit(void)
+_Noreturn void os_halt(void)
 {
 	exit(1);
 }
