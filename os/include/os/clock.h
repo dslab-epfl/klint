@@ -17,6 +17,7 @@ time_t os_clock_time_ns(void);
 //@ ensures result != TIME_MAX;
 
 // Sleeps for at least the given amount of nanoseconds.
+// TODO once we handle loops, can we remove this & use a do-nothing loop instead?
 void os_clock_sleep_ns(uint64_t ns);
 //@ requires emp;
 //@ ensures emp;
