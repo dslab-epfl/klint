@@ -27,7 +27,12 @@ void* os_memory_alloc(size_t count, size_t size)
 		os_fatal("Not enough space left to allocate");
 	}
 
-	void* result = memory + memory_used_len;
+	uint8_t* result = memory + memory_used_len;
+	// Explicitly zero the memory
+	for (size_t n = 0; n < full_size; n++) {
+		result[n] = 0;
+	}
+
 	memory_used_len = memory_used_len + full_size;
 	return result;
 }
