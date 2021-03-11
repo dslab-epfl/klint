@@ -468,7 +468,7 @@ static bool reg_is_field_cleared(void* addr, uint32_t reg, uint32_t field)
 // Get the value of PCI register 'reg' on the device at address 'addr'
 static uint32_t pcireg_read(const struct os_pci_address* addr, uint8_t reg)
 {
-	uint32_t value = os_pci_read(*addr, reg);
+	uint32_t value = os_pci_read(addr, reg);
 	//os_debug("IXGBE PCI read: 0x%02" PRIx8 " -> 0x%08" PRIx32, reg, value);
 	return value;
 }
@@ -484,7 +484,7 @@ static void pcireg_set_field(const struct os_pci_address* addr, uint8_t reg, uin
 {
 	uint32_t old_value = pcireg_read(addr, reg);
 	uint32_t new_value = old_value | field;
-	os_pci_write(*addr, reg, new_value);
+	os_pci_write(addr, reg, new_value);
 	//os_debug("IXGBE PCI write: 0x%02" PRIx8 " := 0x%08" PRIx32, reg, new_value);
 }
 

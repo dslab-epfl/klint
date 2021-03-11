@@ -29,9 +29,7 @@ class foreach_index(angr.SimProcedure):
         def case_nonzero(state):
             index = claripy.BVS("foreach_index", bitsizes.size_t)
             self.state.add_constraints(index.ULT(length))
-            func_symbol = self.state.project.loader.find_symbol(func.args[0])
-            #self.state.project.hook_symbol("device_setup", WTF())
-            func_state = self.state.project.factory.call_state(func_symbol.rebased_addr, *[index, st], base_state=self.state)
+            func_state = self.state.project.factory.call_state(func.args[0], *[index, st], base_state=self.state)
             func_sm = self.state.project.factory.simulation_manager(func_state)
             func_sm.use_technique(angr.exploration_techniques.DFS())
             func_sm.run()

@@ -25,13 +25,15 @@ from binary.externals.structs import lpm
 from binary.externals.verif import functions
 from binary.exceptions import SymbexException
 
+# TODO: all these externals should be in nf... not in binary... !
+
 init_externals = {
     'os_config_get': config.os_config_get,
     'os_memory_alloc': memory.os_memory_alloc,
     'map_alloc': map.map_alloc,
     'os_map2_alloc': map2.OsMap2Alloc,
     'index_pool_alloc': index_pool.index_pool_alloc,
-    'os_exit': error.os_exit,
+    'os_halt': error.os_halt,
     'cht_alloc': cht.ChtAlloc,
     'lpm_alloc': lpm.LpmAlloc,
     'lpm_update_elem': lpm.LpmUpdateElem,
@@ -64,7 +66,7 @@ handle_externals = {
 total_externals = {
     'os_clock_time_ns': clock.os_clock_time_ns,
     'os_config_get': config.os_config_get,
-    'os_exit': error.os_exit,
+    'os_halt': error.os_halt,
     'os_memory_alloc': memory.os_memory_alloc,
     'os_pci_enumerate': pci.os_pci_enumerate,
     'os_pci_read': pci.os_pci_read,

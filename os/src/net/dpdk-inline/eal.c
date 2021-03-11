@@ -84,13 +84,13 @@ int rte_eal_init(int argc, char **argv)
 	rte_eth_devices_data = os_memory_alloc(total_devices_count, sizeof(struct rte_eth_dev_data));
 
 	for (size_t dev = 0; dev < total_devices_count; dev++) {
-		uint32_t dev_and_vendor = os_pci_read(pci_devices[dev], 0x00);
+		uint32_t dev_and_vendor = os_pci_read(&(pci_devices[dev]), 0x00);
 		uint16_t device_id = dev_and_vendor >> 16;
 		uint16_t vendor_id = dev_and_vendor & 0xFFFF;
 
-		uint32_t class_id = os_pci_read(pci_devices[dev], 0x08) >> 8;
+		uint32_t class_id = os_pci_read(&(pci_devices[dev]), 0x08) >> 8;
 
-		uint32_t subsys_and_vendor = os_pci_read(pci_devices[dev], 0x2C);
+		uint32_t subsys_and_vendor = os_pci_read(&(pci_devices[dev]), 0x2C);
 		uint16_t subsystem_id = subsys_and_vendor >> 16;
 		uint16_t subsystem_vendor_id = subsys_and_vendor & 0xFFFF;
 
@@ -132,8 +132,8 @@ int rte_eal_init(int argc, char **argv)
 			if ((drivers[dri]->drv_flags & RTE_PCI_DRV_NEED_MAPPING) != 0) {
 				// For now let's only support devices that need a single 64-bit memory BAR
 				_Static_assert(sizeof(uintptr_t) >= sizeof(uint64_t), "Pointers need to be at least 64-bit for this code to work");
-				uint32_t bar0_low = os_pci_read(pci_devices[dev], 0x10);
-				uint32_t bar0_high = os_pci_read(pci_devices[dev], 0x14);
+				uint32_t bar0_low = os_pci_read(&(pci_devices[dev]), 0x10);
+				uint32_t bar0_high = os_pci_read(&(pci_devices[dev]), 0x14);
 
 				// Memory is indicated by bit 0 being 0
 				if ((bar0_low & 1) != 0) {
@@ -148,11 +148,11 @@ int rte_eal_init(int argc, char **argv)
 				// Note that bit 3 of memory BARs indicates prefetchability; we don't care
 
 				// Get the size by writing all-1s and reading what is actually written; the address is always aligned to the size
-				os_pci_write(pci_devices[dev], 0x10, (uint32_t) -1);
-				uint32_t read_val = os_pci_read(pci_devices[dev], 0x10);
+				os_pci_write(&(pci_devices[dev]), 0x10, (uint32_t) -1);
+				uint32_t read_val = os_pci_read(&(pci_devices[dev]), 0x10);
 
 				// Immediately restore the old value, if we crash inbetween write the machine will be in a weird state
-				os_pci_write(pci_devices[dev], 0x10, bar0_low);
+				os_pci_write(&(pci_devices[dev]), 0x10, bar0_low);
 
 				if ((read_val >> 4) == 0) {
 					os_fail("Unexpected BAR: size too big");

@@ -7,10 +7,10 @@ from ... import cast
 from ... import utils
 
 
-# _Noreturn void os_exit(void);
-class os_exit(angr.SimProcedure):
+# _Noreturn void os_halt(void);
+class os_halt(angr.SimProcedure):
     def run(self):
-        # This works because we only allow os_exit during init, and we discard unsat init states
+        # This works because we only allow os_halt during init, and we discard unsat init states
         self.state.add_constraints(claripy.false)
 
 # void os_debug(const char* message);

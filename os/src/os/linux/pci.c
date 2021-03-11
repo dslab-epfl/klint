@@ -27,9 +27,9 @@ static void ensure_ioport_access(void)
 	}
 }
 
-static void pci_target(const struct os_pci_address address, const uint8_t reg)
+static void pci_target(const struct os_pci_address* address, const uint8_t reg)
 {
-	const uint32_t reg_addr = 0x80000000u | ((uint32_t) address.bus << 16) | ((uint32_t) address.device << 11) | ((uint32_t) address.function << 8) | reg;
+	const uint32_t reg_addr = 0x80000000u | ((uint32_t) address->bus << 16) | ((uint32_t) address->device << 11) | ((uint32_t) address->function << 8) | reg;
 	outl(reg_addr, PCI_CONFIG_ADDR);
 	// Wait til the outl is done
 	outb(0, 0x80);
@@ -41,14 +41,14 @@ size_t os_pci_enumerate(struct os_pci_address** out_addresses)
 	return sizeof(addresses)/sizeof(struct os_pci_address);
 }
 
-uint32_t os_pci_read(const struct os_pci_address address, const uint8_t reg)
+uint32_t os_pci_read(const struct os_pci_address* address, const uint8_t reg)
 {
 	ensure_ioport_access();
 	pci_target(address, reg);
 	return inl(PCI_CONFIG_DATA);
 }
 
-void os_pci_write(const struct os_pci_address address, const uint8_t reg, const uint32_t value)
+void os_pci_write(const struct os_pci_address* address, const uint8_t reg, const uint32_t value)
 {
 	ensure_ioport_access();
 	pci_target(address, reg);
