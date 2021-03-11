@@ -9,6 +9,8 @@ from . import utils
 from .hash_dict import HashDict
 from .exceptions import SymbexException
 
+# TODO can we specialize this class? remove it? use ghost maps directly instead somehow (eg an enum for IDs)?
+
 # Optimization: objects are compared structurally instead of with the solver, which might cause spurious failures
 # (this does not work unless ghost maps are doing the "use existing items if possible in get" optimization)
 
@@ -31,14 +33,14 @@ class MetadataPlugin(SimStatePlugin):
         return map[key]
 
 
-    def get(self, cls, key, default=None):
+    def get(self, cls, key, default_ctor=None):
         value = self._get_value(cls, key)
         if value is None:
-            if default is None:
+            if default_ctor is None:
                 raise SymbexException(f"No metadata for key: {key} of class: {cls}")
             else:
-                self.set(key, default)
-                return default
+                value = default_ctor()
+                self.set(key, value)
 
         return value
 
