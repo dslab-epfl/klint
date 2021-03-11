@@ -70,6 +70,8 @@ total_externals = {
     'os_config_get': config.os_config_get,
     'os_halt': error.os_halt,
     'os_memory_alloc': memory.os_memory_alloc,
+    'os_memory_phys_to_virt': memory.os_memory_phys_to_virt,
+    'os_memory_virt_to_phys': memory.os_memory_virt_to_phys,
     'os_pci_enumerate': pci.os_pci_enumerate,
     'os_pci_read': pci.os_pci_read,
     'os_pci_write': pci.os_pci_write,

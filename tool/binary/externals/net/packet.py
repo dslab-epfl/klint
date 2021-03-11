@@ -30,12 +30,12 @@ def get_device(state, packet_addr):
 
 def alloc(state, devices_count):
     packet_length = state.symbol_factory.BVS("packet_length", bitsizes.size_t)
-    state.add_constraints(packet_length.UGE(PACKET_MIN), packet_length.ULE(PACKET_MTU))
+    utils.add_constraints_and_check_sat(state, packet_length.UGE(PACKET_MIN), packet_length.ULE(PACKET_MTU))
     # Allocate 2*MTU so that BPF's adjust_head can adjust negatively
     # TODO instead, memcpy should be an intrinsic, and then adjust_head can memcpy into an init-allocated buffer
     data_addr = state.memory.allocate(1, 2 * PACKET_MTU, name="packet_data")
     packet_device = state.symbol_factory.BVS("packet_device", bitsizes.uint16_t)
-    state.add_constraints(packet_device.ULT(devices_count))
+    utils.add_constraints_and_check_sat(state, packet_device.ULT(devices_count))
     # Ignore the _padding and os_tag, we just pretend they don't exist so that code cannot possibly access them
     packet_addr = state.memory.allocate(1, bitsizes.ptr + 2 * bitsizes.uint16_t, name="packet")
     state.memory.store(packet_addr, data_addr + PACKET_MTU, endness=state.arch.memory_endness)

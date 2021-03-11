@@ -13,5 +13,5 @@ from ... import bitsizes
 class os_clock_time_ns(angr.SimProcedure):
     def run(self):
         result = claripy.BVS("time", bitsizes.uint64_t)
-        self.state.add_constraints(result != 0xFF_FF_FF_FF_FF_FF_FF_FF)
+        utils.add_constraints_and_check_sat(self.state, result != 0xFF_FF_FF_FF_FF_FF_FF_FF)
         return result

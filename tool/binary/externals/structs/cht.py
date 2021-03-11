@@ -64,7 +64,7 @@ class ChtFindPreferredAvailableBackend(angr.SimProcedure):
         def case_false(state):
             print("!!! cht_find_preferred_available_backend: found available backend")
             state.memory.store(chosen_backend, backend, endness=self.state.arch.memory_endness)
-            state.add_constraints(0 <= backend, backend < cht.backend_capacity)
+            utils.add_constraints_and_check_sat(state, 0 <= backend, backend < cht.backend_capacity)
             utils.add_constraints_and_check_sat(state, state.maps.get(active_backends.items, backend)[1])
             return claripy.BVV(1, bitsizes.bool)
 

@@ -22,7 +22,7 @@ class os_pci_enumerate(angr.SimProcedure):
         meta = self.state.metadata.get_all(PciDevices)
         if len(meta) == 0:
             count = claripy.BVS("pci_devices_count", bitsizes.size_t)
-            self.state.add_constraints(count.ULT(256 * 32 * 8)) # 256 buses, 32 devices, 8 functions
+            utils.add_constraints_and_check_sat(self.state, count.ULT(256 * 32 * 8)) # 256 buses, 32 devices, 8 functions
             meta = PciDevices(
                 self.state.memory.allocate(count, 8, name="pci_devices"), # 8 == sizeof(os_pci_address)
                 count
@@ -42,7 +42,7 @@ def get_device(state, address):
     if utils.can_be_false(state.solver, index == index.args[1].args[2]):
         raise SymbexException("Sorry, this shouldn't happen, unexpected PCI addr? expected something like base_ptr + (index[60:0] .. 0)")
     index = index.args[1].args[2]
-    device = state.metadata.get(SpecDevice, index, default_ctor=spec_device_create_default)
+    device = state.metadata.get(SpecDevice, index, default_ctor=lambda: spec_device_create_default(state))
     return device
 
 def get_pci_reg(base, spec): 
