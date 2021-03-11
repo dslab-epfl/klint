@@ -42,7 +42,7 @@ def get_device(state, address):
     if utils.can_be_false(state.solver, index == index.args[1].args[2]):
         raise SymbexException("Sorry, this shouldn't happen, unexpected PCI addr? expected something like base_ptr + (index[60:0] .. 0)")
     index = index.args[1].args[2]
-    device = state.metadata.get(SpecDevice, index, default_ctor=lambda: SpecDevice(claripy.BVS("dev_phys_addr", bitsizes.ptr), claripy.BVS("dev_virt_addr", bitsizes.ptr), {}, {}))
+    device = state.metadata.get(SpecDevice, index, default_ctor=spec_device_create_default)
     return device
 
 def get_pci_reg(base, spec): 
@@ -64,7 +64,8 @@ class os_pci_read(angr.SimProcedure):
         reg_concrete = self.state.solver.eval_one(reg, cast_to=int)
         reg_name = get_pci_reg(reg_concrete, spec_reg.pci_regs)
         reg_data = spec_reg.pci_regs[reg_name]
-        return reg_util.fetch_reg(self.state, device.pci_regs, reg_name, None, reg_data, True) # no index, and use_init always True for PCI reads
+        # TODO: Why is .reversed needed here???
+        return reg_util.fetch_reg(self.state, device.pci_regs, reg_name, None, reg_data, True).reversed # no index, and use_init always True for PCI reads
 
 # void os_pci_write(const struct os_pci_address* address, uint8_t reg, uint32_t value);
 class os_pci_write(angr.SimProcedure):
@@ -76,5 +77,9 @@ class os_pci_write(angr.SimProcedure):
         device = get_device(self.state, address)
         reg_concrete = self.state.solver.eval_one(reg, cast_to=int)
         reg_name = get_pci_reg(reg_concrete, spec_reg.pci_regs)
-
-        ...
+        reg_data = spec_reg.pci_regs[reg_name]
+        old_value = reg_util.fetch_reg(self.state, device.pci_regs, reg_name, None, reg_data, True)
+        fields = reg_util.find_fields_on_write(self.state, old_value, value, reg_name, spec_reg.pci_regs)
+        reg_util.check_access_write(old_value, value, reg_name, reg_data, fields)
+        reg_util.verify_write(self.state, device, fields, reg_name, None, spec_reg.pci_regs)
+        reg_util.update_reg(self.state, device.pci_regs, reg_name, None, reg_data, value)

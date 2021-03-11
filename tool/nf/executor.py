@@ -24,6 +24,8 @@ from binary.externals.structs import cht
 from binary.externals.structs import lpm
 from binary.externals.verif import functions
 from binary.exceptions import SymbexException
+from . import spec_act
+from . import spec_reg
 
 # TODO: all these externals should be in nf... not in binary... !
 
@@ -130,6 +132,10 @@ def execute(bin_path):
     return (results, devices_count)
 
 def execute_full(bin_path):
+    spec_reg.validate_registers(spec_reg.registers)
+    spec_reg.validate_registers(spec_reg.pci_regs)
+    spec_act.validate_actions()
+    #spec_glo.validate_globals()
     sm = bin_exec.create_sim_manager(bin_path, total_externals, "main", [0, 0]) # args = argc, argv
     sm.run()
     if len(sm.errored) > 0:

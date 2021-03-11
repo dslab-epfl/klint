@@ -1,5 +1,5 @@
-from ast_util import Node
-from ast_util import AST
+from .ast_util import Node
+from .ast_util import AST
 
 promiscous = {
     # Actions related to

@@ -1,3 +1,7 @@
+from binary import utils
+from . import ast_util
+from . import spec_reg
+
 def __constrain_field(symb, state, start, end, value):
     """
     Makes the constrain symb[end:start] = value on the state solver.
@@ -112,6 +116,42 @@ def update_reg(state, reg_dict, reg, index, data, expr):
     else:
         reg_dict[reg] = {index: expr}
 
+def find_fields_on_write(state, prev, new, reg, spec):
+    """
+    Finds which named fields of the register have been changed and
+    returns this information as a list.
+    """
+    data = spec[reg]
+    fields = []
+    for field, info in data['fields'].items():
+        s = info['start']
+        e = info['end']
+        if utils.can_be_true(state.solver, prev[e:s] != new[e:s]):
+            p = prev[e:s]
+            n = new[e:s]
+            fields += [(field, p, n)]
+    return fields
+
+def check_access_write(old_val, new_val, reg, data, fields):
+    """
+    Determines which fields are written and whether it is legal
+    to do so.
+    """
+    reg_access = data['access']
+    if len(fields) == 0 and reg_access == spec_reg.Access.RO:
+        # NOTE: This permits writing to reserved fields
+        raise Exception(f"Illegal attempt to write to register {reg}")
+    for i, f_info in enumerate(fields):
+        (f, p, n) = f_info
+        field_access = data['fields'][f]['access']
+        if field_access == spec_reg.Access.IW:
+            fields[i] = (fields[i][0],fields[i][1],fields[i][1]) # new is prev
+            return
+        illegal = (field_access == spec_reg.Access.NA)
+        illegal |= (field_access == spec_reg.Access.RO)
+        if illegal:
+            raise Exception(f"Illegal attempt to write to {reg}.{f}")
+
 def change_reg_field(state, name, index, registers, base_addr, new):
     """
     Changes a single field in a register and saves the new value
@@ -163,3 +203,64 @@ def change_reg_field(state, name, index, registers, base_addr, new):
                 ])
     state.memory.store(addr, reg_new, disable_actions=True, inspect=False, endness=state.arch.memory_endness)
     update_reg(state, reg, index, data, reg_new)
+
+
+def verify_write(state, device, fields, reg, index, spec):
+    """
+    Verifies if the write can be matched to an action.
+    Raises an exception if it can't be matched.
+    """
+    counter = device.counter[0]
+    for f_info in fields:
+        (f, prev, new) = f_info
+        n = state.solver.eval(new)
+        # Actions which preconditions fail - useful for debuging
+        rejected = []
+        # The write to this field is invalid until a matching 
+        # action is found
+        valid = False
+        if spec[reg]['fields'][f]['access'] == spec_reg.Access.IW:
+            # Validating this field is optional
+            valid = True
+        for action, info in device.legal_actions.items():    
+            # Does the action match writing to this field?
+            action_matches = False
+            if spec[reg]['fields'][f]['end'] != spec[reg]['fields'][f]['start']:
+                action_matches = info['action'].isWriteFieldCorrect(state, f"{reg}.{f}", new)
+            elif (n == 1 and info['action'].isFieldSetOrCleared(f"{reg}.{f}", ast_util.AST.Set)):
+                action_matches = True
+            elif (n == 0 and info['action'].isFieldSetOrCleared(f"{reg}.{f}", ast_util.AST.Clear)):
+                action_matches = True
+
+            if not action_matches:
+                continue
+            
+            # If there is no precondition, the action is valid
+            precond_sat = True
+            if info['precond'] != None:
+                temp_state = state.copy()
+                con = info['precond'].generateConstraints(temp_state, spec_reg.registers, spec_reg.pci_regs, index)
+                precond_sat = temp_state.solver.eval(con)
+            if not precond_sat:
+                rejected += [action]
+                continue
+            valid = True
+            print("Action: ", action)
+            if action == 'Initiate Software Reset':
+                device.use_init[0] = True
+            device.latest_action[0] = action
+            if action in device.actions.keys():
+                # We have seen this action before 
+                device.actions[action] = device.actions[action] + [counter]
+                continue
+            device.actions[action] = [counter]
+        if valid:
+            continue
+        if len(rejected) == 0:
+            raise Exception(f"Cannot validate writing to {reg}.{f}. There are no actions that match writing to this field.")
+        if not valid:
+            raise Exception(f"Cannot validate writing to {reg}.{f}. Matching but rejected actions: {rejected}. Maybe the precondition is not satisfied for one of them?")
+    # If we did not raise any exception, that means we are able to match
+    # concurrent writes to actions. Increment counter to establish
+    # action order.
+    device.counter[0] = counter + 1

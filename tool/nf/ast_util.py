@@ -1,6 +1,6 @@
 from enum import Enum
-import reg_util
-from log import print_informatively
+from . import reg_util
+from .log import print_informatively
 
 class AST(Enum):
     Not   = 0
