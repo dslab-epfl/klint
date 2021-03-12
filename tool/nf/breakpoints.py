@@ -9,48 +9,7 @@ def cache(state, addr, reg, id):
     state.globals['cached_reg'] = reg
     state.globals['cached_id'] = id
 
-def find_reg_from_addr(state, addr):
-    """
-    Finds which register the address refers to.
-    :return: the name of the register and its index.
-    """
-    if state.solver.eval(addr) == state.globals['cached_addr']:
-        return state.globals['cached_reg'], state.globals['cached_id']
-    # Is this a register access?
-    dev_addr = state.globals['device_addr']
-    temp_state = state.copy()
-    temp_state.solver.add(dev_addr <= addr)
-    temp_state.solver.add(addr < dev_addr + 1024*128)
-    # print(addr, cached_addr)
-    if temp_state.satisfiable() == False:
-        # Not a register access
-        return None, None
-    for reg, data in spec_reg.registers.items():
-        len_bytes = int(data['length']/8)
-        p = 0
-        for b, m, l in data['addr']:
-            temp_state = state.copy()
-            n = temp_state.solver.BVS("n", 64)
-            temp_state.solver.add(n - p >= 0)
-            temp_state.solver.add(n <= l)
-            low = dev_addr + b + (n-p)*m
-            high = low + len_bytes
-            temp_state.solver.add(addr < high)
-            temp_state.solver.add(low <= addr)
-            if temp_state.satisfiable() == False: # Continue the search
-                p += l + 1
-                continue
-            if m != 0:
-                n_con = temp_state.solver.eval(n)
-                if not (n_con in state.globals['indices']):
-                    state.globals['indices'] += [n_con]
-                cache(state, addr, reg, n_con)
-                print(f"{reg}[{n_con}]")
-                return reg, n_con
-            cache(state, addr, reg, None)
-            print(f"{reg}")
-            return reg, None
-    raise Exception(f"Cannot find register at {addr}.")
+
 
 def track_pci_reads(state, base, pci_addr):
     """

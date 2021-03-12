@@ -61,7 +61,7 @@ class Node:
         else:
             return False
     
-    def applyAST(self, state, index, registers, pci_regs):
+    def applyAST(self, state, device, index, registers, pci_regs):
         """
         Applies the AST to the state's registers.
         :param state: Angr state
@@ -78,21 +78,18 @@ class Node:
                 raise Exception("Illegal AST for this function")
         print(first_child)
         reg, field = first_child.split('.', 1)
-        spec = pci_regs
-        addr = state.globals['pci_address']
         if reg in registers.keys():
             spec = registers
-            addr = state.globals['device_addr']
+            addr = device.virt_addr
+        else:
+            raise Exception("PCI not supported for now...")
         
         if self.kind == AST.Set:
-            reg_util.change_reg_field(state, first_child, 
-                index, spec, addr, 0b1)
+            reg_util.change_reg_field(state, first_child, index, spec, addr, 0b1)
         elif self.kind == AST.Clear:
-            reg_util.change_reg_field(state, first_child, 
-                index, spec, addr, 0b0)
+            reg_util.change_reg_field(state, first_child, index, spec, addr, 0b0)
         elif self.kind == AST.MkSym:
-            reg_util.change_reg_field(state, first_child, 
-                index, spec, addr, 'X')
+            reg_util.change_reg_field(state, first_child, index, spec, addr, 'X')
         elif self.kind == AST.Write:
             raise Exception("NOT IMPLEMENTED but probably should be")
 

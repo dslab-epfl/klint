@@ -2,6 +2,9 @@ from binary import utils
 from . import ast_util
 from . import spec_reg
 
+# TODO: Akvile had put a cache here, which is a good idea since the read-then-write pattern is common;
+#       I removed it cause it depended on state.globals, but we should put it back somehow
+
 def __constrain_field(symb, state, start, end, value):
     """
     Makes the constrain symb[end:start] = value on the state solver.
@@ -53,6 +56,37 @@ def __init_reg_val_con(state, data):
     bvv = state.solver.BVV(value, data['length'])
     return bvv
 
+def find_reg_from_addr(state, device, addr):
+    """
+    Finds which register the address refers to.
+    :return: the name of the register and its index.
+    """
+    # Is this a register access?
+    for reg, data in spec_reg.registers.items():
+        len_bytes = int(data['length']/8)
+        p = 0
+        for b, m, l in data['addr']:
+            temp_state = state.copy()
+            n = temp_state.solver.BVS("n", 64)
+            temp_state.solver.add(n - p >= 0)
+            temp_state.solver.add(n <= l)
+            low = device.virt_addr + b + (n-p)*m
+            high = low + len_bytes
+            temp_state.solver.add(addr < high)
+            temp_state.solver.add(low <= addr)
+            if temp_state.satisfiable() == False: # Continue the search
+                p += l + 1
+                continue
+            if m != 0:
+                n_con = temp_state.solver.eval(n)
+                if not (n_con in state.globals['indices']):
+                    state.globals['indices'] += [n_con]
+                print(f"{reg}[{n_con}]")
+                return reg, n_con
+            print(f"{reg}")
+            return reg, None
+    raise Exception(f"Cannot find register at {addr}.")
+
 def is_reg_indexed(data):
     _, m, _ = data['addr'][0]
     return (m != 0)
@@ -78,19 +112,6 @@ def fetch_reg(state, reg_dict, reg, index, data, use_init):
     else:
         reg_bv = state.solver.BVS(reg, data['length'])
     update_reg(state, reg_dict, reg, index, data, reg_bv)
-    return reg_bv
-
-def fetch_reg_and_store(state, reg, index, data, addr, use_init):
-    """
-    Create an initial register value and store it in the memory.
-    If the register has already been initialised, return it.
-    Try to make it concrete if possible.
-    :param data: dictionary associated with the register reg
-    :return: the register's value
-    """
-    reg_bv = fetch_reg(state, reg, index, data, use_init)
-    # store the initialised value but be careful not to trigger other breakpoints
-    state.memory.store(addr, reg_bv, disable_actions=True, inspect=False, endness=state.arch.memory_endness)
     return reg_bv
 
 def fetch_reg_field(state, name, index, data, use_init):

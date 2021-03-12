@@ -6,8 +6,10 @@ from angr.storage.memory import MemoryStoreRequest
 import archinfo
 import claripy
 from collections import namedtuple
+import copy
 
 # Us
+from binary.hash_dict import HashDict
 from .exceptions import SymbexException
 from .memory_segmented import SegmentedMemory
 from . import bitsizes
@@ -23,11 +25,12 @@ RecordAllocateOpaque = namedtuple('RecordAllocateOpaque', ['name', 'result'])
 class FractionalMemory(SimMemory):
     FRACS_NAME = "_fracs"
 
-    def __init__(self, memory_id='', memory=None, fractions_memory=None, endness=None):
+    def __init__(self, memory_id='', memory=None, fractions_memory=None, endness=None, handled_objs=None):
         SimMemory.__init__(self, endness=endness, abstract_backer=None, stack_region_map=None, generic_region_map=None)
         self.id = memory_id # magic! needs to be set for SimMemory to work
-        self.memory = SegmentedMemory(memory_id) if memory is None else memory
-        self.fractions_memory = SegmentedMemory(memory_id) if fractions_memory is None else fractions_memory
+        self.memory = memory or SegmentedMemory(memory_id)
+        self.fractions_memory = fractions_memory or SegmentedMemory(memory_id)
+        self.handled_objs = handled_objs or HashDict()
 
     def set_state(self, state):
         SimMemory.set_state(self, state)
@@ -36,7 +39,7 @@ class FractionalMemory(SimMemory):
 
     @SimStatePlugin.memo
     def copy(self, memo):
-        return FractionalMemory(memory_id=self.id, memory=self.memory.copy(memo), fractions_memory=self.fractions_memory.copy(memo), endness=self.endness)
+        return FractionalMemory(memory_id=self.id, memory=self.memory.copy(memo), fractions_memory=self.fractions_memory.copy(memo), endness=self.endness, handled_objs=copy.deepcopy(self.handled_objs))
 
     def merge(self, others, merge_conditions, common_ancestor=None):
         if any(o.id != self.id for o in others) or any(o.endness != self.endness for o in others):
@@ -44,26 +47,35 @@ class FractionalMemory(SimMemory):
 
         self.memory.merge([o.memory for o in others], merge_conditions, common_ancestor=common_ancestor.memory if common_ancestor is not None else None)
         self.fractions_memory.merge([o.fractions_memory for o in others], merge_conditions, common_ancestor=common_ancestor.fractions_memory if common_ancestor is not None else None)
+        # TODO deal with handled_objs explicitly here? even if it's just a "if they're not equal, fail" check...
         return True
 
 
     # This method handles endness on its own
     def _store(self, request): # request is MemoryStoreRequest; has addr, data=None, size=None, condition=None, endness + "completed" must be set to True
-        (base, index, _) = self.memory.base_index_offset(request.addr)
+        endness = self.endness if request.endness is None else request.endness
+        if endness == archinfo.Endness.BE:
+            request.data = request.data.reversed
+        request.endness = archinfo.Endness.BE
+
+        (base, index, offset) = self.memory.base_index_offset(request.addr)
+        if base in self.handled_objs:
+            self.handled_objs[base][1](self.state, base, index, offset, request.data)
+            return
+
         facts = self.state.metadata.get(Facts, base)
         fraction = self.fractions_memory.load(facts.fractions + index, 1)
         if utils.can_be_true(self.state.solver, fraction != 100):
             raise SymbexException("Attempt to store without definitely owning the object at addr " + str(request.addr) + " ; fraction is " + str(fraction) + " ; constraints are " + str(self.state.solver.constraints) + " ; e.g. could be " + str(self.state.solver.eval_upto(fraction, 10, cast_to=int)))
 
-        endness = self.endness if request.endness is None else request.endness
-        if endness == archinfo.Endness.BE:
-            request.data = request.data.reversed
-        request.endness = archinfo.Endness.BE
         self.memory._store(request)
 
     # This method only partly handles endness; SimMemory will reverse if (endness or self.endness) is LE
     def _load(self, addr, size, condition=None, fallback=None, inspect=True, events=True, ret_on_segv=False):
-        (base, index, _) = self.memory.base_index_offset(addr)
+        (base, index, offset) = self.memory.base_index_offset(addr)
+        if base in self.handled_objs:
+            return (addr, self.handled_objs[base][0](self.state, base, index, offset).reversed, [])
+
         facts = self.state.metadata.get(Facts, base)
         fraction = self.fractions_memory.load(facts.fractions + index, 1)
         if utils.can_be_true(self.state.solver, fraction == 0):
@@ -127,6 +139,12 @@ class FractionalMemory(SimMemory):
             raise SymbexException("Cannot give " + str(fraction) + " ; there is already " + str(current_fraction))
 
         self.fractions_memory.store(facts.fractions + index, (current_fraction + fraction), size=1)
+
+    # reader: (state, base, index, offset) -> value
+    # writer: (state, base, index, offset, value) -> void
+    def add_obj_handler(self, obj, size, reader, writer):
+        self.memory.add_size(obj, size)
+        self.handled_objs[obj] = (reader, writer)
 
     def get_obj_and_size_from_fracs_obj(self, fracs_obj):
         if FractionalMemory.FRACS_NAME not in str(fracs_obj):
