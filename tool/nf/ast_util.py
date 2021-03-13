@@ -1,5 +1,6 @@
 from enum import Enum
 from . import reg_util
+from . import spec_reg
 from .log import print_informatively
 
 class AST(Enum):
@@ -61,7 +62,7 @@ class Node:
         else:
             return False
     
-    def applyAST(self, state, device, index, registers, pci_regs):
+    def applyAST(self, state, device, index):
         """
         Applies the AST to the state's registers.
         :param state: Angr state
@@ -72,26 +73,25 @@ class Node:
         if self.children[0].kind != AST.Reg:
             if self.kind == AST.And:
                 for c in self.children:
-                    c.applyAST(state, index, registers, pci_regs)
+                    c.applyAST(state, device, index)
                 return 
             else:
                 raise Exception("Illegal AST for this function")
         print(first_child)
         reg, field = first_child.split('.', 1)
-        if reg in registers.keys():
-            spec = registers
-            addr = device.virt_addr
-        else:
+        if reg not in spec_reg.registers.keys():
             raise Exception("PCI not supported for now...")
         
+        new_val = None
         if self.kind == AST.Set:
-            reg_util.change_reg_field(state, first_child, index, spec, addr, 0b1)
+            new_val = 0b1
         elif self.kind == AST.Clear:
-            reg_util.change_reg_field(state, first_child, index, spec, addr, 0b0)
+            new_val = 0b0
         elif self.kind == AST.MkSym:
-            reg_util.change_reg_field(state, first_child, index, spec, addr, 'X')
+            new_val = 'X'
         elif self.kind == AST.Write:
             raise Exception("NOT IMPLEMENTED but probably should be")
+        reg_util.change_reg_field(state, device, first_child, index, spec_reg.registers, device.virt_addr, new_val)
 
 
     def generateConstraints(self, state, registers, pci_regs, index):

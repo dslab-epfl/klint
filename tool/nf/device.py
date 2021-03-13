@@ -21,13 +21,13 @@ def find_device(state, virt_addr):
 
 def device_reader(state, base, _, offset):
     dev = find_device(state, base)
-    reg, index = reg_util.find_reg_from_addr(state, dev, offset)
+    reg, index = reg_util.find_reg_from_addr(state, offset // 8)
     reg_data = spec_reg.registers[reg]
     return reg_util.fetch_reg(state, dev.regs, reg, index, reg_data, dev.use_init[0])
 
 def device_writer(state, base, _, offset, value):
     dev = find_device(state, base)
-    reg, index = reg_util.find_reg_from_addr(state, dev, offset)
+    reg, index = reg_util.find_reg_from_addr(state, offset // 8)
     reg_data = spec_reg.registers[reg]
     old_value = reg_util.fetch_reg(state, dev.regs, reg, index, reg_data, dev.use_init[0])
     fields = reg_util.find_fields_on_write(state, old_value, value, reg, spec_reg.registers)
@@ -40,7 +40,7 @@ def device_writer(state, base, _, offset, value):
         # Apply postcondition
         post = dev.legal_actions[latest]['postcond']
         if post != None:
-            post.applyAST(state, index, spec_reg.registers, spec_reg.pci_regs)
+            post.applyAST(state, dev, index)
         dev.latest_action[0] = None
 
 

@@ -67,6 +67,7 @@ handle_externals = {
 
 total_externals = {
     'os_clock_time_ns': clock.os_clock_time_ns,
+    'os_clock_sleep_ns': clock.os_clock_sleep_ns,
     'os_config_get': config.os_config_get,
     'os_halt': error.os_halt,
     'os_memory_alloc': memory.os_memory_alloc,

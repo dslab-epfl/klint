@@ -56,7 +56,7 @@ def __init_reg_val_con(state, data):
     bvv = state.solver.BVV(value, data['length'])
     return bvv
 
-def find_reg_from_addr(state, device, addr):
+def find_reg_from_addr(state, addr):
     """
     Finds which register the address refers to.
     :return: the name of the register and its index.
@@ -70,7 +70,7 @@ def find_reg_from_addr(state, device, addr):
             n = temp_state.solver.BVS("n", 64)
             temp_state.solver.add(n - p >= 0)
             temp_state.solver.add(n <= l)
-            low = device.virt_addr + b + (n-p)*m
+            low = b + (n-p)*m
             high = low + len_bytes
             temp_state.solver.add(addr < high)
             temp_state.solver.add(low <= addr)
@@ -79,8 +79,8 @@ def find_reg_from_addr(state, device, addr):
                 continue
             if m != 0:
                 n_con = temp_state.solver.eval(n)
-                if not (n_con in state.globals['indices']):
-                    state.globals['indices'] += [n_con]
+                #if not (n_con in state.globals['indices']):
+                #    state.globals['indices'] += [n_con]
                 print(f"{reg}[{n_con}]")
                 return reg, n_con
             print(f"{reg}")
@@ -100,8 +100,8 @@ def fetch_reg(state, reg_dict, reg, index, data, use_init):
         if is_reg_indexed(data):
             if index in d.keys():
                 return d[index]
-            else:
-                raise "what do I do here?"
+            #else:
+            #    raise "what do I do here?"
         else:
             return d
     if use_init:
@@ -173,10 +173,9 @@ def check_access_write(old_val, new_val, reg, data, fields):
         if illegal:
             raise Exception(f"Illegal attempt to write to {reg}.{f}")
 
-def change_reg_field(state, name, index, registers, base_addr, new):
+def change_reg_field(state, device, name, index, registers, base_addr, new):
     """
-    Changes a single field in a register and saves the new value
-    in memory and in state.
+    Changes a single field in a register and saves the new value.
     :param name: register indentifier of the form REG.FIELD
     :param register: register spec
     :param addr: base address for the spec, either device or pci
@@ -196,7 +195,7 @@ def change_reg_field(state, name, index, registers, base_addr, new):
     else:
         b, _, _ = data['addr'][0]
         addr += b
-    reg_old = fetch_reg_and_store(state, reg, index, data, addr, state.globals['use_init'])
+    reg_old = fetch_reg(state, device.regs, reg, index, data, device.use_init[0])
     reg_new = None
     f_info = data['fields'][field]
     if reg_old.op == 'BVV' and new != 'X':
@@ -222,8 +221,7 @@ def change_reg_field(state, name, index, registers, base_addr, new):
                 ] == reg_old[
                     data['length']-1:f_info['end']+1
                 ])
-    state.memory.store(addr, reg_new, disable_actions=True, inspect=False, endness=state.arch.memory_endness)
-    update_reg(state, reg, index, data, reg_new)
+    update_reg(state, device.regs, reg, index, data, reg_new)
 
 
 def verify_write(state, device, fields, reg, index, spec):
