@@ -1,3 +1,5 @@
+import claripy
+
 from binary import utils
 from . import ast_util
 from . import spec_reg
@@ -61,24 +63,36 @@ def find_reg_from_addr(state, addr):
     Finds which register the address refers to.
     :return: the name of the register and its index.
     """
-    # Is this a register access?
+    # Optimization: if addr isn't symbolic then deal with it quickly
+    if not isinstance(addr, claripy.ast.Base) or not addr.symbolic:
+        conc_addr = state.solver.eval(addr)
+        for reg, data in spec_reg.registers.items():
+            idx = 0
+            for b, m, l in data['addr']:
+                high = b + (l-idx)*m
+                if b <= conc_addr and conc_addr < high:
+                    reg_index = ((conc_addr - b) / m + idx)
+                    if int(reg_index) == reg_index:
+                        reg_index = int(reg_index) # they compare as equal but without this reg_index is still a float
+                        print(f"{reg}[{reg_index}]")
+                        return reg, reg_index
+                idx += l + 1
+
+    raise Exception("Need to double-check logic below for symbolic indices...")
+
+    n = claripy.BVS("n", 64)
     for reg, data in spec_reg.registers.items():
-        len_bytes = int(data['length']/8)
+        len_bytes = data['length'] // 8
         p = 0
         for b, m, l in data['addr']:
-            temp_state = state.copy()
-            n = temp_state.solver.BVS("n", 64)
-            temp_state.solver.add(n - p >= 0)
-            temp_state.solver.add(n <= l)
             low = b + (n-p)*m
             high = low + len_bytes
-            temp_state.solver.add(addr < high)
-            temp_state.solver.add(low <= addr)
-            if temp_state.satisfiable() == False: # Continue the search
+            constraint = (n - p >= 0) & (n <= l) & (low <= addr) & (addr < high)
+            if utils.definitely_false(state.solver, constraint):  # Continue the search
                 p += l + 1
                 continue
             if m != 0:
-                n_con = temp_state.solver.eval(n)
+                n_con = state.solver.eval(n, extra_constraints=[constraint])
                 #if not (n_con in state.globals['indices']):
                 #    state.globals['indices'] += [n_con]
                 print(f"{reg}[{n_con}]")
