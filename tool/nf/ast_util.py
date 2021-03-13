@@ -13,9 +13,10 @@ class AST(Enum):
     Global  = 6
     Write = 7 # Used for fields
     Check = 8 # Apply a check to the arguments
-    MkSym = 9 # Make a field symbolic 
-    Value = 10 
-    Actn  = 11
+    DelaySet = 9 # set but after a while
+    DelayClear = 10 # clear but after a while; TODO for both Delay*s, need to actually have a delay; but the data sheet often doesn't give one...
+    Value = 11
+    Actn  = 12
 
 class Node:
     def __init__(self, kind, children):
@@ -77,24 +78,23 @@ class Node:
                 return 
             else:
                 raise Exception("Illegal AST for this function")
-        print(first_child)
+        #print(first_child)
         reg, field = first_child.split('.', 1)
+        regs_spec = spec_reg.registers
         if reg not in spec_reg.registers.keys():
-            raise Exception("PCI not supported for now...")
+            regs_spec = spec_reg.pci_regs
         
         new_val = None
-        if self.kind == AST.Set:
+        if self.kind == AST.Set or self.kind == AST.DelaySet:
             new_val = 0b1
-        elif self.kind == AST.Clear:
+        elif self.kind == AST.Clear or self.kind == AST.DelayClear:
             new_val = 0b0
-        elif self.kind == AST.MkSym:
-            new_val = 'X'
         elif self.kind == AST.Write:
             raise Exception("NOT IMPLEMENTED but probably should be")
-        reg_util.change_reg_field(state, device, first_child, index, spec_reg.registers, device.virt_addr, new_val)
+        reg_util.change_reg_field(state, device, first_child, index, regs_spec, new_val)
 
 
-    def generateConstraints(self, state, registers, pci_regs, index):
+    def generateConstraints(self, state, device, registers, pci_regs, index):
         """
         Generates constraints to quickly check whether propositional
         logic precondition AST on registers is valid.
@@ -102,26 +102,28 @@ class Node:
         :return: constrained bit vector
         """
         if self.kind == AST.Not:
-            return (~self.children[0].generateConstraints(state, registers, pci_regs, index))
+            return (~self.children[0].generateConstraints(state, device, registers, pci_regs, index))
         elif self.kind == AST.Reg:
             r, f = self.children[0].split('.', 1)
             spec = registers
-            if not (r in registers.keys()):
+            reg_dict = device.regs
+            if r not in registers.keys():
                 spec = pci_regs
+                reg_dict = device.pci_regs
             data = spec[r]
-            reg = reg_util.fetch_reg(state, r, index, data, state.globals['use_init'])
+            reg = reg_util.fetch_reg(state, reg_dict, r, index, data, device.use_init[0])
             start = data['fields'][f]['start']
             end = data['fields'][f]['end']
             return reg[end:start]
         elif self.kind == AST.Or:
             con = state.solver.BVV(0,1)
             for c in self.children:
-                con = con | c.generateConstraints(state, registers, pci_regs, index)
+                con = con | c.generateConstraints(state, device, registers, pci_regs, index)
             return con
         elif self.kind == AST.And:
             con = state.solver.BVV(1,1)
             for c in self.children:
-                con = con & c.generateConstraints(state, registers, pci_regs, index)
+                con = con & c.generateConstraints(state, device, registers, pci_regs, index)
             return con
         else:
             raise Exception("Invalid AST")

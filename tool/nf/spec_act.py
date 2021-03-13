@@ -1,7 +1,7 @@
 from .ast_util import Node
 from .ast_util import AST
 
-promiscous = {
+promiscuous = {
     # Actions related to
     # 7.1.1.1 - L2 Filtering
     # ----------------------------------
@@ -151,7 +151,7 @@ enable_receive_queue = {
         "action"   : Node(AST.Set, [Node(AST.Reg, ["RXDCTL.ENABLE"])]),
         # 9. Poll the RXDCTL register until the Enable bit is set. The 
         # tail should not be bumped before this bit was read as 1b.
-        "postcond" : Node(AST.MkSym, [Node(AST.Reg, ["RXDCTL.ENABLE"])])
+        "postcond" : Node(AST.DelaySet, [Node(AST.Reg, ["RXDCTL.ENABLE"])])
     },
     # 10. Bump the tail pointer (RDT) to enable descriptors fetching
     # by setting it to the ring length minus one.
@@ -174,7 +174,7 @@ enable_receive_queue = {
         #  — Wait for the data paths to be emptied by HW. Poll the 
         # SECRXSTAT.SECRX_RDY bit until it is asserted by HW.
         # Let's make SECRX_RDY pollable:
-        "postcond" : Node(AST.MkSym, [Node(AST.Reg, ["SECRXSTAT.SECRX_RDY"])])
+        "postcond" : Node(AST.DelaySet, [Node(AST.Reg, ["SECRXSTAT.SECRX_RDY"])])
     },
     #  — Set RXCTRL.RXEN
     "Set RXCTRL.RXEN" : {
@@ -272,7 +272,7 @@ enable_transmit_queue = {
     "Enable transmit queue" : {
         "action" : Node(AST.Set, [Node(AST.Reg, ["TXDCTL.ENABLE"])]),
         #  Poll the TXDCTL register until the Enable bit is set.
-        "postcond" : Node(AST.MkSym, [Node(AST.Reg, ["TXDCTL.ENABLE"])])
+        "postcond" : Node(AST.DelaySet, [Node(AST.Reg, ["TXDCTL.ENABLE"])])
     }
 }
 
@@ -456,7 +456,7 @@ master_disable = {
     'Disable Rx Queues' : {
         #"precond" : TODO: Packet Buffers should be flushed, RSC disabled
         "action" : Node(AST.Clear, [Node(AST.Reg, ["RXDCTL.ENABLE"])]),
-        "postcond" : Node(AST.MkSym, [Node(AST.Reg, ["RXDCTL.ENABLE"])])
+        "postcond" : Node(AST.DelayClear, [Node(AST.Reg, ["RXDCTL.ENABLE"])])
     },
     #"Then the device driver sets the PCIe Master Disable bit"
     'Disable PCIe Master' : {
@@ -469,8 +469,8 @@ master_disable = {
         # register in the PCI config space is clear before 
         # proceeding."
         "postcond" : Node(AST.And, [
-            Node(AST.MkSym, [Node(AST.Reg, ["STATUS.PCIe Master Enable Status"])]),
-            Node(AST.MkSym, [Node(AST.Reg, ["DEVICE_STATUS.Transaction_Pending"])])
+            Node(AST.DelayClear, [Node(AST.Reg, ["STATUS.PCIe Master Enable Status"])]),
+            Node(AST.DelayClear, [Node(AST.Reg, ["DEVICE_STATUS.Transaction_Pending"])])
         ])
     },
     # "In the above situation, the data path must be flushed 
@@ -515,8 +515,8 @@ software_reset = {
         "postcond" : Node(AST.And, [
             # Triggers 'use_init'
             Node(AST.Clear, [Node(AST.Reg, ["CTRL.RST"])]),
-            Node(AST.MkSym, [Node(AST.Reg, ["EEC.Auto_RD"])]),
-            Node(AST.MkSym, [Node(AST.Reg, ["RDRXCTL.DMAIDONE"])])
+            Node(AST.DelaySet, [Node(AST.Reg, ["EEC.Auto_RD"])]),
+            Node(AST.DelaySet, [Node(AST.Reg, ["RDRXCTL.DMAIDONE"])])
         ])
     },
     # TODO: "If DCB is enabled then following a software reset 
@@ -570,9 +570,10 @@ init_sequence = {
 
 
 device_init = {**init_sequence, **global_reset, **software_reset, 
-    **master_disable, **transmit_init, **receive_init, **pci_setup}
+    **master_disable, **transmit_init, **receive_init, **pci_setup,
+    **promiscuous, **enable_receive_queue, **enable_transmit_queue}
 
-act_list = [device_init, promiscous, enable_receive_queue, enable_transmit_queue]
+act_list = [device_init, promiscuous, enable_receive_queue, enable_transmit_queue]
 
 def validate_actions():
     for actions in act_list:

@@ -1374,7 +1374,43 @@ registers = {
                 'start'  : 26,
             }
         }
-    }
+    },
+    # RAL / RAH (8.2.3.7.8/9)
+    'RAL' : {
+        'addr'   : [(0x0A200, 8, 127)], # base, multiplier, limit
+        'length' : 32,
+        'access' : Access.RW,
+        'fields'  : {
+            'RAL' : {
+                'init'   : 0b0, 
+                'start'  : 0,
+                'end'    : 31
+            }
+        }
+    },
+    'RAH' : {
+        'addr'   : [(0x0A204, 8, 127)], # base, multiplier, limit
+        'length' : 32,
+        'access' : Access.RW,
+        'fields'  : {
+            'RAH' : {
+                'init'   : 0b0, 
+                'start'  : 0,
+                'end'    : 15
+            },
+            'Reserved' : {
+                'init'   : 0b0, 
+                'start'  : 16,
+                'end'    : 30,
+                'access': Access.RO
+            },
+            'AV' : {
+                'init'   : 0b0, # TODO handle RAH.AV...
+                'start'  : 31,
+                'end'    : 31
+            }
+        }
+    },
 }
 
 pci_regs = {

@@ -122,7 +122,7 @@ class SegmentedMemory(SimMemory):
 
     # Silly hack for memory_fractional's handled_objs, should not be needed... TODO refactor this cleanly once we move to the new angr memory model
     def add_size(self, obj, size):
-        self.segments.append((obj, 1, size))
+        self.segments.append((obj, 1, size * 8)) # we get the size in bytes
 
     def havoc(self, addr):
         (base, index, offset) = self.base_index_offset(addr)

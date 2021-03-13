@@ -568,7 +568,7 @@ void tn_device_init(const struct os_pci_address* pci_address, struct tn_device* 
 			os_fatal("RXDCTL.ENABLE did not clear, cannot disable receive to reset");
 		}
 		// "Once the RXDCTL.ENABLE bit is cleared the driver should wait additional amount of time (~100 us) before releasing the memory allocated to this queue."
-		os_clock_sleep_ns(100 * 1000);
+		// We aren't releasing any memory, so no need to wait
 	}
 	//   "Then the device driver sets the PCIe Master Disable bit [in the Device Status register] when notified of a pending master disable (or D3 entry)."
 	reg_set_field(device->addr, REG_CTRL, REG_CTRL_MASTER_DISABLE);

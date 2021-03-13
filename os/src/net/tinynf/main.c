@@ -10,7 +10,7 @@
 // TODO: Explicitly verify TinyNF assumptions during verif
 
 static struct tn_device* devices;
-static device_t devices_count;
+static size_t devices_count;
 static struct net_ether_addr* endpoint_macs;
 static struct net_ether_addr* device_macs;
 static size_t* current_output_lengths;

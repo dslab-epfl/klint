@@ -67,14 +67,15 @@ def find_reg_from_addr(state, addr):
     if not isinstance(addr, claripy.ast.Base) or not addr.symbolic:
         conc_addr = state.solver.eval(addr)
         for reg, data in spec_reg.registers.items():
+            len_bytes = data['length'] // 8
             idx = 0
             for b, m, l in data['addr']:
-                high = b + (l-idx)*m
+                high = b + (l-idx)*m + len_bytes
                 if b <= conc_addr and conc_addr < high:
-                    reg_index = ((conc_addr - b) / m + idx)
+                    reg_index = 0 if m == 0 else ((conc_addr - b) / m + idx)
                     if int(reg_index) == reg_index:
                         reg_index = int(reg_index) # they compare as equal but without this reg_index is still a float
-                        print(f"{reg}[{reg_index}]")
+                        #print(f"{reg}[{reg_index}]")
                         return reg, reg_index
                 idx += l + 1
 
@@ -95,9 +96,9 @@ def find_reg_from_addr(state, addr):
                 n_con = state.solver.eval(n, extra_constraints=[constraint])
                 #if not (n_con in state.globals['indices']):
                 #    state.globals['indices'] += [n_con]
-                print(f"{reg}[{n_con}]")
+                #print(f"{reg}[{n_con}]")
                 return reg, n_con
-            print(f"{reg}")
+            #print(f"{reg}")
             return reg, None
     raise Exception(f"Cannot find register at {addr}.")
 
@@ -187,29 +188,21 @@ def check_access_write(old_val, new_val, reg, data, fields):
         if illegal:
             raise Exception(f"Illegal attempt to write to {reg}.{f}")
 
-def change_reg_field(state, device, name, index, registers, base_addr, new):
+def change_reg_field(state, device, name, index, registers, new):
     """
     Changes a single field in a register and saves the new value.
     :param name: register indentifier of the form REG.FIELD
     :param register: register spec
-    :param addr: base address for the spec, either device or pci
     :param new: new field value. If the field is to be made 
     symbolic, should be 'X'. 
     """
     reg, field = name.split('.', 1)
     data = registers[reg]
-    addr = base_addr
     prev = -1
-    if index != None:
-        for b, m, l in data['addr']:
-            if index > l:
-                prev = l
-                continue
-            addr += b + m*(index - prev - 1)
-    else:
-        b, _, _ = data['addr'][0]
-        addr += b
-    reg_old = fetch_reg(state, device.regs, reg, index, data, device.use_init[0])
+    dev_regs = device.regs
+    if registers == spec_reg.pci_regs:
+        dev_regs = device.pci_regs
+    reg_old = fetch_reg(state, dev_regs, reg, index, data, device.use_init[0])
     reg_new = None
     f_info = data['fields'][field]
     if reg_old.op == 'BVV' and new != 'X':
@@ -235,7 +228,7 @@ def change_reg_field(state, device, name, index, registers, base_addr, new):
                 ] == reg_old[
                     data['length']-1:f_info['end']+1
                 ])
-    update_reg(state, device.regs, reg, index, data, reg_new)
+    update_reg(state, dev_regs, reg, index, data, reg_new)
 
 
 def verify_write(state, device, fields, reg, index, spec):
@@ -272,7 +265,7 @@ def verify_write(state, device, fields, reg, index, spec):
             precond_sat = True
             if info['precond'] != None:
                 temp_state = state.copy()
-                con = info['precond'].generateConstraints(temp_state, spec_reg.registers, spec_reg.pci_regs, index)
+                con = info['precond'].generateConstraints(temp_state, device, spec_reg.registers, spec_reg.pci_regs, index)
                 precond_sat = temp_state.solver.eval(con)
             if not precond_sat:
                 rejected += [action]
