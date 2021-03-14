@@ -76,7 +76,7 @@ total_externals = {
     'os_pci_enumerate': pci.os_pci_enumerate,
     'os_pci_read': pci.os_pci_read,
     'os_pci_write': pci.os_pci_write,
-    'foreach_index': functions.foreach_index
+#    'foreach_index': functions.foreach_index
 }
 
 def nf_init(bin_path, devices_count):

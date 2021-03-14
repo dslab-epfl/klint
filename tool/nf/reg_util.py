@@ -7,46 +7,49 @@ from . import spec_reg
 # TODO: Akvile had put a cache here, which is a good idea since the read-then-write pattern is common;
 #       I removed it cause it depended on state.globals, but we should put it back somehow
 
-def __constrain_field(symb, state, start, end, value):
+def __constrain_field(symb, start, end, value):
     """
     Makes the constrain symb[end:start] = value on the state solver.
     """
     if value & (2**(1 + end - start) - 1) != value:
         raise Exception(f"The value {value} does not fit in the specified range {symb}[{end}:{start}].")
-    state.solver.add(symb[end:start] == value)
-    if state.satisfiable() == False:
-        raise Exception(f"Constraint {symb}[{end}:{start}] = {value} leads to contradiction.")
+    value = claripy.BVV(value, end - start + 1)
+    if start == 0:
+        if end == symb.size():
+            return value
+        return symb[symb.size()-1:end].concat(value)
+    if end == symb.size():
+        return value.concat(symb[start:0])
+    return symb[symb.size()-1:end].concat(value).concat(symb[start:0])
 
-def __init_reg_val_symb(state, name, data):
+def __init_reg_val_symb(name, data):
     """
     Creates and returns a Symbolic Bit Vector for the identified register based on 
     initial register field values
-    :param state: state on which the register values are constrained
     :param name: the name of the register
     :param data: dictionary associated with the register reg
     :return: the symbolic register value 
     """
-    symb = state.solver.BVS(name, data['length'])
+    symb = claripy.BVS(name, data['length'])
     last = 0 # Last unconstrained bit
     for field, info in data['fields'].items():
         if info['init'] == 'X': # Floating value can be modeled as uncontrained
             last = info['end'] + 1
             continue
         if last != info['start']: # There is an implicit Reserved block
-            __constrain_field(symb, state, last, info['start'] - 1, 0)
+            symb = __constrain_field(symb, last, info['start'] - 1, 0)
             last = info['start']    
-        __constrain_field(symb, state, info['start'], info['end'], info['init'])
+        symb = __constrain_field(symb, info['start'], info['end'], info['init'])
         last = info['end'] + 1
     if last != data['length']: # There is a reserved field at the end
-        __constrain_field(symb, state, last, data['length'] - 1, 0)
+        symb = __constrain_field(symb, last, data['length'] - 1, 0)
     return symb
 
-def __init_reg_val_con(state, data):
+def __init_reg_val_con(data):
     """
     Creates and returns a Bit Vector for the indentified register based on
     initial register field values. Returns None if the register cannot be
     made concrete.
-    :param state: state on which the register values are constrained
     :param data: dictionary associated with the register
     :return: BVV or None
     """
@@ -55,7 +58,7 @@ def __init_reg_val_con(state, data):
         if info['init'] == 'X': # Floating value can be modeled as uncontrained
             return None   
         value = value | (info['init'] << info['start'])
-    bvv = state.solver.BVV(value, data['length'])
+    bvv = claripy.BVV(value, data['length'])
     return bvv
 
 def find_reg_from_addr(state, addr):
@@ -106,7 +109,7 @@ def is_reg_indexed(data):
     _, m, _ = data['addr'][0]
     return (m != 0)
 
-def fetch_reg(state, reg_dict, reg, index, data, use_init):
+def fetch_reg(reg_dict, reg, index, data, use_init):
     """
     Fetches register from state global store. Initialises it if needed.
     """
@@ -120,27 +123,27 @@ def fetch_reg(state, reg_dict, reg, index, data, use_init):
         else:
             return d
     if use_init:
-        reg_bv = __init_reg_val_con(state, data)
+        reg_bv = __init_reg_val_con(data)
         if reg_bv == None:
             # If a concrete value cannot be created, try symbolic
-            reg_bv = __init_reg_val_symb(state, reg, data)
+            reg_bv = __init_reg_val_symb(reg, data)
     else:
-        reg_bv = state.solver.BVS(reg, data['length'])
-    update_reg(state, reg_dict, reg, index, data, reg_bv)
+        reg_bv = claripy.BVS(reg, data['length'])
+    update_reg(reg_dict, reg, index, data, reg_bv)
     return reg_bv
 
-def fetch_reg_field(state, name, index, data, use_init):
+def fetch_reg_field(name, index, data, use_init):
     """
     Fetches a particular field of the identified register
     :param name: name of the form REG.FIELD
     :param data: dictionary associated with REG
     """
     r, f = name.split('.', 1)
-    reg = fetch_reg(state, r, index, data, use_init)
+    reg = fetch_reg(r, index, data, use_init)
     field_data = data['fields'][f]
     return reg[field_data['end']:field_data['start']]
 
-def update_reg(state, reg_dict, reg, index, data, expr):
+def update_reg(reg_dict, reg, index, data, expr):
     """
     Update register value in the state.
     :param data: dictionary associated with the register reg
@@ -202,7 +205,7 @@ def change_reg_field(state, device, name, index, registers, new):
     dev_regs = device.regs
     if registers == spec_reg.pci_regs:
         dev_regs = device.pci_regs
-    reg_old = fetch_reg(state, dev_regs, reg, index, data, device.use_init[0])
+    reg_old = fetch_reg(dev_regs, reg, index, data, device.use_init[0])
     reg_new = None
     f_info = data['fields'][field]
     if reg_old.op == 'BVV' and new != 'X':
@@ -214,9 +217,9 @@ def change_reg_field(state, device, name, index, registers, new):
         if f_info['end'] < data['length'] - 1:
             after = state.solver.eval(reg_old[data['length']-1:f_info['end']+1])
             val = val | (after << f_info['end']+1)
-        reg_new = state.solver.BVV(val, data['length'])
+        reg_new = claripy.BVV(val, data['length'])
     else:
-        reg_new = state.solver.BVS(reg, data['length'])
+        reg_new = claripy.BVS(reg, data['length'])
         if f_info['start'] > 0:
             state.solver.add(reg_new[f_info['start']-1:0] == 
                 reg_old[f_info['start']-1:0])
@@ -228,7 +231,7 @@ def change_reg_field(state, device, name, index, registers, new):
                 ] == reg_old[
                     data['length']-1:f_info['end']+1
                 ])
-    update_reg(state, dev_regs, reg, index, data, reg_new)
+    update_reg(dev_regs, reg, index, data, reg_new)
 
 
 def verify_write(state, device, fields, reg, index, spec):
@@ -264,9 +267,8 @@ def verify_write(state, device, fields, reg, index, spec):
             # If there is no precondition, the action is valid
             precond_sat = True
             if info['precond'] != None:
-                temp_state = state.copy()
-                con = info['precond'].generateConstraints(temp_state, device, spec_reg.registers, spec_reg.pci_regs, index)
-                precond_sat = temp_state.solver.eval(con)
+                con = info['precond'].generateConstraints(device, spec_reg.registers, spec_reg.pci_regs, index)
+                precond_sat = state.solver.eval(con)
             if not precond_sat:
                 rejected += [action]
                 continue

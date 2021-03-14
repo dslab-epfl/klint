@@ -1,3 +1,5 @@
+import claripy
+
 from enum import Enum
 from . import reg_util
 from . import spec_reg
@@ -94,7 +96,7 @@ class Node:
         reg_util.change_reg_field(state, device, first_child, index, regs_spec, new_val)
 
 
-    def generateConstraints(self, state, device, registers, pci_regs, index):
+    def generateConstraints(self, device, registers, pci_regs, index):
         """
         Generates constraints to quickly check whether propositional
         logic precondition AST on registers is valid.
@@ -102,7 +104,7 @@ class Node:
         :return: constrained bit vector
         """
         if self.kind == AST.Not:
-            return (~self.children[0].generateConstraints(state, device, registers, pci_regs, index))
+            return (~self.children[0].generateConstraints(device, registers, pci_regs, index))
         elif self.kind == AST.Reg:
             r, f = self.children[0].split('.', 1)
             spec = registers
@@ -111,19 +113,19 @@ class Node:
                 spec = pci_regs
                 reg_dict = device.pci_regs
             data = spec[r]
-            reg = reg_util.fetch_reg(state, reg_dict, r, index, data, device.use_init[0])
+            reg = reg_util.fetch_reg(reg_dict, r, index, data, device.use_init[0])
             start = data['fields'][f]['start']
             end = data['fields'][f]['end']
             return reg[end:start]
         elif self.kind == AST.Or:
-            con = state.solver.BVV(0,1)
+            con = claripy.BVV(0,1)
             for c in self.children:
-                con = con | c.generateConstraints(state, device, registers, pci_regs, index)
+                con = con | c.generateConstraints(device, registers, pci_regs, index)
             return con
         elif self.kind == AST.And:
-            con = state.solver.BVV(1,1)
+            con = claripy.BVV(1,1)
             for c in self.children:
-                con = con & c.generateConstraints(state, device, registers, pci_regs, index)
+                con = con & c.generateConstraints(device, registers, pci_regs, index)
             return con
         else:
             raise Exception("Invalid AST")
@@ -152,7 +154,7 @@ class Node:
             if start != end:
                 raise Exception(f"""While checking {r}.{f}: Properties 
             on fields should be implemented using AST.Check.""")
-            reg = reg_util.fetch_reg(state, r, index, data, state.globals['use_init'])
+            reg = reg_util.fetch_reg(r, index, data, state.globals['use_init'])
             val = state.solver.eval(reg[end:start])
             if val:
                 print_informatively(True, hope, f"{indent}Check for the field {r}.{f} holds.")
@@ -206,8 +208,7 @@ class Node:
                         (property expects indexed registers but none 
                         were used).""")
                     return False
-                args[i] = reg_util.fetch_reg_field(state, name, 
-                    index, data, state.globals['use_init'])
+                args[i] = reg_util.fetch_reg_field(name, index, data, state.globals['use_init'])
             bv = lmd(args)
             sols = state.solver.eval_upto(bv, 2)
             if len(sols) == 2 and hope:

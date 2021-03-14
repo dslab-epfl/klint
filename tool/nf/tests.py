@@ -59,7 +59,7 @@ class TestAstUtilMethods(unittest.TestCase):
         cond = ast_util.Node(ast_util.AST.Not, [
             ast_util.Node(ast_util.AST.Reg, ["TEST.FIELD"])
         ])
-        constraint = cond.generateConstraints(state, registers, None)
+        constraint = cond.generateConstraints(registers, None)
         self.assertTrue(state.solver.eval(constraint) == 1)
         cond = ast_util.Node(ast_util.AST.And, [
             ast_util.Node(ast_util.AST.Reg, ["TEST.FIELD"]),
@@ -67,13 +67,13 @@ class TestAstUtilMethods(unittest.TestCase):
             ast_util.Node(ast_util.AST.Reg, ["TEST.FIELD"])
             ])
         ])
-        constraint = cond.generateConstraints(state, registers, None)
+        constraint = cond.generateConstraints(registers, None)
         self.assertTrue(state.solver.eval(constraint) == 0)
         cond = ast_util.Node(ast_util.AST.Clear, [
             ast_util.Node(ast_util.AST.Reg, ["Test"])
         ])
         with self.assertRaises(Exception):
-            cond.generateConstraints(state, registers, None)
+            cond.generateConstraints(registers, None)
 
     def test_check_validity(self):
         proj = angr.Project('/bin/true', auto_load_libs=False, use_sim_procedures=False)

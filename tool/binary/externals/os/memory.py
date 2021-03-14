@@ -53,7 +53,8 @@ class os_memory_phys_to_virt(angr.SimProcedure):
 # uintptr_t os_memory_virt_to_phys(const void* addr);
 class os_memory_virt_to_phys(angr.SimProcedure):
     def run(self, addr):
-        raise "TODO"
+        addr = cast.ptr(addr)
+        return addr # TODO proper handling
 
 
 # No contract, not exposed publicly, only for symbex harnesses

@@ -31,7 +31,7 @@ def track_reads_before(state):
         return
     # Initialise the register if needed
     data = spec_reg.registers[reg]
-    reg_util.fetch_reg_and_store(state, reg, index, data, addr, state.globals['use_init'])
+    reg_util.fetch_reg_and_store(reg, index, data, addr, state.globals['use_init'])
     return
 
 
@@ -51,7 +51,7 @@ def track_pci_writes(state, base, pci_addr, val):
     fields = find_fields_on_write(reg_val, val, name, state, spec_reg.pci_regs)
     check_access_write(state, name, reg_val, val, data, fields)
     verify_write(state, fields, name, None, spec_reg.pci_regs)
-    reg_util.update_reg(state, name, None, data, val)
+    reg_util.update_reg(name, None, data, val)
     return
 
 
