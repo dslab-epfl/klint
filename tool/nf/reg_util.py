@@ -219,18 +219,15 @@ def change_reg_field(state, device, name, index, registers, new):
             val = val | (after << f_info['end']+1)
         reg_new = claripy.BVV(val, data['length'])
     else:
-        reg_new = claripy.BVS(reg, data['length'])
-        if f_info['start'] > 0:
-            state.solver.add(reg_new[f_info['start']-1:0] == 
-                reg_old[f_info['start']-1:0])
-        if new != 'X':
-            state.solver.add(reg_new[f_info['end']:f_info['start']] == new)
+        if new == 'X':
+            raise "oops"
+        value_len = f_info['end'] - f_info['start'] + 1
+        if f_info['start'] == 0:
+            reg_new = claripy.BVV(new, value_len)
+        else:
+            reg_new = claripy.BVV(new, value_len).concat(reg_old[f_info['start']-1:0])
         if f_info['end'] < data['length'] - 1:
-            state.solver.add(reg_new[
-                    data['length']-1:f_info['end']+1
-                ] == reg_old[
-                    data['length']-1:f_info['end']+1
-                ])
+            reg_new = reg_old[data['length']-1:f_info['end']+1].concat(reg_new)
     update_reg(dev_regs, reg, index, data, reg_new)
 
 
