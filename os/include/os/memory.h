@@ -10,7 +10,7 @@
 typedef unsigned hash_t;
 
 
-// Allocates a pinned, zero-initialized memory block of the given length (size * count), aligned to the length.
+// Allocates a pinned, zero-initialized, contiguous memory block of the given length (size * count), aligned to the length.
 // "Pinned" here means "the virtual-to-physical mapping will never change", not just that it will always be in memory.
 // This allows the allocated memory's physical address to be given to a device for DMA.
 // For simplicity, never fails; if there is not enough memory available, crashes the program.

@@ -983,6 +983,7 @@ struct tn_agent_output_state
 {
 	struct tn_agent* agent;
 	size_t output_index;
+	uintptr_t buffer_phys_addr;
 };
 
 static void tn_agent_add_output_ringconfig(size_t index, void* state_)
@@ -990,8 +991,7 @@ static void tn_agent_add_output_ringconfig(size_t index, void* state_)
 	struct tn_agent_output_state* state = (struct tn_agent_output_state*) state_;
 	// Section 7.2.3.2.2 Legacy Transmit Descriptor Format:
 	// "Buffer Address (64)", 1st line offset 0
-	void* packet_addr = state->agent->buffer + index * PACKET_BUFFER_SIZE;
-	uintptr_t packet_phys_addr = os_memory_virt_to_phys(packet_addr);
+	uintptr_t packet_phys_addr = state->buffer_phys_addr + index * PACKET_BUFFER_SIZE;
 	// INTERPRETATION-MISSING: The data sheet does not specify the endianness of descriptor buffer addresses..
 	// Since Section 1.5.3 Byte Ordering states "Registers not transferred on the wire are defined in little endian notation.", we will assume they are little-endian.
 	state->agent->rings[state->output_index][index].addr = cpu_to_le64(packet_phys_addr);
@@ -1017,7 +1017,8 @@ static void tn_agent_add_output(struct tn_agent* const agent, struct tn_device* 
 	// Program all descriptors' buffer addresses now
 	struct tn_agent_output_state ringconfig_state = {
 		.agent = agent,
-		.output_index = output_index
+		.output_index = output_index,
+		.buffer_phys_addr = os_memory_virt_to_phys(agent->buffer)
 	};
 	foreach_index(IXGBE_RING_SIZE, tn_agent_add_output_ringconfig, &ringconfig_state);
 	// "- Program the descriptor base address with the address of the region (TDBAL, TDBAH)."
