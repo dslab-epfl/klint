@@ -15,12 +15,12 @@ def __constrain_field(symb, start, end, value):
         raise Exception(f"The value {value} does not fit in the specified range {symb}[{end}:{start}].")
     value = claripy.BVV(value, end - start + 1)
     if start == 0:
-        if end == symb.size():
+        if end == symb.size() - 1:
             return value
-        return symb[symb.size()-1:end].concat(value)
-    if end == symb.size():
-        return value.concat(symb[start:0])
-    return symb[symb.size()-1:end].concat(value).concat(symb[start:0])
+        return symb[symb.size()-1:end+1].concat(value)
+    if end == symb.size() - 1:
+        return value.concat(symb[start-1:0])
+    return symb[symb.size()-1:end+1].concat(value).concat(symb[start-1:0])
 
 def __init_reg_val_symb(name, data):
     """
@@ -280,7 +280,7 @@ def verify_write(state, device, fields, reg, index, spec):
                 rejected += [action]
                 continue
             valid = True
-            #print("Action: ", action)
+            print("Action: ", action)
             if action == 'Initiate Software Reset':
                 device.use_init[0] = True
             device.latest_action[0] = action
