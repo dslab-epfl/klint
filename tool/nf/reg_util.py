@@ -61,7 +61,14 @@ def __init_reg_val_con(data):
     bvv = claripy.BVV(value, data['length'])
     return bvv
 
-def find_reg_from_addr(state, addr):
+def find_reg_from_addr(state, addr, _cache={}):
+    if len(_cache) == 0:
+        for reg, data in spec_reg.registers.items():
+            idx = 0
+            for b, m, l in data['addr']:
+                for n in range(0, l+1):
+                    _cache[b + n*m] = (reg, n+idx)
+                idx += l + 1
     """
     Finds which register the address refers to.
     :return: the name of the register and its index.
@@ -69,6 +76,9 @@ def find_reg_from_addr(state, addr):
     # Optimization: if addr isn't symbolic then deal with it quickly
     if not isinstance(addr, claripy.ast.Base) or not addr.symbolic:
         conc_addr = state.solver.eval(addr)
+        cached = _cache.get(conc_addr, None)
+        if cached is not None:
+            return cached
         for reg, data in spec_reg.registers.items():
             len_bytes = data['length'] // 8
             idx = 0
@@ -270,15 +280,15 @@ def verify_write(state, device, fields, reg, index, spec):
                 rejected += [action]
                 continue
             valid = True
-            print("Action: ", action)
+            #print("Action: ", action)
             if action == 'Initiate Software Reset':
                 device.use_init[0] = True
             device.latest_action[0] = action
             if action in device.actions.keys():
                 # We have seen this action before 
                 device.actions[action] = device.actions[action] + [counter]
-                continue
-            device.actions[action] = [counter]
+            else:
+                device.actions[action] = [counter]
         if valid:
             continue
         if len(rejected) == 0:

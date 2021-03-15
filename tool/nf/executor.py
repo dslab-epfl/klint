@@ -134,12 +134,16 @@ def execute(bin_path):
     print("NF symbex done! at", datetime.now())
     return (results, devices_count)
 
+import datetime
 def execute_full(bin_path):
+    xxx = datetime.datetime.now()
     spec_reg.validate_registers(spec_reg.registers)
     spec_reg.validate_registers(spec_reg.pci_regs)
     spec_act.validate_actions()
     #spec_glo.validate_globals()
     sm = bin_exec.create_sim_manager(bin_path, total_externals, "main", [0, 0]) # args = argc, argv
     sm.run()
+    yyy = datetime.datetime.now()
+    zzz = yyy - xxx
     if len(sm.errored) > 0:
         sm.errored[0].reraise()
