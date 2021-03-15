@@ -38,8 +38,8 @@ struct tn_agent
 	uint8_t* buffer;
 	volatile uint32_t* receive_tail_addr;
 	size_t processed_delimiter;
-	size_t outputs_count;
 	size_t flush_counter;
+	size_t outputs_count;
 	size_t* lengths;
 	volatile uint32_t* transmit_heads;
 	volatile struct tn_descriptor** rings; // 0 == shared receive/transmit, rest are exclusive transmit

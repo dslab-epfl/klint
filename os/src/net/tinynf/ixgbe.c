@@ -7,12 +7,11 @@
 #include "os/clock.h"
 #include "os/error.h"
 #include "os/memory.h"
+#include "verif/counters.h"
 #include "verif/functions.h"
 
-#ifndef __cplusplus
 // Don't include <assert.h> since that's not allowed in freestanding implementations
 #define static_assert _Static_assert
-#endif
 
 
 // ===============
@@ -1208,6 +1207,9 @@ void tn_agent_init(size_t input_index, size_t devices_count, struct tn_device* d
 	if (agent->outputs_count == 0) {
 		os_fatal("No outputs given");
 	}
+
+	agent->processed_delimiter = counter_create(IXGBE_RING_SIZE);
+	agent->flush_counter = counter_create(IXGBE_AGENT_FLUSH_PERIOD);
 
 	agent->buffer = os_memory_alloc(IXGBE_RING_SIZE, PACKET_BUFFER_SIZE);
 	agent->lengths = os_memory_alloc(agent->outputs_count, sizeof(size_t));
