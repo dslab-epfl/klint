@@ -11,7 +11,7 @@ from . import reg_util
 from binary.exceptions import SymbexException
 
 # counter, use_init, latest_action are single-element lists so we can change them
-SpecDevice = namedtuple('SpecDevice', ['phys_addr', 'virt_addr', 'bar_size', 'pci_regs', 'regs', 'counter', 'use_init', 'latest_action', 'legal_actions', 'actions'])
+SpecDevice = namedtuple('SpecDevice', ['phys_addr', 'virt_addr', 'bar_size', 'pci_regs', 'regs', 'counter', 'use_init', 'latest_action', 'actions'])
 
 def find_device(state, virt_addr):
     for dev in state.metadata.get_all(SpecDevice).values():
@@ -40,7 +40,7 @@ def device_writer(state, base, _, offset, value):
     latest = dev.latest_action[0]
     if latest != None:
         # Apply postcondition
-        post = dev.legal_actions[latest]['postcond']
+        post = spec_act.actions[latest]['postcond']
         if post != None:
             post.applyAST(state, dev, index)
         dev.latest_action[0] = None
@@ -48,7 +48,7 @@ def device_writer(state, base, _, offset, value):
 
 def spec_device_create_default(state):
     bar_size = 128 * 1024 # Intel 82599
-    device = SpecDevice(claripy.BVS("dev_phys_addr", bitsizes.ptr), claripy.BVS("dev_virt_addr", bitsizes.ptr), bar_size, {}, {}, [0], [False], [None], copy.deepcopy(spec_act.device_init), {})
+    device = SpecDevice(claripy.BVS("dev_phys_addr", bitsizes.ptr), claripy.BVS("dev_virt_addr", bitsizes.ptr), bar_size, {}, {}, [0], [False], [None], {})
 
     # Phys addr handling
     utils.add_constraints_and_check_sat(state, device.phys_addr & 0b1111 == 0) # since the bottom 4 bits of the BAR are non-address stuff

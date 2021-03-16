@@ -2,6 +2,7 @@ import claripy
 
 from binary import utils
 from . import ast_util
+from . import spec_act
 from . import spec_reg
 
 # TODO: Akvile had put a cache here, which is a good idea since the read-then-write pattern is common;
@@ -241,11 +242,19 @@ def change_reg_field(state, device, name, index, registers, new):
     update_reg(dev_regs, reg, index, data, reg_new)
 
 
-def verify_write(state, device, fields, reg, index, spec):
+def verify_write(state, device, fields, reg, index, reg_dict, _cache={}):
     """
     Verifies if the write can be matched to an action.
     Raises an exception if it can't be matched.
     """
+    if len(_cache) == 0:
+        for action, info in spec_act.actions.items():
+            for r in info['action'].getRegisters():
+                if r in _cache:
+                    _cache[r].append((action, info))
+                else:
+                    _cache[r] = [(action, info)]
+
     counter = device.counter[0]
     for f_info in fields:
         (f, prev, new) = f_info
@@ -255,13 +264,13 @@ def verify_write(state, device, fields, reg, index, spec):
         # The write to this field is invalid until a matching 
         # action is found
         valid = False
-        if spec[reg]['fields'][f]['access'] == spec_reg.Access.IW:
+        if reg_dict[reg]['fields'][f]['access'] == spec_reg.Access.IW:
             # Validating this field is optional
             valid = True
-        for action, info in device.legal_actions.items():    
+        for action, info in _cache.get(reg, []):
             # Does the action match writing to this field?
             action_matches = False
-            if spec[reg]['fields'][f]['end'] != spec[reg]['fields'][f]['start']:
+            if reg_dict[reg]['fields'][f]['end'] != reg_dict[reg]['fields'][f]['start']:
                 action_matches = info['action'].isWriteFieldCorrect(state, f"{reg}.{f}", new)
             elif (n == 1 and info['action'].isFieldSetOrCleared(f"{reg}.{f}", ast_util.AST.Set)):
                 action_matches = True

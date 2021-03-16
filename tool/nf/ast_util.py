@@ -31,6 +31,15 @@ class Node:
     def getChild(self, id):
         return self.children[id]
 
+    def getRegisters(self):
+        results = []
+        for child in self.children:
+            if isinstance(child, str):
+                results.append(child.split(".", 1)[0])
+            if isinstance(child, Node):
+                results += child.getRegisters()
+        return results
+
     def isWriteFieldCorrect(self, state, name, value):
         """
         Checks whether this AST corresponds to a legal write
@@ -41,8 +50,7 @@ class Node:
         :return: bool
         """
         if self.kind == AST.Write:
-            if not (self.children[0].getKind() == AST.Reg and 
-                self.children[0].getChild(0) == name):
+            if not (self.children[0].getKind() == AST.Reg and self.children[0].getChild(0) == name):
                 return False
             if self.children[1].getKind() != AST.Value:
                 raise Exception("Illegal AST for this function")
@@ -60,8 +68,7 @@ class Node:
         :return: bool
         """
         if self.kind == kind:
-            return (self.children[0].getKind() == AST.Reg and 
-                self.children[0].getChild(0) == name)
+            return (self.children[0].getKind() == AST.Reg and self.children[0].getChild(0) == name)
         else:
             return False
     
@@ -130,8 +137,7 @@ class Node:
         else:
             raise Exception("Invalid AST")
     
-    def checkValidity(self, state, registers, global_state, indent, 
-        hope, index):
+    def checkValidity(self, state, registers, global_state, indent, hope, index):
         """
         Check if the propositional logic AST on global states and 
         registers are valid and generate a readable trace.

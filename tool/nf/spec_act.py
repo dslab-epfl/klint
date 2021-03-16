@@ -568,19 +568,15 @@ init_sequence = {
     # "9. Enable interrupts (see Section 4.6.3.1)." TODO: optional
 }
 
-
-device_init = {**init_sequence, **global_reset, **software_reset, 
+actions = {**init_sequence, **global_reset, **software_reset, 
     **master_disable, **transmit_init, **receive_init, **pci_setup,
     **promiscuous, **enable_receive_queue, **enable_transmit_queue}
 
-act_list = [device_init, promiscuous, enable_receive_queue, enable_transmit_queue]
-
 def validate_actions():
-    for actions in act_list:
-        for action, info in actions.items():
-            if not ("precond" in info.keys()):
-                info["precond"] = None
-            if not ("postcond" in info.keys()):
-                info["postcond"] = None
-            if not ("action" in info.keys()):
-                raise Exception(f"No action AST specified: {action}")
+    for action, info in actions.items():
+        if not ("precond" in info.keys()):
+            info["precond"] = None
+        if not ("postcond" in info.keys()):
+            info["postcond"] = None
+        if not ("action" in info.keys()):
+            raise Exception(f"No action AST specified: {action}")

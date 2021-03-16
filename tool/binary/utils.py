@@ -136,6 +136,7 @@ def add_constraints_and_check_sat(state, *constraints, **kwargs):
             if not state.satisfiable():
                 raise angr.errors.SimUnsatError("UNSAT after adding constraint")
         return
-    state.add_constraints(*constraints, **kwargs)
+    # TODO why is this simplify needed here? constraints shouldn't be added if c is like "false || true" but without it they are
+    state.add_constraints(*[state.solver.simplify(c) for c in constraints], **kwargs)
     if not state.satisfiable():
         raise angr.errors.SimUnsatError("UNSAT after adding constraints")

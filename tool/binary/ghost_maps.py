@@ -9,10 +9,17 @@ import queue
 from collections import namedtuple
 from enum import Enum
 
+from timeit import default_timer as timer
+
 # Us
 from . import bitsizes
 from . import utils
+from . import hash_dict
 from .exceptions import SymbexException
+
+
+# NOTE: All optimizations should be periodically re-evaluated, since adding new features may make them pointless or even harmful
+#       (e.g., making solver calls that are unnecessary due to some other change)
 
 
 # Helper function to make expressions clearer
@@ -173,9 +180,6 @@ class Map:
         if matching_item is not None:
             return (matching_item.value, matching_item.present)
 
-        # Let UK be And(K != K') for each key K' in the map's known items
-        unknown = claripy.And(*[key != i.key for i in known_items])
-
         # Let V be a fresh symbolic value [or the hint]
         if value is None:
             value = claripy.BVS(self.meta.name + "_value", self.meta.value_size)
@@ -183,22 +187,46 @@ class Map:
             value = claripy.If(claripy.And(*conditions), value, claripy.BVS(self.meta.name + "_other_value", self.meta.value_size))
 
         # Let P be a fresh symbolic presence bit [or the existing condition]
-        # MUTATE the map's known items by adding (K, V, P) [conditioned]
         present = claripy.BoolS(self.meta.name + "_present")
-        new_item = MapItem(key, value, present)
-        self.add_item(new_item)
 
-        utils.add_constraints_and_check_sat(state,
+        # Optimization: If the map length is concrete and there are definitely not too many items, don't even compute the known length
+        if not self.length().symbolic and len(known_items) <= self.length().args[0]:
+            known_length_lte_total = claripy.true
+        else:
+            known_length_lte_total = self.known_length() <= self.length()
+
+        # Let UK be And(K != K') for each key K' in the map's known items
+        unknown = claripy.And(*[key != i.key for i in known_items])
+
+        new_constraints = [
             # Add K = K' => (V = V' and P = P') to the path constraint for each known item (K', V', P') in the map,
-            *[Implies(new_item.key == i.key, (new_item.value == i.value) & (new_item.present == i.present)) for i in known_items],
+            *[Implies(key == i.key, (value == i.value) & (present == i.present)) for i in known_items],
             # Add UK => invariant(M)(K', V', P') to the path constraint [conditioned]
-            Implies(unknown, claripy.And(*[inv(state, new_item, conditions=conditions) for inv in self.invariant_conjunctions()])),
+            Implies(unknown, claripy.And(*[inv(state, MapItem(key, value, present), conditions=conditions) for inv in self.invariant_conjunctions()])),
             # Add L <= length(M)
-            self.known_length() <= self.length()
-        )
+            known_length_lte_total
+        ]
+
+        # Optimization: If the item is definitely present or absent, replace P with a constant
+        constant_present = utils.get_if_constant(state.solver, present, extra_constraints=new_constraints)
+        if constant_present is not None:
+            new_present = claripy.BoolV(constant_present)
+            new_constraints = [c.replace(present, new_present) for c in new_constraints]
+            present = new_present
+        # Same with the value
+        constant_value = utils.get_if_constant(state.solver, value, extra_constraints=new_constraints)
+        if constant_value is not None:
+            new_value = claripy.BVV(constant_value, value.size())
+            new_constraints = [c.replace(value, new_value) for c in new_constraints]
+            value = new_value
+
+        utils.add_constraints_and_check_sat(state, *new_constraints)
+
+        # MUTATE the map's known items by adding (K, V, P) [conditioned]
+        self.add_item(MapItem(key, value, present))
 
         # Return (V, P)
-        return (new_item.value, new_item.present)
+        return (value, present)
 
     def set(self, state, key, value):
         # Let P be get(M, K) != None
@@ -234,35 +262,39 @@ class Map:
         )
 
     def forall(self, state, pred):
-        # NOTE !!! pred is a MapInvariant here, we already did present=>pred in GhostMapsPlugin.forall
+        # NOTE: pred is a MapInvariant here, we already did present=>pred in GhostMapsPlugin.forall
+        # TODO: add type annotations everywhere...
 
         # Optimization: If the map is empty, the answer is always true
         if self.is_empty():
             return claripy.true
 
-        # Let K' be a fresh symbolic key and V' a fresh symbolic value
-        # Let L be the number of known items whose presence bit is set
-        # Let F = ((P1 => pred(K1, V1)) and (P2 => pred(K2, V2)) and (...) and ((L < length(M)) => (invariant(M)(K', V', P') => (P' => pred(K', V')))))
-        # Optimization: Exclude items resulting from a call to 'get', they will be implicitly tested through the map's invariant
-        result = claripy.And(*[pred(state, i) for i in self.known_items(exclude_get=True)])
         # Optimization: No need to go further if we already have an invariant known to imply the predicate
         for inv in self.invariant_conjunctions():
             if inv.quick_implies(pred):
                 return result
+
+        # Let K' be a fresh symbolic key, V' a fresh symbolic value, and P' a fresh symbolic presence bit
         test_key = claripy.BVS(self.meta.name + "_test_key", self.meta.key_size)
         test_value = claripy.BVS(self.meta.name + "_test_value", self.meta.value_size)
         test_present = claripy.BoolS(self.meta.name + "_test_present")
         test_item = MapItem(test_key, test_value, test_present)
-        # Optimization: (AND(invs) => pred) is equivalent to OR(inv=>pred)
-        # Thus we can test the conjunctions one by one and stop if we find one that is definitely true
-        # We expect this to be the common case due to invariant inference
-        inv_disj = claripy.false
+
+        # Let L be the number of known items whose presence bit is set
+        # Let F = ((P1 => pred(K1, V1)) and (P2 => pred(K2, V2)) and (...) and ((L < length(M)) => (invariant(M)(K', V', P') => (P' => pred(K', V')))))
+
+        # Optimization: Exclude items resulting from a call to 'get', they are implicitly tested through the unknown items invariant
+        known_items_result = claripy.And(*[pred(state, i) for i in self.known_items(exclude_get=True)])
+
+        # Optimization: We can start by testing the invariant conjunctions one by one, if we find one that definitely implies then the overall invariant definitely implies pred
+        #               We expect this to be the common case during invariant inference
         for inv in self.invariant_conjunctions():
-            this_disj = Implies(inv(state, test_item), pred(state, test_item))
-            if utils.definitely_true(state.solver, this_disj):
-                return claripy.true
-            inv_disj = inv_disj | this_disj
-        result &= Implies(self.known_length() < self.length(), inv_disj)
+            if utils.definitely_true(state.solver, Implies(inv(state, test_item), pred(state, test_item))):
+                return known_items_result
+
+        unknown_items_result = Implies(claripy.And(*[inv(state, test_item) for inv in self.invariant_conjunctions()]), pred(state, test_item))
+
+        result = known_items_result & Implies(self.known_length() < self.length(), unknown_items_result)
 
         # Optimization: No need to change the invariant if the predicate definitely holds or does not hold,
         # since in the former case it is already implied and in the latter case it would add nothing
@@ -364,6 +396,7 @@ class Map:
         return l.structurally_match(claripy.BVV(0, l.size()))
 
     def known_length(self):
+        START = timer()
         l = self.length()
         known_len = claripy.BVV(0, l.size())
         known_keys = []

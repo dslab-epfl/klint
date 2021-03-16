@@ -2,8 +2,8 @@ from collections import OrderedDict
 
 # Dictionary using hash identity, for e.g. Claripy ASTs
 class HashDict:
-    def __init__(self):
-        self._items = OrderedDict()
+    def __init__(self, values=None):
+        self._items = OrderedDict(values or {})
 
     def __getitem__(self, key):
         return self._items.get(hash(key), (None, None))[1]
