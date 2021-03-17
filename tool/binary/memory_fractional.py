@@ -15,6 +15,7 @@ from .memory_segmented import SegmentedMemory
 from . import bitsizes
 from . import utils
 
+# TODO: Only query the fractions map if 'take' has been called at least once for it; but this means Facts may not be the same before/after init, how to handle that?
 Facts = namedtuple('Facts', ['fractions', 'size'])
 RecordAllocateOpaque = namedtuple('RecordAllocateOpaque', ['name', 'result'])
 

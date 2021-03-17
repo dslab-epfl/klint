@@ -228,7 +228,7 @@ class Map:
         # Return (V, P)
         return (value, present)
 
-    def set(self, state, key, value):
+    def set(self, state, key, value, UNSAFE_can_flatten=False): # see GhostMapsPlugin.set for an explanation of UNSAFE_can_flatten
         # Let P be get(M, K) != None
         (_, present) = self.get(state, key)
 
@@ -240,7 +240,8 @@ class Map:
             items=[MapItem(key, value, claripy.true)],
             length_change=claripy.If(present, claripy.BVV(0, self.length().size()), claripy.BVV(1, self.length().size())),
             filter=lambda i: not i.key.structurally_match(key), # Optimization: Filter out known-obsolete keys already
-            map=lambda i: MapItem(i.key, claripy.If(i.key == key, value, i.value), claripy.If(i.key == key, claripy.true, i.present))
+            map=lambda i: MapItem(i.key, claripy.If(i.key == key, value, i.value), claripy.If(i.key == key, claripy.true, i.present)),
+            UNSAFE_can_flatten=UNSAFE_can_flatten
         )
 
     def remove(self, state, key):
@@ -369,7 +370,17 @@ class Map:
         else:
             self._previous.add_item(item)
 
-    def with_items_layer(self, items, length_change, filter, map):
+    def with_items_layer(self, items, length_change, filter, map, UNSAFE_can_flatten=False):
+        if UNSAFE_can_flatten:
+            return Map(
+                self.meta,
+                self._length + length_change,
+                self._invariants,
+                [map(i) for i in self._known_items if filter(i)] + items,
+                _previous=self._previous,
+                _filter=lambda i, old=filter: old(i) and filter(i),
+                _map=lambda i, old=map: map(old(i))
+            )
         return Map(
             self.meta,
             self._length + length_change,
@@ -466,8 +477,11 @@ class GhostMapsPlugin(SimStatePlugin):
         self.state.path.ghost_record(lambda: RecordGet(obj, key, result))
         return result
 
-    def set(self, obj, key, value):
-        self.state.metadata.set(obj, self[obj].set(self.state, key, value), override=True)
+    def set(self, obj, key, value, UNSAFE_can_flatten=False):
+        # UNSAFE_can_flatten, as its name implies, is only safe if the map has not been used for anything else (e.g. an invariant of another map)
+        # This is an optimization aimed at memory. Ideally we'd remove it because it's weird and requires being careful,
+        # but as long as we have big concrete slabs of memory for RX/TX descriptors we need it.
+        self.state.metadata.set(obj, self[obj].set(self.state, key, value, UNSAFE_can_flatten=UNSAFE_can_flatten), override=True)
         self.state.path.ghost_record(lambda: RecordSet(obj, key, value))
 
     def remove(self, obj, key):

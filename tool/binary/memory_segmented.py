@@ -67,7 +67,7 @@ class SegmentedMemory(SimMemory):
             if offset > 0:
                 value = value.concat(full[offset-1:0])
 
-        self.state.maps.set(base, index, value)
+        self.state.maps.set(base, index, value, UNSAFE_can_flatten=True) # memory cannot escape to an invariant aside from v0 thus this is safe
         request.completed = True
         request.stored_values = [data]
 
