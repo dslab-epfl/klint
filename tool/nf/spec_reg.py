@@ -1411,6 +1411,25 @@ registers = {
             }
         }
     },
+    # Section 8.2.3.9.9 Transmit Descriptor Tail
+    'TDT' : {
+        'addr': [(0x06018, 0x40, 127)],
+        'length': 32,
+        'access': Access.RW,
+        'fields': {
+            'TDT' : {
+                'init' : 0,
+                'start': 0,
+                'end'  : 15
+             },
+            'Reserved' : {
+                'init' : 0,
+                'start': 16,
+                'end'  : 31,
+                'access': Access.RO
+             }
+        }
+    }
 }
 
 pci_regs = {
