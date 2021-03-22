@@ -18,7 +18,7 @@ typedef unsigned hash_t;
 // TODO don't zero and add a helper for when zeroing is needed? check the perf impact
 void* os_memory_alloc(size_t count, size_t size);
 //@ requires count == 1 || count * size <= SIZE_MAX;
-//@ ensures chars(result, count * size, ?cs) &*& true == all_eq(cs, 0) &*& result + count * size <= (char*) UINTPTR_MAX;
+//@ ensures uchars(result, count * size, ?cs) &*& true == all_eq(cs, 0) &*& result + count * size <= (char*) UINTPTR_MAX;
 //@ terminates;
 
 // Maps the region of physical address memory defined by (address, size) into virtual memory.

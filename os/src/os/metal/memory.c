@@ -5,35 +5,33 @@
 //@ #include "proof/arith.gh"
 //@ #include "proof/modulo.gh"
 
+ // 256 MB should be enough?
 #define MEMORY_SIZE 0x1000000ull
 
-extern void* memory; //[0x1000000]; // 256 MB should be enough?
+static uint8_t memory[MEMORY_SIZE]; // zero-initialized
 static unsigned long long memory_used_len; // should be size_t but VeriFast doesn't support it
 
 
 /*@
 lemma void produce_memory_assumptions(void) // TODO lemma instead?
 requires emp;
-ensures memory |-> ?mem &*&
-        memory_used_len |-> ?memlen &*&
+ensures memory_used_len |-> ?memlen &*&
         memlen <= MEMORY_SIZE &*&
-        mem + MEMORY_SIZE <= (void*) UINTPTR_MAX &*&
-        chars(mem + memlen, MEMORY_SIZE - memlen, ?cs) &*&
+        &memory + MEMORY_SIZE <= (void*) UINTPTR_MAX &*&
+        memory[memlen..MEMORY_SIZE] |-> ?cs &*&
         true == all_eq(cs, 0);
 {
-	assume(false); // Provided by linker and by consume_memory_assumptions
+	assume(false); // Provided by the compiler and by consume_memory_assumptions
 }
 
 lemma void consume_memory_assumptions(void)
-requires memory |-> ?mem &*&
-         memory_used_len |-> ?memlen &*&
-         chars(mem + memlen, MEMORY_SIZE - memlen, _);
+requires memory_used_len |-> ?memlen &*&
+         memory[memlen..MEMORY_SIZE] |-> _;
 ensures emp;
 {
 	// These will be recovered on the next call to produce_memory_assumptions
-	leak pointer(_, _);
 	leak u_llong_integer(_, _);
-	leak chars(mem + memlen, MEMORY_SIZE - memlen, _);
+	leak uchars(_, _, _);
 }
 @*/
 
@@ -56,7 +54,7 @@ ensures true == all_eq(take(count, lst), value);
 
 void* os_memory_alloc(size_t count, size_t size)
 //@ requires count == 1 || count * size <= SIZE_MAX;
-//@ ensures chars(result, count * size, ?cs) &*& true == all_eq(cs, 0) &*& result + count * size <= (char*) UINTPTR_MAX;
+//@ ensures uchars(result, count * size, ?cs) &*& true == all_eq(cs, 0) &*& result + count * size <= (char*) UINTPTR_MAX;
 //@ terminates;
 {
 	//@ mul_nonnegative(count, size);
@@ -75,19 +73,18 @@ void* os_memory_alloc(size_t count, size_t size)
 	//@ produce_memory_assumptions();
 
 	// Align as required by the contract
-	const unsigned long long align_diff = (unsigned long long) (memory + memory_used_len) % full_size;
-	//@ div_mod(align_diff, (unsigned long long) (memory + memory_used_len), full_size);
-	//@ div_mod_gt_0(align_diff, (unsigned long long) (memory + memory_used_len), full_size);
+	unsigned long long target_addr = (unsigned long long) (&(memory[0]) + memory_used_len); // VeriFast requires the &x[0] syntax
+	const unsigned long long align_diff = target_addr % full_size;
+	//@ div_mod(align_diff, target_addr, full_size);
+	//@ div_mod_gt_0(align_diff, target_addr, full_size);
 	if (align_diff != 0) {
 		if (full_size - align_diff > MEMORY_SIZE - memory_used_len) {
 			os_fatal("Not enough space left to align");
 		}
 
 		// Leak the alignment memory, i.e., fragment the heap, since we don't support any notion of freeing
-		//@ assert memory |-> ?mem;
-		//@ assert memory_used_len |-> ?memlen;
-		//@ chars_split(mem + memlen, full_size - align_diff);
-		//@ leak chars(mem + memlen, full_size - align_diff, _);
+		//@ uchars_split((uint8_t*) target_addr, full_size - align_diff);
+		//@ leak uchars((uint8_t*) target_addr, full_size - align_diff, _);
 
 		memory_used_len = memory_used_len + (full_size - align_diff);
 		if (memory_used_len > MEMORY_SIZE) {
@@ -101,12 +98,11 @@ void* os_memory_alloc(size_t count, size_t size)
 		os_fatal("Not enough space left to allocate");
 	}
 
-	int8_t* result = memory + memory_used_len;
-	//@ assert memory |-> ?mem;
+	uint8_t* result = (uint8_t*) (&(memory[0]) + memory_used_len);
 	//@ assert memory_used_len |-> ?memlen;
-	//@ assert chars(mem + memlen, MEMORY_SIZE - memlen, ?cs);
-	//@ chars_split(mem + memlen, full_size);
-	//@ chars_split(result, full_size);
+	//@ assert memory[memlen..MEMORY_SIZE] |-> ?cs;
+	//@ uchars_split((uint8_t*) &memory + memlen, full_size);
+	//@ uchars_split(result, full_size);
 	//@ all_eq_take(cs, full_size, 0);
 	memory_used_len = memory_used_len + full_size;
 	return result;
