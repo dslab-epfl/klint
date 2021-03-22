@@ -155,7 +155,7 @@ enable_receive_queue = {
     },
     # 10. Bump the tail pointer (RDT) to enable descriptors fetching
     # by setting it to the ring length minus one.
-    "Bump Tail Pointer" : {
+    "Bump Receive Tail Pointer" : {
         "precond"  : Node(AST.Reg, ["RXDCTL.ENABLE"]),
         "action" : Node(AST.Write, [
             Node(AST.Reg, ["RDT.RDT"]),
@@ -568,9 +568,22 @@ init_sequence = {
     # "9. Enable interrupts (see Section 4.6.3.1)." TODO: optional
 }
 
+transmit = {
+    "Bump Transmit Tail Pointer" : {
+        "precond"  : Node(AST.Reg, ["TXDCTL.ENABLE"]),
+        "action" : Node(AST.Write, [
+            Node(AST.Reg, ["TDT.TDT"]),
+            Node(AST.Value, [
+                # Allow writing everything, check for consistency at
+                # the end.
+                lambda bv: True
+            ])])
+    },
+}
+
 actions = {**init_sequence, **global_reset, **software_reset, 
     **master_disable, **transmit_init, **receive_init, **pci_setup,
-    **promiscuous, **enable_receive_queue, **enable_transmit_queue}
+    **promiscuous, **enable_receive_queue, **enable_transmit_queue, **transmit}
 
 def validate_actions():
     for action, info in actions.items():

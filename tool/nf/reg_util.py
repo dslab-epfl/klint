@@ -67,7 +67,7 @@ def find_reg_from_addr(state, addr, _cache={}):
         for reg, data in spec_reg.registers.items():
             idx = 0
             for b, m, l in data['addr']:
-                for n in range(0, l+1):
+                for n in range(0, l+1-idx):
                     _cache[b + n*m] = (reg, n+idx)
                 idx += l + 1
     """

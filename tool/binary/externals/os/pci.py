@@ -43,7 +43,7 @@ def get_device(state, address):
         if utils.can_be_false(state.solver, index == index.args[1].args[2]):
             raise SymbexException("Sorry, this shouldn't happen, unexpected PCI addr? expected something like base_ptr + (index[60:0] .. 0)")
         index = index.args[1].args[2]
-    device = state.metadata.get(SpecDevice, index, default_ctor=lambda: spec_device_create_default(state))
+    device = state.metadata.get(SpecDevice, index, default_ctor=lambda: spec_device_create_default(state, index))
     return device
 
 def get_pci_reg(base, spec): 

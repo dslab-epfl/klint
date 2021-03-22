@@ -159,6 +159,12 @@ class SegmentedMemory(SimMemory):
 
         if addr.op == '__add__':
             base = [a for a in map(as_simple, addr.args) if a is not None]
+
+            if len(base) == 0:
+                # let's hope this can be solved by simplifying?
+                addr = self.state.solver.simplify(addr)
+                base = [a for a in map(as_simple, addr.args) if a is not None]
+
             if len(base) == 1:
                 base = base[0]
             else:
@@ -177,5 +183,9 @@ class SegmentedMemory(SimMemory):
             else:
                 index = (added - offset) / (size // 8)
             return (base, index, offset * 8)
+
+        addr = self.state.solver.simplify(addr) # this handles the descriptor addresses, which are split between two NIC registers
+        if addr.op == "BVS":
+            return (addr, claripy.BVV(0, 64), 0)
 
         raise SymbexException("B_I_O doesn't know what to do with: " + str(addr) + " of type " + str(type(addr)) + " ; op is " + str(addr.op) + " ; args is " + str(addr.args) + " ; constrs are " + str(self.state.solver.constraints))
