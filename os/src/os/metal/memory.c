@@ -61,7 +61,7 @@ void* os_memory_alloc(size_t count, size_t size)
 	uint8_t* target_addr = (uint8_t*) memory + memory_used_len; // VeriFast requires the pointer cast
 	const size_t align_diff = (size_t) target_addr % full_size;
 	//@ div_mod_gt_0(align_diff, (size_t) target_addr, full_size);
-	const size_t align_padding = full_size - align_diff; // VeriFast requires the cast
+	const size_t align_padding = align_diff == 0 ? (size_t) 0 : full_size - align_diff; // VeriFast requires the cast on 0
 
 	if (align_padding > MEMORY_SIZE - memory_used_len) {
 		os_fatal("Not enough memory left to align");
