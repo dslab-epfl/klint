@@ -3,6 +3,7 @@
 #include "os/error.h"
 
 //@ #include "proof/arith.gh"
+//@ #include "proof/listexex.gh"
 //@ #include "proof/modulo.gh"
 
  // 256 MB should be enough?
@@ -14,57 +15,26 @@ static unsigned long long memory_used_len; // should be size_t but VeriFast does
 
 
 /*@
-lemma void produce_memory_assumptions(void) // TODO lemma instead?
-requires emp;
-ensures memory_used_len |-> ?memlen &*&
+// This globals invariant holds at the start, assuming the compiler and linker are correct
+predicate globals_invariant() =
+	memory_used_len |-> ?memlen &*&
         memlen <= MEMORY_SIZE &*&
         &memory + MEMORY_SIZE <= (void*) UINTPTR_MAX &*&
         memory[memlen..MEMORY_SIZE] |-> ?cs &*&
         true == all_eq(cs, 0);
+
+lemma void produce_memory_assumptions(void)
+requires emp;
+ensures globals_invariant();
 {
 	assume(false); // Provided by the compiler and by consume_memory_assumptions
 }
 
 lemma void consume_memory_assumptions(void)
-requires memory_used_len |-> ?memlen &*&
-         memory[memlen..MEMORY_SIZE] |-> _;
+requires globals_invariant();
 ensures emp;
 {
-	// These will be recovered on the next call to produce_memory_assumptions
-	leak u_llong_integer(_, _);
-	leak uchars(_, _, _);
-}
-@*/
-
-/*@
-lemma void all_eq_drop<t>(list<t> lst, int count, t value)
-requires 0 <= count &*& count <= length(lst) &*&
-         true == all_eq(lst, value);
-ensures true == all_eq(drop(count, lst), value);
-{
-	switch(lst) {
-		case nil:
-		case cons(hd, tl):
-			assert hd == value;
-			if (count != 0) {
-				all_eq_drop(tl, count - 1, value);
-			}
-	}
-}
-
-lemma void all_eq_take<t>(list<t> lst, int count, t value)
-requires 0 <= count &*& count <= length(lst) &*&
-         true == all_eq(lst, value);
-ensures true == all_eq(take(count, lst), value);
-{
-	switch(lst) {
-		case nil:
-		case cons(hd, tl):
-			assert hd == value;
-			if (count != 0) {
-				all_eq_take(tl, count - 1, value);
-			}
-	}
+	assume(false);
 }
 @*/
 
@@ -83,22 +53,22 @@ void* os_memory_alloc(size_t count, size_t size)
 	}
 
 	//@ produce_memory_assumptions();
+	//@ open globals_invariant();
 	//@ assert memory_used_len |-> ?memlen;
 	//@ assert memory[memlen..MEMORY_SIZE] |-> ?mem;
 
-	unsigned long long target_addr = (unsigned long long) (&(memory[0]) + memory_used_len); // VeriFast requires the &x[0] syntax
-	const unsigned long long align_diff = target_addr % full_size;
-	//@ div_mod(align_diff, target_addr, full_size);
-	//@ div_mod_gt_0(align_diff, target_addr, full_size);
-	const unsigned long long align_padding = full_size - align_diff;
+	uint8_t* target_addr = (uint8_t*) memory + memory_used_len; // VeriFast requires the pointer cast
+	const size_t align_diff = (size_t) target_addr % full_size;
+	//@ div_mod_gt_0(align_diff, (size_t) target_addr, full_size);
+	const size_t align_padding = full_size - align_diff;
 
 	if (align_padding > MEMORY_SIZE - memory_used_len) {
 		os_fatal("Not enough memory left to align");
 	}
 
 	// Leak the alignment memory, i.e., fragment the heap, since we don't support any notion of freeing
-	//@ uchars_split((uint8_t*) target_addr, align_padding);
-	//@ leak uchars((uint8_t*) target_addr, align_padding, _);
+	//@ uchars_split(target_addr, align_padding);
+	//@ leak uchars(target_addr, align_padding, _);
 	//@ all_eq_drop(mem, align_padding, 0);
 
 	target_addr = target_addr + align_padding;
@@ -107,11 +77,13 @@ void* os_memory_alloc(size_t count, size_t size)
 		os_fatal("Not enough memory left to allocate");
 	}
 
-	//@ uchars_split((uint8_t*) &memory[0] + memlen + align_padding, full_size);
-	//@ uchars_split((uint8_t*) target_addr, full_size);
+	//@ uchars_split((uint8_t*) memory + memlen + align_padding, full_size);
+	//@ uchars_split(target_addr, full_size);
 	//@ all_eq_take(drop(align_padding, mem), full_size, 0);
+	//@ all_eq_drop(drop(align_padding, mem), full_size, 0);
 	memory_used_len = memory_used_len + full_size;
-	return (uint8_t*) target_addr;
+	return target_addr;
+	//@ close globals_invariant();
 	//@ consume_memory_assumptions();
 }
 

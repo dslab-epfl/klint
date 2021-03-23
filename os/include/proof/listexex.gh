@@ -1171,4 +1171,34 @@ lemma void drop_except_last<t>(list<t> lst, int n)
   }
 }
 
+lemma void all_eq_drop<t>(list<t> lst, int count, t value)
+requires 0 <= count &*& count <= length(lst) &*&
+         true == all_eq(lst, value);
+ensures true == all_eq(drop(count, lst), value);
+{
+	switch(lst) {
+		case nil:
+		case cons(hd, tl):
+			assert hd == value;
+			if (count != 0) {
+				all_eq_drop(tl, count - 1, value);
+			}
+	}
+}
+
+lemma void all_eq_take<t>(list<t> lst, int count, t value)
+requires 0 <= count &*& count <= length(lst) &*&
+         true == all_eq(lst, value);
+ensures true == all_eq(take(count, lst), value);
+{
+	switch(lst) {
+		case nil:
+		case cons(hd, tl):
+			assert hd == value;
+			if (count != 0) {
+				all_eq_take(tl, count - 1, value);
+			}
+	}
+}
+
 #endif//LISTEXEX_GH
