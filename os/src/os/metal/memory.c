@@ -7,7 +7,6 @@
 //@ #include "proof/modulo.gh"
 
  // 256 MB should be enough?
- // TODO more like 16... for now? so it fits into size_t ? maybe use a min op with 16mb size_max or something
 #define MEMORY_SIZE 0x1000000ull
 
 static uint8_t memory[MEMORY_SIZE]; // zero-initialized
@@ -27,7 +26,7 @@ lemma void produce_memory_assumptions(void)
 requires emp;
 ensures globals_invariant();
 {
-	assume(false); // Provided by the compiler and by consume_memory_assumptions
+	assume(false);
 }
 
 lemma void consume_memory_assumptions(void)
@@ -38,9 +37,11 @@ ensures emp;
 }
 @*/
 
+
 void* os_memory_alloc(size_t count, size_t size)
 //@ requires count == 1 || count * size <= SIZE_MAX;
-//@ ensures uchars(result, count * size, ?cs) &*& true == all_eq(cs, 0) &*& result + count * size <= (char*) UINTPTR_MAX;
+/*@ ensures uchars(result, count * size, ?cs) &*& true == all_eq(cs, 0) &*& result + count * size <= (char*) UINTPTR_MAX &*& 
+            count*size == 0 ? true : (size_t) result % (count * size) == 0; @*/
 //@ terminates;
 {
 	//@ mul_nonnegative(count, size);
@@ -60,7 +61,7 @@ void* os_memory_alloc(size_t count, size_t size)
 	uint8_t* target_addr = (uint8_t*) memory + memory_used_len; // VeriFast requires the pointer cast
 	const size_t align_diff = (size_t) target_addr % full_size;
 	//@ div_mod_gt_0(align_diff, (size_t) target_addr, full_size);
-	const size_t align_padding = full_size - align_diff;
+	const size_t align_padding = full_size - align_diff; // VeriFast requires the cast
 
 	if (align_padding > MEMORY_SIZE - memory_used_len) {
 		os_fatal("Not enough memory left to align");
@@ -71,7 +72,10 @@ void* os_memory_alloc(size_t count, size_t size)
 	//@ leak uchars(target_addr, align_padding, _);
 	//@ all_eq_drop(mem, align_padding, 0);
 
+	//@ mod_compensate((size_t) target_addr, full_size);
 	target_addr = target_addr + align_padding;
+	//@ assert (size_t) target_addr % full_size == 0;
+	
 	memory_used_len = memory_used_len + align_padding;
 	if (full_size > MEMORY_SIZE - memory_used_len) {
 		os_fatal("Not enough memory left to allocate");
@@ -82,6 +86,7 @@ void* os_memory_alloc(size_t count, size_t size)
 	//@ all_eq_take(drop(align_padding, mem), full_size, 0);
 	//@ all_eq_drop(drop(align_padding, mem), full_size, 0);
 	memory_used_len = memory_used_len + full_size;
+	
 	return target_addr;
 	//@ close globals_invariant();
 	//@ consume_memory_assumptions();
