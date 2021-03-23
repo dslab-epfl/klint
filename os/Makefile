@@ -36,6 +36,7 @@ else
 LDFLAGS += $(NF)/libnf.so
 
 # OS
+SRCS += $(shell echo $(THIS_DIR)/src/os/*.c)
 include $(THIS_DIR)/src/os/$(OS)/Makefile
 
 # Structs

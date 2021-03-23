@@ -9,6 +9,7 @@ import binary.utils as utils
 from binary.exceptions import SymbexException
 import nf.device as nf_device
 
+# TODO add alignment part of contract
 # void* os_memory_alloc(size_t count, size_t size);
 # requires count == 1 || count * size <= SIZE_MAX;
 # ensures chars(result, count * size, ?cs) &*& true == all_eq(cs, 0) &*& result + count * size <= (char*) UINTPTR_MAX;

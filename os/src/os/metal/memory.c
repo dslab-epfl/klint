@@ -40,7 +40,7 @@ ensures emp;
 
 void* os_memory_alloc(size_t count, size_t size)
 //@ requires count == 1 || count * size <= SIZE_MAX;
-/*@ ensures uchars(result, count * size, ?cs) &*& true == all_eq(cs, 0) &*& result + count * size <= (char*) UINTPTR_MAX &*& 
+/*@ ensures uchars(result, count * size, ?cs) &*& true == all_eq(cs, 0) &*& result + count * size <= (char*) UINTPTR_MAX &*&
             count*size == 0 ? true : (size_t) result % (count * size) == 0; @*/
 //@ terminates;
 {
@@ -75,7 +75,7 @@ void* os_memory_alloc(size_t count, size_t size)
 	//@ mod_compensate((size_t) target_addr, full_size);
 	target_addr = target_addr + align_padding;
 	//@ assert (size_t) target_addr % full_size == 0;
-	
+
 	memory_used_len = memory_used_len + align_padding;
 	if (full_size > MEMORY_SIZE - memory_used_len) {
 		os_fatal("Not enough memory left to allocate");
@@ -86,7 +86,7 @@ void* os_memory_alloc(size_t count, size_t size)
 	//@ all_eq_take(drop(align_padding, mem), full_size, 0);
 	//@ all_eq_drop(drop(align_padding, mem), full_size, 0);
 	memory_used_len = memory_used_len + full_size;
-	
+
 	return target_addr;
 	//@ close globals_invariant();
 	//@ consume_memory_assumptions();

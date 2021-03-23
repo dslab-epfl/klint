@@ -5,6 +5,7 @@ endif
 # Get current dir, see https://stackoverflow.com/a/8080530
 SELF_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 
+# TODO create an OS config given the benchmark args
 build:
 	@sudo modprobe msr # necessary for the Linux clock impl
 	@make -C $(SELF_DIR)/nf/$(NF) -f $(SELF_DIR)/Makefile.nf

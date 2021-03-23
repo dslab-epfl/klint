@@ -10,6 +10,7 @@ from .ghost_maps import GhostMapsPlugin
 from .memory_split import SplitMemory
 from .metadata import MetadataPlugin
 from .path import PathPlugin
+from .pci import PciPlugin
 from .plugin_dummy import DummyPlugin
 from .symbol_factory import SymbolFactoryPlugin
 
@@ -73,12 +74,37 @@ class EmptyLibrary():
 
 
 
+class IOPortEngine:
+    def _perform_vex_stmt_Dirty_call(self, func_name, ty, args, func=None):
+        if func_name == "amd64g_dirtyhelper_IN":
+            # args = [portno (16b), size]
+            if args[0].op != 'BVV':
+                raise angr.errors.UnsupportedDirtyError("Symbolic port for 'in'")
+            port = args[0].args[0]
+            if args[1].op != 'BVV':
+                raise angr.errors.UnsupportedDirtyError("Symbolic size for 'in'")
+            size = args[1].args[0]
+            return self.state.pci.handle_in(port, size)
+        if func_name == "amd64g_dirtyhelper_OUT":
+            # args = [portno (16b), data (32b), size]
+            if args[0].op != 'BVV':
+                raise angr.errors.UnsupportedDirtyError("Symbolic port for 'out'")
+            port = args[0].args[0]
+            if args[2].op != 'BVV':
+                raise angr.errors.UnsupportedDirtyError("Symbolic size for 'out'")
+            size = args[2].args[0]
+            data = args[1][size*8-1:0]
+            self.state.pci.handle_out(port, data, size)
+            return None
+        raise angr.errors.UnsupportedDirtyError("We don't expect any other dirties than IN/OUT")
+
+
 # Keep only what we need in the engine
 # Not sure SimEngineFailure is even needed, but just in case...
 from angr.engines.failure import SimEngineFailure
 from angr.engines.hook import HooksMixin
 from angr.engines.vex import HeavyVEXMixin
-class CustomEngine(SimEngineFailure, HooksMixin, HeavyVEXMixin):
+class CustomEngine(IOPortEngine, SimEngineFailure, HooksMixin, HeavyVEXMixin):
     pass
 
 # Keep only what we need in the solver
@@ -123,6 +149,7 @@ def create_sim_manager(binary, ext_funcs, main_func_name, *main_func_args, base_
   SimState.register_default("sym_memory", SplitMemory) # SimState translates "sym_memory" to "memory" under standard options
   SimState.register_default("maps", GhostMapsPlugin)
   SimState.register_default("path", PathPlugin)
+  SimState.register_default("pci", PciPlugin)
   SimState.register_default("symbol_factory", SymbolFactoryPlugin)
 
   proj = angr.Project(binary, auto_load_libs=False, use_sim_procedures=False, engine=CustomEngine)

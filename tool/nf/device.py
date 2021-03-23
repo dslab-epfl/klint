@@ -88,8 +88,8 @@ def spec_device_create_default(state, index):
     utils.add_constraints_and_check_sat(state, device.phys_addr & 0b1111 == 0) # since the bottom 4 bits of the BAR are non-address stuff
     phys_addr_low = (device.phys_addr & 0xFFFFFFFF) | 0b0100
     phys_addr_high = device.phys_addr >> 32
-    reg_util.update_reg(device.pci_regs, 'BAR0', None, spec_reg.pci_regs['BAR0'], phys_addr_low.reversed)
-    reg_util.update_reg(device.pci_regs, 'BAR1', None, spec_reg.pci_regs['BAR1'], phys_addr_high.reversed) # TODO WHYYY REVERSED????
+    reg_util.update_reg(device.pci_regs, 'BAR0', None, spec_reg.pci_regs['BAR0'], phys_addr_low)
+    reg_util.update_reg(device.pci_regs, 'BAR1', None, spec_reg.pci_regs['BAR1'], phys_addr_high)
 
     # Virt addr handling
     state.memory.add_obj_handler(device.virt_addr, bar_size, device_reader, device_writer)

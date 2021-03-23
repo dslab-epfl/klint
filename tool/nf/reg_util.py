@@ -62,6 +62,14 @@ def __init_reg_val_con(data):
     bvv = claripy.BVV(value, data['length'])
     return bvv
 
+def get_pci_reg(base, spec): 
+    for name, info in spec.items():
+        b, m, _ = info['addr'][0]
+        assert(m == 0)
+        if b == base:
+            return name
+    raise Exception(f"PCI register with address 0x{base:x} is not in the spec.")
+
 def find_reg_from_addr(state, addr, _cache={}):
     if len(_cache) == 0:
         for reg, data in spec_reg.registers.items():

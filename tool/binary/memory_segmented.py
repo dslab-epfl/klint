@@ -100,7 +100,7 @@ class SegmentedMemory(SimMemory):
         raise NotImplementedError() # do we need this?
 
 
-    def allocate(self, count, size, default=None, name=None):
+    def allocate(self, count, size, default=None, name=None, constraint=None):
         count = self._to_bv64(count)
         size = self._to_bv64(size) * 8 # we get a size in bytes
 
@@ -115,6 +115,8 @@ class SegmentedMemory(SimMemory):
                 self.state.maps.set(addr, claripy.BVV(0, bitsizes.ptr), default) # simpler
             else:
                 self.state.add_constraints(self.state.maps.forall(addr, lambda k, v: v == default))
+        if constraint is not None:
+            self.state.add_constraints(self.state.maps.forall(addr, constraint))
         # neither null nor so high it overflows (note the -1 becaus 1-past-the-array is legal C)
         self.state.add_constraints(addr != 0, addr.ULE(claripy.BVV(2**bitsizes.ptr-1, bitsizes.ptr) - max_size - 1))
         self.segments.append((addr, count, size))

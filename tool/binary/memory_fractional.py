@@ -90,8 +90,8 @@ class FractionalMemory(SimMemory):
     def _copy_contents(self, dst, src, size, condition=None, src_memory=None, dst_memory=None, inspect=True, disable_actions=False):
         raise NotImplementedError() # do we need this?
 
-    def allocate(self, count, size, default=None, name=None):
-        result = self.memory.allocate(count, size, default=default, name=name)
+    def allocate(self, count, size, default=None, name=None, constraint=None):
+        result = self.memory.allocate(count, size, default=default, name=name, constraint=constraint)
         fractions = self.fractions_memory.allocate(count, 1, claripy.BVV(100, 8), name=((name or "") + FractionalMemory.FRACS_NAME))
         self.state.metadata.set(result, Facts(fractions, size))
         return result
