@@ -6,6 +6,7 @@
 //@ #include "proof/modulo.gh"
 
  // 256 MB should be enough?
+ // TODO more like 16... for now? so it fits into size_t ? maybe use a min op with 16mb size_max or something
 #define MEMORY_SIZE 0x1000000ull
 
 static uint8_t memory[MEMORY_SIZE]; // zero-initialized
@@ -36,6 +37,21 @@ ensures emp;
 @*/
 
 /*@
+lemma void all_eq_drop<t>(list<t> lst, int count, t value)
+requires 0 <= count &*& count <= length(lst) &*&
+         true == all_eq(lst, value);
+ensures true == all_eq(drop(count, lst), value);
+{
+	switch(lst) {
+		case nil:
+		case cons(hd, tl):
+			assert hd == value;
+			if (count != 0) {
+				all_eq_drop(tl, count - 1, value);
+			}
+	}
+}
+
 lemma void all_eq_take<t>(list<t> lst, int count, t value)
 requires 0 <= count &*& count <= length(lst) &*&
          true == all_eq(lst, value);
@@ -60,52 +76,42 @@ void* os_memory_alloc(size_t count, size_t size)
 	//@ mul_nonnegative(count, size);
 	const size_t full_size = size * count;
 
-	// Weird but valid; return a zero address for debugging convenience
+	// Handle zero specially, since we use modulo full_size to align
 	if (full_size == 0) {
+		// Return a zero address for debugging convenience
 		return (void*) 0;
 	}
 
-	// Avoid overflows later
-	if (full_size > MEMORY_SIZE) {
-		os_fatal("Cannot satisfy such a big alloc request");
-	}
-
 	//@ produce_memory_assumptions();
+	//@ assert memory_used_len |-> ?memlen;
+	//@ assert memory[memlen..MEMORY_SIZE] |-> ?mem;
 
-	// Align as required by the contract
 	unsigned long long target_addr = (unsigned long long) (&(memory[0]) + memory_used_len); // VeriFast requires the &x[0] syntax
 	const unsigned long long align_diff = target_addr % full_size;
 	//@ div_mod(align_diff, target_addr, full_size);
 	//@ div_mod_gt_0(align_diff, target_addr, full_size);
-	if (align_diff != 0) {
-		if (full_size - align_diff > MEMORY_SIZE - memory_used_len) {
-			os_fatal("Not enough space left to align");
-		}
+	const unsigned long long align_padding = full_size - align_diff;
 
-		// Leak the alignment memory, i.e., fragment the heap, since we don't support any notion of freeing
-		//@ uchars_split((uint8_t*) target_addr, full_size - align_diff);
-		//@ leak uchars((uint8_t*) target_addr, full_size - align_diff, _);
-
-		memory_used_len = memory_used_len + (full_size - align_diff);
-		if (memory_used_len > MEMORY_SIZE) {
-			os_fatal("Not enough space left after aligning");
-		}
-		//@ consume_memory_assumptions();
-		//@ produce_memory_assumptions();
+	if (align_padding > MEMORY_SIZE - memory_used_len) {
+		os_fatal("Not enough memory left to align");
 	}
 
-	if (MEMORY_SIZE - memory_used_len < full_size) {
-		os_fatal("Not enough space left to allocate");
+	// Leak the alignment memory, i.e., fragment the heap, since we don't support any notion of freeing
+	//@ uchars_split((uint8_t*) target_addr, align_padding);
+	//@ leak uchars((uint8_t*) target_addr, align_padding, _);
+	//@ all_eq_drop(mem, align_padding, 0);
+
+	target_addr = target_addr + align_padding;
+	memory_used_len = memory_used_len + align_padding;
+	if (full_size > MEMORY_SIZE - memory_used_len) {
+		os_fatal("Not enough memory left to allocate");
 	}
 
-	uint8_t* result = (uint8_t*) (&(memory[0]) + memory_used_len);
-	//@ assert memory_used_len |-> ?memlen;
-	//@ assert memory[memlen..MEMORY_SIZE] |-> ?cs;
-	//@ uchars_split((uint8_t*) &memory + memlen, full_size);
-	//@ uchars_split(result, full_size);
-	//@ all_eq_take(cs, full_size, 0);
+	//@ uchars_split((uint8_t*) &memory[0] + memlen + align_padding, full_size);
+	//@ uchars_split((uint8_t*) target_addr, full_size);
+	//@ all_eq_take(drop(align_padding, mem), full_size, 0);
 	memory_used_len = memory_used_len + full_size;
-	return result;
+	return (uint8_t*) target_addr;
 	//@ consume_memory_assumptions();
 }
 
