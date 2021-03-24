@@ -979,24 +979,6 @@ uint64_t tn_device_get_mac(struct tn_device* device)
 // thus, using assumption CACHE, we multiply indices by 16
 #define TRANSMIT_HEAD_MULTIPLIER 16
 
-struct tn_agent_output_state
-{
-	struct tn_agent* agent;
-	size_t output_index;
-	uintptr_t buffer_phys_addr;
-};
-
-static void tn_agent_add_output_ringconfig(size_t index, void* state_)
-{
-	struct tn_agent_output_state* state = (struct tn_agent_output_state*) state_;
-	// Section 7.2.3.2.2 Legacy Transmit Descriptor Format:
-	// "Buffer Address (64)", 1st line offset 0
-	uintptr_t packet_phys_addr = state->buffer_phys_addr + index * PACKET_BUFFER_SIZE;
-	// INTERPRETATION-MISSING: The data sheet does not specify the endianness of descriptor buffer addresses..
-	// Since Section 1.5.3 Byte Ordering states "Registers not transferred on the wire are defined in little endian notation.", we will assume they are little-endian.
-	state->agent->rings[state->output_index][index].addr = cpu_to_le64(packet_phys_addr);
-}
-
 static void tn_agent_add_output(struct tn_agent* const agent, struct tn_device* const device, size_t output_index, size_t queue_index)
 {
 	if (agent->transmit_tail_addrs[output_index] != 0) {
@@ -1015,12 +997,15 @@ static void tn_agent_add_output(struct tn_agent* const agent, struct tn_device* 
 	// "- Allocate a region of memory for the transmit descriptor list."
 	agent->rings[output_index] = os_memory_alloc(IXGBE_RING_SIZE, sizeof(struct tn_descriptor));
 	// Program all descriptors' buffer addresses now
-	struct tn_agent_output_state ringconfig_state = {
-		.agent = agent,
-		.output_index = output_index,
-		.buffer_phys_addr = os_memory_virt_to_phys(agent->buffer)
-	};
-	foreach_index(IXGBE_RING_SIZE, tn_agent_add_output_ringconfig, &ringconfig_state);
+	uintptr_t buffer_phys_addr = os_memory_virt_to_phys(agent->buffer);
+	for (size_t n = 0; n < IXGBE_RING_SIZE; n++) {
+		// Section 7.2.3.2.2 Legacy Transmit Descriptor Format:
+		// "Buffer Address (64)", 1st line offset 0
+		uintptr_t packet_phys_addr = buffer_phys_addr + n * PACKET_BUFFER_SIZE;
+		// INTERPRETATION-MISSING: The data sheet does not specify the endianness of descriptor buffer addresses..
+		// Since Section 1.5.3 Byte Ordering states "Registers not transferred on the wire are defined in little endian notation.", we will assume they are little-endian.
+		agent->rings[output_index][n].addr = cpu_to_le64(packet_phys_addr);
+	}
 	// "- Program the descriptor base address with the address of the region (TDBAL, TDBAH)."
 	// 	Section 8.2.3.9.5 Transmit Descriptor Base Address Low (TDBAL[n]):
 	// 	"The Transmit Descriptor Base Address must point to a 128 byte-aligned block of data."
@@ -1179,22 +1164,6 @@ static void tn_agent_set_input(struct tn_agent* const agent, struct tn_device* c
 // Agent alloc
 // -----------
 
-struct tn_agent_init_state
-{
-	size_t input_index;
-	struct tn_device* devices;
-	struct tn_agent* agent;
-};
-
-static void tn_agent_init_addoutput(size_t index, void* state_)
-{
-	struct tn_agent_init_state* state = (struct tn_agent_init_state*) state_;
-	if (index != state->input_index) {
-		size_t true_index = index > state->input_index ? (index - 1) : index;
-		tn_agent_add_output(state->agent, &(state->devices[index]), true_index, state->input_index * state->agent->outputs_count + true_index);
-	}
-}
-
 void tn_agent_init(size_t input_index, size_t devices_count, struct tn_device* devices, struct tn_agent* agent)
 {
 	if (devices_count == 0) {
@@ -1214,16 +1183,16 @@ void tn_agent_init(size_t input_index, size_t devices_count, struct tn_device* d
 
 	agent->buffer = os_memory_alloc(IXGBE_RING_SIZE, PACKET_BUFFER_SIZE);
 	agent->lengths = os_memory_alloc(agent->outputs_count, sizeof(size_t));
-	agent->transmit_heads = os_memory_alloc(agent->outputs_count * TRANSMIT_HEAD_MULTIPLIER, sizeof(uint32_t));
+	agent->transmit_heads = os_memory_alloc(agent->outputs_count, TRANSMIT_HEAD_MULTIPLIER * sizeof(uint32_t));
 	agent->rings = os_memory_alloc(agent->outputs_count, sizeof(struct tn_descriptor*));
 	agent->transmit_tail_addrs = os_memory_alloc(agent->outputs_count, sizeof(uint32_t*));
 
-	struct tn_agent_init_state state = {
-		.input_index = input_index,
-		.devices = devices,
-		.agent = agent
-	};
-	foreach_index(devices_count, tn_agent_init_addoutput, &state);
+	for (size_t n = 0; n < devices_count; n++) {
+		if (n != input_index) {
+			size_t true_index = n > input_index ? (n - 1) : n;
+			tn_agent_add_output(agent, &(devices[n]), true_index, input_index * agent->outputs_count + true_index);
+		}
+	}
 
 	tn_agent_set_input(agent, &(devices[input_index]));
 }
@@ -1232,13 +1201,7 @@ void tn_agent_init(size_t input_index, size_t devices_count, struct tn_device* d
 // Packet reception
 // ----------------
 
-static void tn_agent_flushloop(size_t index, void* state)
-{
-	struct tn_agent* agent = (struct tn_agent*) state;
-	reg_write_raw(agent->transmit_tail_addrs[index], (uint32_t) agent->processed_delimiter);
-}
-
-size_t tn_agent_receive(struct tn_agent* agent)
+static size_t tn_agent_receive(struct tn_agent* agent)
 {
 	// INTERPRETATION-MISSING: The data sheet does not specify the endianness of receive descriptor metadata fields.
 	// Since Section 1.5.3 Byte Ordering states "Registers not transferred on the wire are defined in little endian notation.", we will assume they are little-endian.
@@ -1250,7 +1213,9 @@ size_t tn_agent_receive(struct tn_agent* agent)
 		// No packet; flush if we need to.
 		// This is technically a part of transmission, but we must eventually flush after processing a packet even if no more packets are received
 		if (agent->flush_counter != 0) {
-			foreach_index(agent->outputs_count, tn_agent_flushloop, agent);
+			for (size_t n = 0; n < agent->outputs_count; n++) {
+				reg_write_raw(agent->transmit_tail_addrs[n], (uint32_t) agent->processed_delimiter);
+			}
 			agent->flush_counter = 0;
 		}
 
@@ -1265,22 +1230,7 @@ size_t tn_agent_receive(struct tn_agent* agent)
 // Packet transmission
 // -------------------
 
-static void tn_agent_transmit_descriptorsloop(size_t index, void* state)
-{
-	struct tn_agent* agent = (struct tn_agent*) state;
-	uint64_t rs_bit = (uint64_t) ((agent->processed_delimiter & (IXGBE_AGENT_RECYCLE_PERIOD - 1)) == (IXGBE_AGENT_RECYCLE_PERIOD - 1)) << (24+3);
-	agent->rings[index][agent->processed_delimiter].metadata = cpu_to_le64((uint64_t) agent->lengths[index] | rs_bit | BITL(24+1) | BITL(24));
-	agent->lengths[index] = 0;
-}
-
-static uint32_t tn_agent_transmit_earliesthead(size_t index, void* state, uint32_t* out_arg)
-{
-	struct tn_agent* agent = (struct tn_agent*) state;
-	*out_arg = le_to_cpu32(agent->transmit_heads[index * TRANSMIT_HEAD_MULTIPLIER]);
-	return *out_arg - agent->processed_delimiter;
-}
-
-void tn_agent_transmit(struct tn_agent* agent)
+static void tn_agent_transmit(struct tn_agent* agent)
 {
 	// INTERPRETATION-MISSING: The data sheet does not specify the endianness of transmit descriptor metadata fields, nor of the written-back head pointer.
 	// Since Section 1.5.3 Byte Ordering states "Registers not transferred on the wire are defined in little endian notation.", we will assume they are little-endian.
@@ -1316,7 +1266,10 @@ void tn_agent_transmit(struct tn_agent* agent)
 	// Importantly, since bit 32 will stay at 0, and we share the receive ring and the first transmit ring, it will clear the Descriptor Done flag of the receive descriptor.
 	// Not setting the RS bit every time is a huge perf win in throughput (a few Gb/s) with no apparent impact on latency.
 	uint64_t rs_bit = (uint64_t) ((agent->processed_delimiter & (IXGBE_AGENT_RECYCLE_PERIOD - 1)) == (IXGBE_AGENT_RECYCLE_PERIOD - 1)) << (24+3);
-	foreach_index(agent->outputs_count, tn_agent_transmit_descriptorsloop, agent);
+	for (size_t n = 0; n < agent->outputs_count; n++) {
+		agent->rings[n][agent->processed_delimiter].metadata = cpu_to_le64((uint64_t) agent->lengths[n] | rs_bit | BITL(24+1) | BITL(24));
+		agent->lengths[n] = 0;
+	}
 
 	// Increment the processed delimiter, modulo the ring size
 	agent->processed_delimiter = (agent->processed_delimiter + 1u) & (IXGBE_RING_SIZE - 1);
@@ -1324,7 +1277,9 @@ void tn_agent_transmit(struct tn_agent* agent)
 	// Flush if we need to; not doing so every time is a huge performance win
 	agent->flush_counter = agent->flush_counter + 1;
 	if (agent->flush_counter == IXGBE_AGENT_FLUSH_PERIOD) {
-		foreach_index(agent->outputs_count, tn_agent_flushloop, agent);
+		for (size_t n = 0; n < agent->outputs_count; n++) {
+			reg_write_raw(agent->transmit_tail_addrs[n], (uint32_t) agent->processed_delimiter);
+		}
 		agent->flush_counter = 0;
 	}
 
@@ -1333,7 +1288,16 @@ void tn_agent_transmit(struct tn_agent* agent)
 	if (rs_bit != 0) {
 		// There is an implicit race condition with the hardware: a transmit head could be updated just after we've read it
 		// but before we write to the receive tail. This is fine; it just means our "earliest transmit head" is not as high as it could be.
-		uint32_t earliest_transmit_head = argmin_uint32(agent->outputs_count, tn_agent_transmit_earliesthead, agent);
+		uint32_t earliest_transmit_head = (uint32_t) agent->processed_delimiter;
+		uint64_t min_diff = (uint64_t) -1;
+		for (size_t n = 0; n < agent->outputs_count; n++) {
+			uint32_t head = le_to_cpu32(agent->transmit_heads[n * TRANSMIT_HEAD_MULTIPLIER]);
+			uint64_t diff = head - agent->processed_delimiter;
+			if (diff <= min_diff) {
+				earliest_transmit_head = head;
+				min_diff = diff;
+			}
+		}
 		reg_write_raw(agent->receive_tail_addr, (earliest_transmit_head - 1) & (IXGBE_RING_SIZE - 1));
 	}
 }
