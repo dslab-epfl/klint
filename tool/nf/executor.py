@@ -28,10 +28,10 @@ from binary.exceptions import SymbexException
 from . import spec_act
 from . import spec_reg
 
-# TODO: all these externals should be in nf... not in binary... !
+# TODO: all these externals should be declared in nf... not in binary... !
 
 init_externals = {
-    'os_config_get': config.os_config_get,
+    'os_config_try_get': config.os_config_try_get,
     'os_memory_alloc': memory.os_memory_alloc,
     'map_alloc': map.map_alloc,
     'os_map2_alloc': map2.OsMap2Alloc,

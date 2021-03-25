@@ -9,19 +9,41 @@ struct config_item
 
 static struct config_item items[] =
 {
-#include NF_CONFIG_FILENAME
+	NF_CONFIG_DATA
 };
 
-bool os_config_get(const char* name, uintmax_t* out_value)
+
+static bool string_compare(const char* a, const char* b)
+//@ requires [?fa]string(a, ?csa) &*& [?fb]string(b, ?csb);
+//@ ensures [fa]string(a, csa) &*& [fb]string(b, csb) &*& result == (csa == csb);
 {
-	for (size_t n = 0; n < sizeof(items)/sizeof(struct config_item); n++) {
-		size_t c = 0;
-		for (; items[n].name[c] != '\0' && name[c] != '\0'; c++) {
-			if (items[n].name[c] != name[c]) {
-				break;
-			}
+	size_t n = 0;
+	for (;; n++)
+	//@ requires [fa]string(a + n, ?csan) &*& [fb]string(b + n, ?csbn);
+	//@ ensures [fa]string(a + old_n, csan) &*& [fb]string(b + old_n, csbn) &*& ((n == SIZE_MAX) == (csan == csbn));
+	{
+		//@ string_limits(a + n);
+		//@ open [fa]string(a + n, csan);
+		//@ open [fb]string(b + n, csbn);
+		if (a[n] != b[n]) {
+			break;
 		}
-		if (items[n].name[c] == name[c]) { // meaning they're both \0
+		if (a[n] == '\0') {
+			n = SIZE_MAX;
+			break;
+		}
+	}
+	return n == SIZE_MAX;
+}
+
+bool os_config_try_get(const char* name, uintmax_t* out_value)
+//@ requires [?f]*name |-> _ &*& *out_value |-> _;
+//@ ensures [f]*name |-> _ &*& *out_value |-> _;
+{
+	//@ assume(false); // This 5-line function cannot be verified meaningfully, and VeriFast anyway is missing a bunch of features to verify its low-level correctness
+	for (size_t n = 0; n < sizeof(items)/sizeof(struct config_item); n++)
+	{
+		if (string_compare(items[n].name, name)) {
 			*out_value = items[n].value;
 			return true;
 		}

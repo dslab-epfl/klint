@@ -13,8 +13,8 @@ ConfigMetadata = namedtuple('ConfigMetadata', ['items'])
 
 # TODO: also model failure case
 
-# bool os_config_get(const char* name, uintmax_t* out_value);
-class os_config_get(angr.SimProcedure):
+# bool os_config_try_get(const char* name, uintmax_t* out_value);
+class os_config_try_get(angr.SimProcedure):
     def run(self, name, out_value):
         name = cast.ptr(name)
         out_value = cast.ptr(out_value)

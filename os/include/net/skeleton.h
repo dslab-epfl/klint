@@ -22,5 +22,5 @@ void nf_handle(struct net_packet* packet);
 // Convenience method
 static inline device_t os_config_get_device(const char* name, device_t devices_count)
 {
-	return (device_t) os_config_try_get(name, 0, devices_count - 1);
+	return (device_t) os_config_get(name, 0, devices_count - 1);
 }
