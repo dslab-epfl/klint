@@ -1,7 +1,7 @@
 #pragma once
 
-#ifndef OS_DEBUG_LEVEL
-#define OS_DEBUG_LEVEL 0
+#ifndef DEBUG_LEVEL
+#define DEBUG_LEVEL 0
 #endif
 
 
@@ -9,11 +9,13 @@
 _Noreturn void os_halt(void);
 //@ requires emp;
 //@ ensures false;
-//@ terminates;
 
 
 #if DEBUG_LEVEL > 0
 void os_debug(const char* message);
+//@ requires emp;
+//@ ensures emp;
+//@ terminates;
 #else
 static inline void os_debug(const char* message)
 //@ requires emp;
@@ -28,8 +30,8 @@ static inline void os_debug(const char* message)
 _Noreturn static inline void os_fatal(const char* message)
 //@ requires emp;
 //@ ensures false;
-//@ terminates;
 {
+	//@ assume(false); // VeriFast does not support the conditional declaration of os_debug as a prototype or as a static inline function...
 	os_debug(message);
 	os_halt();
 }

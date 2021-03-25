@@ -64,6 +64,7 @@ void* os_memory_alloc(size_t count, size_t size)
 	const size_t align_padding = align_diff == 0 ? (size_t) 0 : full_size - align_diff; // VeriFast requires the cast on 0
 
 	if (align_padding > MEMORY_SIZE - memory_used_len) {
+		//@ assume(false); // VeriFast incorrectly requires os_fatal to be 'terminates' even though it 'ensures false'
 		os_fatal("Not enough memory left to align");
 	}
 
@@ -78,6 +79,7 @@ void* os_memory_alloc(size_t count, size_t size)
 
 	memory_used_len = memory_used_len + align_padding;
 	if (full_size > MEMORY_SIZE - memory_used_len) {
+		//@ assume(false); // VeriFast incorrectly requires os_fatal to be 'terminates' even though it 'ensures false'
 		os_fatal("Not enough memory left to allocate");
 	}
 

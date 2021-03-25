@@ -23,7 +23,7 @@ include $(THIS_DIR)/../Makefile.base
 CFLAGS += -I$(THIS_DIR)/include
 
 # Config
-CFLAGS += '-D OS_CONFIG_FILENAME="$(abspath $(OS_CONFIG_FILENAME))"'
+CFLAGS += '-D OS_CONFIG_DATA=$(shell cat $(OS_CONFIG_FILENAME))'
 CFLAGS += '-D NF_CONFIG_DATA=$(shell cat $(NF_CONFIG_FILENAME))'
 
 ifeq ($(OS),none)

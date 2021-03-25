@@ -4,8 +4,12 @@
 
 
 _Noreturn void os_halt(void)
+//@ requires emp;
+//@ ensures false;
 {
-	while (true) {
+	while (true)
+	//@ invariant emp;
+	{
 		// Nothing
 	}
 }
@@ -13,6 +17,9 @@ _Noreturn void os_halt(void)
 
 #if DEBUG_LEVEL > 0
 void os_debug(const char* message)
+//@ requires emp;
+//@ ensures emp;
+//@ terminates;
 {
 	(void) message;
 	// Nothing for now; TODO maybe do something?

@@ -1,5 +1,8 @@
 #pragma once
 
+#include <stdint.h>
+
+
 static inline uint64_t msr_read(uint64_t index)
 {
 	uint64_t result;

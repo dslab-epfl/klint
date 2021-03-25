@@ -5,6 +5,7 @@
 
 #include "arch/io.h"
 
+
 // Physical addresses at which we can talk to PCI via geographical addressing
 #define PCI_CONFIG_ADDR 0xCF8
 #define PCI_CONFIG_DATA 0xCFC
@@ -20,6 +21,8 @@ struct os_pci_address {
 
 // Returns the number of devices
 size_t os_pci_enumerate(struct os_pci_address** out_addresses);
+//@ requires chars((char*) out_addresses, sizeof(struct os_pci_address*), _);
+//@ ensures chars((char*) out_addresses, sizeof(struct os_pci_address*), _);
 
 
 // Reads the given register of the device at the given address and return its value.
