@@ -1,5 +1,7 @@
 #pragma once
 
+// We offload the endianness detection to the compiler here
+
 #define swap16(val) ((val << 8) | (val >> 8))
 #define swap32(val) ((val << 24) | ((val << 8) & 0xFF) | ((val >> 8) & 0xFF) | (val >> 24))
 #define swap64(val) ((val << 56) | ((val << 40) & 0xFF) | ((val << 24) & 0xFF) | ((val << 8) & 0xFF) | ((val >> 8) & 0xFF) | ((val >> 24) & 0xFF) | ((val >> 40) & 0xFF) | (val >> 56))
