@@ -1312,18 +1312,18 @@ struct tn_run_state
 	tn_packet_handler* handler;
 };
 
-static bool tn_run_peragent(size_t index, void* state_)
+static void tn_run_peragent(size_t index, void* state_)
 {
 	struct tn_run_state* state = (struct tn_run_state*) state_;
-	size_t length = tn_agent_receive(&(state->agents[index]));
-	if (length == 0) {
-		return false;
-	}
-	// This cannot overflow because the packet is by definition in an allocated block of memory
-	uint8_t* packet = state->agents[index].buffer + (PACKET_BUFFER_SIZE * state->agents[index].processed_delimiter);
-	state->handler(index, packet, length, state->agents[index].lengths);
-	tn_agent_transmit(&(state->agents[index]));
-	return true;
+	do {
+		size_t length = tn_agent_receive(&(state->agents[index]));
+		if (length != 0) {
+			// This cannot overflow because the packet is by definition in an allocated block of memory
+			uint8_t* packet = state->agents[index].buffer + (PACKET_BUFFER_SIZE * state->agents[index].processed_delimiter);
+			state->handler(index, packet, length, state->agents[index].lengths);
+			tn_agent_transmit(&(state->agents[index]));
+		}
+	} while (state->agents[index].flush_counter != 0);
 }
 
 void tn_run(size_t agents_count, struct tn_agent* agents, tn_packet_handler* handler)
@@ -1332,5 +1332,5 @@ void tn_run(size_t agents_count, struct tn_agent* agents, tn_packet_handler* han
 		.agents = agents,
 		.handler = handler
 	};
-	foreach_index_forever(agents_count, IXGBE_AGENT_FLUSH_PERIOD, tn_run_peragent, &state);
+	foreach_index_forever(agents_count, tn_run_peragent, &state);
 }
