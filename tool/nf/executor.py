@@ -36,7 +36,6 @@ init_externals = {
     'map_alloc': map.map_alloc,
     'os_map2_alloc': map2.OsMap2Alloc,
     'index_pool_alloc': index_pool.index_pool_alloc,
-    'os_halt': error.os_halt,
     'cht_alloc': cht.ChtAlloc,
     'lpm_alloc': lpm.LpmAlloc,
     'lpm_update_elem': lpm.LpmUpdateElem,
@@ -69,14 +68,12 @@ handle_externals = {
 total_externals = {
     'os_clock_time_ns': clock.os_clock_time_ns,
     'os_clock_sleep_ns': clock.os_clock_sleep_ns,
-    'os_config_get': config.os_config_get,
-    'os_halt': error.os_halt,
+    'os_config_try_get': config.os_config_try_get,
     'os_memory_alloc': memory.os_memory_alloc,
     'os_memory_phys_to_virt': memory.os_memory_phys_to_virt,
     'os_memory_virt_to_phys': memory.os_memory_virt_to_phys,
     'os_pci_enumerate': pci.os_pci_enumerate,
     'counter_create': counters.counter_create
-#    'foreach_index': functions.foreach_index
 }
 
 def nf_init(bin_path, devices_count):
@@ -140,8 +137,7 @@ def execute_full(bin_path):
     spec_reg.validate_registers(spec_reg.registers)
     spec_reg.validate_registers(spec_reg.pci_regs)
     spec_act.validate_actions()
-    #spec_glo.validate_globals()
-    sm = bin_exec.create_sim_manager(bin_path, total_externals, "main", [0, 0]) # args = argc, argv
+    sm = bin_exec.create_sim_manager(bin_path, total_externals, "main", *[0, 0]) # args = argc, argv
     sm.run()
     yyy = datetime.datetime.now()
     zzz = yyy - xxx

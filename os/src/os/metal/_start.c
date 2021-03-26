@@ -1,6 +1,10 @@
+#include <stddef.h>
+
+
 extern int main(int argc, char** argv);
+
 
 void _start(void)
 {
-	main(0, (char**) 0);
+	main(0, NULL);
 }

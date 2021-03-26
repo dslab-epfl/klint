@@ -73,8 +73,15 @@ class EmptyLibrary():
   def maximum_syscall_number(self, abi): return 0
 
 
+# Keep only what we need in the engine, and handle hlt and in/out
+from angr.engines.failure import SimEngineFailure
+from angr.engines.hook import HooksMixin
+from angr.engines.vex import HeavyVEXMixin
+class CustomEngine(SimEngineFailure, HooksMixin, HeavyVEXMixin):
+    def _perform_vex_defaultexit(self, expr, jumpkind):
+        if jumpkind != 'Ijk_SigTRAP': # TRAP means the program executed an invalid instr like 'hlt'; just stop in that case, no error
+            super()._perform_vex_defaultexit(expr, jumpkind)
 
-class IOPortEngine:
     def _perform_vex_stmt_Dirty_call(self, func_name, ty, args, func=None):
         if func_name == "amd64g_dirtyhelper_IN":
             # args = [portno (16b), size]
@@ -97,15 +104,6 @@ class IOPortEngine:
             self.state.pci.handle_out(port, data, size)
             return None
         raise angr.errors.UnsupportedDirtyError("We don't expect any other dirties than IN/OUT")
-
-
-# Keep only what we need in the engine
-# Not sure SimEngineFailure is even needed, but just in case...
-from angr.engines.failure import SimEngineFailure
-from angr.engines.hook import HooksMixin
-from angr.engines.vex import HeavyVEXMixin
-class CustomEngine(IOPortEngine, SimEngineFailure, HooksMixin, HeavyVEXMixin):
-    pass
 
 # Keep only what we need in the solver
 # We especially don't want ConstraintExpansionMixin, which adds constraints after an eval

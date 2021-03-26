@@ -3,12 +3,6 @@
 #include <stdlib.h>
 
 
-_Noreturn void os_halt(void)
-{
-	exit(1);
-}
-
-
 #if DEBUG_LEVEL > 0
 #include <stdio.h>
 
