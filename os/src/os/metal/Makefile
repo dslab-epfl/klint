@@ -10,3 +10,7 @@ CFLAGS += --include os/clock.h
 
 # No stdlib
 CFLAGS += -nostdlib
+
+ifneq (,$(findstring DEBUG_LEVEL,$(CFLAGS)))
+$(error The baremetal OS does not support debug features.)
+endif

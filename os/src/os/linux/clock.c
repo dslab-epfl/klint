@@ -7,7 +7,7 @@
 #include <time.h>
 
 #include "arch/tsc.h"
-#include "os/error.h"
+#include "os/log.h"
 
 
 // Fetch it at startup and store it, to make the time call as fast as possible, it's on the critical path

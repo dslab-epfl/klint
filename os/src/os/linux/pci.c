@@ -2,7 +2,7 @@
 
 #include <sys/io.h>
 
-#include "os/error.h"
+#include "os/log.h"
 
 
 // Note that Linux requires programs to call `ioperm` before accessing ports.

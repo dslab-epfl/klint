@@ -5,7 +5,7 @@
 
 #include "arch/endian.h"
 #include "os/clock.h"
-#include "os/error.h"
+#include "os/log.h"
 #include "os/memory.h"
 #include "verif/counters.h"
 #include "verif/functions.h"

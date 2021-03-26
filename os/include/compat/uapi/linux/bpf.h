@@ -7,7 +7,7 @@
 #include "compat/string.h"
 
 #include "os/clock.h"
-#include "os/error.h"
+#include "os/log.h"
 #include "os/memory.h"
 #include "structs/map2.h"
 

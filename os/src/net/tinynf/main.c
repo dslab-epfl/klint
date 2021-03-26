@@ -1,6 +1,6 @@
 #include "net/skeleton.h"
 
-#include "os/error.h"
+#include "os/log.h"
 #include "os/memory.h"
 #include "os/pci.h"
 

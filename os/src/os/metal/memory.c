@@ -1,10 +1,11 @@
 #include "os/memory.h"
 
-#include "os/error.h"
+#include "os/log.h"
 
 //@ #include "proof/arith.gh"
 //@ #include "proof/listexex.gh"
 //@ #include "proof/modulo.gh"
+
 
  // 256 MB should be enough?
 #define MEMORY_SIZE 0x1000000ull

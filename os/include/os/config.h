@@ -5,7 +5,7 @@
 #include <stdint.h>
 
 #include "os/clock.h"
-#include "os/error.h"
+#include "os/log.h"
 
 
 // Attempts to get a parameter with the given name, or returns false

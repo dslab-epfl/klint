@@ -1,6 +1,4 @@
-#include "os/error.h"
-
-#include <stdlib.h>
+#include "os/log.h"
 
 
 #if DEBUG_LEVEL > 0

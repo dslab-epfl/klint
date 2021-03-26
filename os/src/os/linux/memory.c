@@ -10,7 +10,7 @@
 #include <unistd.h>
 #include <sys/mman.h>
 
-#include "os/error.h"
+#include "os/log.h"
 
 
 // 1 GB hugepages
