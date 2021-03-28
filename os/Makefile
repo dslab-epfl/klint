@@ -33,7 +33,11 @@ SRCS += $(shell echo $(NF)/*.c)
 CFLAGS += -shared
 else
 # Build with the libnf
+ifeq (,$(findstring -static,$(CFLAGS)))
 LDFLAGS += $(NF)/libnf.so
+else
+LDFLAGS += $(NF)/libnf.a
+endif
 
 # OS
 SRCS += $(shell echo $(THIS_DIR)/src/os/*.c)

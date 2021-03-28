@@ -1,5 +1,7 @@
 # Compilation output
-libnf.so
+libnf.*
+*.o
+*.oa
 
 # Cached symbolic execution result
 symbex.result

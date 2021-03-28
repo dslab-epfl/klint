@@ -13,23 +13,38 @@ CFLAGS += -ffreestanding -nostdinc -isystem $(shell gcc -print-search-dirs | hea
 # OS headers
 CFLAGS += -I$(SELF_DIR)/os/include
 
-# We're building a shared lib
-CFLAGS += -shared
-
 # NF source
 SRCS += $(shell echo *.c)
 
 # Name of the library
-LIB := libnf.so
+LIB := libnf
 
 # NF-specific makefile if necessary
 ifneq (,$(wildcard Makefile))
 include Makefile
 endif
 
-ifndef NO_DEFAULT_TARGET
-# TODO: this should have dependency tracking, proper targets, and stuff
-compile:
-	@$(CC) $(SRCS) $(CFLAGS) -o $(LIB)
-	@$(STRIP) $(STRIPFLAGS) $(LIB)
+ifndef NO_DEFAULT_TARGETS
+default: $(LIB).so $(LIB).a
+
+$(LIB).so: $(subst .c,.o,$(SRCS))
+	@$(CC) $< $(CFLAGS) -shared -flto -o $(LIB).so
+	@$(STRIP) $(STRIPFLAGS) $(LIB).so
+
+%.o: %.c
+	@$(CC) $< $(CFLAGS) -flto -c -o $@
+
+
+$(LIB).a: $(subst .c,.oa,$(SRCS))
+	@ar rcs $(LIB).a $<
+
+%.oa: %.c
+	@$(CC) $< $(CFLAGS) -c -o $@
+	@$(STRIP) $(STRIPFLAGS) $@
+
+clean:
+	@rm -f *.o
+	@rm -f *.oa
+	@rm -f $(LIB).so
+	@rm -f $(LIB).a
 endif
