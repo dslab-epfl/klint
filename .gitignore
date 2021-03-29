@@ -1,7 +1,7 @@
 # Compilation output
-libnf.*
 *.o
-*.oa
+*.so
+*.a
 
 # Cached symbolic execution result
 symbex.result

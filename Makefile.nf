@@ -27,24 +27,21 @@ endif
 ifndef NO_DEFAULT_TARGETS
 default: $(LIB).so $(LIB).a
 
-$(LIB).so: $(subst .c,.o,$(SRCS))
-	@$(CC) $< $(CFLAGS) -shared -flto -o $(LIB).so
-	@$(STRIP) $(STRIPFLAGS) $(LIB).so
+
+$(LIB).so: $(SRCS)
+	@$(CC) $< $(CFLAGS) -shared -o $@
+	@$(STRIP) $(STRIPFLAGS) $@
+
+
+$(LIB).a: $(subst .c,.o,$(SRCS))
+	@ar rcs $@ $<
 
 %.o: %.c
-	@$(CC) $< $(CFLAGS) -flto -c -o $@
-
-
-$(LIB).a: $(subst .c,.oa,$(SRCS))
-	@ar rcs $(LIB).a $<
-
-%.oa: %.c
 	@$(CC) $< $(CFLAGS) -c -o $@
-	@$(STRIP) $(STRIPFLAGS) $@
+
 
 clean:
 	@rm -f *.o
-	@rm -f *.oa
-	@rm -f $(LIB).so
-	@rm -f $(LIB).a
+	@rm -f *.so
+	@rm -f *.a
 endif

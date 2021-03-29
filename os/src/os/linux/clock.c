@@ -2,8 +2,9 @@
 
 #include <fcntl.h>
 #include <unistd.h>
-// We already have a time_t, don't re-define it
+// We already have a time_t, don't re-define it (first for glibc, second for musl)
 #define __time_t_defined 1
+#define __DEFINED_time_t 1
 #include <time.h>
 
 #include "arch/tsc.h"

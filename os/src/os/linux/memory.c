@@ -17,6 +17,11 @@
 #define HUGEPAGE_SIZE_POWER (10 + 10 + 10)
 #define HUGEPAGE_SIZE (1u << HUGEPAGE_SIZE_POWER)
 
+// The version of musl shipped on Ubuntu 18.04 doesn't define this
+#ifndef MAP_HUGE_SHIFT
+#define MAP_HUGE_SHIFT 26
+#endif
+
 
 static bool page_allocated;
 static uint8_t* page_addr;
