@@ -2,10 +2,11 @@
 OS_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 
 # Our sources
-SRCS += $(shell echo $(OS_DIR)/*.c)
+OS_SRCS += $(shell echo $(OS_DIR)/*.c)
 
-# Force the use of our own time_t by preventing the stdlib from defining it and forcefully including ours so it's available
+# Force the use of our own time_t by preventing the stdlib from defining it and forcefully including ours so it's available (same workaround as linux/clock.c)
 CFLAGS += -D__time_t_defined
+CFLAGS += -D__DEFINED_time_t
 CFLAGS += --include os/clock.h
 
 # No stdlib

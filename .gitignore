@@ -1,7 +1,7 @@
 # Compilation output
 *.o
+*.obj
 *.so
-*.a
 
 # Cached symbolic execution result
 symbex.result

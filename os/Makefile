@@ -1,15 +1,18 @@
 ifndef NF
 $(error Please define NF)
 endif
+ifndef OS
+$(error Please define OS)
+endif
+ifndef NET
+$(error Please define NET)
+endif
 ifndef NF_CONFIG_FILENAME
 $(error Please define NF_CONFIG_FILENAME)
 endif
 ifndef OS_CONFIG_FILENAME
 $(error Please define OS_CONFIG_FILENAME)
 endif
-
-OS ?= linux
-NET ?= tinynf
 
 OUTPUT := bin
 
@@ -26,40 +29,50 @@ CFLAGS += -I$(THIS_DIR)/include
 CFLAGS += '-D OS_CONFIG_DATA=$(shell cat $(OS_CONFIG_FILENAME))'
 CFLAGS += '-D NF_CONFIG_DATA=$(shell cat $(NF_CONFIG_FILENAME))'
 
-ifeq ($(OS),none)
-# Include the libnf directly
-SRCS += $(shell echo $(NF)/*.c)
-# Shared lib
-CFLAGS += -shared
+# Shared or static depending on what the libNF is (shared obj or obj)
+ifneq (,$(findstring .so,$(NF)))
+NF_DYNAMIC := $(NF)
 else
-# Build with the libnf
-ifeq (,$(findstring -static,$(CFLAGS)))
-LDFLAGS += $(NF)/libnf.so
-else
-LDFLAGS += $(NF)/libnf.a
+NF_STATIC := $(NF)
+CFLAGS += -static
 endif
-
-# OS
-SRCS += $(shell echo $(THIS_DIR)/src/os/*.c)
-include $(THIS_DIR)/src/os/$(OS)/Makefile
 
 # Structs
-SRCS += $(shell echo $(THIS_DIR)/src/structs/*.c)
-endif
+STRUCTS_SRCS := $(shell echo $(THIS_DIR)/src/structs/*.c)
 
 # Verif
-SRCS += $(shell echo $(THIS_DIR)/src/verif/*.c)
+VERIF_SRCS := $(shell echo $(THIS_DIR)/src/verif/*.c)
 
-# Network
+# OS (the makefile defines OS_SRCS)
+include $(THIS_DIR)/src/os/$(OS)/Makefile
+OS_SRCS += $(shell echo $(THIS_DIR)/src/os/*.c)
+
+# Network (the makefile defines NET_SRCS)
 include $(THIS_DIR)/src/net/$(NET)/Makefile
 
-ifndef NO_DEFAULT_TARGETS
-default: $(OUTPUT)
+# All sources that must be split so that their functions are separated and can be modelled during verification
+SPLIT_SRCS := $(STRUCTS_SRCS) $(VERIF_SRCS) $(OS_SRCS)
+SPLIT_OBJ := split.obj
+NF_OBJ := nf.obj
 
-$(OUTPUT): $(SRCS)
-	@$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
-#	@$(STRIP) $(STRIPFLAGS) $@
+ifndef NO_DEFAULT_TARGETS
+default: clean $(OUTPUT)
+
+$(OUTPUT): $(NF_OBJ) $(SPLIT_OBJ) $(NF_DYNAMIC)
+	$(CC) $(CFLAGS) -fno-lto -o $@ $^
+
+# This needs to be stripped to mimic realistic conditions in which the NF is deployed as a binary, with or without a driver included, but without debugging info or other kinds of symbols
+# TODO: can we remove the need for main here? The OS should provide main, no?
+$(NF_OBJ): $(subst .c,.o,$(NET_SRCS)) $(NF_STATIC)
+	$(LD) -r $^ -o $@
+	@$(STRIP) $(STRIPFLAGS) --keep-symbol=main $@
+
+$(SPLIT_OBJ): $(subst .c,.o,$(SPLIT_SRCS))
+	$(LD) -r $^ -o $@
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 clean:
-	@rm -f $(OUTPUT)
+	@rm -f **/*.o $(NF_OBJ) $(SPLIT_OBJ) $(OUTPUT)
 endif

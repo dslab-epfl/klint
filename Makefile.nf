@@ -25,7 +25,7 @@ include Makefile
 endif
 
 ifndef NO_DEFAULT_TARGETS
-default: $(LIB).so $(LIB).a
+default: $(LIB).so $(LIB).o
 
 
 $(LIB).so: $(SRCS)
@@ -33,15 +33,13 @@ $(LIB).so: $(SRCS)
 	@$(STRIP) $(STRIPFLAGS) $@
 
 
-$(LIB).a: $(subst .c,.o,$(SRCS))
-	@ar rcs $@ $^
+$(LIB).o: $(subst .c,.o,$(SRCS))
+	@$(LD) -r $^ -o $@
 
 %.o: %.c
 	@$(CC) $(CFLAGS) -c -o $@ $<
 
 
 clean:
-	@rm -f *.o
-	@rm -f *.so
-	@rm -f *.a
+	@rm -f **/*.o *.so
 endif

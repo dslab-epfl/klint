@@ -5,6 +5,8 @@ SHELL := /bin/bash -O extglob -O globstar -c
 
 # GCC by default because why not
 CC ?= gcc
+# Linker, ld because why not
+LD ?= ld
 
 # C17, latest POSIX with GNU extensions
 CFLAGS += -std=c17 -D_POSIX_C_SOURCE=200809L -D_GNU_SOURCE
@@ -13,6 +15,9 @@ CFLAGS += -std=c17 -D_POSIX_C_SOURCE=200809L -D_GNU_SOURCE
 CFLAGS += -O3
 CFLAGS += -march=native
 CFLAGS += -flto
+
+# Allow LTO shared objects to also be linked without LTO if needed
+CFLAGS += -ffat-lto-objects
 
 # Do not magically add calls to "builtin" functions
 # TODO double check if this is required

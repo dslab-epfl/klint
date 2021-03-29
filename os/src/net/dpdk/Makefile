@@ -22,7 +22,6 @@ CFLAGS += -DBATCH_SIZE=$(BATCH_SIZE)
 
 # DPDK only accepts flags in EXTRA_*
 EXTRA_CFLAGS := $(CFLAGS)
-EXTRA_LDFLAGS := $(LDFLAGS)
 
 # Custom task that does the DPDK stuff then moves the output to the expected location
 default: all
@@ -32,7 +31,7 @@ default: all
 include $(RTE_SDK)/mk/rte.vars.mk
 
 # Use existing sources, plus our main
-SRCS-y += $(SRCS)
+SRCS-y += $(SRCS) $(STRUCTS_SRCS) $(VERIF_SRCS) $(OS_SRCS)
 SRCS-y += $(NET_DIR)/main.c
 
 # Keep the same binary name
