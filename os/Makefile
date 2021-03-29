@@ -58,20 +58,19 @@ NF_OBJ := nf.obj
 ifndef NO_DEFAULT_TARGETS
 default: clean $(OUTPUT)
 
+# This compile must not use LTO, so that we can be sure all symbols declared in SPLIT_OBJ are still there (e.g. not inlined) and thus can be modeled
 $(OUTPUT): $(NF_OBJ) $(SPLIT_OBJ) $(NF_DYNAMIC)
-	$(CC) $(CFLAGS) -fno-lto -o $@ $^
+	@$(CC) $(CFLAGS) -fno-lto -o $@ $^
 
-# This needs to be stripped to mimic realistic conditions in which the NF is deployed as a binary, with or without a driver included, but without debugging info or other kinds of symbols
-# TODO: can we remove the need for main here? The OS should provide main, no?
+# Strip the NF object, to mimic realistic conditions in which the NF is compiled along with networking code by a developer and given to an operator, without any symbols
 $(NF_OBJ): $(subst .c,.o,$(NET_SRCS)) $(NF_STATIC)
-	$(LD) -r $^ -o $@
-	@$(STRIP) $(STRIPFLAGS) --keep-symbol=main $@
+	@$(LD) -s -r $^ -o $@
 
 $(SPLIT_OBJ): $(subst .c,.o,$(SPLIT_SRCS))
-	$(LD) -r $^ -o $@
+	@$(LD) -r $^ -o $@
 
 %.o: %.c
-	$(CC) $(CFLAGS) -c -o $@ $<
+	@$(CC) $(CFLAGS) -c -o $@ $<
 
 clean:
 	@rm -f **/*.o $(NF_OBJ) $(SPLIT_OBJ) $(OUTPUT)

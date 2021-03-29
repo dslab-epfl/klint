@@ -38,8 +38,3 @@ CFLAGS += -Wall -Wextra -Werror -pedantic -Wshadow -Wstrict-aliasing -Wpadded -W
 
 # Debug log
 # CFLAGS += -DDEBUG_LEVEL=1
-
-# Strip, defined conditionally so it can be overriden with /bin/true to not strip
-STRIP ?= strip
-# Strip everything that's not needed, to show we can still verify despite this
-STRIPFLAGS += -s -R .comment -R .gnu.version -R .note.gnu.build-id

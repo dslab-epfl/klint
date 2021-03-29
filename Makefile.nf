@@ -25,14 +25,15 @@ include Makefile
 endif
 
 ifndef NO_DEFAULT_TARGETS
-default: $(LIB).so $(LIB).o
+default: clean $(LIB).so $(LIB).o
 
 
+# Strip the NF shared object, emulating the scenario where the .so is given by a developer to an operator without any symbols
 $(LIB).so: $(SRCS)
-	@$(CC) $(CFLAGS) -shared -o $@ $^
-	@$(STRIP) $(STRIPFLAGS) $@
+	@$(CC) $(CFLAGS) -s -shared -o $@ $^
 
 
+# Do not strip the NF object, as it will later be combined with networking code and can be LTO'd
 $(LIB).o: $(subst .c,.o,$(SRCS))
 	@$(LD) -r $^ -o $@
 
