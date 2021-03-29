@@ -22,7 +22,7 @@ CFLAGS += -fno-builtin
 CFLAGS += -fPIC
 
 # Don't emit unneeded stuff in the binary
-CFLAGS += -fno-asynchronous-unwind-tables
+CFLAGS += -fno-unwind-tables -fno-asynchronous-unwind-tables
 
 # Don't protect the stack, the code is verified
 # NOTE: This is an easy way to change the binary a little bit in case some unrelated change causes the hot path to be slower

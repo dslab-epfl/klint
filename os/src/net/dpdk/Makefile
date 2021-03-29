@@ -1,7 +1,7 @@
 # TODO make DPDK if not made
 
 # This makefile takes over everything because DPDK
-NO_DEFAULT_TARGET := 1
+NO_DEFAULT_TARGETS := 1
 
 # Get current dir, see https://stackoverflow.com/a/8080530
 NET_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))

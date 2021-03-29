@@ -53,8 +53,13 @@ SRCS += $(shell echo $(THIS_DIR)/src/verif/*.c)
 # Network
 include $(THIS_DIR)/src/net/$(NET)/Makefile
 
-ifndef NO_DEFAULT_TARGET
-build:
-	@$(CC) $(SRCS) $(CFLAGS) $(LDFLAGS) -o $(OUTPUT)
-	@$(STRIP) $(STRIPFLAGS) $(OUTPUT)
+ifndef NO_DEFAULT_TARGETS
+default: $(OUTPUT)
+
+$(OUTPUT): $(SRCS)
+	@$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+#	@$(STRIP) $(STRIPFLAGS) $@
+
+clean:
+	@rm -f $(OUTPUT)
 endif

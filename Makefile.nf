@@ -29,15 +29,15 @@ default: $(LIB).so $(LIB).a
 
 
 $(LIB).so: $(SRCS)
-	@$(CC) $< $(CFLAGS) -shared -o $@
+	@$(CC) $(CFLAGS) -shared -o $@ $^
 	@$(STRIP) $(STRIPFLAGS) $@
 
 
 $(LIB).a: $(subst .c,.o,$(SRCS))
-	@ar rcs $@ $<
+	@ar rcs $@ $^
 
 %.o: %.c
-	@$(CC) $< $(CFLAGS) -c -o $@
+	@$(CC) $(CFLAGS) -c -o $@ $<
 
 
 clean:
