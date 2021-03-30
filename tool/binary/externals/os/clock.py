@@ -5,8 +5,6 @@ import claripy
 # Us
 from ... import clock as binary_clock
 
-# NOTE: I broke the 'replay' feature while rewriting this, but I'm not sure it matters.
-
 # time_t os_clock_time_ns(void);
 # requires emp;
 # ensures result != TIME_MAX;

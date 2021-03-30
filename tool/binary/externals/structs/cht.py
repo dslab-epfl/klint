@@ -31,7 +31,7 @@ class ChtAlloc(angr.SimProcedure):
             raise SymbexException("Precondition does not hold.")
 
         # Postconditions
-        result = self.state.memory.allocate_opaque("cht")
+        result = claripy.BVS("cht", bitsizes.ptr)
         self.state.metadata.set(result, Cht(cht_height, backend_capacity))
         print(f"!!! cht_alloc [cht_height: {cht_height}, backend_capcity: {backend_capacity}] -> {result}")
         return result
@@ -57,7 +57,7 @@ class ChtFindPreferredAvailableBackend(angr.SimProcedure):
             raise SymbexException("Precondition does not hold.")
 
         # Postconditions
-        backend = self.state.symbol_factory.BVS("backend", bitsizes.size_t)
+        backend = claripy.BVS("backend", bitsizes.size_t)
         def case_true(state):
             print("!!! cht_find_preferred_available_backend: did not find available backend")
             return claripy.BVV(0, bitsizes.bool)

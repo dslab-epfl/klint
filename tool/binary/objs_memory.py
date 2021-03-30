@@ -1,0 +1,52 @@
+# Standard/External libraries
+import angr
+import claripy
+from collections import namedtuple
+
+# Us
+from . import bitsizes
+
+
+class ObjectsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
+    Metadata = namedtuple('ObjectsMemoryMetadata', ['size', 'reader', 'writer'])
+
+    def load(self, addr, size=None, endness=None, **kwargs):
+        (obj, offset) = self._obj_offset(addr)
+
+        meta = self.state.metadata.get_or_none(ObjectsMemoryMixin.Metadata, obj)
+        if meta is None:
+            return super().load(addr, size=size, endness=endness, **kwargs)
+
+        assert size is None, "too lazy to implement this"
+        result = meta.reader(self.state, obj, offset // meta.size)
+        if endness is not None and endness != self.endness:
+            result = result.reversed
+        return result
+
+
+    def store(self, addr, data, size=None, endness=None, **kwargs):
+        (obj, offset) = self._obj_offset(addr)
+
+        meta = self.state.metadata.get_or_none(ObjectsMemoryMixin.Metadata, obj)
+        if meta is None:
+            super().store(addr, data, size=size, endness=endness, **kwargs)
+        else:
+            assert size is None, "too lazy to implement this"
+            if endness is not None and endness != self.endness:
+                data = data.reversed
+            meta.writer(self.state, obj, offset // meta.size, data)
+
+
+    # reader: (state, base, offset) -> value
+    # writer: (state, base, offset, value) -> void
+    def create_special_object(self, name, size, reader, writer):
+        obj = claripy.BVS(name, bitsizes.ptr)
+        self.state.metadata.set(obj, ObjectsMemoryMixin.Metadata(size, reader, writer))
+
+
+    def _obj_offset(self, addr):
+        if addr.op == '__add__':
+            cands = [arg for arg in addr.args if arg.symbolic]
+            if len(cands) == 1:
+                return (cands[0], addr.swap_args([arg for arg in addr.args if not arg.symbolic]))
+        return (None, None)

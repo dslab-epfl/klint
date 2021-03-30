@@ -22,7 +22,7 @@ class net_transmit(angr.SimProcedure):
         metadata = self.state.metadata.get_unique(packet.NetworkMetadata)
         metadata.transmitted.append((data, length, device, flags))
 
-        self.state.memory.take(None, data_addr, None)
+        self.state.memory.take(None, data_addr)
 
 # void net_flood(struct net_packet* packet);
 class net_flood(angr.SimProcedure):
@@ -36,4 +36,4 @@ class net_flood(angr.SimProcedure):
         metadata = self.state.metadata.get_unique(packet.NetworkMetadata)
         metadata.transmitted.append((data, length, None, None))
 
-        self.state.memory.take(None, data_addr, None)
+        self.state.memory.take(None, data_addr)

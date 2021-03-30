@@ -18,9 +18,9 @@ class LpmAlloc(angr.SimProcedure):
     def run(self):
 
         # Postconditions
-        result = self.state.memory.allocate_opaque("lpm")
+        result = claripy.BVS("lpm", bitsizes.ptr)
         table = self.state.maps.new(IP_LEN + bitsizes.uint8_t, bitsizes.uint16_t, "lpm_table")
-        self.state.maps.havoc(table, self.state.symbol_factory.BVS("lpm_table_length", 64), False)
+        self.state.maps.havoc(table, claripy.BVS("lpm_table_length", 64), False)
         self.state.metadata.set(result, Lpm(table))
         print(f"!!! lpm_alloc -> {result}")
         return result
@@ -54,9 +54,9 @@ class LpmLookupElem(angr.SimProcedure):
 
         # Postconditions
         lpmp = self.state.metadata.get(Lpm, lpm)
-        out_value_bv = self.state.symbol_factory.BVS("out_value", bitsizes.uint16_t)
-        out_prefix_bv = self.state.symbol_factory.BVS("out_prefix", IP_LEN)
-        out_prefixlen_bv = self.state.symbol_factory.BVS("out_prefixlen", bitsizes.uint8_t)
+        out_value_bv = claripy.BVS("out_value", bitsizes.uint16_t)
+        out_prefix_bv = claripy.BVS("out_prefix", IP_LEN)
+        out_prefixlen_bv = claripy.BVS("out_prefixlen", bitsizes.uint8_t)
         out_route = out_prefix_bv.concat(out_prefixlen_bv)
         self.state.memory.store(out_value, out_value_bv, endness=self.state.arch.memory_endness)
         self.state.memory.store(out_prefix, out_prefix_bv, endness=self.state.arch.memory_endness)

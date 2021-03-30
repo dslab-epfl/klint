@@ -27,7 +27,7 @@ class index_pool_alloc(angr.SimProcedure):
             raise SymbexException("Precondition does not hold: size * sizeof(time_t) <= SIZE_MAX")
 
         # Postconditions
-        result = self.state.memory.allocate_opaque("index_pool")
+        result = claripy.BVS("index_pool", bitsizes.ptr)
         items = self.state.maps.new(bitsizes.size_t, bitsizes.uint64_t, "pool_items")
         self.state.metadata.set(result, Pool(size, expiration_time, items))
         print("!!! index_pool_alloc", size, "->", result)
@@ -66,12 +66,12 @@ class index_pool_borrow(angr.SimProcedure):
         self.state.memory.load(out_used, bitsizes.bool // 8, endness=self.state.arch.memory_endness)
 
         # Postconditions
-        index = self.state.symbol_factory.BVS("index", bitsizes.size_t)
-        used = self.state.symbol_factory.BVS("used", bitsizes.bool)
+        index = claripy.BVS("index", bitsizes.size_t)
+        used = claripy.BVS("used", bitsizes.bool)
         self.state.memory.store(out_index, index, endness=self.state.arch.memory_endness)
         self.state.memory.store(out_used, used, endness=self.state.arch.memory_endness)
 
-        result = self.state.symbol_factory.BVS("borrow_result", bitsizes.bool)
+        result = claripy.BVS("borrow_result", bitsizes.bool)
         utils.add_constraints_and_check_sat(self.state,
             claripy.If(
                 self.state.maps.length(poolp.items) == poolp.size,

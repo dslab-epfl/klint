@@ -27,7 +27,7 @@ class os_config_try_get(angr.SimProcedure):
         py_name = utils.read_str(self.state, name)
         metadata = self.state.metadata.get(ConfigMetadata, None, default_ctor=lambda: ConfigMetadata({}))
         if py_name not in metadata.items:
-            value = claripy.BVS(py_name, bitsizes.uintmax_t) # not using symbol_factory since this is not replayed
+            value = claripy.BVS(py_name, bitsizes.uintmax_t)
             metadata.items[py_name] = value
 
         self.state.memory.store(out_value, metadata.items[py_name], endness=self.state.arch.memory_endness)

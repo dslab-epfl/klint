@@ -31,7 +31,7 @@ class map_alloc(angr.SimProcedure):
             raise SymbexException("Precondition does not hold: capacity * 64 <= SIZE_MAX")
 
         # Postconditions
-        result = self.state.memory.allocate_opaque("map")
+        result = claripy.BVS("map", bitsizes.ptr)
         values = self.state.maps.new(key_size * 8, bitsizes.ptr, "map_values") # key_size is in bytes
         addrs = self.state.maps.new(key_size * 8, bitsizes.ptr, "map_addrs") # key_size is in bytes
         self.state.metadata.set(result, Map(key_size, capacity, values, addrs))
@@ -90,7 +90,7 @@ class map_set(angr.SimProcedure):
         # Preconditions
         mapp = self.state.metadata.get(Map, map)
         key = self.state.memory.load(key_ptr, mapp.key_size, endness=self.state.arch.memory_endness)
-        self.state.memory.take(25, key_ptr, mapp.key_size)
+        self.state.memory.take(25, key_ptr)
         if utils.can_be_false(self.state.solver, self.state.maps.length(mapp.values) < mapp.capacity):
             raise SymbexException("Precondition does not hold: length(values) < capacity")
         if utils.can_be_false(self.state.solver, claripy.Not(self.state.maps.get(mapp.values, key)[1])):
@@ -121,7 +121,7 @@ class map_remove(angr.SimProcedure):
         # Preconditions
         mapp = self.state.metadata.get(Map, map)
         key = self.state.memory.load(key_ptr, mapp.key_size, endness=self.state.arch.memory_endness)
-        frac = self.state.memory.take(None, key_ptr, mapp.key_size)
+        frac = self.state.memory.take(None, key_ptr)
         if utils.can_be_false(self.state.solver, self.state.maps.get(mapp.values, key)[1]):
             raise SymbexException("Precondition does not hold: ghostmap_get(values, key) != none")
         (key_ptr2, key_ptr2_present) = self.state.maps.get(mapp.addrs, key)
@@ -132,4 +132,4 @@ class map_remove(angr.SimProcedure):
         # Postconditions
         self.state.maps.remove(mapp.values, key)
         self.state.maps.remove(mapp.addrs, key)
-        self.state.memory.give(frac + 25, key_ptr, mapp.key_size)
+        self.state.memory.give(frac + 25, key_ptr)

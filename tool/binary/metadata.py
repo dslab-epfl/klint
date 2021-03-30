@@ -26,7 +26,7 @@ class MetadataPlugin(SimStatePlugin):
     def items_copy(self): # for verification purposes
         return self.items.copy()
 
-    def _get_value(self, cls, key):
+    def get_or_none(self, cls, key):
         map = self.items.get(cls, None)
         if map is None:
             return None
@@ -34,7 +34,7 @@ class MetadataPlugin(SimStatePlugin):
 
 
     def get(self, cls, key, default_ctor=None):
-        value = self._get_value(cls, key)
+        value = self.get_or_none(cls, key)
         if value is None:
             if default_ctor is None:
                 raise SymbexException(f"No metadata for key: {key} of class: {cls}")
@@ -59,7 +59,7 @@ class MetadataPlugin(SimStatePlugin):
 
     def set(self, key, value, override=False):
         cls = type(value)
-        existing = self._get_value(cls, key)
+        existing = self.get_or_none(cls, key)
         if existing is None:
             if override:
                 raise SymbexException(f"There is no metadata of type {cls} to override for key {key}")

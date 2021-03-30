@@ -445,13 +445,13 @@ class GhostMapsPlugin(SimStatePlugin):
     # === Public API ===
 
     def new(self, key_size, value_size, name):
-        obj = self.state.memory.allocate_opaque(name)
+        obj = claripy.BVS(name, bitsizes.ptr)
         self.state.metadata.set(obj, Map.new(self.state, key_size, value_size, name))
         self.state.path.ghost_record(lambda: RecordNew(key_size, value_size, obj))
         return obj
 
     def new_array(self, key_size, value_size, length, name):
-        obj = self.state.memory.allocate_opaque(name)
+        obj = claripy.BVS(name, bitsizes.ptr)
         self.state.metadata.set(obj, Map.new_array(self.state, key_size, value_size, length, name))
         self.state.path.ghost_record(lambda: RecordNewArray(key_size, value_size, length, obj))
         return obj

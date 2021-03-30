@@ -15,7 +15,7 @@ from binary.externals.os import memory as os_memory
 from binary.externals.net import packet
 from binary.externals.os import structs as os_structs
 from binary.ghost_maps import *
-from binary.memory_fractional import FractionalMemory, RecordAllocateOpaque
+#from binary.memory_fractional import FractionalMemory, RecordAllocateOpaque
 from binary.metadata import MetadataPlugin
 from binary.path import PathPlugin
 from python import executor as py_executor
@@ -128,7 +128,7 @@ def ptr_read(state, ptr, type=None):
 def transmit(state, packet, device):
     global current_outputs
     current_outputs.append((packet.data, packet.length, device))
-    state.memory.take(None, packet._data_addr, None) # mimic what the real transmit does
+    state.memory.take(None, packet._data_addr) # mimic what the real transmit does
 
 # === End spec helpers === #
 

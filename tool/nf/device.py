@@ -20,15 +20,13 @@ def find_device(state, virt_addr):
             return dev
     raise SymbexException("Unknown device")
 
-def device_reader(state, base, _, offset):
-    assert(_.op == 'BVV' and _.args[0] == 0)
+def device_reader(state, base, offset):
     dev = find_device(state, base)
     reg, index = reg_util.find_reg_from_addr(state, offset // 8)
     reg_data = spec_reg.registers[reg]
     return reg_util.fetch_reg(dev.regs, reg, index, reg_data, dev.use_init[0])
 
-def device_writer(state, base, _, offset, value):
-    assert(_.op == 'BVV' and _.args[0] == 0)
+def device_writer(state, base, offset, value):
     dev = find_device(state, base)
     reg, index = reg_util.find_reg_from_addr(state, offset // 8)
     reg_data = spec_reg.registers[reg]

@@ -3,10 +3,10 @@ from angr.state_plugins.solver import SimSolver
 from archinfo.arch_amd64 import ArchAMD64
 import claripy
 
+from binary.executor import CustomMemory
 from .defs import *
 from binary import bitsizes
 from binary import utils
-from binary.memory_fractional import FractionalMemory
 
 
 class VerificationException(Exception): pass
@@ -250,7 +250,7 @@ def create_angr_state(constraints):
     state.options = angr.options.symbolic
     state.supports_inspect = False
 
-    state.memory = FractionalMemory(memory_id="mem")
+    state.memory = CustomMemory(memory_id="mem")
     state.memory.set_state(state)
 
     state.solver = SimSolver()

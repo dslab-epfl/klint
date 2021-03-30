@@ -46,7 +46,7 @@ class OsMap2Alloc(angr.SimProcedure):
             raise SymbexException("Precondition does not hold: capacity * sizeof(size_t) * 2 <= SIZE_MAX")
 
         # Postconditions
-        result = self.state.memory.allocate_opaque("os_map2")
+        result = claripy.BVS("os_map2", bitsizes.ptr)
         items = self.state.maps.new(key_size * 8, value_size * 8, "map_items") # key_size and value_size are in bytes
         self.state.metadata.set(result, Map(key_size, value_size, capacity, items))
         print("!!! os_map2_alloc", key_size, value_size, capacity, "->", result)

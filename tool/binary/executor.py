@@ -4,18 +4,19 @@ import random
 import angr
 from angr.sim_state import SimState
 from angr.simos import SimOS
+from angr.storage.memory_mixins import DefaultFillerMixin, SlottedMemoryMixin
 import claripy
 
 # Us
 from . import clock
 from .exceptions import SymbexException
 from .ghost_maps import GhostMapsPlugin
-from .memory_split import SplitMemory
+from .maps_memory import MapsMemoryMixin
 from .metadata import MetadataPlugin
+from .objs_memory import ObjectsMemoryMixin
 from .path import PathPlugin
 from .pci import PciPlugin
 from .plugin_dummy import DummyPlugin
-from .symbol_factory import SymbolFactoryPlugin
 
 # Disable logs we don't care about
 import logging
@@ -159,6 +160,11 @@ class CustomSolver(
         template_solver_string = template_solver_string or SolverCompositeChild(track=track, backend=backends.z3)
         super(CustomSolver, self).__init__(template_solver, template_solver_string, track=track, **kwargs)
 
+# Keep only what we need in the memory, including our custom layers
+class CustomMemory(ObjectsMemoryMixin, MapsMemoryMixin, DefaultFillerMixin, SlottedMemoryMixin):
+    pass
+
+
 bin_exec_initialized = False
 
 def create_sim_manager(binary, ext_funcs, main_func_name, *main_func_args, base_state=None):
@@ -175,11 +181,9 @@ def create_sim_manager(binary, ext_funcs, main_func_name, *main_func_args, base_
     SimState.register_default("heap", DummyPlugin)
     # Our plugins
     SimState.register_default("metadata", MetadataPlugin)
-    SimState.register_default("sym_memory", SplitMemory) # SimState translates "sym_memory" to "memory" under standard options
     SimState.register_default("maps", GhostMapsPlugin)
     SimState.register_default("path", PathPlugin)
     SimState.register_default("pci", PciPlugin)
-    SimState.register_default("symbol_factory", SymbolFactoryPlugin)
 
     proj = angr.Project(binary, auto_load_libs=False, use_sim_procedures=False, engine=CustomEngine, simos=SimOS)
     for (fname, fproc) in ext_funcs.items():
@@ -188,7 +192,8 @@ def create_sim_manager(binary, ext_funcs, main_func_name, *main_func_args, base_
     # Not sure if this is needed but let's do it just in case, to make sure we don't change the base state
     base_state = base_state.copy() if base_state is not None else None
     main_func = proj.loader.find_symbol(main_func_name)
-    init_state = proj.factory.call_state(main_func.rebased_addr, *main_func_args, base_state=base_state)
+    # Set the memory here, no easy way to set it as default, SimState handles it differently
+    init_state = proj.factory.call_state(main_func.rebased_addr, *main_func_args, base_state=base_state, plugins={'memory': CustomMemory(memory_id='mem', endness=proj.arch.memory_endness)})
     if base_state is None:
         init_state.solver._stored_solver = CustomSolver()
     # It seems there's no way around enabling these, since code can access uninitialized variables (common in the "return bool, take in a pointer to the result" pattern)
