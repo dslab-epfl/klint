@@ -43,10 +43,14 @@ static void tinynf_packet_handler(size_t index, uint8_t* packet, size_t length, 
 	nf_handle(&pkt);
 }
 
+
+#include "os/clock.h"
 int main(int argc, char** argv)
 {
 	(void) argc;
 	(void) argv;
+
+//*((volatile size_t*)&devices_count) = os_clock_time_ns();
 
 	struct os_pci_address* pci_addresses;
 	devices_count = os_pci_enumerate(&pci_addresses);

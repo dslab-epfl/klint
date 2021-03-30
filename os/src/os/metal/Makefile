@@ -9,8 +9,8 @@ CFLAGS += -D__time_t_defined
 CFLAGS += -D__DEFINED_time_t
 CFLAGS += --include os/clock.h
 
-# No stdlib
-CFLAGS += -nostdlib
+# Bare-metal!
+CFLAGS += -ffreestanding -nostdlib
 
 ifneq (,$(findstring DEBUG_LEVEL,$(CFLAGS)))
 $(error The baremetal OS does not support debug features.)

@@ -66,7 +66,7 @@ handle_externals = {
 }
 
 total_externals = {
-    'os_clock_time_ns': clock.os_clock_time_ns,
+    #'os_clock_time_ns': clock.os_clock_time_ns,
     'os_clock_sleep_ns': clock.os_clock_sleep_ns,
     'os_config_try_get': config.os_config_try_get,
     'os_memory_alloc': memory.os_memory_alloc,
@@ -137,7 +137,7 @@ def execute_full(bin_path):
     spec_reg.validate_registers(spec_reg.registers)
     spec_reg.validate_registers(spec_reg.pci_regs)
     spec_act.validate_actions()
-    sm = bin_exec.create_sim_manager(bin_path, total_externals, "main", *[0, 0]) # args = argc, argv
+    sm = bin_exec.create_sim_manager(bin_path, total_externals, None) # None name -> entry point
     sm.run()
     yyy = datetime.datetime.now()
     zzz = yyy - xxx
