@@ -4,9 +4,9 @@
 #include "arch/tsc.h"
 
 
-// Defined in clock.c
-extern uint64_t cpu_freq_numerator;
-extern uint64_t cpu_freq_denominator;
+// For clock.h
+uint64_t cpu_freq_numerator;
+uint64_t cpu_freq_denominator;
 
 
 void os_init(void)

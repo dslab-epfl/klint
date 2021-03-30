@@ -29,7 +29,7 @@ default: clean $(LIB).so $(LIB).o
 
 
 # Strip the NF shared object, emulating the scenario where the .so is given by a developer to an operator without any symbols
-$(LIB).so: $(SRCS)
+$(LIB).so: $(subst .c,.o,$(SRCS))
 	@$(CC) $(CFLAGS) -s -shared -o $@ $^
 
 

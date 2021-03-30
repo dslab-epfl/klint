@@ -9,9 +9,9 @@
 #include "os/pci.h"
 
 
-// Defined in clock.c
-extern uint64_t cpu_freq_numerator;
-extern uint64_t cpu_freq_denominator;
+// For clock.h
+uint64_t cpu_freq_numerator;
+uint64_t cpu_freq_denominator;
 
 
 static uint64_t linux_msr_read(uint64_t index)

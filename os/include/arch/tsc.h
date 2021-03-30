@@ -1,8 +1,11 @@
 #pragma once
 
 #include <stdint.h>
-#include <x86intrin.h>
 
+// x86intrin ends up transitively depending on stdlib for some bizarre reason, but not if we only want the IA-32 intrinsics
+#define __iamcu__
+#include <x86intrin.h>
+#undef __iamcu__
 
 static inline uint64_t tsc_get(void)
 {

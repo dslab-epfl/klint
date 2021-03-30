@@ -14,7 +14,7 @@ bool os_config_try_get(const char* name, uintmax_t* out_value);
 //@ ensures [f]*name |-> _ &*& *out_value |-> _;
 
 
-// Gets a required parameter of the given name within the given range, or exits the program if there is no such parameter or if its value is outside the range.
+// Gets a required parameter of the given name within the given range (both inclusive), or exits the program if there is no such parameter or if its value is outside the range.
 static inline uintmax_t os_config_get(const char* name, uintmax_t min, uintmax_t max)
 {
 	uintmax_t value;

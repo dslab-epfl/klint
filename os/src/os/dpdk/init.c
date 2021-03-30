@@ -5,9 +5,9 @@
 #include "os/error.h"
 
 
-// Same idea as the linux impl
-extern uint64_t freq_numerator;
-extern uint64_t freq_denominator;
+// For clock.h
+uint64_t freq_numerator;
+uint64_t freq_denominator;
 
 void os_init(void)
 {

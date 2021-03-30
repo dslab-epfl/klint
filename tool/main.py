@@ -10,8 +10,8 @@ import nf.executor as nf_executor
 import verif.persistence as verif_persist
 import verif.executor as verif_executor
 
-nf_executor.execute_full(os.path.join(Path(__file__).parent.absolute(), "..", "os", "bin"))
-sys.exit(0)
+#nf_executor.execute_full(os.path.join(Path(__file__).parent.absolute(), "..", "os", "bin"))
+#sys.exit(0)
 
 nf_to_verify = "vigor-firewall"
 if len(sys.argv) >= 2:

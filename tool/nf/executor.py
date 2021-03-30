@@ -1,7 +1,7 @@
 # Standard/External libraries
 import angr
 import claripy
-from datetime import datetime
+import datetime
 import subprocess
 import os
 
@@ -45,7 +45,6 @@ init_externals = {
 }
 
 handle_externals = {
-    'os_clock_time_ns': clock.os_clock_time_ns,
     'os_debug': error.os_debug,
     'net_transmit': tx.net_transmit,
     'net_flood': tx.net_flood,
@@ -66,7 +65,6 @@ handle_externals = {
 }
 
 total_externals = {
-    #'os_clock_time_ns': clock.os_clock_time_ns,
     'os_clock_sleep_ns': clock.os_clock_sleep_ns,
     'os_config_try_get': config.os_config_try_get,
     'os_memory_alloc': memory.os_memory_alloc,
@@ -96,7 +94,7 @@ def nf_handle(bin_path, state, devices_count):
     return sm.deadended
 
 def havoc_iter(bin_path, state, devices_count, previous_results):
-    print("Running an iteration of handle, at", datetime.now(), "\n")
+    print("Running an iteration of handle, at", datetime.datetime.now(), "\n")
     original_state = state.copy()
     handled_states = list(nf_handle(bin_path, state, devices_count))
     for s in handled_states:
@@ -104,7 +102,7 @@ def havoc_iter(bin_path, state, devices_count, previous_results):
         s.path.print()
         #s.path.ghost_print()
 
-    print("Inferring invariants... at ", datetime.now())
+    print("Inferring invariants... at ", datetime.datetime.now())
     (new_state, new_results, reached_fixpoint) = ghost_maps.infer_invariants(original_state, handled_states, previous_results)
 
     print("")
@@ -128,7 +126,7 @@ def execute(bin_path):
             (handled_states, state, previous_results, reached_fixpoint) = havoc_iter(bin_path, state, devices_count, previous_results)
             if reached_fixpoint:
                 results += handled_states
-    print("NF symbex done! at", datetime.now())
+    print("NF symbex done! at", datetime.datetime.now())
     return (results, devices_count)
 
 import datetime

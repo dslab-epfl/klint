@@ -4,6 +4,7 @@ import random
 import angr
 from angr.sim_state import SimState
 from angr.simos import SimOS
+import claripy
 
 # Us
 from . import clock
@@ -84,10 +85,6 @@ class CustomEngine(SimEngineFailure, HooksMixin, HeavyVEXMixin):
         if jumpkind != 'Ijk_SigTRAP': # TRAP means the program executed an invalid instr like 'hlt'; just stop in that case, no error
             super()._perform_vex_defaultexit(expr, jumpkind)
 
-    def _handle_vex_stmt(self, stmt):
-        print(type(stmt), stmt)
-        super()._handle_vex_stmt(stmt)
-
     def _perform_vex_stmt_Dirty_call(self, func_name, ty, args, func=None):
         if func_name == "amd64g_dirtyhelper_IN":# args = [portno (16b), size]
             if args[0].op != 'BVV':
@@ -109,22 +106,32 @@ class CustomEngine(SimEngineFailure, HooksMixin, HeavyVEXMixin):
             return None
 
         if func_name == 'amd64g_dirtyhelper_RDTSC': # no args
-            return clock.get_current_time(self.state)
+            return clock.get_current_time(self.state) * clock.frequency_num / clock.frequency_denom
 
         raise angr.errors.UnsupportedDirtyError("Unexpected angr 'dirty' call")
 
-# Handle RDMSR
+# Handle RDMSR, specifically register 0xCE which contains the clock frequency
 from pyvex.lifting import register as pyvex_register
+from pyvex.lifting.util import Type
 from pyvex.lifting.util.instr_helper import Instruction
 from pyvex.lifting.util.lifter_helper import GymratLifter
-class AMD64Instruction(Instruction):
-    pass
-class Instruction_RDMSR(AMD64Instruction):
+class Instruction_RDMSR(Instruction):
     name = "RDMSR"
     bin_format = "0000111100110010" # 0x0F32
     def compute_result(self):
-        xyz = 0
-        pass
+        def amd64g_rdmsr(state, msr):
+            # For now we only emulate the clock frequency
+            if not msr.structurally_match(claripy.BVV(0xCE, 32)):
+                raise SymbexException("Unknown R for RDMSR")
+            high = claripy.BVS("msr_high", 32)
+            low = claripy.BVS("msr_low", 32)
+            low = low[31:16].concat(clock.frequency_num[7:0]).concat(low[7:0])
+            state.regs.edx = high
+            state.regs.eax = low
+            return 0
+
+        return self.ccall(Type.int_32, amd64g_rdmsr, [self.get("ecx", Type.int_32)])
+
 class AMD64Spotter(GymratLifter):
     instrs = [Instruction_RDMSR]
 pyvex_register(AMD64Spotter, 'AMD64')

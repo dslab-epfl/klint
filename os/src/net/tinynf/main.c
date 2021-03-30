@@ -53,8 +53,6 @@ int main(int argc, char** argv)
 
 	os_init();
 
-//*((volatile size_t*)&devices_count) = os_clock_time_ns();
-
 	struct os_pci_address* pci_addresses;
 	devices_count = os_pci_enumerate(&pci_addresses);
 
