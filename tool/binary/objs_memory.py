@@ -45,7 +45,7 @@ class ObjectsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
 
 
     def _obj_offset(self, addr):
-        if addr.op == '__add__':
+        if isinstance(addr, claripy.ast.Base) and addr.op == '__add__':
             cands = [arg for arg in addr.args if arg.symbolic]
             if len(cands) == 1:
                 return (cands[0], addr.swap_args([arg for arg in addr.args if not arg.symbolic]))

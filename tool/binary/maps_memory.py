@@ -15,8 +15,8 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
     Metadata = namedtuple('MapsMemoryMetadata', ['count', 'size', 'fractions'])
 
     def load(self, addr, size=None, endness=None, **kwargs):
-        if not addr.symbolic:
-            return super().load(self, addr, size=size, endness=endness, **kwargs)
+        if not isinstance(addr, claripy.ast.Base) or not addr.symbolic:
+            return super().load(addr, size=size, endness=endness, **kwargs)
 
         (base, index, offset) = self._base_index_offset(addr)
 
@@ -40,9 +40,10 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
 
 
     def store(self, addr, data, size=None, endness=None, **kwargs):
-        if not addr.symbolic:
-            super().store(self, addr, data, size=size, endness=endness, **kwargs)
-        assert size is None, "Why would you not put a None size???"
+        if not isinstance(addr, claripy.ast.Base) or not addr.symbolic:
+            super().store(addr, data, size=size, endness=endness, **kwargs)
+            return
+        assert size is None or size * 8 == data.size(), "Why would you not put a custom size???"
 
         (base, index, offset) = self._base_index_offset(addr)
 

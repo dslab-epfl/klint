@@ -4,7 +4,7 @@ import random
 import angr
 from angr.sim_state import SimState
 from angr.simos import SimOS
-from angr.storage.memory_mixins import DefaultFillerMixin, SlottedMemoryMixin
+from angr.storage.memory_mixins import SimpleInterfaceMixin, SlottedMemoryMixin
 import claripy
 
 # Us
@@ -161,7 +161,12 @@ class CustomSolver(
         super(CustomSolver, self).__init__(template_solver, template_solver_string, track=track, **kwargs)
 
 # Keep only what we need in the memory, including our custom layers
-class CustomMemory(ObjectsMemoryMixin, MapsMemoryMixin, DefaultFillerMixin, SlottedMemoryMixin):
+class CustomMemory(
+    SimpleInterfaceMixin, # To get concrete sizes
+    ObjectsMemoryMixin, # For modelled devices
+    MapsMemoryMixin, # For the heap
+    SlottedMemoryMixin # For the rest of the memory (TODO: can we make it read-only after init?)
+):
     pass
 
 
