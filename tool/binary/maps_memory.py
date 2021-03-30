@@ -10,59 +10,63 @@ from . import utils
 
 # TODO: Only query the fractions map if 'take' has been called at least once for it; but this means the metadata may not be the same before/after init, how to handle that?
 
+# General note: we ignore presence bits because if they are false then the fractions checks will definitely fail
+# Also, recall that all sizes are in bytes, and all offsets are in bits
 class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
     FRACS_NAME = "_fracs"
     Metadata = namedtuple('MapsMemoryMetadata', ['count', 'size', 'fractions'])
 
     def load(self, addr, size=None, endness=None, **kwargs):
         if not isinstance(addr, claripy.ast.Base) or not addr.symbolic:
-            return super().load(addr, size=size, endness=endness, **kwargs)
+            # Note that further mixins expect addr to be concrete
+            return super().load(self.state.solver.eval(addr), size=size, endness=endness, **kwargs)
 
         (base, index, offset) = self._base_index_offset(addr)
 
         meta = self.state.metadata.get(MapsMemoryMixin.Metadata, base)
-        fraction = self.state.maps.get(meta.fractions, index)
+        fraction, _ = self.state.maps.get(meta.fractions, index)
         if utils.can_be_true(self.state.solver, fraction == 0):
             raise SymbexException("Attempt to load without definitely having access to the object at addr " + str(addr) + " ; fraction is " + str(fraction) + " ; constraints are " + str(self.state.solver.constraints) + " ; e.g. could be " + str(self.state.solver.eval_upto(fraction, 10, cast_to=int)))
         
-        value = self.state.maps.get(base, index)
-
-        if endness is not None and endness != self.endness:
-            value = value.reversed
+        value, _ = self.state.maps.get(base, index)
 
         if offset != 0:
             value = value[value.size()-1:offset]
 
-        if size is not None and value.size() != size:
-            value = value[size-1:0]
+        if value.size() != size * 8:
+            value = value[(size*8)-1:0]
+
+        if endness is not None and endness != self.endness:
+            value = value.reversed
 
         return value
 
 
     def store(self, addr, data, size=None, endness=None, **kwargs):
         if not isinstance(addr, claripy.ast.Base) or not addr.symbolic:
-            super().store(addr, data, size=size, endness=endness, **kwargs)
+            # Note that further mixins expect addr to be concrete
+            super().store(self.state.solver.eval(addr), data, size=size, endness=endness, **kwargs)
             return
-        assert size is None or size * 8 == data.size(), "Why would you not put a custom size???"
+        assert size * 8 == data.size(), "Why would you not put a custom size???"
 
         (base, index, offset) = self._base_index_offset(addr)
 
         meta = self.state.metadata.get(MapsMemoryMixin.Metadata, base)
-        fraction = self.state.maps.get(meta.fractions, index)
+        fraction, _ = self.state.maps.get(meta.fractions, index)
         if utils.can_be_true(self.state.solver, fraction != 100):
-            raise SymbexException("Attempt to store without definitely owning the object at addr " + str(request.addr) + " ; fraction is " + str(fraction) + " ; constraints are " + str(self.state.solver.constraints) + " ; e.g. could be " + str(self.state.solver.eval_upto(fraction, 10, cast_to=int)))
+            raise SymbexException("Attempt to store without definitely owning the object at addr " + str(addr) + " ; fraction is " + str(fraction) + " ; constraints are " + str(self.state.solver.constraints) + " ; e.g. could be " + str(self.state.solver.eval_upto(fraction, 10, cast_to=int)))
 
         if endness is not None and endness != self.endness:
             data = data.reversed
 
-        if offset != 0 or data.size() != self.state.maps.value_size(addr):
-            current = self.state.maps.get(addr, index)
+        if offset != 0 or data.size() != self.state.maps.value_size(base):
+            current, _ = self.state.maps.get(base, index)
             if offset != 0:
                 data = data.concat(current[offset-1:0])
-            if data.size() != self.state.maps.value_size(addr):
+            if data.size() != self.state.maps.value_size(base):
                 data = current[current.size()-1:data.size()].concat(data)
 
-        self.state.maps.set(addr, index, data)
+        self.state.maps.set(base, index, data)
  
 
     # New method!
@@ -81,13 +85,14 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
         if constraint is not None:
             self.state.add_constraints(self.state.maps.forall(addr, constraint))
         # neither null nor so high it overflows (note the -1 becaus 1-past-the-array is legal C)
-        self.state.add_constraints(addr != 0, addr.ULE(claripy.BVV(2**bitsizes.ptr-1, bitsizes.ptr) - max_size * 8 - 1))
+        self.state.add_constraints(addr != 0, addr.ULE(claripy.BVV(2**bitsizes.ptr-1, bitsizes.ptr) - max_size - 1))
 
         fractions = self.state.maps.new_array(bitsizes.ptr, 8, count, name + MapsMemoryMixin.FRACS_NAME)
+        self.state.add_constraints(self.state.maps.forall(fractions, lambda k, v: v == 100))
 
         self.state.metadata.set(addr, MapsMemoryMixin.Metadata(count, size, fractions))
 
-        return result
+        return addr
 
 
     # New method!
@@ -175,12 +180,12 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
             added = sum([a for a in addr.args if not a.structurally_match(base)])
 
             meta = self.state.metadata.get(MapsMemoryMixin.Metadata, base)
-            offset = self.state.solver.eval_one(added % (meta.size // 8), cast_to=int)
+            offset = self.state.solver.eval_one(added % meta.size, cast_to=int)
             # Don't make the index be a weird '0 // ...' expr if we can avoid it
             if utils.definitely_true(self.state.solver, added == offset):
                 index = claripy.BVV(0, 64)
             else:
-                index = (added - offset) / (meta.size // 8)
+                index = (added - offset) / meta.size
             return (base, index, offset * 8)
 
         addr = self.state.solver.simplify(addr) # this handles the descriptor addresses, which are split between two NIC registers

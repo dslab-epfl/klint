@@ -144,7 +144,9 @@ class Map:
         _name_counter[0] = _name_counter[0] + 1
 
         if _length is None:
-            _length = claripy.BVV(0, bitsizes.size_t)
+            _length = 0
+        if isinstance(_length, int):
+            _length = claripy.BVV(_length, bitsizes.size_t)
 
         result = Map(MapMeta(name, key_size, value_size), _length, [], [])
         if _invariants is None:

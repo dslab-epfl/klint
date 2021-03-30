@@ -48,5 +48,5 @@ class ObjectsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
         if isinstance(addr, claripy.ast.Base) and addr.op == '__add__':
             cands = [arg for arg in addr.args if arg.symbolic]
             if len(cands) == 1:
-                return (cands[0], addr.swap_args([arg for arg in addr.args if not arg.symbolic]))
+                return (cands[0], sum([a for a in addr.args if not a.structurally_match(cands[0])]))
         return (None, None)

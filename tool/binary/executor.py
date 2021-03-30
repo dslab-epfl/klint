@@ -4,7 +4,6 @@ import random
 import angr
 from angr.sim_state import SimState
 from angr.simos import SimOS
-from angr.storage.memory_mixins import SimpleInterfaceMixin, SlottedMemoryMixin
 import claripy
 
 # Us
@@ -158,14 +157,23 @@ class CustomSolver(
     def __init__(self, template_solver=None, track=False, template_solver_string=None, **kwargs):
         template_solver = template_solver or SolverCompositeChild(track=track)
         template_solver_string = template_solver_string or SolverCompositeChild(track=track, backend=backends.z3)
-        super(CustomSolver, self).__init__(template_solver, template_solver_string, track=track, **kwargs)
+        super().__init__(template_solver, template_solver_string, track=track, **kwargs)
 
 # Keep only what we need in the memory, including our custom layers
+import angr.storage.memory_mixins as csms
 class CustomMemory(
-    SimpleInterfaceMixin, # To get concrete sizes
+    csms.NameResolutionMixin, # To allow uses of register names, which angr does internally when this is used for regs
+    csms.DataNormalizationMixin, # To always get ASTs values
+    csms.SizeNormalizationMixin, # To always get actual sizes in stores (required by some angr mixins)
     ObjectsMemoryMixin, # For modelled devices
     MapsMemoryMixin, # For the heap
-    SlottedMemoryMixin # For the rest of the memory (TODO: can we make it read-only after init?)
+    # --- Rest is inspired by DefaultMemory, minus stuff we definitely don't need; TODO: can we make this all read-only after init?
+    csms.StackAllocationMixin,
+    csms.ClemoryBackerMixin,
+    csms.DictBackerMixin,
+    csms.UltraPagesMixin,
+    csms.DefaultFillerMixin,
+    csms.PagedMemoryMixin
 ):
     pass
 
@@ -189,6 +197,7 @@ def create_sim_manager(binary, ext_funcs, main_func_name, *main_func_args, base_
     SimState.register_default("maps", GhostMapsPlugin)
     SimState.register_default("path", PathPlugin)
     SimState.register_default("pci", PciPlugin)
+    SimState.register_default("sym_memory", CustomMemory) # Has to be named that way for angr to use it as default
 
     proj = angr.Project(binary, auto_load_libs=False, use_sim_procedures=False, engine=CustomEngine, simos=SimOS)
     for (fname, fproc) in ext_funcs.items():
@@ -198,7 +207,7 @@ def create_sim_manager(binary, ext_funcs, main_func_name, *main_func_args, base_
     base_state = base_state.copy() if base_state is not None else None
     main_func = proj.loader.find_symbol(main_func_name)
     # Set the memory here, no easy way to set it as default, SimState handles it differently
-    init_state = proj.factory.call_state(main_func.rebased_addr, *main_func_args, base_state=base_state, plugins={'memory': CustomMemory(memory_id='mem', endness=proj.arch.memory_endness)})
+    init_state = proj.factory.call_state(main_func.rebased_addr, *main_func_args, base_state=base_state)
     if base_state is None:
         init_state.solver._stored_solver = CustomSolver()
     # It seems there's no way around enabling these, since code can access uninitialized variables (common in the "return bool, take in a pointer to the result" pattern)

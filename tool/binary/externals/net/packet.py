@@ -20,13 +20,13 @@ def get_data_addr(state, packet_addr):
     return state.memory.load(packet_addr, bitsizes.size_t // 8, endness=state.arch.memory_endness)
 
 def get_data(state, packet_addr):
-    return state.memory.load(get_data_addr(state, packet_addr), PACKET_MTU , endness=state.arch.memory_endness)
+    return state.memory.load(get_data_addr(state, packet_addr), PACKET_MTU, endness=state.arch.memory_endness)
 
 def get_length(state, packet_addr):
-    return state.memory.load(packet_addr + bitsizes.ptr, bitsizes.size_t // 8, endness=state.arch.memory_endness)
+    return state.memory.load(packet_addr + bitsizes.ptr // 8, bitsizes.size_t // 8, endness=state.arch.memory_endness)
 
 def get_device(state, packet_addr):
-    return state.memory.load(packet_addr + bitsizes.ptr + bitsizes.size_t, bitsizes.uint16_t // 8, endness=state.arch.memory_endness)
+    return state.memory.load(packet_addr + (bitsizes.ptr + bitsizes.size_t) // 8, bitsizes.uint16_t // 8, endness=state.arch.memory_endness)
 
 def alloc(state, devices_count):
     packet_length = claripy.BVS("packet_length", bitsizes.size_t)
