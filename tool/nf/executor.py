@@ -137,7 +137,7 @@ def execute_full(bin_path):
     spec_reg.validate_registers(spec_reg.registers)
     spec_reg.validate_registers(spec_reg.pci_regs)
     spec_act.validate_actions()
-    sm = bin_exec.create_sim_manager(bin_path, total_externals, None) # None name -> entry point
+    sm = bin_exec.create_sim_manager(bin_path, total_externals, "_start")
     sm.run()
     yyy = datetime.datetime.now()
     zzz = yyy - xxx

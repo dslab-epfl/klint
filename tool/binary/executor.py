@@ -89,8 +89,7 @@ class CustomEngine(SimEngineFailure, HooksMixin, HeavyVEXMixin):
         super()._handle_vex_stmt(stmt)
 
     def _perform_vex_stmt_Dirty_call(self, func_name, ty, args, func=None):
-        if func_name == "amd64g_dirtyhelper_IN":
-            # args = [portno (16b), size]
+        if func_name == "amd64g_dirtyhelper_IN":# args = [portno (16b), size]
             if args[0].op != 'BVV':
                 raise angr.errors.UnsupportedDirtyError("Symbolic port for 'in'")
             port = args[0].args[0]
@@ -98,8 +97,7 @@ class CustomEngine(SimEngineFailure, HooksMixin, HeavyVEXMixin):
                 raise angr.errors.UnsupportedDirtyError("Symbolic size for 'in'")
             size = args[1].args[0]
             return self.state.pci.handle_in(port, size)
-        if func_name == "amd64g_dirtyhelper_OUT":
-            # args = [portno (16b), data (32b), size]
+        if func_name == "amd64g_dirtyhelper_OUT": # args = [portno (16b), data (32b), size]
             if args[0].op != 'BVV':
                 raise angr.errors.UnsupportedDirtyError("Symbolic port for 'out'")
             port = args[0].args[0]
@@ -110,10 +108,26 @@ class CustomEngine(SimEngineFailure, HooksMixin, HeavyVEXMixin):
             self.state.pci.handle_out(port, data, size)
             return None
 
-        #if func_name == 'amd64g_dirtyhelper_RDTSC':
-        #    return clock.get_current_time(self.state)
-        return super()._perform_vex_stmt_Dirty_call(func_name, ty, args, func=func)
-        #raise angr.errors.UnsupportedDirtyError("Unexpected angr 'dirty' call")
+        if func_name == 'amd64g_dirtyhelper_RDTSC': # no args
+            return clock.get_current_time(self.state)
+
+        raise angr.errors.UnsupportedDirtyError("Unexpected angr 'dirty' call")
+
+# Handle RDMSR
+from pyvex.lifting import register as pyvex_register
+from pyvex.lifting.util.instr_helper import Instruction
+from pyvex.lifting.util.lifter_helper import GymratLifter
+class AMD64Instruction(Instruction):
+    pass
+class Instruction_RDMSR(AMD64Instruction):
+    name = "RDMSR"
+    bin_format = "0000111100110010" # 0x0F32
+    def compute_result(self):
+        xyz = 0
+        pass
+class AMD64Spotter(GymratLifter):
+    instrs = [Instruction_RDMSR]
+pyvex_register(AMD64Spotter, 'AMD64')
 
 # Keep only what we need in the solver
 # We especially don't want ConstraintExpansionMixin, which adds constraints after an eval
@@ -166,12 +180,8 @@ def create_sim_manager(binary, ext_funcs, main_func_name, *main_func_args, base_
             proj.hook_symbol(fname, PathPlugin.wrap(fproc()))
     # Not sure if this is needed but let's do it just in case, to make sure we don't change the base state
     base_state = base_state.copy() if base_state is not None else None
-    if main_func_name is None:
-        assert base_state is None
-        init_state = proj.factory.full_init_state()
-    else:
-        main_func = proj.loader.find_symbol(main_func_name)
-        init_state = proj.factory.call_state(main_func.rebased_addr, *main_func_args, base_state=base_state)
+    main_func = proj.loader.find_symbol(main_func_name)
+    init_state = proj.factory.call_state(main_func.rebased_addr, *main_func_args, base_state=base_state)
     if base_state is None:
         init_state.solver._stored_solver = CustomSolver()
     # It seems there's no way around enabling these, since code can access uninitialized variables (common in the "return bool, take in a pointer to the result" pattern)
