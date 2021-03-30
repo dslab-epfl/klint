@@ -1,6 +1,7 @@
 #include "net/skeleton.h"
 
 #include "os/log.h"
+#include "os/init.h"
 #include "os/memory.h"
 #include "os/pci.h"
 
@@ -49,6 +50,8 @@ int main(int argc, char** argv)
 {
 	(void) argc;
 	(void) argv;
+
+	os_init();
 
 //*((volatile size_t*)&devices_count) = os_clock_time_ns();
 

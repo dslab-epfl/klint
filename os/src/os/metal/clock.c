@@ -1,18 +1,11 @@
 #include "os/clock.h"
 
-#include "arch/msr.h"
 #include "arch/tsc.h"
 
 
-// Fetch it at startup and store it, to make the time call as fast as possible, it's on the critical path
-static uint64_t cpu_freq_numerator;
-static uint64_t cpu_freq_denominator;
-
-__attribute__((constructor))
-static void fetch_tsc_freq(void)
-{
-	tsc_get_nhz(msr_read, &cpu_freq_numerator, &cpu_freq_denominator);
-}
+// Fetched at startup (in init.c), to make the time call as fast as possible, it's on the critical path
+uint64_t cpu_freq_numerator;
+uint64_t cpu_freq_denominator;
 
 
 time_t os_clock_time_ns(void)

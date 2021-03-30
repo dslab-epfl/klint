@@ -4,14 +4,14 @@
 #include <x86intrin.h>
 
 
-uint64_t tsc_get(void)
+static inline uint64_t tsc_get(void)
 {
 	// Let's offload the work to the compiler on this one
 	return __rdtsc();
 }
 
 // Gets the frequency of the timestamp counter in nanohertz as a rational number, given an MSR-reading function
-void tsc_get_nhz(uint64_t (*read_msr)(uint64_t), uint64_t* out_numerator, uint64_t* out_denominator)
+static inline void tsc_get_nhz(uint64_t (*read_msr)(uint64_t), uint64_t* out_numerator, uint64_t* out_denominator)
 {
 	// We're on Ivy Bridge
 	// TODO make this more general? or just fail if not SB/IB/HW/BW given the cite below?

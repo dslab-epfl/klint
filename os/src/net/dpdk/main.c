@@ -11,6 +11,7 @@
 
 #include "net/skeleton.h"
 #include "os/error.h"
+#include "os/init.h"
 
 
 // Just needs to be high enough to not run out of buffers
@@ -101,6 +102,8 @@ int main(int argc, char** argv)
 	}
 	argc -= ret;
 	argv += ret;
+
+	os_init();
 
 	devices_count = rte_eth_dev_count_avail();
 	if (devices_count == 0) {

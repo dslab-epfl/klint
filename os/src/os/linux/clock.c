@@ -1,7 +1,5 @@
 #include "os/clock.h"
 
-#include <fcntl.h>
-#include <unistd.h>
 // We already have a time_t, don't re-define it (first for glibc, second for musl)
 #define __time_t_defined 1
 #define __DEFINED_time_t 1
@@ -11,36 +9,9 @@
 #include "os/log.h"
 
 
-// Fetch it at startup and store it, to make the time call as fast as possible, it's on the critical path
-static uint64_t cpu_freq_numerator;
-static uint64_t cpu_freq_denominator;
-
-static uint64_t linux_msr_read(uint64_t index)
-{
-	int msr_fd = open("/dev/cpu/0/msr", O_RDONLY);
-	if (msr_fd == -1) {
-		os_fatal("Could not open MSR file; are you root? did you modprobe msr?");
-	}
-
-	off_t seek_result = lseek(msr_fd, (off_t) index, SEEK_SET);
-	if (seek_result == (off_t) -1) {
-		os_fatal("Could not seek into MSR file");
-	}
-
-	uint64_t msr = 0;
-	long read_result = read(msr_fd, (void*) &msr, sizeof(msr));
-	if (read_result != sizeof(msr)) {
-		os_fatal("Could not read MSR file");
-	}
-
-	return msr;
-}
-
-__attribute__((constructor))
-static void fetch_tsc_freq(void)
-{
-	tsc_get_nhz(linux_msr_read, &cpu_freq_numerator, &cpu_freq_denominator);
-}
+// Fetched at startup (in init.c), to make the time call as fast as possible, it's on the critical path
+uint64_t cpu_freq_numerator;
+uint64_t cpu_freq_denominator;
 
 
 time_t os_clock_time_ns(void)
