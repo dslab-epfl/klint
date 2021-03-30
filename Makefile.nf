@@ -41,6 +41,7 @@ $(LIB).o: $(subst .c,.o,$(SRCS))
 	@$(CC) $(CFLAGS) -c -o $@ $<
 
 
+.PHONY: clean
 clean:
 	@rm -f **/*.o *.so
 endif

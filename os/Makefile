@@ -72,6 +72,8 @@ $(SPLIT_OBJ): $(subst .c,.o,$(SPLIT_SRCS))
 %.o: %.c
 	@$(CC) $(CFLAGS) -c -o $@ $<
 
+
+.PHONY: clean
 clean:
 	@rm -f **/*.o $(NF_OBJ) $(SPLIT_OBJ) $(OUTPUT)
 endif
