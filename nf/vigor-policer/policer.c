@@ -27,24 +27,19 @@ bool nf_init(device_t devices_count)
 		return false;
 	}
 
-	wan_device = os_config_get_device("wan device", devices_count);
-
-	rate = os_config_get_u64("rate");
-	if (rate == 0) {
+	size_t max_flows;
+	if (!os_config_get_device("wan device", devices_count, &wan_device) || !os_config_get_u64("rate", &rate) || !os_config_get_u64("burst", &burst) || !os_config_get_size("max flows", &max_flows)) {
 		return false;
 	}
 
-	burst = os_config_get_u64("burst");
-	if (burst == 0) {
+	if (rate == 0 || burst == 0) {
 		return false;
 	}
 
-	size_t max_flows = os_config_get_size("max flows");
 	buckets = os_memory_alloc(max_flows, sizeof(struct policer_bucket));
 	addresses = os_memory_alloc(max_flows, sizeof(uint32_t));
 	map = map_alloc(sizeof(uint32_t), max_flows);
 	pool = index_pool_alloc(max_flows, 1000000000ull * burst / rate);
-
 	return true;
 }
 

@@ -7,9 +7,9 @@ static device_t lan_device;
 
 bool nf_init(device_t devices_count)
 {
-	wan_device = os_config_get_device("wan device", devices_count);
-	lan_device = os_config_get_device("lan device", devices_count);
-	return lan_device != wan_device;
+	return os_config_get_device("wan device", devices_count, &wan_device) &&
+	       os_config_get_device("lan device", devices_count, &lan_device) &&
+	       lan_device != wan_device;
 }
 
 

@@ -1,5 +1,6 @@
 #include "os/memory.h"
 
+#include "arch/halt.h"
 #include "os/log.h"
 
 //@ #include "proof/arith.gh"
@@ -65,8 +66,8 @@ void* os_memory_alloc(size_t count, size_t size)
 	const size_t align_padding = align_diff == 0 ? (size_t) 0 : full_size - align_diff; // VeriFast requires the cast on 0
 
 	if (align_padding > MEMORY_SIZE - memory_used_len) {
-		//@ assume(false); // VeriFast incorrectly requires os_fatal to be 'terminates' even though it 'ensures false'
-		os_fatal("Not enough memory left to align");
+		os_debug("Not enough memory left to align");
+		halt();
 	}
 
 	// Leak the alignment memory, i.e., fragment the heap, since we don't support any notion of freeing
@@ -80,8 +81,8 @@ void* os_memory_alloc(size_t count, size_t size)
 
 	memory_used_len = memory_used_len + align_padding;
 	if (full_size > MEMORY_SIZE - memory_used_len) {
-		//@ assume(false); // VeriFast incorrectly requires os_fatal to be 'terminates' even though it 'ensures false'
-		os_fatal("Not enough memory left to allocate");
+		os_debug("Not enough memory left to allocate");
+		halt();
 	}
 
 	//@ uchars_split((uint8_t*) memory + memlen + align_padding, full_size);

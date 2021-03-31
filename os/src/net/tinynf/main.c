@@ -1,7 +1,7 @@
 #include "net/skeleton.h"
 
-#include "os/log.h"
 #include "os/init.h"
+#include "os/log.h"
 #include "os/memory.h"
 #include "os/pci.h"
 
@@ -45,7 +45,6 @@ static void tinynf_packet_handler(size_t index, uint8_t* packet, size_t length, 
 }
 
 
-#include "os/clock.h"
 int main(int argc, char** argv)
 {
 	(void) argc;
@@ -57,7 +56,8 @@ int main(int argc, char** argv)
 	devices_count = os_pci_enumerate(&pci_addresses);
 
 	if (!nf_init(devices_count)) {
-		os_fatal("NF failed to init");
+		os_debug("NF failed to init");
+		return 1;
 	}
 
 	struct tn_device* devices = os_memory_alloc(devices_count, sizeof(struct tn_device));

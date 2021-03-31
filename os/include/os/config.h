@@ -5,7 +5,6 @@
 #include <stdint.h>
 
 #include "os/clock.h"
-#include "os/log.h"
 
 
 // Attempts to get a parameter with the given name, or returns false
@@ -14,47 +13,68 @@ bool os_config_try_get(const char* name, uintmax_t* out_value);
 //@ ensures [f]*name |-> _ &*& *out_value |-> _;
 
 
-// Gets a required parameter of the given name within the given range (both inclusive), or exits the program if there is no such parameter or if its value is outside the range.
-static inline uintmax_t os_config_get(const char* name, uintmax_t min, uintmax_t max)
+// Gets a parameter of the given name within the given range (both inclusive), or returns false
+static inline bool os_config_get(const char* name, uintmax_t min, uintmax_t max, uintmax_t* out_value)
 {
-	uintmax_t value;
-	if (!os_config_try_get(name, &value)) {
-		os_fatal("No such value");
+	if (!os_config_try_get(name, out_value)) {
+		return false;
 	}
 	if (min != 0) {
-		intmax_t as_signed = (intmax_t) value;
+		intmax_t as_signed = (intmax_t) *out_value;
 		if (as_signed < (intmax_t) min) {
-			os_fatal("Value is too small");
+			return false;
 		}
 	}
-	if (value > max) {
-		os_fatal("Value is too large");
+	return *out_value <= max;
+}
+
+static inline bool os_config_get_u64(const char* name, uint64_t* out_value)
+{
+	uintmax_t value;
+	if (!os_config_get(name, 0, UINT64_MAX, &value)) {
+		return false;
 	}
-	return value;
+	*out_value = (uint64_t) value;
+	return true;
 }
 
-static inline uint64_t os_config_get_u64(const char* name)
+static inline bool os_config_get_u32(const char* name, uint32_t* out_value)
 {
-	return (uint64_t) os_config_get(name, 0, UINT64_MAX);
+	uintmax_t value;
+	if (!os_config_get(name, 0, UINT32_MAX, &value)) {
+		return false;
+	}
+	*out_value = (uint32_t) value;
+	return true;
 }
 
-static inline uint32_t os_config_get_u32(const char* name)
+static inline bool os_config_get_u16(const char* name, uint16_t* out_value)
 {
-	return (uint32_t) os_config_get(name, 0, UINT32_MAX);
+	uintmax_t value;
+	if (!os_config_get(name, 0, UINT16_MAX, &value)) {
+		return false;
+	}
+	*out_value = (uint16_t) value;
+	return true;
 }
 
-static inline uint16_t os_config_get_u16(const char* name)
-{
-	return (uint16_t) os_config_get(name, 0, UINT16_MAX);
-}
-
-static inline size_t os_config_get_size(const char* name)
+static inline bool os_config_get_size(const char* name, size_t* out_value)
 {
 	// Special max here for convenience, that's the max for some of our data structures
-	return (size_t) os_config_get(name, 0, SIZE_MAX / 64);
+	uintmax_t value;
+	if (!os_config_get(name, 0, SIZE_MAX / 64, &value)) {
+		return false;
+	}
+	*out_value = (size_t) value;
+	return true;
 }
 
-static inline time_t os_config_get_time(const char* name)
+static inline bool os_config_get_time(const char* name, time_t* out_value)
 {
-	return (time_t) os_config_get(name, TIME_MIN, TIME_MAX);
+	uintmax_t value;
+	if (!os_config_get(name, TIME_MIN, TIME_MAX, &value)) {
+		return false;
+	}
+	*out_value = (time_t) value;
+	return true;
 }

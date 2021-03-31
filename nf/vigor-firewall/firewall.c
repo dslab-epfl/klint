@@ -17,12 +17,13 @@ bool nf_init(device_t devices_count)
 		return false;
 	}
 
-	wan_device = os_config_get_device("wan device", devices_count);
+	time_t expiration_time;
+	size_t max_flows;
+	if (!os_config_get_device("wan device", devices_count, &wan_device) || !os_config_get_time("expiration time", &expiration_time) || !os_config_get_size("max flows", &max_flows)) {
+		return false;
+	}
 
-	time_t expiration_time = os_config_get_time("expiration time");
-	size_t max_flows = os_config_get_size("max flows");
 	table = flow_table_alloc(expiration_time, max_flows);
-
 	return true;
 }
 

@@ -18,14 +18,15 @@ bool nf_init(device_t devices_count)
 		return false;
 	}
 
-	external_addr = os_config_get_u32("external addr");
-	wan_device = os_config_get_device("wan device", devices_count);
+	size_t max_flows;
+	time_t expiration_time;
+	uint16_t start_port;
+	if (!os_config_get_u32("external addr", &external_addr) || !os_config_get_device("wan device", devices_count, &wan_device) ||
+	    !os_config_get_size("max flows", &max_flows) || !os_config_get_time("expiration time", &expiration_time) || !os_config_get_u16("start port", &start_port)) {
+		return false;
+	}
 
-	size_t max_flows = os_config_get_size("max flows");
-	time_t expiration_time = os_config_get_time("expiration time");
-	uint16_t start_port = os_config_get_u16("start port");
 	table = flow_table_alloc(start_port, expiration_time, max_flows);
-
 	return true;
 }
 

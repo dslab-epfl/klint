@@ -1,6 +1,7 @@
 #include "os/init.h"
 
 #include <rte_cycles.h>
+#include <rte_debug.h>
 
 #include "os/error.h"
 
@@ -13,7 +14,7 @@ void os_init(void)
 {
 	freq_numerator = rte_get_tsc_hz();
 	if (freq_numerator == 0) {
-		os_fatal("Could not get TSC freq");
+		rte_panic("Could not get TSC freq");
 	}
 	freq_denominator = 1000000000ull;
 	while (freq_numerator % 10 == 0) {

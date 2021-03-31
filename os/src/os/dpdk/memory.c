@@ -1,6 +1,7 @@
 #include "os/memory.h"
 
 #include <rte_common.h>
+#include <rte_debug.h>
 #include <rte_malloc.h>
 
 #include "os/error.h"
@@ -22,7 +23,7 @@ void* os_memory_phys_to_virt(const uintptr_t addr, const size_t size)
 	(void) addr;
 	(void) size;
 
-	os_fatal("os_memory_phys_to_virt is not supported");
+	rte_panic("os_memory_phys_to_virt is not supported");
 }
 
 uintptr_t os_memory_virt_to_phys(const void* const addr)

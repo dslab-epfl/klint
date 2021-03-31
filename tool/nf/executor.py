@@ -76,9 +76,10 @@ total_externals = {
 
 def nf_init(bin_path, devices_count):
     # subprocess.check_call(["make", "-f" "../Makefile.nf"], cwd=nf_folder)
-    args = [devices_count]
+    # Something very fishy in here, why do we need to reverse this? angr's endianness handling keeps puzzling me
+    args = [devices_count.reversed]
     sm = bin_exec.create_sim_manager(bin_path, init_externals, "nf_init", *args)
-    sm.active[0].add_constraints(devices_count.UGT(0))
+    utils.add_constraints_and_check_sat(sm.active[0], devices_count.UGT(0))
     sm.run()
     if len(sm.errored) > 0:
         sm.errored[0].reraise()

@@ -17,22 +17,22 @@ bool nf_init(device_t devices_count)
 		return false;
 	}
 
-	wan_device = os_config_get_device("wan device", devices_count);
 
-	size_t flow_capacity = os_config_get_size("flow capacity");
-	size_t cht_height = os_config_get_size("cht height");
+	size_t flow_capacity, backend_capacity, cht_height;
+	time_t flow_expiration_time, backend_expiration_time;
+	if (!os_config_get_device("wan device", devices_count, &wan_device) || !os_config_get_size("flow capacity", &flow_capacity) || !os_config_get_size("cht height", &cht_height) ||
+	    !os_config_get_size("backend capacity", &backend_capacity) || !os_config_get_time("backend expiration time", &backend_expiration_time) || !os_config_get_time("flow expiration time", &flow_expiration_time)) {
+		return false;
+	}
+
 	if (cht_height == 0 || cht_height >= MAX_CHT_HEIGHT) { // TODO what can we do about this?
 		return false;
 	}
-	size_t backend_capacity = os_config_get_size("backend capacity");
 	if (backend_capacity == 0 || backend_capacity >= cht_height || backend_capacity * cht_height >= UINT32_MAX) { // TODO and this?
 		return false;
 	}
-	time_t backend_expiration_time = os_config_get_time("backend expiration time");
-	time_t flow_expiration_time = os_config_get_time("flow expiration time");
 
 	balancer = balancer_alloc(flow_capacity, flow_expiration_time, backend_capacity, backend_expiration_time, cht_height);
-
 	return true;
 }
 

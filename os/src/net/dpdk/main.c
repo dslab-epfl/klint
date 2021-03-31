@@ -2,6 +2,7 @@
 
 #include <stddef.h>
 
+#include <rte_debug.h>
 #include <rte_eal.h>
 #include <rte_ethdev.h>
 #include <rte_ether.h>
@@ -40,27 +41,27 @@ static void device_init(device_t device, struct rte_mempool* mbuf_pool)
 	struct rte_eth_conf device_conf = {0};
 	ret = rte_eth_dev_configure(device, 1, 1, &device_conf);
 	if (ret != 0) {
-		os_fatal("Couldn't configure device");
+		rte_panic("Couldn't configure device");
 	}
 
 	ret = rte_eth_tx_queue_setup(device, 0, BATCH_SIZE == 1 ? 96 : 0, rte_eth_dev_socket_id(device), NULL /* default config */);
 	if (ret != 0) {
-		os_fatal("Couldn't configure a TX queue");
+		rte_panic("Couldn't configure a TX queue");
 	}
 
 	ret = rte_eth_rx_queue_setup(device, 0, BATCH_SIZE == 1 ? 96 : 0, rte_eth_dev_socket_id(device), NULL /* default config */, mbuf_pool);
 	if (ret != 0) {
-		os_fatal("Couldn't configure an RX queue");
+		rte_panic("Couldn't configure an RX queue");
 	}
 
 	ret = rte_eth_dev_start(device);
 	if (ret != 0) {
-		os_fatal("Couldn't start device");
+		rte_panic("Couldn't start device");
 	}
 
 	rte_eth_promiscuous_enable(device);
 	if (rte_eth_promiscuous_get(device) != 1) {
-		os_fatal("Couldn't set device as promiscuous");
+		rte_panic("Couldn't set device as promiscuous");
 	}
 
 	rte_eth_macaddr_get(device, &(device_addrs[device]));
@@ -98,7 +99,7 @@ int main(int argc, char** argv)
 	// Initialize DPDK, and change argc/argv to look like nothing happened
 	int ret = rte_eal_init(argc, argv);
 	if (ret < 0) {
-		os_fatal("Error with DPDK init");
+		rte_panic("Error with DPDK init");
 	}
 	argc -= ret;
 	argv += ret;
@@ -107,10 +108,10 @@ int main(int argc, char** argv)
 
 	devices_count = rte_eth_dev_count_avail();
 	if (devices_count == 0) {
-		os_fatal("No devices??");
+		rte_panic("No devices??");
 	}
 	if (devices_count > MAX_DEVICES) {
-		os_fatal("Too many devices, please increase MAX_DEVICES");
+		rte_panic("Too many devices, please increase MAX_DEVICES");
 	}
 
 	struct rte_mempool *mbuf_pool = rte_pktmbuf_pool_create(
@@ -122,7 +123,7 @@ int main(int argc, char** argv)
 		rte_socket_id() // socket ID
 	);
 	if (mbuf_pool == NULL) {
-		os_fatal("Cannot create DPDK pool");
+		rte_panic("Cannot create DPDK pool");
 	}
 
 	for (device_t device = 0; device < devices_count; device++) {
@@ -130,7 +131,7 @@ int main(int argc, char** argv)
 	}
 
 	if (!nf_init(devices_count)) {
-		os_fatal("Initialization failed.");
+		rte_panic("Initialization failed.");
 	}
 
 	while(1) {

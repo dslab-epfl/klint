@@ -4,6 +4,7 @@
 #include "network.h"
 
 #include "arch/endian.h"
+#include "arch/halt.h"
 #include "os/clock.h"
 #include "os/log.h"
 #include "os/memory.h"
@@ -369,6 +370,13 @@ static_assert((IXGBE_AGENT_RECYCLE_PERIOD & (IXGBE_AGENT_RECYCLE_PERIOD - 1)) ==
 // Utilities
 // ---------
 
+// Print the given message and abort
+static _Noreturn void fatal(const char* message)
+{
+	os_debug(message);
+	halt(); // will crash in user space; that's fine
+}
+
 // Like if(...) but polls with a timeout, and executes the body only if the condition is still true after the timeout
 // This is basically a way to emulate anonymous lambda functions in C (for 'condition')
 static bool timed_out;
@@ -501,7 +509,7 @@ void tn_device_init(const struct os_pci_address* pci_address, struct tn_device* 
 	// (Section 9.3.3.2 Device ID Register mentions 0x10D8 as the default, but the card has to overwrite that default with its actual ID)
 	uint32_t pci_id = pcireg_read(pci_address, PCIREG_ID);
 	if (pci_id != ((0x10FBu << 16) | 0x8086u)) {
-		os_fatal("PCI device is not what was expected");
+		fatal("PCI device is not what was expected");
 	}
 
 	// By assumption PCIBRIDGES, the bridges will not get in our way
@@ -510,7 +518,7 @@ void tn_device_init(const struct os_pci_address* pci_address, struct tn_device* 
 	// "No_Soft_Reset. This bit is always set to 0b to indicate that the 82599 performs an internal reset upon transitioning from D3hot to D0 via software control of the PowerState bits."
 	// Thus, the device cannot go from D3 to D0 without resetting, which would mean losing the BARs.
 	if (!pcireg_is_field_cleared(pci_address, PCIREG_PMCSR, PCIREG_PMCSR_POWER_STATE)) {
-		os_fatal("PCI device not in D0.");
+		fatal("PCI device not in D0.");
 	}
 	// The bus master may not be enabled; enable it just in case.
 	pcireg_set_field(pci_address, PCIREG_COMMAND, PCIREG_COMMAND_BUS_MASTER_ENABLE);
@@ -523,7 +531,7 @@ void tn_device_init(const struct os_pci_address* pci_address, struct tn_device* 
 	uint32_t pci_bar0low = pcireg_read(pci_address, PCIREG_BAR0_LOW);
 	// Sanity check: a 64-bit BAR must have bit 2 of low as 1 and bit 1 of low as 0 as per Table 9-4 Base Address Registers' Fields
 	if ((pci_bar0low & BIT(2)) == 0 || (pci_bar0low & BIT(1)) != 0) {
-		os_fatal("BAR0 is not a 64-bit BAR");
+		fatal("BAR0 is not a 64-bit BAR");
 	}
 	uint32_t pci_bar0high = pcireg_read(pci_address, PCIREG_BAR0_HIGH);
 	// No need to detect the size, since we know exactly which device we're dealing with. (This also means no writes to BARs, one less chance to mess everything up)
@@ -564,7 +572,7 @@ void tn_device_init(const struct os_pci_address* pci_address, struct tn_device* 
 		//  The driver should poll this bit before releasing the memory allocated to this queue."
 		// INTERPRETATION-MISSING: There is no mention of what to do if the 82599 never clears the bit; 1s seems like a decent timeout
 		IF_AFTER_TIMEOUT(1000 * 1000, !reg_is_field_cleared(device->addr, REG_RXDCTL(queue), REG_RXDCTL_ENABLE)) {
-			os_fatal("RXDCTL.ENABLE did not clear, cannot disable receive to reset");
+			fatal("RXDCTL.ENABLE did not clear, cannot disable receive to reset");
 		}
 		// "Once the RXDCTL.ENABLE bit is cleared the driver should wait additional amount of time (~100 us) before releasing the memory allocated to this queue."
 		// We aren't releasing any memory, so no need to wait
@@ -581,7 +589,7 @@ void tn_device_init(const struct os_pci_address* pci_address, struct tn_device* 
 		//  In such cases the driver might need to initiate two consecutive software resets with a larger delay than 1 us between the two of them."
 		// INTERPRETATION-MISSING: Might? Let's say this is a must, and that we assume the software resets work...
 		if (!pcireg_is_field_cleared(pci_address, PCIREG_DEVICESTATUS, PCIREG_DEVICESTATUS_TRANSACTIONPENDING)) {
-			os_fatal("DEVICESTATUS.TRANSACTIONPENDING did not clear, cannot perform master disable to reset");
+			fatal("DEVICESTATUS.TRANSACTIONPENDING did not clear, cannot perform master disable to reset");
 		}
 
 		// "In the above situation, the data path must be flushed before the software resets the 82599.
@@ -653,18 +661,18 @@ void tn_device_init(const struct os_pci_address* pci_address, struct tn_device* 
 	// INTERPRETATION-MISSING: This refers to Section 8.2.3.2.1 EEPROM/Flash Control Register (EEC), Bit 9 "EEPROM Auto-Read Done"
 	// INTERPRETATION-MISSING: No timeout is mentioned, so we use 1s.
 	IF_AFTER_TIMEOUT(1000 * 1000, reg_is_field_cleared(device->addr, REG_EEC, REG_EEC_AUTO_RD)) {
-		os_fatal("EEPROM auto read timed out");
+		fatal("EEPROM auto read timed out");
 	}
 	// INTERPRETATION-MISSING: We also need to check bit 8 of the same register, "EEPROM Present", which indicates "EEPROM is present and has the correct signature field. This bit is read-only.",
 	//                 since bit 9 "is also set when the EEPROM is not present or whether its signature field is not valid."
 	// INTERPRETATION-MISSING: We also need to check whether the EEPROM has a valid checksum, using the FWSM's register EXT_ERR_IND, where "0x00 = No error"
 	if (reg_is_field_cleared(device->addr, REG_EEC, REG_EEC_EE_PRES) || !reg_is_field_cleared(device->addr, REG_FWSM, REG_FWSM_EXT_ERR_IND)) {
-		os_fatal("EEPROM not present or invalid");
+		fatal("EEPROM not present or invalid");
 	}
 	// "- Wait for DMA initialization done (RDRXCTL.DMAIDONE)."
 	// INTERPRETATION-MISSING: Once again, no timeout mentioned, so we use 1s
 	IF_AFTER_TIMEOUT(1000 * 1000, reg_is_field_cleared(device->addr, REG_RDRXCTL, REG_RDRXCTL_DMAIDONE)) {
-		os_fatal("DMA init timed out");
+		fatal("DMA init timed out");
 	}
 	// "- Setup the PHY and the link (see Section 4.6.4)."
 	//	Section 8.2.3.22.19 Auto Negotiation Control Register (AUTOC):
@@ -982,15 +990,15 @@ uint64_t tn_device_get_mac(struct tn_device* device)
 static void tn_agent_add_output(struct tn_agent* const agent, struct tn_device* const device, size_t output_index, size_t queue_index)
 {
 	if (agent->transmit_tail_addrs[output_index] != 0) {
-		os_fatal("Output is already in use");
+		fatal("Output is already in use");
 	}
 
 	if (queue_index >= TRANSMIT_QUEUES_COUNT) {
-		os_fatal("Transmit queue index is too large");
+		fatal("Transmit queue index is too large");
 	}
 	// See later for details of TXDCTL.ENABLE
 	if (!reg_is_field_cleared(device->addr, REG_TXDCTL(queue_index), REG_TXDCTL_ENABLE)) {
-		os_fatal("Transmit queue is already in use");
+		fatal("Transmit queue is already in use");
 	}
 
 	// "The following steps should be done once per transmit queue:"
@@ -1038,7 +1046,7 @@ static void tn_agent_add_output(struct tn_agent* const agent, struct tn_device* 
 	// INTERPRETATION-CONTRADICTION: There is an obvious contradiction here; qword-aligned seems like a safe option since it will also be dword-aligned.
 	// INTERPRETATION-INCORRECT: Empirically, the answer is... 16 bytes. Write-back has no effect otherwise. So both versions are wrong.
 	if (head_phys_addr % 16u != 0) {
-		os_fatal("Transmit head's physical address is not aligned properly");
+		fatal("Transmit head's physical address is not aligned properly");
 	}
 	//	Section 8.2.3.9.11 Tx Descriptor Completion Write Back Address Low (TDWBAL[n]):
 	//	"Head_WB_En, bit 0 [...] 1b = Head write-back is enabled."
@@ -1058,7 +1066,7 @@ static void tn_agent_add_output(struct tn_agent* const agent, struct tn_device* 
 	// INTERPRETATION-MISSING: No timeout is mentioned here, let's say 1s to be safe.
 	reg_set_field(device->addr, REG_TXDCTL(queue_index), REG_TXDCTL_ENABLE);
 	IF_AFTER_TIMEOUT(1000 * 1000, reg_is_field_cleared(device->addr, REG_TXDCTL(queue_index), REG_TXDCTL_ENABLE)) {
-		os_fatal("TXDCTL.ENABLE did not set, cannot enable queue");
+		fatal("TXDCTL.ENABLE did not set, cannot enable queue");
 	}
 	// "Note: The tail register of the queue (TDT) should not be bumped until the queue is enabled."
 	// Nothing to transmit yet, so leave TDT alone.
@@ -1073,10 +1081,10 @@ static void tn_agent_add_output(struct tn_agent* const agent, struct tn_device* 
 static void tn_agent_set_input(struct tn_agent* const agent, struct tn_device* const device)
 {
 	if (agent->receive_tail_addr != 0) {
-		os_fatal("Agent receive was already set");
+		fatal("Agent receive was already set");
 	}
 	if (agent->transmit_tail_addrs[0] == 0) {
-		os_fatal("Agent transmit was not called for output 0, but must be since descriptor ring 0 is shared");
+		fatal("Agent transmit was not called for output 0, but must be since descriptor ring 0 is shared");
 	}
 
 	// The 82599 has more than one receive queue, but we only need queue 0
@@ -1084,7 +1092,7 @@ static void tn_agent_set_input(struct tn_agent* const agent, struct tn_device* c
 
 	// See later for details of RXDCTL.ENABLE
 	if (!reg_is_field_cleared(device->addr, REG_RXDCTL(queue_index), REG_RXDCTL_ENABLE)) {
-		os_fatal("Receive queue is already in use");
+		fatal("Receive queue is already in use");
 	}
 
 	// "The following should be done per each receive queue:"
@@ -1124,7 +1132,7 @@ static void tn_agent_set_input(struct tn_agent* const agent, struct tn_device* c
 	// "- Poll the RXDCTL register until the Enable bit is set. The tail should not be bumped before this bit was read as 1b."
 	// INTERPRETATION-MISSING: No timeout is mentioned here, let's say 1s to be safe.
 	IF_AFTER_TIMEOUT(1000 * 1000, reg_is_field_cleared(device->addr, REG_RXDCTL(queue_index), REG_RXDCTL_ENABLE)) {
-		os_fatal("RXDCTL.ENABLE did not set, cannot enable queue");
+		fatal("RXDCTL.ENABLE did not set, cannot enable queue");
 	}
 	// "- Bump the tail pointer (RDT) to enable descriptors fetching by setting it to the ring length minus one."
 	// 	Section 7.1.9 Receive Descriptor Queue Structure:
@@ -1138,7 +1146,7 @@ static void tn_agent_set_input(struct tn_agent* const agent, struct tn_device* c
 		//	"- Wait for the data paths to be emptied by HW. Poll the SECRXSTAT.SECRX_RDY bit until it is asserted by HW."
 		// INTERPRETATION-MISSING: Another undefined timeout, assuming 1s as usual
 		IF_AFTER_TIMEOUT(1000 * 1000, reg_is_field_cleared(device->addr, REG_SECRXSTAT, REG_SECRXSTAT_SECRX_RDY)) {
-			os_fatal("SECRXSTAT.SECRXRDY timed out, cannot start device");
+			fatal("SECRXSTAT.SECRXRDY timed out, cannot start device");
 		}
 		//	"- Set RXCTRL.RXEN"
 		reg_set_field(device->addr, REG_RXCTRL, REG_RXCTRL_RXEN);
@@ -1167,15 +1175,15 @@ static void tn_agent_set_input(struct tn_agent* const agent, struct tn_device* c
 void tn_agent_init(size_t input_index, size_t devices_count, struct tn_device* devices, struct tn_agent* agent)
 {
 	if (devices_count == 0) {
-		os_fatal("No devices given");
+		fatal("No devices given");
 	}
 	if (input_index >= devices_count) {
-		os_fatal("Input index out of range");
+		fatal("Input index out of range");
 	}
 
 	agent->outputs_count = devices_count - 1;
 	if (agent->outputs_count == 0) {
-		os_fatal("No outputs given");
+		fatal("No outputs given");
 	}
 
 	agent->processed_delimiter = counter_create(IXGBE_RING_SIZE);

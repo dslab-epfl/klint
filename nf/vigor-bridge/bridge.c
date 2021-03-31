@@ -19,15 +19,16 @@ bool nf_init(device_t devices_count)
 		return false;
 	}
 
-	time_t expiration_time = os_config_get_time("expiration time");
-	size_t capacity = os_config_get_size("capacity");
+	time_t expiration_time;
+	size_t capacity;
+	if (!os_config_get_time("expiration time", &expiration_time) || !os_config_get_size("capacity", &capacity)) {
+		return false;
+	}
 
 	addresses = os_memory_alloc(capacity, sizeof(struct net_ether_addr));
 	devices = os_memory_alloc(capacity, sizeof(device_t));
-
 	map = map_alloc(sizeof(struct net_ether_addr), capacity);
 	allocator = index_pool_alloc(capacity, expiration_time);
-
 	return true;
 }
 

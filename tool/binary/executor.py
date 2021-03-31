@@ -81,10 +81,6 @@ from angr.engines.failure import SimEngineFailure
 from angr.engines.hook import HooksMixin
 from angr.engines.vex import HeavyVEXMixin
 class CustomEngine(SimEngineFailure, HooksMixin, HeavyVEXMixin):
-    def _perform_vex_defaultexit(self, expr, jumpkind):
-        if jumpkind != 'Ijk_SigTRAP': # TRAP means the program executed an invalid instr like 'hlt'; just stop in that case, no error
-            super()._perform_vex_defaultexit(expr, jumpkind)
-
     def _perform_vex_stmt_Dirty_call(self, func_name, ty, args, func=None):
         if func_name == "amd64g_dirtyhelper_IN":# args = [portno (16b), size]
             if args[0].op != 'BVV':
@@ -160,6 +156,7 @@ class CustomSolver(
         super().__init__(template_solver, template_solver_string, track=track, **kwargs)
 
 # Keep only what we need in the memory, including our custom layers
+# And fix the endness while we're at it...
 import angr.storage.memory_mixins as csms
 class CustomMemory(
     csms.NameResolutionMixin, # To allow uses of register names, which angr does internally when this is used for regs
@@ -175,7 +172,18 @@ class CustomMemory(
     csms.DefaultFillerMixin,
     csms.PagedMemoryMixin
 ):
-    pass
+    def _fix_endness(self, endness):
+        if endness is None:
+            if self.id == 'reg':
+                return self.state.arch.register_endness
+            return self.state.arch.memory_endness
+        return endness
+
+    def load(self, addr, size=None, endness=None, **kwargs):
+        return super().load(addr, size=size, endness=self._fix_endness(endness), **kwargs)
+
+    def store(self, addr, data, size=None, endness=None, **kwargs):
+        super().store(addr, data, size=size, endness=self._fix_endness(endness), **kwargs)
 
 
 bin_exec_initialized = False

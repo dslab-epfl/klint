@@ -1,8 +1,5 @@
 #pragma once
 
-#include "arch/halt.h"
-
-
 #ifndef DEBUG_LEVEL
 #define DEBUG_LEVEL 0
 #endif
@@ -20,13 +17,6 @@ static inline void os_debug(const char* message)
 //@ terminates;
 {
 	(void) message;
-	// Nothing.
+	// Nothing. Ensure the message can be removed from the final binary.
 }
 #endif
-
-_Noreturn static inline void os_fatal(const char* message)
-{
-	os_debug(message);
-	// On OSes like Linux this will crash instead since hlt cannot be used in user space... which is fine! We want to stop, by any means!
-	halt();
-}

@@ -28,18 +28,18 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
         if utils.can_be_true(self.state.solver, fraction == 0):
             raise SymbexException("Attempt to load without definitely having access to the object at addr " + str(addr) + " ; fraction is " + str(fraction) + " ; constraints are " + str(self.state.solver.constraints) + " ; e.g. could be " + str(self.state.solver.eval_upto(fraction, 10, cast_to=int)))
         
-        value, _ = self.state.maps.get(base, index)
+        data, _ = self.state.maps.get(base, index)
 
         if offset != 0:
-            value = value[value.size()-1:offset]
+            data = data[data.size()-1:offset]
 
-        if value.size() != size * 8:
-            value = value[(size*8)-1:0]
+        if data.size() != size * 8:
+            data = data[(size*8)-1:0]
 
-        if endness is not None and endness != self.endness:
-            value = value.reversed
+        if endness != self.endness:
+            data = data.reversed
 
-        return value
+        return data
 
 
     def store(self, addr, data, size=None, endness=None, **kwargs):
@@ -56,7 +56,7 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
         if utils.can_be_true(self.state.solver, fraction != 100):
             raise SymbexException("Attempt to store without definitely owning the object at addr " + str(addr) + " ; fraction is " + str(fraction) + " ; constraints are " + str(self.state.solver.constraints) + " ; e.g. could be " + str(self.state.solver.eval_upto(fraction, 10, cast_to=int)))
 
-        if endness is not None and endness != self.endness:
+        if endness != self.endness:
             data = data.reversed
 
         if offset != 0 or data.size() != self.state.maps.value_size(base):
