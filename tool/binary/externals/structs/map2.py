@@ -73,7 +73,7 @@ class OsMap2Get(angr.SimProcedure):
         # Preconditions
         mapp = self.state.metadata.get(Map, map)
         key = self.state.memory.load(key_ptr, mapp.key_size, endness=self.state.arch.memory_endness)
-        self.state.memory.load(out_value_ptr, mapp.value_size, endness=self.state.arch.memory_endness)
+        self.state.memory.load(out_value_ptr, mapp.value_size)
         print("!!! os_map2_get key", key)
 
         # Postconditions

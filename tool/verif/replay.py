@@ -120,7 +120,7 @@ def ptr_read(state, ptr, type=None):
         size = None # -> we allocated it in ptr_alloc
     else:
         size = type_size(type) // 8
-    result = state.memory.load(ptr, size, endness=state.arch.memory_endness)
+    result = state.memory.load(ptr, size)
     if type is None:
         return result
     return ValueProxy(state, result, type)

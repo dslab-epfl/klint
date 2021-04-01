@@ -11,4 +11,4 @@ from ... import utils
 # Since the data structures need it, we could just move it to os/memory.h...
 class Memcpy(angr.SimProcedure):
     def run(self, dst, src, size):
-        self.state.memory.store(dst, self.state.memory.load(src, size, endness=self.state.arch.memory_endness), endness=self.state.arch.memory_endness)
+        self.state.memory.store(dst, self.state.memory.load(src, size))

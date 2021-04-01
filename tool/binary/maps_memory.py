@@ -36,7 +36,7 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
         if data.size() != size * 8:
             data = data[(size*8)-1:0]
 
-        if endness != self.endness:
+        if endness is not None and endness != self.endness:
             data = data.reversed
 
         return data
@@ -56,7 +56,7 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
         if utils.can_be_true(self.state.solver, fraction != 100):
             raise SymbexException("Attempt to store without definitely owning the object at addr " + str(addr) + " ; fraction is " + str(fraction) + " ; constraints are " + str(self.state.solver.constraints) + " ; e.g. could be " + str(self.state.solver.eval_upto(fraction, 10, cast_to=int)))
 
-        if endness != self.endness:
+        if endness is not None and endness != self.endness:
             data = data.reversed
 
         if offset != 0 or data.size() != self.state.maps.value_size(base):

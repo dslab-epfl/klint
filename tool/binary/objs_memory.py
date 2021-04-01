@@ -19,7 +19,7 @@ class ObjectsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
 
         assert size is None, "too lazy to implement this"
         result = meta.reader(self.state, obj, offset // meta.size)
-        if endness != self.endness:
+        if endness is not None and endness != self.endness:
             result = result.reversed
         return result
 
@@ -32,7 +32,7 @@ class ObjectsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
             super().store(addr, data, size=size, endness=endness, **kwargs)
         else:
             assert size is None, "too lazy to implement this"
-            if endness != self.endness:
+            if endness is not None and endness != self.endness:
                 data = data.reversed
             meta.writer(self.state, obj, offset // meta.size, data)
 

@@ -62,8 +62,8 @@ class index_pool_borrow(angr.SimProcedure):
         poolp = self.state.metadata.get(Pool, pool)
         if utils.can_be_false(self.state.solver, time != 0xFF_FF_FF_FF_FF_FF_FF_FF):
             raise SymbexException("Precondition does not hold: time != TIME_MAX")
-        self.state.memory.load(out_index, bitsizes.size_t // 8, endness=self.state.arch.memory_endness)
-        self.state.memory.load(out_used, bitsizes.bool // 8, endness=self.state.arch.memory_endness)
+        self.state.memory.load(out_index, bitsizes.size_t // 8)
+        self.state.memory.load(out_used, bitsizes.bool // 8)
 
         # Postconditions
         index = claripy.BVS("index", bitsizes.size_t)

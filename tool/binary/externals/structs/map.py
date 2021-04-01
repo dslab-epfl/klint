@@ -59,7 +59,7 @@ class map_get(angr.SimProcedure):
         # Preconditions
         mapp = self.state.metadata.get(Map, map)
         key = self.state.memory.load(key_ptr, mapp.key_size, endness=self.state.arch.memory_endness)
-        self.state.memory.load(out_value, bitsizes.ptr // 8, endness=self.state.arch.memory_endness)
+        self.state.memory.load(out_value, bitsizes.ptr // 8)
         print("!!! map_get key", key)
 
         # Postconditions

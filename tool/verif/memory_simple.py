@@ -3,6 +3,7 @@ import claripy
 from binary import bitsizes
 from binary.hash_dict import HashDict
 
+# TODO delete, only for replay?
 class SimpleMemory:
     def __init__(self, wrapped):
         self.wrapped = wrapped

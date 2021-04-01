@@ -22,7 +22,7 @@ class os_config_try_get(angr.SimProcedure):
         if name.symbolic:
             raise SymbexException("name cannot be symbolic")
 
-        self.state.memory.load(out_value, bitsizes.uintmax_t // 8, endness=self.state.arch.memory_endness)
+        self.state.memory.load(out_value, bitsizes.uintmax_t // 8)
 
         py_name = utils.read_str(self.state, name)
         metadata = self.state.metadata.get(ConfigMetadata, None, default_ctor=lambda: ConfigMetadata({}))

@@ -156,7 +156,6 @@ class CustomSolver(
         super().__init__(template_solver, template_solver_string, track=track, **kwargs)
 
 # Keep only what we need in the memory, including our custom layers
-# And fix the endness while we're at it...
 import angr.storage.memory_mixins as csms
 class CustomMemory(
     csms.NameResolutionMixin, # To allow uses of register names, which angr does internally when this is used for regs
@@ -172,18 +171,7 @@ class CustomMemory(
     csms.DefaultFillerMixin,
     csms.PagedMemoryMixin
 ):
-    def _fix_endness(self, endness):
-        if endness is None:
-            if self.id == 'reg':
-                return self.state.arch.register_endness
-            return self.state.arch.memory_endness
-        return endness
-
-    def load(self, addr, size=None, endness=None, **kwargs):
-        return super().load(addr, size=size, endness=self._fix_endness(endness), **kwargs)
-
-    def store(self, addr, data, size=None, endness=None, **kwargs):
-        super().store(addr, data, size=size, endness=self._fix_endness(endness), **kwargs)
+    pass
 
 
 bin_exec_initialized = False
