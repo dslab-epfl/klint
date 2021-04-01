@@ -6,12 +6,13 @@ import subprocess
 import os
 
 # Us
+import binary.clock as binary_clock
 import binary.executor as bin_exec
 import binary.utils as utils
 import binary.ghost_maps as ghost_maps
 from binary.externals.os import clock
 from binary.externals.os import config
-from binary.externals.os import error
+from binary.externals.os import log
 from binary.externals.os import memory
 from binary.externals.os import pci
 from binary.externals.compat import memcpy
@@ -45,7 +46,7 @@ init_externals = {
 }
 
 handle_externals = {
-    'os_debug': error.os_debug,
+    'os_debug': log.os_debug,
     'net_transmit': tx.net_transmit,
     'net_flood': tx.net_flood,
     'map_get': map.map_get,
@@ -76,9 +77,14 @@ total_externals = {
 
 def nf_init(bin_path, devices_count):
     # subprocess.check_call(["make", "-f" "../Makefile.nf"], cwd=nf_folder)
+    def state_modifier(state):
+        cpu_freq_numerator = state.project.loader.find_symbol("cpu_freq_numerator")
+        cpu_freq_denominator = state.project.loader.find_symbol("cpu_freq_denominator")
+        state.memory.store(cpu_freq_numerator.rebased_addr, binary_clock.frequency_num)
+        state.memory.store(cpu_freq_denominator.rebased_addr, binary_clock.frequency_denom)
     # Something very fishy in here, why do we need to reverse this? angr's endianness handling keeps puzzling me
     args = [devices_count.reversed]
-    sm = bin_exec.create_sim_manager(bin_path, init_externals, "nf_init", *args)
+    sm = bin_exec.create_sim_manager(bin_path, init_externals, "nf_init", *args, state_modifier=state_modifier)
     utils.add_constraints_and_check_sat(sm.active[0], devices_count.UGT(0))
     sm.run()
     if len(sm.errored) > 0:

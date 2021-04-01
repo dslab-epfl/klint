@@ -10,7 +10,7 @@ from . import utils
 
 # TODO: Only query the fractions map if 'take' has been called at least once for it; but this means the metadata may not be the same before/after init, how to handle that?
 
-# General note: we ignore presence bits because if they are false then the fractions checks will definitely fail
+# General note: we ignore presence bits when if they are false then the fractions checks will definitely fail
 # Also, recall that all sizes are in bytes, and all offsets are in bits
 class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
     FRACS_NAME = "_fracs"
@@ -81,14 +81,14 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
             if count.structurally_match(claripy.BVV(1, count.size())):
                 self.state.maps.set(addr, claripy.BVV(0, bitsizes.ptr), default) # simpler
             else:
-                self.state.add_constraints(self.state.maps.forall(addr, lambda k, v: v == default))
+                utils.add_constraints_and_check_sat(self.state, self.state.maps.forall(addr, lambda k, v: v == default))
         if constraint is not None:
-            self.state.add_constraints(self.state.maps.forall(addr, constraint))
+            utils.add_constraints_and_check_sat(self.state, self.state.maps.forall(addr, constraint))
         # neither null nor so high it overflows (note the -1 becaus 1-past-the-array is legal C)
-        self.state.add_constraints(addr != 0, addr.ULE(claripy.BVV(2**bitsizes.ptr-1, bitsizes.ptr) - max_size - 1))
+        utils.add_constraints_and_check_sat(self.state, addr != 0, addr.ULE(claripy.BVV(2**bitsizes.ptr-1, bitsizes.ptr) - max_size - 1))
 
         fractions = self.state.maps.new_array(bitsizes.ptr, 8, count, name + MapsMemoryMixin.FRACS_NAME)
-        self.state.add_constraints(self.state.maps.forall(fractions, lambda k, v: v == 100))
+        utils.add_constraints_and_check_sat(self.state, self.state.maps.forall(fractions, lambda k, v: v == 100))
 
         self.state.metadata.set(addr, MapsMemoryMixin.Metadata(count, size, fractions))
 
@@ -103,7 +103,10 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
 
         meta = self.state.metadata.get(MapsMemoryMixin.Metadata, base)
 
-        current_fraction = self.state.maps.get(meta.fractions, index)
+        current_fraction, present = self.state.maps.get(meta.fractions, index)
+        if utils.can_be_false(self.state.solver, present):
+            raise SymbexException("Cannot take if the item may not be present")
+
         if fraction is None:
             fraction = current_fraction
 
@@ -123,7 +126,7 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
 
         meta = self.state.metadata.get(MapsMemoryMixin.Metadata, base)
 
-        current_fraction = self.state.maps.get(meta.fractions, index)
+        current_fraction, _ = self.state.maps.get(meta.fractions, index)
         if utils.can_be_true(self.state.solver, (current_fraction + fraction).UGT(100)):
             raise SymbexException("Cannot give " + str(fraction) + " ; there is already " + str(current_fraction))
 

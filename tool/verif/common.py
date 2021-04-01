@@ -257,8 +257,4 @@ def create_angr_state(constraints):
     state.solver.set_state(state)
     state.solver.add(*constraints)
 
-    # Common shortcuts we use
-    state.add_constraints = state.solver.add
-    state.satisfiable = state.solver.satisfiable
-
     return state

@@ -9,8 +9,6 @@ import queue
 from collections import namedtuple
 from enum import Enum
 
-from timeit import default_timer as timer
-
 # Us
 from . import bitsizes
 from . import utils
@@ -409,7 +407,6 @@ class Map:
         return l.structurally_match(claripy.BVV(0, l.size()))
 
     def known_length(self):
-        START = timer()
         l = self.length()
         known_len = claripy.BVV(0, l.size())
         known_keys = []
@@ -549,7 +546,7 @@ def LOG(state, text):
     else:
         level = 1
     LOG_levels[id(state)] = level + 1
-    #print(level, "  " * level, text)
+    print(level, "  " * level, text)
 def LOGEND(state):
     LOG_levels[id(state)] = LOG_levels[id(state)] - 1
 

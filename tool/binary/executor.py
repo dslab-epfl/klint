@@ -188,7 +188,7 @@ class CustomMemory(
 
 bin_exec_initialized = False
 
-def create_sim_manager(binary, ext_funcs, main_func_name, *main_func_args, base_state=None):
+def create_sim_manager(binary, ext_funcs, main_func_name, *main_func_args, base_state=None, state_modifier=None):
     global bin_exec_initialized
     if not bin_exec_initialized:
         EmptyLibrary().install()
@@ -216,11 +216,13 @@ def create_sim_manager(binary, ext_funcs, main_func_name, *main_func_args, base_
     main_func = proj.loader.find_symbol(main_func_name)
     # Set the memory here, no easy way to set it as default, SimState handles it differently
     init_state = proj.factory.call_state(main_func.rebased_addr, *main_func_args, base_state=base_state)
-    if base_state is None:
-        init_state.solver._stored_solver = CustomSolver()
     # It seems there's no way around enabling these, since code can access uninitialized variables (common in the "return bool, take in a pointer to the result" pattern)
     init_state.options.add(angr.sim_options.SYMBOL_FILL_UNCONSTRAINED_MEMORY)
     init_state.options.add(angr.sim_options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS)
+    if base_state is None:
+        init_state.solver._stored_solver = CustomSolver()
+    if state_modifier is not None:
+        state_modifier(init_state)
     sm = proj.factory.simulation_manager(init_state)
     # We want exhaustive symbex, DFS makes debugging a lot easier by not interleaving paths
     sm.use_technique(angr.exploration_techniques.DFS())
