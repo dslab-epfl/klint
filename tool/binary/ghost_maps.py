@@ -58,17 +58,17 @@ def freeze_map_ast_versions(state, expr):
         return ast.make_like(ast.op, [replacer(a) for a in ast.args[0:len(ast.args)-1]] + [state.maps[ast.args[0]].version()])
     return eval_map_ast_core(expr, {}, map_handler, map_handler)
 
-def eval_map_ast(state, expr, replace_dict={}, conditions=[]):
+def eval_map_ast(state, expr, replace_dict={}, condition=claripy.true):
     def has_handler(ast, replacer):
         replaced_key = replacer(ast.args[1])
         replaced_value = replacer(ast.args[2])
         if replaced_value is None:
-            return state.maps.get(ast.args[0], replaced_key, conditions=conditions, version=ast.args[2])[1]
-        result = state.maps.get(ast.args[0], replaced_key, value=replaced_value, conditions=conditions, version=ast.args[3])
+            return state.maps.get(ast.args[0], replaced_key, condition=condition, version=ast.args[2])[1]
+        result = state.maps.get(ast.args[0], replaced_key, value=replaced_value, condition=condition, version=ast.args[3])
         return result[1] & (result[0] == replaced_value)
     def get_handler(ast, replacer):
         replaced_key = replacer(ast.args[1])
-        return state.maps.get(ast.args[0], replaced_key, conditions=conditions, version=ast.args[2])[0]
+        return state.maps.get(ast.args[0], replaced_key, condition=condition, version=ast.args[2])[0]
     return eval_map_ast_core(expr, replace_dict, has_handler, get_handler)
 
 
@@ -88,8 +88,8 @@ class MapInvariant:
         self.value = value
         self.present = present
 
-    def __call__(self, state, item, conditions=[]):
-        return eval_map_ast(state, self.expr, replace_dict={self.key: item.key, self.value: item.value, self.present: item.present}, conditions=[item.present] + conditions)
+    def __call__(self, state, item, condition=claripy.true):
+        return eval_map_ast(state, self.expr, replace_dict={self.key: item.key, self.value: item.value, self.present: item.present}, condition=item.present & condition)
 
     def __eq__(self, other):
         return self.expr.structurally_match(other.expr)
@@ -161,14 +161,14 @@ class Map:
     def length(self):
         return self._length
 
-    def get(self, state, key, value=None, conditions=[], version=None):
+    def get(self, state, key, value=None, condition=claripy.true, version=None):
         if version is not None:
             to_call = self
             self_ver = self.version()
             while version < self_ver:
                 to_call = to_call._previous
                 version = version + 1
-            return to_call.get(state, key, value=value, conditions=conditions)
+            return to_call.get(state, key, value=value, condition=condition)
 
         # Optimization: If the map is empty, the answer is always false
         if self.is_empty():
@@ -176,15 +176,15 @@ class Map:
 
         # If the map contains an item (K', V', P') such that K' = K, then return (V', P') [assuming the condition]
         known_items = self.known_items()
-        matching_item = utils.get_exact_match(state.solver, key, known_items, assumptions=conditions, selector=lambda i: i.key)
+        matching_item = utils.get_exact_match(state.solver, key, known_items, assumption=condition, selector=lambda i: i.key)
         if matching_item is not None:
             return (matching_item.value, matching_item.present)
 
         # Let V be a fresh symbolic value [or the hint]
         if value is None:
             value = claripy.BVS(self.meta.name + "_value", self.meta.value_size)
-        elif conditions:
-            value = claripy.If(claripy.And(*conditions), value, claripy.BVS(self.meta.name + "_other_value", self.meta.value_size))
+        elif not condition.structurally_match(claripy.true):
+            value = claripy.If(condition, value, claripy.BVS(self.meta.name + "_other_value", self.meta.value_size))
 
         # Let P be a fresh symbolic presence bit [or the existing condition]
         present = claripy.BoolS(self.meta.name + "_present")
@@ -206,7 +206,7 @@ class Map:
             # Add K = K' => (V = V' and P = P') to the path constraint for each existing known item (K', V', P') in the map,
             *[Implies(key == i.key, (value == i.value) & (present == i.present)) for i in known_items],
             # Add UK => invariant(M)(K', V', P') to the path constraint [conditioned]
-            Implies(unknown, claripy.And(*[inv(state, MapItem(key, value, present), conditions=conditions) for inv in self.invariant_conjunctions()])),
+            Implies(unknown, claripy.And(*[inv(state, MapItem(key, value, present), condition=condition) for inv in self.invariant_conjunctions()])),
             # Add L <= length(M)
             known_length_lte_total
         )
@@ -452,12 +452,12 @@ class GhostMapsPlugin(SimStatePlugin):
     def value_size(self, obj):
         return self[obj].meta.value_size
 
-    def get(self, obj, key, value=None, conditions=[], version=None):
+    def get(self, obj, key, value=None, condition=claripy.true, version=None):
         map = self[obj]
         LOG(self.state, "GET " + str(obj) + f" version: {version} " + (" key: " + str(key)) + ((" value: " + str(value)) if value is not None else "") + \
-            ((" cond: " + str(conditions)) if conditions else "")  + \
+            (" cond: " + str(condition))  + \
                         " (" + str(len(list(map.known_items()))) + " items, " + str(len(self.state.solver.constraints)) + " constraints)")
-        result = map.get(self.state, key, value=value, conditions=conditions, version=version)
+        result = map.get(self.state, key, value=value, condition=condition, version=version)
         LOGEND(self.state)
         self.state.path.ghost_record(lambda: RecordGet(obj, key, result))
         return result
