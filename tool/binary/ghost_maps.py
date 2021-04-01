@@ -189,41 +189,27 @@ class Map:
         # Let P be a fresh symbolic presence bit [or the existing condition]
         present = claripy.BoolS(self.meta.name + "_present")
 
+        # Let UK be And(K != K') for each key K' in the map's known items
+        unknown = claripy.And(*[key != i.key for i in known_items])
+
+        # MUTATE the map's known items by adding (K, V, P) [conditioned]
+        # This must happen now; calling the invariant later might cause recursion which needs the item to be in there
+        self.add_item(MapItem(key, value, present))
+
         # Optimization: If the map length is concrete and there are definitely not too many items, don't even compute the known length
-        if not self.length().symbolic and len(known_items) <= self.length().args[0]:
+        if not self.length().symbolic and len(known_items) < self.length().args[0]:
             known_length_lte_total = claripy.true
         else:
             known_length_lte_total = self.known_length() <= self.length()
 
-        # Let UK be And(K != K') for each key K' in the map's known items
-        unknown = claripy.And(*[key != i.key for i in known_items])
-
-        new_constraints = [
-            # Add K = K' => (V = V' and P = P') to the path constraint for each known item (K', V', P') in the map,
+        utils.add_constraints_and_check_sat(state, 
+            # Add K = K' => (V = V' and P = P') to the path constraint for each existing known item (K', V', P') in the map,
             *[Implies(key == i.key, (value == i.value) & (present == i.present)) for i in known_items],
             # Add UK => invariant(M)(K', V', P') to the path constraint [conditioned]
             Implies(unknown, claripy.And(*[inv(state, MapItem(key, value, present), conditions=conditions) for inv in self.invariant_conjunctions()])),
             # Add L <= length(M)
             known_length_lte_total
-        ]
-
-        # Optimization: If the item is definitely present or absent, replace P with a constant
-        constant_present = utils.get_if_constant(state.solver, present, extra_constraints=new_constraints)
-        if constant_present is not None:
-            new_present = claripy.BoolV(constant_present)
-            new_constraints = [c.replace(present, new_present) for c in new_constraints]
-            present = new_present
-        # Same with the value
-        constant_value = utils.get_if_constant(state.solver, value, extra_constraints=new_constraints)
-        if constant_value is not None:
-            new_value = claripy.BVV(constant_value, value.size())
-            new_constraints = [c.replace(value, new_value) for c in new_constraints]
-            value = new_value
-
-        utils.add_constraints_and_check_sat(state, *new_constraints)
-
-        # MUTATE the map's known items by adding (K, V, P) [conditioned]
-        self.add_item(MapItem(key, value, present))
+        )
 
         # Return (V, P)
         return (value, present)
@@ -371,7 +357,7 @@ class Map:
             self._previous.add_item(item)
 
     def with_items_layer(self, items, length_change, filter, map, UNSAFE_can_flatten=False):
-        if UNSAFE_can_flatten:
+        if UNSAFE_can_flatten and self._previous is not None: # only flatten v>0
             return Map(
                 self.meta,
                 self._length + length_change,
@@ -546,7 +532,7 @@ def LOG(state, text):
     else:
         level = 1
     LOG_levels[id(state)] = level + 1
-    print(level, "  " * level, text)
+    #print(level, "  " * level, text)
 def LOGEND(state):
     LOG_levels[id(state)] = LOG_levels[id(state)] - 1
 

@@ -66,7 +66,7 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
             if data.size() != self.state.maps.value_size(base):
                 data = current[current.size()-1:data.size()].concat(data)
 
-        self.state.maps.set(base, index, data)
+        self.state.maps.set(base, index, data, UNSAFE_can_flatten=True) # memory cannot escape to an invariant aside from v0 thus this is safe)
  
 
     # New method!
