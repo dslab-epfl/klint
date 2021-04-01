@@ -30,14 +30,14 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
         
         data, _ = self.state.maps.get(base, index)
 
+        if endness is not None and endness != self.endness:
+            data = data.reversed
+
         if offset != 0:
             data = data[data.size()-1:offset]
 
         if data.size() != size * 8:
             data = data[(size*8)-1:0]
-
-        if endness is not None and endness != self.endness:
-            data = data.reversed
 
         return data
 
@@ -56,15 +56,17 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
         if utils.can_be_true(self.state.solver, fraction != 100):
             raise SymbexException("Attempt to store without definitely owning the object at addr " + str(addr) + " ; fraction is " + str(fraction) + " ; constraints are " + str(self.state.solver.constraints) + " ; e.g. could be " + str(self.state.solver.eval_upto(fraction, 10, cast_to=int)))
 
-        if endness is not None and endness != self.endness:
-            data = data.reversed
-
-        if offset != 0 or data.size() != self.state.maps.value_size(base):
+        if data.size() != self.state.maps.value_size(base):
             current, _ = self.state.maps.get(base, index)
+            if endness is not None and endness != self.endness:
+                current = current.reversed
             if offset != 0:
                 data = data.concat(current[offset-1:0])
-            if data.size() != self.state.maps.value_size(base):
+            if data.size() != current.size():
                 data = current[current.size()-1:data.size()].concat(data)
+
+        if endness is not None and endness != self.endness:
+            data = data.reversed
 
         self.state.maps.set(base, index, data, UNSAFE_can_flatten=True) # memory cannot escape to an invariant aside from v0 thus this is safe)
  
