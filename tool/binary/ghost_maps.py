@@ -579,7 +579,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
         # Returns False iff the candidate function cannot match each element in items1 with an element of items2 
         def is_candidate_valid(items1, items2, candidate_func):
             for it1 in items1:
-                # @TODO Here we could loop over all items in items2 at each iteration, to maximize our chance of
+                # TODO: Here we could loop over all items in items2 at each iteration, to maximize our chance of
                 # satisfying the candidate. Of course that would increase execution-time...
                 if utils.can_be_false(state.solver, sel2(items2.pop()) == eval_map_ast(state, candidate_func(it1))):
                     return False
@@ -610,8 +610,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                             items2.remove(it2)
                             if not is_candidate_valid(items1, items2, candidate_func):
                                 return None
-                            # @TODO If is_candidate_valid returns false we could technically re-add it2 to items2 and try again
-                            # with another item
+                            # TODO: If is_candidate_valid returns false we could technically re-add it2 to items2 and try again with another item
                             break
                     if candidate_func is not None:
                         break
@@ -636,7 +635,11 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                 # Identity is a possible function
                 return lambda it: sel1(it)
 
-            fake = claripy.BVS("fake", x1.size())
+            if utils.definitely_true(state.solver, x1 == x2.reversed):
+                # Endianness reversion is a possible function
+                return lambda it: sel1(it).reversed
+
+            fake = claripy.BVS("FAKE", x1.size(), explicit_name=True)
             if not x2.replace(x1, fake).structurally_match(x2):
                 # Replacement is a possible function
                 return lambda it, x1=x1, x2=x2: x2.replace(x1, sel1(it))
@@ -646,7 +649,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
             if x1.op == "Concat" and \
             len(x1.args) == 2 and \
             x1.args[0].structurally_match(claripy.BVV(0, x1.args[0].size())):
-                fake = claripy.BVS("fake", x1.args[1].size())
+                fake = claripy.BVS("FAKE", x1.args[1].size(), explicit_name=True)
                 if not x2.replace(x1.args[1], fake).structurally_match(x2):
                     return lambda it, x1=x1, x2=x2: x2.replace(x1.args[1], claripy.Extract(x1.args[1].size() - 1, 0, sel1(it)))
 
@@ -657,7 +660,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
             x1.args[0].op == "Concat" and \
             len(x1.args[0].args) == 2 and \
             x1.args[0].args[1].structurally_match(claripy.BVV(0, x1.args[0].args[1].size())):
-                fake = claripy.BVS("fake", x1.args[0].args[0].size())
+                fake = claripy.BVS("FAKE", x1.args[0].args[0].size(), explicit_name=True)
                 if not x2.replace(x1.args[0].args[0], fake).structurally_match(x2):
                     return lambda it, x1=x1, x2=x2: x2.replace(x1.args[0].args[0], claripy.Extract(x1.size() - 1, x1.args[0].args[1].size(), sel1(it) - x1.args[1]))
                 if utils.definitely_true(state.solver, x2 == x1.args[0].args[0].zero_extend(x1.size() - x1.args[0].args[0].size())):
@@ -665,13 +668,15 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
         return None
 
     def candidate_finder_othermap(state, o1, o2, sel1, sel2, it1, it2):
-        # The ugliest one: if o1 is a "fractions" obj, check if the corresponding value in the corresponding obj is equal to x2
+        # The ugliest one: if o1 is a "fractions" obj, check if the corresponding value in the corresponding obj is equal to x2 (including the .reversed case...)
         if sel1 is get_key:
             # note that orig_size is in bytes, but x2.size() is in bits!
             orig_o1, orig_size = state.memory.get_obj_and_size_from_fracs_obj(o1)
             x2 = sel2(it2)
             if orig_o1 is not None and orig_o1 is not o2 and utils.definitely_true(state.solver, orig_size * 8 == x2.size()):
                 (orig_x1v, orig_x1p) = state.maps.get(orig_o1, it1.key)
+                if utils.definitely_true(state.solver, orig_x1p & (orig_x1v.reversed == x2)):
+                    return lambda it, orig_o1=orig_o1, x2size=x2.size(): MapGet(orig_o1, it.key, x2size).reversed
                 if utils.definitely_true(state.solver, orig_x1p & (orig_x1v == x2)):
                     return lambda it, orig_o1=orig_o1, x2size=x2.size(): MapGet(orig_o1, it.key, x2size)
         return None
