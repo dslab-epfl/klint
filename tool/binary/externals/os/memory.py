@@ -9,10 +9,11 @@ import binary.utils as utils
 from binary.exceptions import SymbexException
 import nf.device as nf_device
 
-# TODO add alignment part of contract
+
 # void* os_memory_alloc(size_t count, size_t size);
 # requires count == 1 || count * size <= SIZE_MAX;
-# ensures chars(result, count * size, ?cs) &*& true == all_eq(cs, 0) &*& result + count * size <= (char*) UINTPTR_MAX;
+# ensures uchars(result, count * size, ?cs) &*& true == all_eq(cs, 0) &*& result + count * size <= (char*) UINTPTR_MAX &*&
+#         count * size == 0 ? true : (size_t) result % (count * size) == 0;
 class os_memory_alloc(angr.SimProcedure):
     def run(self, count, size):
         # Casts
@@ -29,6 +30,7 @@ class os_memory_alloc(angr.SimProcedure):
 
         # Postconditions
         result = self.state.memory.allocate(count, size, name="allocated", default=claripy.BVV(0, self.state.solver.eval_one(size, cast_to=int) * 8))
+        utils.add_constraints_and_check_sat(self.state, (count * size == 0) | (result % (count * size) == 0))
         print("!!! os_memory_alloc", count, size, "->", result)
         return result
 

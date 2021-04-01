@@ -23,7 +23,8 @@ static inline time_t os_clock_time_ns(void)
 
 
 // Sleeps for at least the given amount of nanoseconds.
-// TODO once we handle loops, can we remove this & use a do-nothing loop instead?
+// TODO This function would not be necessary if symbex could handle loops;
+//      it could be implemented inline as a busy-waiting loop with a "pause" hint
 void os_clock_sleep_ns(uint64_t ns);
 //@ requires emp;
 //@ ensures emp;

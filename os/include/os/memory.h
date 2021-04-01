@@ -19,7 +19,7 @@ typedef unsigned hash_t;
 void* os_memory_alloc(size_t count, size_t size);
 //@ requires count == 1 || count * size <= SIZE_MAX;
 /*@ ensures uchars(result, count * size, ?cs) &*& true == all_eq(cs, 0) &*& result + count * size <= (char*) UINTPTR_MAX &*&
-            count*size == 0 ? true : (size_t) result % (count * size) == 0; @*/
+            count * size == 0 ? true : (size_t) result % (count * size) == 0; @*/
 //@ terminates;
 
 // Maps the region of physical address memory defined by (address, size) into virtual memory.
