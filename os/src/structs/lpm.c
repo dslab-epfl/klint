@@ -1,10 +1,12 @@
+#include "structs/lpm.h"
+
 #include "os/memory.h"
-#include "lpm.h"
 
 struct rule {
   uint32_t ipv4;
-  uint8_t prefixlen;
   uint16_t route;
+  uint8_t prefixlen;
+  uint8_t _padding[1];
 };
 
 //@ #include "../proof/lpm-dir-24-8-lemmas.gh"
@@ -338,8 +340,12 @@ struct lpm* lpm_allocate()
   uint16_t* lpm_long = os_memory_alloc(lpm_LONG_MAX_ENTRIES, sizeof(uint16_t));
  
   //Set every element of the array to INVALID
-  memset(lpm_24, 0xFF, sizeof(uint16_t) * lpm_24_MAX_ENTRIES);
-  memset(lpm_long, 0xFF, sizeof(uint16_t) * lpm_LONG_MAX_ENTRIES);
+  for (size_t n = 0; n < lpm_24_MAX_ENTRIES; n++) {
+    lpm_24[n] = 0xFF;
+  }
+  for (size_t n = 0; n < lpm_LONG_MAX_ENTRIES; n++) {
+    lpm_long[n] = 0xFF;
+  }
 
   /*@ assert lpm_24[0..lpm_24_MAX_ENTRIES] |->
       repeat_n(nat_of_int(lpm_24_MAX_ENTRIES), INVALID);
@@ -394,18 +400,6 @@ struct lpm* lpm_allocate()
   return _lpm;  
 }
 
-void lpm_free(struct lpm *_lpm)
-//@ requires table(_lpm, _);
-//@ ensures true;
-{
-  //@ open table(_lpm, _);
-  free(_lpm->lpm_24);
-  free(_lpm->lpm_long);
-  free(_lpm);
-}
-
-#define UNUSED(x) (void)(x)
-
 bool lpm_lookup_elem(struct lpm *_lpm, uint32_t prefix, uint16_t *out_value,
                      uint32_t *out_prefix, uint8_t *out_prefixlen)
 //@ requires table(_lpm, ?dir);
@@ -413,8 +407,8 @@ bool lpm_lookup_elem(struct lpm *_lpm, uint32_t prefix, uint16_t *out_value,
             result == lpm_dir_24_8_lookup(Z_of_int(prefix, N32),dir); @*/
 {
   // Shut up unused parameter warnings
-  UNUSED(out_prefix);
-  UNUSED(out_prefixlen);
+  (void) out_prefix;
+  (void) out_prefixlen;
 
   //@ open table(_lpm, dir);
   uint16_t *lpm_24 = _lpm->lpm_24;
@@ -633,8 +627,6 @@ bool lpm_update_elem(struct lpm *_lpm, uint32_t prefix,
     if (need_new_index) {
       if (_lpm->lpm_long_index >= lpm_LONG_OFFSET_MAX) {
         // @ assert long_index >= 256;
-        printf("No more available index for lpm_long!\n");
-        fflush(stdout);
         //@ close table(_lpm, dir);
         return false;
 

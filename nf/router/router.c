@@ -2,7 +2,7 @@
 
 #include "os/log.h"
 
-#include "lpm.h"
+#include "structs/lpm.h"
 
 
 static struct lpm* lpm;

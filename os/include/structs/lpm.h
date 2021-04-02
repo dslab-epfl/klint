@@ -49,10 +49,6 @@ struct lpm *lpm_alloc();
               table(new_lo, dir_init()) &*&
               result == 1; @*/
 
-void lpm_free(struct lpm *_lpm);
-//@ requires table(_lpm, _);
-//@ ensures true;
-
 bool lpm_update_elem(struct lpm *_lpm, uint32_t prefix,
                      uint8_t prefixlen, uint16_t value);
 /*@ requires table(_lpm, ?dir) &*&
