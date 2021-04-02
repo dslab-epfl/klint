@@ -5363,7 +5363,6 @@ ensures buckets_get_keys_fp(buckets_remove_key_fp(buckets, k)) ==
                                    buckets);
   }
 }//took 60m + 40m so far
-//TODO 300m
 
 lemma void buckets_ok_chn_bound_rec<kt>(list<pair<kt, nat> > acc,
                                         list<bucket<kt> > buckets,
