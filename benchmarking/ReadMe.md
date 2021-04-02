@@ -16,7 +16,7 @@ The second machine is the "tester" machine, which runs the MoonGen packet genera
 
 - Create a `Makefile.benchmarking` file in your NF's folder, with the following targets:
   - `build` to build the NF, e.g. compile it
-  - `run` to run the NF, with the PCI addresses of the network cards to use passed as `$(TN_ARGS)`
+  - `run` to run the NF, with the PCI addresses of the network cards to use passed as `$(NF_ARGS)`
   - `print-nf-name` to print the name of the NF process, e.g. `@echo my-nf`
   - If your NF is based on DPDK, create an empty target `is-dpdk`
   - If your NF needs something done after it starts, such as sleeping for a while because it is slow to start, put this in a target `init`

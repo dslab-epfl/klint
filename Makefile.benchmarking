@@ -9,10 +9,10 @@ NF_EXT ?= .so
 # Get current dir, see https://stackoverflow.com/a/8080530
 SELF_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 
-# TODO create an OS config given the benchmark args
 build:
 	@sudo modprobe msr # necessary for the Linux clock impl
 	@make -C $(SELF_DIR)/nf/$(NF) -f $(SELF_DIR)/Makefile.nf
+	echo '$(NF_ARGS)' | tr ' ' '\n' | tr ':.' ' ' | awk '{ print "{ .bus = 0x" $$1 ", .device = 0x" $$2 ", .function = 0x" $$3 " },"}' > $(SELF_DIR)/os/config
 	@NF=$(SELF_DIR)/nf/$(NF)/libnf$(NF_EXT) NF_CONFIG_FILENAME=$(SELF_DIR)/nf/$(NF)/config OS_CONFIG_FILENAME=$(SELF_DIR)/os/config make -C $(SELF_DIR)/os
 
 ifdef BENCHMARK_USE_DOCKER
