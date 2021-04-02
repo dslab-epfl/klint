@@ -19,10 +19,6 @@ CFLAGS += -flto
 # Allow LTO shared objects to also be linked without LTO if needed
 CFLAGS += -ffat-lto-objects
 
-# Do not magically add calls to "builtin" functions
-# TODO double check if this is required
-CFLAGS += -fno-builtin
-
 # Required
 CFLAGS += -fPIC
 
