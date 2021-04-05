@@ -13,7 +13,7 @@ class net_transmit(angr.SimProcedure):
     def run(self, pkt, device, flags):
         pkt = cast.ptr(pkt)
         device = cast.uint16_t(device)
-        flags = cast.enum(device)
+        flags = cast.enum(flags)
 
         data_addr = packet.get_data_addr(self.state, pkt)
         data = packet.get_data(self.state, pkt)
@@ -24,16 +24,33 @@ class net_transmit(angr.SimProcedure):
 
         self.state.memory.take(None, data_addr - packet.PACKET_MTU)
 
-# void net_flood(struct net_packet* packet);
+# void net_flood(struct net_packet* packet, enum net_transmit_flags flags);
 class net_flood(angr.SimProcedure):
-    def run(self, pkt):
+    def run(self, pkt, flags):
         pkt = cast.ptr(pkt)
+        flags = cast.enum(flags)
 
         data_addr = packet.get_data_addr(self.state, pkt)
         data = packet.get_data(self.state, pkt)
         length = packet.get_length(self.state, pkt)
 
         metadata = self.state.metadata.get_unique(packet.NetworkMetadata)
-        metadata.transmitted.append((data, length, None, None))
+        metadata.transmitted.append((data, length, None, flags))
+
+        self.state.memory.take(None, data_addr - packet.PACKET_MTU)
+
+# void net_flood_except(struct net_packet* packet, bool* enabled_devices, enum net_transmit_flags flags);
+class net_flood_except(angr.SimProcedure):
+    def run(self, pkt, enabled_devices, flags):
+        pkt = cast.ptr(pkt)
+        enabled_devices = cast.ptr(enabled_devices)
+        flags = cast.enum(flags)
+
+        data_addr = packet.get_data_addr(self.state, pkt)
+        data = packet.get_data(self.state, pkt)
+        length = packet.get_length(self.state, pkt)
+
+        metadata = self.state.metadata.get_unique(packet.NetworkMetadata)
+        metadata.transmitted.append((data, length, None, flags)) # TODO: output devices
 
         self.state.memory.take(None, data_addr - packet.PACKET_MTU)

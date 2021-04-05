@@ -256,11 +256,6 @@ class Map:
         if self.is_empty():
             return claripy.true
 
-        # Optimization: No need to go further if we already have an invariant known to imply the predicate
-        for inv in self.invariant_conjunctions():
-            if inv.quick_implies(pred):
-                return result
-
         # Let K' be a fresh symbolic key, V' a fresh symbolic value, and P' a fresh symbolic presence bit
         test_key = claripy.BVS(self.meta.name + "_test_key", self.meta.key_size)
         test_value = claripy.BVS(self.meta.name + "_test_value", self.meta.value_size)
@@ -272,6 +267,11 @@ class Map:
 
         # Optimization: Exclude items resulting from a call to 'get', they are implicitly tested through the unknown items invariant
         known_items_result = claripy.And(*[pred(state, i) for i in self.known_items(exclude_get=True)])
+
+        # Optimization: No need to go further if we already have an invariant known to imply the predicate
+        for inv in self.invariant_conjunctions():
+            if inv.quick_implies(pred):
+                return known_items_result
 
         # Optimization: We can start by testing the invariant conjunctions one by one, if we find one that definitely implies then the overall invariant definitely implies pred
         #               We expect this to be the common case during invariant inference

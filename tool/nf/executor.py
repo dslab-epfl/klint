@@ -49,6 +49,7 @@ handle_externals = {
     'os_debug': log.os_debug,
     'net_transmit': tx.net_transmit,
     'net_flood': tx.net_flood,
+    'net_flood_except': tx.net_flood_except,
     'map_get': map.map_get,
     'map_set': map.map_set,
     'map_remove': map.map_remove,

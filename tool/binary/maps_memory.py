@@ -177,7 +177,7 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
             if len(base) == 1:
                 base = base[0]
             else:
-                base = [b for b in base if any(True for (a, _, __) in self.segments if b.structurally_match(a))]
+                base = [b for b in base if any(b.structurally_match(k) for k in self.state.metadata.get_all(MapsMemoryMixin.Metadata).keys())]
                 if len(base) == 1:
                     base = base[0]
                 else:
