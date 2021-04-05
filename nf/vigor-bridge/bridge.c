@@ -6,7 +6,10 @@
 #include "structs/index_pool.h"
 #include "structs/map.h"
 
+#include "spanning_tree.h"
 
+
+static struct stp_state* stp_state;
 static struct net_ether_addr* addresses;
 static device_t* devices;
 static struct map* map;
@@ -19,12 +22,14 @@ bool nf_init(device_t devices_count)
 		return false;
 	}
 
+	uint64_t self_bid;
 	time_t expiration_time;
 	size_t capacity;
-	if (!os_config_get_time("expiration time", &expiration_time) || !os_config_get_size("capacity", &capacity)) {
+	if (!os_config_get_u64("bid", &self_bid) || !os_config_get_time("expiration time", &expiration_time) || !os_config_get_size("capacity", &capacity)) {
 		return false;
 	}
 
+	stp_state = stp_init(self_bid);
 	addresses = os_memory_alloc(capacity, sizeof(struct net_ether_addr));
 	devices = os_memory_alloc(capacity, sizeof(device_t));
 	map = map_alloc(sizeof(struct net_ether_addr), capacity);
@@ -34,6 +39,10 @@ bool nf_init(device_t devices_count)
 
 void nf_handle(struct net_packet* packet)
 {
+	if (stp_handle(stp_state, packet)) {
+		return;
+	}
+
 	struct net_ether_header* ether_header;
 	if (!net_get_ether_header(packet, &ether_header)) {
 		return;
