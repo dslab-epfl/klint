@@ -777,48 +777,50 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                 o1_is_array = is_likely_array(o1)
                 o2_is_array = is_likely_array(o2)
 
+            # Try to find a FV
+            (fv_is_cached, fv) = get_cached(o1, o2, "v")
+            if not fv_is_cached:
+                fv_finders = [candidate_finder_various, candidate_finder_othermap]
+                if not (o1_is_array and o2_is_array):
+                    fv_finders.append(candidate_finder_constant)
+                fv = find_f(states, o1, o2, get_key, get_value, fv_finders) \
+                  or find_f(states, o1, o2, get_value, get_value, fv_finders)
+
             # Try to find a few FPs
             (fps_is_cached, fps) = get_cached(o1, o2, "p")
             if not fps_is_cached:
                 fps = find_fps(states, o1, get_value, o1_is_array)
 
+            log_item = MapItem(claripy.BVS("K", ancestor_state.maps.key_size(o1), explicit_name=True), claripy.BVS("V", ancestor_state.maps.value_size(o1), explicit_name=True), None)
             for fp in fps:
-                if all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk: Implies(fp(MapItem(k, v, None)), MapHas(o2, fk(MapItem(k, v, None)))))) for st in states):
-                    log_item = MapItem(claripy.BVS("K", ancestor_state.maps.key_size(o1), explicit_name=True), claripy.BVS("V", ancestor_state.maps.value_size(o1), explicit_name=True), None)
-                    log_text = f"Inferred: when {o1} contains (K,V), if {fp(log_item)} then {o2} contains {fk(log_item)}"
-
-                    # Try to find a FV
-                    (fv_is_cached, fv) = get_cached(o1, o2, "v")
-                    if not fv_is_cached:
-                        fv_finders = [candidate_finder_various, candidate_finder_othermap]
-                        if not (o1_is_array and o2_is_array):
-                            fv_finders.append(candidate_finder_constant)
-                        fv = find_f(states, o1, o2, get_key, get_value, fv_finders) \
-                          or find_f(states, o1, o2, get_value, get_value, fv_finders)
-
-                    if fv and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk, fv=fv: \
+                log_text = ""
+                if fv and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk, fv=fv: \
                                                                                              Implies(fp(MapItem(k, v, None)), MapHas(o2, fk(MapItem(k, v, None)), value=fv(MapItem(k, v, None)))))) for st in states):
+                        to_cache.put([o1, o2, "p", [fp]]) # only put the working one, don't have us try a pointless one next time
+                        to_cache.put([o1, o2, "k", fk])
                         to_cache.put([o1, o2, "v", fv])
+                        log_text +=   f"Inferred: when {o1} contains (K,V), if {fp(log_item)} then {o2} contains {fk(log_item)}"
                         log_text += f"\n          in addition, the value is {fv(log_item)}"
                         results.put((ResultType.CROSS_VAL, [o1, o2],
                                      lambda state, maps, o2=o2, fp=fp, fk=fk, fv=fv: maps[0].add_invariant_conjunction(state, lambda i: Implies(i.present, Implies(fp(i), MapHas(o2, fk(i), value=fv(i)))))))
-                    else:
-                        to_cache.put([o1, o2, "v", None]) # do not cache fv since it didn't work
-                        if o2_is_array:
-                            # Cache it as a failure as well
-                            to_cache.put([o1, o2, "k", None])
-                            to_cache.put([o1, o2, "p", []])
-                            break
+                else:
+                    to_cache.put([o1, o2, "v", None]) # do not cache fv since it didn't work
+
+                    # No point in trying a cross-key if o2 is an array, we already know what its keys are
+                    if not o2_is_array and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk: Implies(fp(MapItem(k, v, None)), MapHas(o2, fk(MapItem(k, v, None)))))) for st in states):
+                        log_text += f"Inferred: when {o1} contains (K,V), if {fp(log_item)} then {o2} contains {fk(log_item)}"
                         results.put((ResultType.CROSS_KEY, [o1, o2],
                                      lambda state, maps, o2=o2, fp=fp, fk=fk: maps[0].add_invariant_conjunction(state, lambda i: Implies(i.present, Implies(fp(i), MapHas(o2, fk(i)))))))
+                        to_cache.put([o1, o2, "p", [fp]]) # only put the working one, don't have us try a pointless one next time
+                        to_cache.put([o1, o2, "k", fk])
 
-                    to_cache.put([o1, o2, "k", fk])
-                    to_cache.put([o1, o2, "p", [fp]]) # only put the working one, don't have us try a pointless one next time
+                if log_text != "":
                     print(log_text) # print it at once to avoid interleavings from threads
                     break # this might make us miss some stuff in theory? but that's sound; and in practice it doesn't
             else:
-                to_cache.put([o1, o2, "k", None])
+                # executed if we didn't break, i.e., nothing found
                 to_cache.put([o1, o2, "p", []])
+                to_cache.put([o1, o2, "k", None])
 
     remaining_work = queue.Queue()
     for (o1, o2) in itertools.permutations(objs, 2):
