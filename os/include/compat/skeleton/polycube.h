@@ -23,7 +23,7 @@ void nf_handle(struct net_packet* packet)
 	int rx_result = handle_rx(&ctx, &md);
 
 	if (pcn_pkt_controller_flood) {
-		net_flood(packet);
+		net_flood(packet, 0);
 	} else if (rx_result == RX_DROP) {
 		// Do nothing
 	} else {

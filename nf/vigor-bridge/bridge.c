@@ -29,7 +29,7 @@ bool nf_init(device_t devices_count)
 		return false;
 	}
 
-	stp_state = stp_init(self_bid);
+	stp_state = stp_init(devices_count, self_bid);
 	addresses = os_memory_alloc(capacity, sizeof(struct net_ether_addr));
 	devices = os_memory_alloc(capacity, sizeof(device_t));
 	map = map_alloc(sizeof(struct net_ether_addr), capacity);
@@ -72,6 +72,6 @@ void nf_handle(struct net_packet* packet)
 			net_transmit(packet, devices[index], 0);
 		}
 	} else {
-		net_flood(packet);
+		net_flood_except(packet, stp_blocked_devices(stp_state), 0);
 	}
 }

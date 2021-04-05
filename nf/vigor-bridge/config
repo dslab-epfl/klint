@@ -1,2 +1,3 @@
+{ "bid", 0 },
 { "expiration time", 4000ull * 1000ull * 1000ull },
 { "capacity", 131072 }

@@ -13,22 +13,46 @@ static struct net_ether_addr* endpoint_macs;
 static struct net_ether_addr* device_macs;
 static size_t* current_output_lengths;
 
-void net_transmit(struct net_packet* packet, device_t device, enum net_transmit_flags flags)
+
+static size_t index_from_device(struct net_packet* packet, device_t device)
+{
+	return device > packet->device ? (device - 1) : device;
+}
+
+static device_t device_from_index(struct net_packet* packet, size_t index)
+{
+	return index < packet->device ? index : (index + 1);
+}
+
+static void handle_flags(struct net_packet* packet, device_t device, enum net_transmit_flags flags)
 {
 	if ((flags & UPDATE_ETHER_ADDRS) != 0) {
 		struct net_ether_header* header = (struct net_ether_header*) packet->data;
 		header->dst_addr = endpoint_macs[device];
 		header->src_addr = device_macs[device];
 	}
-
-	device_t true_device = device > packet->device ? (device - 1) : device;
-	current_output_lengths[true_device] = packet->length;
 }
 
-void net_flood(struct net_packet* packet)
+void net_transmit(struct net_packet* packet, device_t device, enum net_transmit_flags flags)
+{
+	handle_flags(packet, device, flags);
+	current_output_lengths[index_from_device(packet, device)] = packet->length;
+}
+
+void net_flood(struct net_packet* packet, enum net_transmit_flags flags)
 {
 	for (size_t n = 0; n < devices_count - 1; n++) {
+		handle_flags(packet, device_from_index(packet, n), flags);
 		current_output_lengths[n] = packet->length;
+	}
+}
+
+void net_flood_except(struct net_packet* packet, bool* enabled_devices, enum net_transmit_flags flags)
+{
+	for (size_t n = 0; n < devices_count - 1; n++) {
+		device_t device = device_from_index(packet, n);
+		handle_flags(packet, device, flags);
+		current_output_lengths[n] = enabled_devices[device] ? packet->length : 0;
 	}
 }
 

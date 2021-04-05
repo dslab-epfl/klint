@@ -27,9 +27,11 @@ struct bpdu_packet {
 } __attribute__((packed));
 
 
-static inline struct stp_state* stp_init(uint64_t self_bid)
+static inline struct stp_state* stp_init(device_t devices_count, uint64_t self_bid)
 {
 	struct stp_state* state = os_memory_alloc(1, sizeof(struct stp_state));
+	state->ports_disabled = os_memory_alloc(devices_count, sizeof(bool));
+	state->ports_bid = os_memory_alloc(devices_count, sizeof(uint64_t));
 	state->self = self_bid;
 	state->root = self_bid;
 	return state;
@@ -71,10 +73,15 @@ static inline bool stp_handle(struct stp_state* state, struct net_packet* packet
 		data->root = state->root;
 		data->root_cost = state->root_cost;
 		data->sender = state->self;
-//		net_flood(???);
+		net_flood(packet, UPDATE_ETHER_ADDRS);
 		state->ports_disabled[state->root] = false;
 		state->ports_disabled[old_root] = state->self > state->ports_bid[old_root];
 	}
 
 	return true;
+}
+
+static inline bool* stp_blocked_devices(struct stp_state* state)
+{
+	return state->ports_disabled;
 }
