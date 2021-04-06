@@ -6,6 +6,7 @@ from collections import namedtuple
 # Us
 from ... import bitsizes
 from ... import cast
+from binary.metadata import MetadataPlugin
 from ... import utils
 from ...exceptions import SymbexException
 
@@ -25,7 +26,7 @@ class os_config_try_get(angr.SimProcedure):
         self.state.memory.load(out_value, bitsizes.uintmax_t // 8)
 
         py_name = utils.read_str(self.state, name)
-        metadata = self.state.metadata.get(ConfigMetadata, None, default_ctor=lambda: ConfigMetadata({}))
+        metadata = self.state.metadata.get(ConfigMetadata, MetadataPlugin.UNIQUE_ID, default_ctor=lambda: ConfigMetadata({}))
         if py_name not in metadata.items:
             value = claripy.BVS(py_name, bitsizes.uintmax_t)
             metadata.items[py_name] = value

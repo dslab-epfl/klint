@@ -69,7 +69,7 @@ class os_pci_enumerate(angr.SimProcedure):
             # ouch! TODO we need to do better... see above if count were to be symbolic
             utils.add_constraints_and_check_sat(self.state, self.state.memory.load(meta.ptr + 0 * 8, 8) != self.state.memory.load(meta.ptr + 1 * 8, 8))
         else:
-            meta = meta.values()[0]
+            meta = next(iter(meta.values()))
 
         self.state.memory.store(out_devices, meta.ptr, endness=self.state.arch.memory_endness)
         return meta.count

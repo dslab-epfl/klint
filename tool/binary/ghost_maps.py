@@ -9,10 +9,11 @@ import queue
 from collections import namedtuple
 from enum import Enum
 
+import datetime
+
 # Us
 from . import bitsizes
 from . import utils
-from . import hash_dict
 from .exceptions import SymbexException
 
 
@@ -39,7 +40,7 @@ claripy.operations.leaf_operations.add("MapHas")
 claripy.operations.leaf_operations.add("MapGet")
 
 def eval_map_ast_core(expr, replace_dict, has_handler, get_handler):
-    # claripy.ast.Base.replace_dict needs a dict with .cache_key (to do something similar to our HashDict)
+    # claripy.ast.Base.replace_dict needs a dict with .cache_key
     replace_dict = {k.cache_key: v for (k,v) in replace_dict.items()}
     def replacer(leaf):
         if not isinstance(leaf, claripy.ast.Base):
@@ -192,7 +193,7 @@ class Map:
         # Let UK be And(K != K') for each key K' in the map's known items
         unknown = claripy.And(*[key != i.key for i in known_items])
 
-        # MUTATE the map's known items by adding (K, V, P) [conditioned]
+        # MUTATE the map's known items by adding (K, V, P)
         # This must happen now; calling the invariant later might cause recursion which needs the item to be in there
         self.add_item(MapItem(key, value, present))
 
@@ -217,6 +218,9 @@ class Map:
     def set(self, state, key, value, UNSAFE_can_flatten=False): # see GhostMapsPlugin.set for an explanation of UNSAFE_can_flatten
         # Let P be get(M, K) != None
         (_, present) = self.get(state, key)
+
+        if utils.definitely_true(state.solver, present):
+            present = claripy.true
 
         # Return a new map with:
         #   ITE(P, 0, 1) added to the map length.
@@ -490,7 +494,7 @@ class GhostMapsPlugin(SimStatePlugin):
     # === Import/Export ===
 
     def get_all(self):
-        return list(self.state.metadata.get_all(Map))
+        return self.state.metadata.get_all(Map).items()
 
     def set_all(self, items):
         self.state.metadata.remove_all(Map)
@@ -647,19 +651,19 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
             # a few special cases on the concept of finding a function and its inverse
             # if x1 is "(0..x)" and x2 contains "x"
             if x1.op == "Concat" and \
-            len(x1.args) == 2 and \
-            x1.args[0].structurally_match(claripy.BVV(0, x1.args[0].size())):
+              len(x1.args) == 2 and \
+              x1.args[0].structurally_match(claripy.BVV(0, x1.args[0].size())):
                 fake = claripy.BVS("FAKE", x1.args[1].size(), explicit_name=True)
                 if not x2.replace(x1.args[1], fake).structurally_match(x2):
                     return lambda it, x1=x1, x2=x2: x2.replace(x1.args[1], claripy.Extract(x1.args[1].size() - 1, 0, sel1(it)))
 
             # if x1 is "(x..0) + n" where n is known from the ancestor and x2 contains "x"
             if x1.op == "__add__" and \
-            len(x1.args) == 2 and \
-            state.solver.variables(x1.args[1]).issubset(ancestor_variables) and \
-            x1.args[0].op == "Concat" and \
-            len(x1.args[0].args) == 2 and \
-            x1.args[0].args[1].structurally_match(claripy.BVV(0, x1.args[0].args[1].size())):
+              len(x1.args) == 2 and \
+              state.solver.variables(x1.args[1]).issubset(ancestor_variables) and \
+              x1.args[0].op == "Concat" and \
+              len(x1.args[0].args) == 2 and \
+              x1.args[0].args[1].structurally_match(claripy.BVV(0, x1.args[0].args[1].size())):
                 fake = claripy.BVS("FAKE", x1.args[0].args[0].size(), explicit_name=True)
                 if not x2.replace(x1.args[0].args[0], fake).structurally_match(x2):
                     return lambda it, x1=x1, x2=x2: x2.replace(x1.args[0].args[0], claripy.Extract(x1.size() - 1, x1.args[0].args[1].size(), sel1(it) - x1.args[1]))
@@ -733,6 +737,16 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
             if len(orig_states) == 0:
                 continue
 
+            # Optimization: Ignore the combination if they are an array and its fractions
+            other, _ = ancestor_state.memory.get_obj_and_size_from_fracs_obj(o1)
+            if other is o2:
+                continue
+            other, _ = ancestor_state.memory.get_obj_and_size_from_fracs_obj(o2)
+            if other is o1:
+                continue
+
+            #print("Considering", o1, o2, "at", datetime.datetime.now())
+
             # Step 2: Length relationships.
             # For each pair of maps (M1, M2),
             #   if length(M1) <= length(M2) across all states,
@@ -753,6 +767,26 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
 
             states = [s.copy() for s in orig_states] # avoid polluting states across attempts
 
+            # Optimization: Avoid inferring pointless invariants when maps are likely to be arrays.
+            # If both maps are arrays of the same length, then the only interesting invariants are about the values in the 2nd map;
+            # the keys obviously are related. Finding constant values is also likely pointless.
+            # If only the first map is an array, using FP = True makes little sense, so don't try it.
+            def is_likely_array(o):
+                # Stupid, but it works, because these are the only arrays we create...
+                return "allocated_addr" in str(o)
+            o1_is_array = is_likely_array(o1)
+            o2_is_array = is_likely_array(o2)
+
+            # Try to find FPs
+            (fps_is_cached, fps) = get_cached(o1, o2, "p")
+            if not fps_is_cached:
+                fps = find_fps(states, o1, get_value, o1_is_array)
+
+            if fps == []:
+                to_cache.put([o1, o2, "p", []])
+                # No point in continuing if we couldn't find FPs
+                continue
+
             # Try to find a FK
             (fk_is_cached, fk) = get_cached(o1, o2, "k")
             if not fk_is_cached:
@@ -764,19 +798,6 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                 # No point in continuing if we couldn't find a FK
                 continue
 
-            # Optimization: Avoid inferring pointless invariants when maps are likely to be arrays.
-            # If both maps are arrays of the same length, then the only interesting invariants are about the values in the 2nd map;
-            # the keys obviously are related. Finding constant values is also likely pointless.
-            # If only the first map is an array, using FP = True makes little sense, so don't try it.
-            o1_is_array = False
-            o2_is_array = False
-            if not fk_is_cached:
-                def is_likely_array(o):
-                    return ancestor_state.maps.key_size(o) == ancestor_state.maps.length(o).size() and \
-                           all(utils.definitely_true(st.solver, (st.maps.length(o) == ancestor_state.maps.length(o)) & st.maps.forall(o, lambda k, v: k < st.maps.length(o))) for st in states)
-                o1_is_array = is_likely_array(o1)
-                o2_is_array = is_likely_array(o2)
-
             # Try to find a FV
             (fv_is_cached, fv) = get_cached(o1, o2, "v")
             if not fv_is_cached:
@@ -786,12 +807,8 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                 fv = find_f(states, o1, o2, get_key, get_value, fv_finders) \
                   or find_f(states, o1, o2, get_value, get_value, fv_finders)
 
-            # Try to find a few FPs
-            (fps_is_cached, fps) = get_cached(o1, o2, "p")
-            if not fps_is_cached:
-                fps = find_fps(states, o1, get_value, o1_is_array)
-
             log_item = MapItem(claripy.BVS("K", ancestor_state.maps.key_size(o1), explicit_name=True), claripy.BVS("V", ancestor_state.maps.value_size(o1), explicit_name=True), None)
+            #print("For", o1, o2, "found p,k,v:", [fp(log_item) for fp in fps], fk(log_item), fv(log_item) if fv is not None else "<none>", "at", datetime.datetime.now())
             for fp in fps:
                 log_text = ""
                 if fv and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk, fv=fv: \

@@ -138,7 +138,7 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
     def get_obj_and_size_from_fracs_obj(self, fracs_obj):
         if MapsMemoryMixin.FRACS_NAME not in str(fracs_obj):
             return (None, None)
-        for (o, meta) in self.state.metadata.get_all(MapsMemoryMixin.Metadata):
+        for (o, meta) in self.state.metadata.get_all(MapsMemoryMixin.Metadata).items():
             if meta.fractions is fracs_obj:
                 return (o, meta.size)
         raise SymbexException("What are you doing?")

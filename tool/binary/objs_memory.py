@@ -13,7 +13,7 @@ class ObjectsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
     def load(self, addr, size=None, endness=None, **kwargs):
         (obj, offset) = self._obj_offset(addr)
 
-        meta = self.state.metadata.get_or_none(ObjectsMemoryMixin.Metadata, obj)
+        meta = self.state.metadata.get_or_none(ObjectsMemoryMixin.Metadata, obj) if obj is not None else None
         if meta is None:
             return super().load(addr, size=size, endness=endness, **kwargs)
 
@@ -27,7 +27,7 @@ class ObjectsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
     def store(self, addr, data, size=None, endness=None, **kwargs):
         (obj, offset) = self._obj_offset(addr)
 
-        meta = self.state.metadata.get_or_none(ObjectsMemoryMixin.Metadata, obj)
+        meta = self.state.metadata.get_or_none(ObjectsMemoryMixin.Metadata, obj) if obj is not None else None
         if meta is None:
             super().store(addr, data, size=size, endness=endness, **kwargs)
         else:

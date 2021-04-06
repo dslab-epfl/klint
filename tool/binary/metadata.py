@@ -6,7 +6,6 @@ import copy
 
 # Us
 from . import utils
-from .hash_dict import HashDict
 from .exceptions import SymbexException
 
 # TODO can we specialize this class? remove it? use ghost maps directly instead somehow (eg an enum for IDs)?
@@ -15,6 +14,8 @@ from .exceptions import SymbexException
 # (this does not work unless ghost maps are doing the "use existing items if possible in get" optimization)
 
 class MetadataPlugin(SimStatePlugin):
+    UNIQUE_ID = claripy.BVS("metadata_unique_id", 1) # TODO: This should not need to exist...
+
     def __init__(self, items=None):
         SimStatePlugin.__init__(self)
         self.items = items or {}
@@ -27,11 +28,7 @@ class MetadataPlugin(SimStatePlugin):
         return self.items.copy()
 
     def get_or_none(self, cls, key):
-        map = self.items.get(cls, None)
-        if map is None:
-            return None
-        return map[key]
-
+        return self.items.get(cls, {}).get(key.cache_key, None)
 
     def get(self, cls, key, default_ctor=None):
         value = self.get_or_none(cls, key)
@@ -44,16 +41,15 @@ class MetadataPlugin(SimStatePlugin):
 
         return value
 
-
     def get_all(self, cls):
-        return self.items.get(cls, HashDict())
+        return {k.ast: v for (k, v) in self.items.get(cls, {}).items()}
 
     def get_unique(self, cls):
         all = self.get_all(cls)
         if len(all) == 0:
             return None
         if len(all) == 1:
-            return all.values()[0]
+            return next(iter(all.values()))
         raise SymbexException(f"No unique metadata for type {cls}")
 
 
@@ -63,23 +59,19 @@ class MetadataPlugin(SimStatePlugin):
         if existing is None:
             if override:
                 raise SymbexException(f"There is no metadata of type {cls} to override for key {key}")
-            map = self.items.get(cls, None)
-            if map is None:
-                map = HashDict()
-                self.items[cls] = map
-            map[key] = value
+            map = self.items.setdefault(cls, {})
+            map[key.cache_key] = value
         else:
             if not override:
                 raise SymbexException(f"There is already metadata of type {cls} for key {key}, namely {existing}")
-            self.items[cls][key] = value
+            self.items[cls][key.cache_key] = value
 
 
     def remove(self, cls, key):
-        del self.items[cls][key]
+        del self.items[cls][key.cache_key]
 
     def remove_all(self, cls):
-        if cls in self.items:
-            del self.items[cls]
+        self.items.pop(cls, None) # pass the 2nd arg to not throw an error if cls not in items
 
     def clear(self):
         self.items = {}
