@@ -31,30 +31,12 @@ class EmptyLibrary():
         def run(self):
             raise Exception('Unimplemented function')
 
-    def __init__(self):
-        # the existence of syscall_number_mapping and minimum/maximum_syscall_number is required by angr
-        pass #self.syscall_number_mapping = ['i386', 'amd64']
-
     def install(self):
         # remove everything else
         angr.SIM_LIBRARIES.clear()
         angr.SIM_PROCEDURES.clear()
         # set ourselves as a library
         angr.SIM_LIBRARIES['externals'] = self
-        # angr expects some specific libraries to exist
-        #angr.SIM_LIBRARIES['linux'] = self
-        #angr.SIM_LIBRARIES['ld.so'] = self
-        #angr.SIM_LIBRARIES['libc.so.6'] = self
-        # angr hardcodes some linux procedures
-        #angr.SIM_PROCEDURES['linux_loader'] = {
-        #    'LinuxLoader': EmptyLibrary.Abort,
-        #    '_dl_rtld_lock_recursive': EmptyLibrary.Abort,
-        #    '_dl_rtld_unlock_recursive': EmptyLibrary.Abort,
-        #    '_dl_initial_error_catch_tsd': EmptyLibrary.Abort
-        #}
-        #angr.SIM_PROCEDURES['linux_kernel'] = {
-        #    '_vsyscall': EmptyLibrary.Abort
-        #}
         # angr hardcodes some stubs
         angr.SIM_PROCEDURES['stubs'] = {
             'ReturnUnconstrained': EmptyLibrary.Abort,
@@ -69,10 +51,6 @@ class EmptyLibrary():
 
     # immutable; this makes things simpler
     def copy(self): return self
-
-    # no syscalls available
-    #def minimum_syscall_number(self, abi): return 0
-    #def maximum_syscall_number(self, abi): return 0
 
 
 # Keep only what we need in the engine, and handle hlt and in/out
@@ -201,7 +179,6 @@ def create_sim_manager(binary, ext_funcs, main_func_name, *main_func_args, base_
     # Not sure if this is needed but let's do it just in case, to make sure we don't change the base state
     base_state = base_state.copy() if base_state is not None else None
     main_func = proj.loader.find_symbol(main_func_name)
-    # Set the memory here, no easy way to set it as default, SimState handles it differently
     init_state = proj.factory.call_state(main_func.rebased_addr, *main_func_args, base_state=base_state)
     # It seems there's no way around enabling these, since code can access uninitialized variables (common in the "return bool, take in a pointer to the result" pattern)
     init_state.options.add(angr.sim_options.SYMBOL_FILL_UNCONSTRAINED_MEMORY)
