@@ -93,7 +93,7 @@ def handle_externals(name, *args, **kwargs):
 class SpecMaps:
     def __init__(self, state, maps):
         self._state = state
-        self._maps = {o.cache_key: m for (o, m) in maps}
+        self._maps = {o.cache_key: m for (o, m) in maps.items()}
 
     def __getattr__(self, name):
         if name[0] == "_":
