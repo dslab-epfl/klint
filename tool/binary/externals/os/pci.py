@@ -7,7 +7,6 @@ from collections import namedtuple
 from ... import bitsizes
 from ... import cast
 from ... import utils
-from ...exceptions import SymbexException
 from nf.device import *
 from nf import spec_reg
 from nf import reg_util

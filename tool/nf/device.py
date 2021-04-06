@@ -8,7 +8,6 @@ from binary import utils
 from . import spec_act
 from . import spec_reg
 from . import reg_util
-from binary.exceptions import SymbexException
 from binary.externals.net import packet # ouch
 
 # counter, use_init, latest_action are single-element lists so we can change them
@@ -18,7 +17,7 @@ def find_device(state, virt_addr):
     for dev in state.metadata.get_all(SpecDevice).values():
         if dev.virt_addr.structurally_match(virt_addr):
             return dev
-    raise SymbexException("Unknown device")
+    raise Exception("Unknown device")
 
 def device_reader(state, base, offset):
     dev = find_device(state, base)
@@ -73,7 +72,7 @@ def device_writer(state, base, offset, value):
         packet_desc_meta = state.memory.load(tdba + 8, 8, endness=state.arch.memory_endness)
 
         if utils.can_be_true(state.solver, packet_desc_meta[25:24] != claripy.BVV(3, 2)):
-            raise SymbexException("May not have EOP or DD flags")
+            raise Exception("May not have EOP or DD flags")
 
         packet_length = packet_desc_meta[15:0]
 

@@ -25,7 +25,6 @@ from binary.externals.structs import cht
 from binary.externals.structs import lpm
 from binary.externals.verif import counters
 from binary.externals.verif import functions
-from binary.exceptions import SymbexException
 from . import spec_act
 from . import spec_reg
 

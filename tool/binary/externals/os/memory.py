@@ -6,7 +6,6 @@ import claripy
 import binary.bitsizes as bitsizes
 import binary.cast as cast
 import binary.utils as utils
-from binary.exceptions import SymbexException
 import nf.device as nf_device
 
 
@@ -22,11 +21,11 @@ class os_memory_alloc(angr.SimProcedure):
 
         # Symbolism assumptions
         if size.symbolic:
-            raise SymbexException("size cannot be symbolic")
+            raise Exception("size cannot be symbolic")
 
         # Preconditions
         if utils.can_be_false(self.state.solver, (count == 1) | (count * size <= (2 ** bitsizes.size_t - 1))):
-            raise SymbexException("Precondition does not hold: count == 1 || count * size <= SIZE_MAX")
+            raise Exception("Precondition does not hold: count == 1 || count * size <= SIZE_MAX")
 
         # Postconditions
         result = self.state.memory.allocate(count, size, name="allocated", default=claripy.BVV(0, self.state.solver.eval_one(size, cast_to=int) * 8))
@@ -42,16 +41,16 @@ class os_memory_phys_to_virt(angr.SimProcedure):
 
         original_addr = addr.args[0].args[2].args[0]
         if utils.can_be_false(self.state.solver, addr == original_addr):
-            raise SymbexException("Sorry, expected an addr as a BAR0 high/low pair")
+            raise Exception("Sorry, expected an addr as a BAR0 high/low pair")
 
         devices = self.state.metadata.get_all(nf_device.SpecDevice)
         for dev in devices.values():
             if utils.definitely_true(self.state.solver, original_addr == dev.phys_addr):
                 if utils.can_be_true(self.state.solver, size.UGT(dev.bar_size)):
-                    raise SymbexException("Requested size is too big")
+                    raise Exception("Requested size is too big")
                 return dev.virt_addr
 
-        raise SymbexException("IDK what phys addr that is, sorry")
+        raise Exception("IDK what phys addr that is, sorry")
 
 # uintptr_t os_memory_virt_to_phys(const void* addr);
 class os_memory_virt_to_phys(angr.SimProcedure):

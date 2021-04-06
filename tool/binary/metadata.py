@@ -6,7 +6,6 @@ import copy
 
 # Us
 from . import utils
-from .exceptions import SymbexException
 
 # TODO can we specialize this class? remove it? use ghost maps directly instead somehow (eg an enum for IDs)?
 
@@ -34,7 +33,7 @@ class MetadataPlugin(SimStatePlugin):
         value = self.get_or_none(cls, key)
         if value is None:
             if default_ctor is None:
-                raise SymbexException(f"No metadata for key: {key} of class: {cls}")
+                raise Exception(f"No metadata for key: {key} of class: {cls}")
             else:
                 value = default_ctor()
                 self.set(key, value)
@@ -50,7 +49,7 @@ class MetadataPlugin(SimStatePlugin):
             return None
         if len(all) == 1:
             return next(iter(all.values()))
-        raise SymbexException(f"No unique metadata for type {cls}")
+        raise Exception(f"No unique metadata for type {cls}")
 
 
     def set(self, key, value, override=False):
@@ -58,12 +57,12 @@ class MetadataPlugin(SimStatePlugin):
         existing = self.get_or_none(cls, key)
         if existing is None:
             if override:
-                raise SymbexException(f"There is no metadata of type {cls} to override for key {key}")
+                raise Exception(f"There is no metadata of type {cls} to override for key {key}")
             map = self.items.setdefault(cls, {})
             map[key.cache_key] = value
         else:
             if not override:
-                raise SymbexException(f"There is already metadata of type {cls} for key {key}, namely {existing}")
+                raise Exception(f"There is already metadata of type {cls} for key {key}, namely {existing}")
             self.items[cls][key.cache_key] = value
 
 

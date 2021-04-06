@@ -7,7 +7,6 @@ from collections import namedtuple
 import binary.bitsizes as bitsizes
 import binary.cast as cast
 import binary.utils as utils
-from binary.exceptions import SymbexException
 
 
 # predicate poolp(struct index_pool* pool, size_t size, time_t expiration_time, list<pair<size_t, time_t> > items);
@@ -24,7 +23,7 @@ class index_pool_alloc(angr.SimProcedure):
 
         # Preconditions
         if utils.can_be_false(self.state.solver, (size * bitsizes.uint64_t).ULE(2 ** bitsizes.size_t - 1)):
-            raise SymbexException("Precondition does not hold: size * sizeof(time_t) <= SIZE_MAX")
+            raise Exception("Precondition does not hold: size * sizeof(time_t) <= SIZE_MAX")
 
         # Postconditions
         result = claripy.BVS("index_pool", bitsizes.ptr)
@@ -61,7 +60,7 @@ class index_pool_borrow(angr.SimProcedure):
         # Preconditions
         poolp = self.state.metadata.get(Pool, pool)
         if utils.can_be_false(self.state.solver, time != 0xFF_FF_FF_FF_FF_FF_FF_FF):
-            raise SymbexException("Precondition does not hold: time != TIME_MAX")
+            raise Exception("Precondition does not hold: time != TIME_MAX")
         self.state.memory.load(out_index, bitsizes.size_t // 8)
         self.state.memory.load(out_used, bitsizes.bool // 8)
 
@@ -119,11 +118,11 @@ class index_pool_refresh(angr.SimProcedure):
         # Preconditions
         poolp = self.state.metadata.get(Pool, pool)
         if utils.can_be_false(self.state.solver, time != 0xFF_FF_FF_FF_FF_FF_FF_FF):
-            raise SymbexException("Precondition does not hold: time != TIME_MAX")
+            raise Exception("Precondition does not hold: time != TIME_MAX")
         if utils.can_be_false(self.state.solver, index < poolp.size):
-            raise SymbexException("Precondition does not hold: index < size")
+            raise Exception("Precondition does not hold: index < size")
         if utils.can_be_false(self.state.solver, self.state.maps.get(poolp.items, index)[1]):
-            raise SymbexException("Precondition does not hold: ghostmap_get(items, index) != none")
+            raise Exception("Precondition does not hold: ghostmap_get(items, index) != none")
 
         # Postconditions
         self.state.maps.set(poolp.items, index, time)
@@ -176,9 +175,9 @@ class index_pool_return(angr.SimProcedure):
         # Preconditions
         poolp = self.state.metadata.get(Pool, pool)
         if utils.can_be_false(self.state.solver, index < poolp.size):
-            raise SymbexException("Precondition does not hold: index < size")
+            raise Exception("Precondition does not hold: index < size")
         if utils.can_be_false(self.state.solver, self.state.maps.get(poolp.items, index)[1]):
-            raise SymbexException("Precondition does not hold: ghostmap_get(items, index) != none")
+            raise Exception("Precondition does not hold: ghostmap_get(items, index) != none")
 
         # Postconditions
         self.state.maps.remove(poolp.items, index)

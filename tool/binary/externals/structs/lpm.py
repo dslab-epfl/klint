@@ -7,7 +7,6 @@ from collections import namedtuple
 import binary.bitsizes as bitsizes
 import binary.cast as cast
 import binary.utils as utils
-from binary.exceptions import SymbexException
 
 Lpm = namedtuple("lpmp", ["table"])
 

@@ -7,7 +7,6 @@ from collections import namedtuple
 import binary.bitsizes as bitsizes
 import binary.cast as cast
 import binary.utils as utils
-from binary.exceptions import SymbexException
 
 
 # predicate mapp2(struct os_map2* map, size_t key_size, size_t value_size, size_t capacity, list<pair<list<char>, list<char> > > items);
@@ -29,21 +28,21 @@ class OsMap2Alloc(angr.SimProcedure):
 
         # Symbolism assumptions
         if key_size.symbolic:
-            raise SymbexException("key_size cannot be symbolic")
+            raise Exception("key_size cannot be symbolic")
         if value_size.symbolic:
-            raise SymbexException("key_size cannot be symbolic")
+            raise Exception("key_size cannot be symbolic")
 
         # Preconditions
         if utils.can_be_false(self.state.solver, key_size.UGT(0)):
-            raise SymbexException("Precondition does not hold: key_size > 0")
+            raise Exception("Precondition does not hold: key_size > 0")
         if utils.can_be_false(self.state.solver, (key_size * capacity * 2).ULE(2 ** bitsizes.size_t - 1)):
-            raise SymbexException("Precondition does not hold: key_size * capacity * 2 <= SIZE_MAX")
+            raise Exception("Precondition does not hold: key_size * capacity * 2 <= SIZE_MAX")
         if utils.can_be_false(self.state.solver, value_size.UGT(0)):
-            raise SymbexException("Precondition does not hold: value_size > 0")
+            raise Exception("Precondition does not hold: value_size > 0")
         if utils.can_be_false(self.state.solver, (value_size * capacity * 2).ULE(2 ** bitsizes.size_t - 1)):
-            raise SymbexException("Precondition does not hold: value_size * capacity * 2 <= SIZE_MAX")
+            raise Exception("Precondition does not hold: value_size * capacity * 2 <= SIZE_MAX")
         if utils.can_be_false(self.state.solver, (capacity * bitsizes.size_t * 2).ULE(2 ** bitsizes.size_t - 1)):
-            raise SymbexException("Precondition does not hold: capacity * sizeof(size_t) * 2 <= SIZE_MAX")
+            raise Exception("Precondition does not hold: capacity * sizeof(size_t) * 2 <= SIZE_MAX")
 
         # Postconditions
         result = claripy.BVS("os_map2", bitsizes.ptr)
@@ -108,7 +107,7 @@ class OsMap2Set(angr.SimProcedure):
         key = self.state.memory.load(key_ptr, mapp.key_size, endness=self.state.arch.memory_endness)
         value = self.state.memory.load(value_ptr, mapp.value_size, endness=self.state.arch.memory_endness)
         if utils.can_be_false(self.state.solver, claripy.Not(self.state.maps.get(mapp.items, key)[1])):
-            raise SymbexException("Precondition does not hold: ghostmap_get(items, key) == none")
+            raise Exception("Precondition does not hold: ghostmap_get(items, key) == none")
         print("!!! os_map2_set key/value", key, value)
 
         # Postconditions
@@ -137,7 +136,7 @@ class OsMap2Remove(angr.SimProcedure):
         mapp = self.state.metadata.get(Map, map)
         key = self.state.memory.load(key_ptr, mapp.key_size, endness=self.state.arch.memory_endness)
         if utils.can_be_false(self.state.solver, self.state.maps.get(mapp.items, key)[1]):
-            raise SymbexException("Precondition does not hold: ghostmap_get(items, key) != none")
+            raise Exception("Precondition does not hold: ghostmap_get(items, key) != none")
         print("!!! os_map2_remove key", key)
 
         # Postconditions

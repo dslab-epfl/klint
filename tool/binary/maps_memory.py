@@ -4,7 +4,6 @@ import claripy
 from collections import namedtuple
 
 # Us
-from .exceptions import SymbexException
 from . import bitsizes
 from . import utils
 
@@ -26,7 +25,7 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
         meta = self.state.metadata.get(MapsMemoryMixin.Metadata, base)
         fraction, _ = self.state.maps.get(meta.fractions, index)
         if utils.can_be_true(self.state.solver, fraction == 0):
-            raise SymbexException("Attempt to load without definitely having access to the object at addr " + str(addr) + " ; fraction is " + str(fraction) + " ; constraints are " + str(self.state.solver.constraints) + " ; e.g. could be " + str(self.state.solver.eval_upto(fraction, 10, cast_to=int)))
+            raise Exception("Attempt to load without definitely having access to the object at addr " + str(addr) + " ; fraction is " + str(fraction) + " ; constraints are " + str(self.state.solver.constraints) + " ; e.g. could be " + str(self.state.solver.eval_upto(fraction, 10, cast_to=int)))
         
         data, _ = self.state.maps.get(base, index)
 
@@ -54,7 +53,7 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
         meta = self.state.metadata.get(MapsMemoryMixin.Metadata, base)
         fraction, _ = self.state.maps.get(meta.fractions, index)
         if utils.can_be_true(self.state.solver, fraction != 100):
-            raise SymbexException("Attempt to store without definitely owning the object at addr " + str(addr) + " ; fraction is " + str(fraction) + " ; constraints are " + str(self.state.solver.constraints) + " ; e.g. could be " + str(self.state.solver.eval_upto(fraction, 10, cast_to=int)))
+            raise Exception("Attempt to store without definitely owning the object at addr " + str(addr) + " ; fraction is " + str(fraction) + " ; constraints are " + str(self.state.solver.constraints) + " ; e.g. could be " + str(self.state.solver.eval_upto(fraction, 10, cast_to=int)))
 
         if data.size() != self.state.maps.value_size(base):
             current, _ = self.state.maps.get(base, index)
@@ -75,7 +74,7 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
     def allocate(self, count, size, default=None, name=None, constraint=None):
         max_size = self.state.solver.max(size)
         if max_size > 4096:
-            raise SymbexException("That's a huge block you want to allocate... let's just not: " + str(max_size))
+            raise Exception("That's a huge block you want to allocate... let's just not: " + str(max_size))
 
         name = (name or "memory") + "_addr"
         addr = self.state.maps.new_array(bitsizes.ptr, max_size * 8, count, name)
@@ -101,19 +100,19 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
     def take(self, fraction, ptr): # fraction == None -> take all
         (base, index, offset) = self._base_index_offset(ptr)
         if offset != 0:
-            raise SymbexException("Cannot take at an offset")
+            raise Exception("Cannot take at an offset")
 
         meta = self.state.metadata.get(MapsMemoryMixin.Metadata, base)
 
         current_fraction, present = self.state.maps.get(meta.fractions, index)
         if utils.can_be_false(self.state.solver, present):
-            raise SymbexException("Cannot take if the item may not be present")
+            raise Exception("Cannot take if the item may not be present")
 
         if fraction is None:
             fraction = current_fraction
 
         if utils.can_be_true(self.state.solver, current_fraction.ULT(fraction)):
-            raise SymbexException("Cannot take " + str(fraction) + " ; there is only " + str(current_fraction))
+            raise Exception("Cannot take " + str(fraction) + " ; there is only " + str(current_fraction))
 
         self.state.maps.set(meta.fractions, index, current_fraction - fraction)
 
@@ -124,13 +123,13 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
     def give(self, fraction, ptr):
         (base, index, offset) = self._base_index_offset(ptr)
         if offset != 0:
-            raise SymbexException("Cannot give at an offset")
+            raise Exception("Cannot give at an offset")
 
         meta = self.state.metadata.get(MapsMemoryMixin.Metadata, base)
 
         current_fraction, _ = self.state.maps.get(meta.fractions, index)
         if utils.can_be_true(self.state.solver, (current_fraction + fraction).UGT(100)):
-            raise SymbexException("Cannot give " + str(fraction) + " ; there is already " + str(current_fraction))
+            raise Exception("Cannot give " + str(fraction) + " ; there is already " + str(current_fraction))
 
         self.state.maps.set(meta.fractions, index, current_fraction + fraction)
 
@@ -141,7 +140,7 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
         for (o, meta) in self.state.metadata.get_all(MapsMemoryMixin.Metadata).items():
             if meta.fractions is fracs_obj:
                 return (o, meta.size)
-        raise SymbexException("What are you doing?")
+        raise Exception("What are you doing?")
 
     # TODO this should not exist
     def havoc(self, addr):
@@ -181,7 +180,7 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
                 if len(base) == 1:
                     base = base[0]
                 else:
-                    raise SymbexException("!= 1 candidate for base??? are you symbolically indexing a global variable or something?")
+                    raise Exception("!= 1 candidate for base??? are you symbolically indexing a global variable or something?")
             added = sum([a for a in addr.args if not a.structurally_match(base)])
 
             meta = self.state.metadata.get(MapsMemoryMixin.Metadata, base)
@@ -197,4 +196,4 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
         if addr.op == "BVS":
             return (addr, claripy.BVV(0, 64), 0)
 
-        raise SymbexException("B_I_O doesn't know what to do with: " + str(addr) + " of type " + str(type(addr)) + " ; op is " + str(addr.op) + " ; args is " + str(addr.args) + " ; constrs are " + str(self.state.solver.constraints))
+        raise Exception("B_I_O doesn't know what to do with: " + str(addr) + " of type " + str(type(addr)) + " ; op is " + str(addr.op) + " ; args is " + str(addr.args) + " ; constrs are " + str(self.state.solver.constraints))

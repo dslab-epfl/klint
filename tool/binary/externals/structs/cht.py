@@ -8,7 +8,6 @@ from .index_pool import Pool
 import binary.bitsizes as bitsizes
 import binary.cast as cast
 import binary.utils as utils
-from binary.exceptions import SymbexException
 
 # predicate poolp(struct os_pool* pool, size_t size, list<pair<size_t, time_t> > items);
 Cht = namedtuple("chtp", ["cht_height", "backend_capacity"])
@@ -28,7 +27,7 @@ class ChtAlloc(angr.SimProcedure):
             cht_height * backend_capacity < (2 ** bitsizes.uint32_t - 1)
         )
         if utils.can_be_false(self.state.solver, precond):
-            raise SymbexException("Precondition does not hold.")
+            raise Exception("Precondition does not hold.")
 
         # Postconditions
         result = claripy.BVS("cht", bitsizes.ptr)
@@ -54,7 +53,7 @@ class ChtFindPreferredAvailableBackend(angr.SimProcedure):
         active_backends = self.state.metadata.get(Pool, active_backends)
         self.state.memory.load(chosen_backend, bitsizes.size_t // 8)
         if utils.can_be_false(self.state.solver, cht.backend_capacity <= active_backends.size):
-            raise SymbexException("Precondition does not hold.")
+            raise Exception("Precondition does not hold.")
 
         # Postconditions
         backend = claripy.BVS("backend", bitsizes.size_t)

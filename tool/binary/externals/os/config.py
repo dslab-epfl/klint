@@ -8,7 +8,6 @@ from ... import bitsizes
 from ... import cast
 from binary.metadata import MetadataPlugin
 from ... import utils
-from ...exceptions import SymbexException
 
 ConfigMetadata = namedtuple('ConfigMetadata', ['items'])
 
@@ -21,7 +20,7 @@ class os_config_try_get(angr.SimProcedure):
         out_value = cast.ptr(out_value)
 
         if name.symbolic:
-            raise SymbexException("name cannot be symbolic")
+            raise Exception("name cannot be symbolic")
 
         self.state.memory.load(out_value, bitsizes.uintmax_t // 8)
 

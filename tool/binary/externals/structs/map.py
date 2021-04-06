@@ -7,7 +7,6 @@ from collections import namedtuple
 import binary.bitsizes as bitsizes
 import binary.cast as cast
 import binary.utils as utils
-from binary.exceptions import SymbexException
 
 
 # predicate mapp(struct map* map, size_t key_size, size_t capacity, list<pair<list<char>, size_t> > values, list<pair<list<char>, void*> > addrs);
@@ -24,11 +23,11 @@ class map_alloc(angr.SimProcedure):
 
         # Symbolism assumptions
         if key_size.symbolic:
-            raise SymbexException("key_size cannot be symbolic")
+            raise Exception("key_size cannot be symbolic")
 
         # Preconditions
         if utils.can_be_false(self.state.solver, (capacity * 64).ULE(2 ** bitsizes.size_t - 1)):
-            raise SymbexException("Precondition does not hold: capacity * 64 <= SIZE_MAX")
+            raise Exception("Precondition does not hold: capacity * 64 <= SIZE_MAX")
 
         # Postconditions
         result = claripy.BVS("map", bitsizes.ptr)
@@ -92,11 +91,11 @@ class map_set(angr.SimProcedure):
         key = self.state.memory.load(key_ptr, mapp.key_size, endness=self.state.arch.memory_endness)
         self.state.memory.take(25, key_ptr)
         if utils.can_be_false(self.state.solver, self.state.maps.length(mapp.values) < mapp.capacity):
-            raise SymbexException("Precondition does not hold: length(values) < capacity")
+            raise Exception("Precondition does not hold: length(values) < capacity")
         if utils.can_be_false(self.state.solver, claripy.Not(self.state.maps.get(mapp.values, key)[1])):
-            raise SymbexException("Precondition does not hold: ghostmap_get(values, key) == none")
+            raise Exception("Precondition does not hold: ghostmap_get(values, key) == none")
         if utils.can_be_false(self.state.solver, claripy.Not(self.state.maps.get(mapp.addrs, key)[1])):
-            raise SymbexException("Precondition does not hold: ghostmap_get(addrs, key) == none")
+            raise Exception("Precondition does not hold: ghostmap_get(addrs, key) == none")
         print("!!! map_set key", key)
 
         # Postconditions
@@ -123,10 +122,10 @@ class map_remove(angr.SimProcedure):
         key = self.state.memory.load(key_ptr, mapp.key_size, endness=self.state.arch.memory_endness)
         frac = self.state.memory.take(None, key_ptr)
         if utils.can_be_false(self.state.solver, self.state.maps.get(mapp.values, key)[1]):
-            raise SymbexException("Precondition does not hold: ghostmap_get(values, key) != none")
+            raise Exception("Precondition does not hold: ghostmap_get(values, key) != none")
         (key_ptr2, key_ptr2_present) = self.state.maps.get(mapp.addrs, key)
         if utils.can_be_false(self.state.solver, key_ptr2_present) or utils.can_be_false(self.state.solver, key_ptr2 == key_ptr):
-            raise SymbexException("Precondition does not hold: ghostmap_get(addrs, key) == some(key_ptr)")
+            raise Exception("Precondition does not hold: ghostmap_get(addrs, key) == some(key_ptr)")
         print("!!! map_remove key", key)
 
         # Postconditions

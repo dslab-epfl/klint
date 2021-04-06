@@ -14,7 +14,6 @@ import datetime
 # Us
 from . import bitsizes
 from . import utils
-from .exceptions import SymbexException
 
 
 # NOTE: All optimizations should be periodically re-evaluated, since adding new features may make them pointless or even harmful
@@ -134,7 +133,7 @@ class Map:
                 return n
             if n.op == "BVV":
                 return n.args[0]
-            raise SymbexException(name + " cannot be symbolic")
+            raise Exception(name + " cannot be symbolic")
 
         key_size = to_int(key_size, "key_size")
         value_size = to_int(value_size, "value_size")
@@ -602,7 +601,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                 return None
             elif len(items1) < len(items2):
                 # Lazyness: implementing backtracking in case a guess fails is hard :p
-                raise SymbexException("backtracking not implemented yet")
+                raise Exception("backtracking not implemented yet")
 
             if candidate_func is None:
                 # No candidate yet (1st iteration), try and find one

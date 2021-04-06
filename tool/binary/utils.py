@@ -2,15 +2,12 @@
 import angr
 import claripy
 
-# Us
-from .exceptions import SymbexException
-
 def read_str(state, ptr):
   result = ""
   while True:
     char = state.memory.load(ptr, 1)
     if char.symbolic:
-      raise SymbexException("Trying to read a symbolic string!")
+      raise Exception("Trying to read a symbolic string!")
     char = state.solver.eval_one(char, cast_to=int)
     if char == 0:
       break
@@ -34,7 +31,7 @@ def definitely_false(solver, cond):
 def get_if_constant(solver, expr, **kwargs):
   sols = solver.eval_upto(expr, 2, **kwargs)
   if len(sols) == 0:
-    raise SymbexException("Could not evaluate: " + str(expr))
+    raise Exception("Could not evaluate: " + str(expr))
   if len(sols) == 1:
       return sols[0]
   return None
@@ -67,7 +64,7 @@ def get_exact_match(solver, item, candidates, assumption=claripy.true, selector=
 def fork_always(proc, state, case_true, case_false):
     false_was_unsat = False
     if not state.solver.satisfiable():
-        raise SymbexException("too lazy to handle this :/")
+        raise Exception("too lazy to handle this :/")
 
     try:
         state_copy = state.copy()
@@ -83,7 +80,7 @@ def fork_always(proc, state, case_true, case_false):
         return case_true(state)
     except angr.errors.SimUnsatError as e:
         if false_was_unsat:
-            raise SymbexException("Both cases were unsat!")
+            raise Exception("Both cases were unsat!")
         else:
             raise e # let it bubble up to angr
 

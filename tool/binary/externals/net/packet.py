@@ -8,7 +8,6 @@ from collections import namedtuple
 from ... import bitsizes
 from ... import cast
 from ... import utils
-from ...exceptions import SymbexException
 
 PACKET_MIN = 64 # the NIC will pad it if shorter
 PACKET_MTU = 1514 # 1500 (Ethernet spec) + 2xMAC + EtherType

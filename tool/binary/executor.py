@@ -8,7 +8,6 @@ import claripy
 
 # Us
 from . import clock
-from .exceptions import SymbexException
 from .ghost_maps import GhostMapsPlugin
 from .maps_memory import MapsMemoryMixin
 from .metadata import MetadataPlugin
@@ -30,7 +29,7 @@ class EmptyLibrary():
     class Abort(angr.SimProcedure):
         NO_RET = True
         def run(self):
-            raise SymbexException('Unimplemented function')
+            raise Exception('Unimplemented function')
 
     def __init__(self):
         # the existence of syscall_number_mapping and minimum/maximum_syscall_number is required by angr
@@ -118,7 +117,7 @@ class Instruction_RDMSR(Instruction):
         def amd64g_rdmsr(state, msr):
             # For now we only emulate the clock frequency
             if not msr.structurally_match(claripy.BVV(0xCE, 32)):
-                raise SymbexException("Unknown R for RDMSR")
+                raise Exception("Unknown R for RDMSR")
             high = claripy.BVS("msr_high", 32)
             low = claripy.BVS("msr_low", 32)
             low = low[31:16].concat(clock.frequency_num[7:0]).concat(low[7:0])

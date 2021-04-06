@@ -6,7 +6,6 @@ import claripy
 from ... import bitsizes
 from ... import cast
 from ... import utils
-from ...exceptions import SymbexException
 
 # typedef void foreach_index_function(size_t index, void* state);
 # void foreach_index(size_t length, foreach_index_function* func, void* state);
@@ -17,7 +16,7 @@ class foreach_index(angr.SimProcedure):
         st = cast.ptr(st)
 
         if func.op != 'BVV':
-            raise SymbexException("Function pointer cannot be symbolic")
+            raise Exception("Function pointer cannot be symbolic")
 
         def case_zero(state):
             pass
