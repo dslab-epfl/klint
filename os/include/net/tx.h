@@ -16,4 +16,4 @@ void net_flood(struct net_packet* packet, enum net_transmit_flags flags);
 
 // Transmit the given packet unmodified to devices except the packet's own and those marked as disabled
 // TODO: Same note as above re: loops
-void net_flood_except(struct net_packet* packet, bool* enabled_devices, enum net_transmit_flags flags);
+void net_flood_except(struct net_packet* packet, bool* disabled_devices, enum net_transmit_flags flags);

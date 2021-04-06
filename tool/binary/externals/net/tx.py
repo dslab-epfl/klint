@@ -39,11 +39,11 @@ class net_flood(angr.SimProcedure):
 
         self.state.memory.take(None, data_addr - packet.PACKET_MTU)
 
-# void net_flood_except(struct net_packet* packet, bool* enabled_devices, enum net_transmit_flags flags);
+# void net_flood_except(struct net_packet* packet, bool* disabled_devices, enum net_transmit_flags flags);
 class net_flood_except(angr.SimProcedure):
-    def run(self, pkt, enabled_devices, flags):
+    def run(self, pkt, disabled_devices, flags):
         pkt = cast.ptr(pkt)
-        enabled_devices = cast.ptr(enabled_devices)
+        disabled_devices = cast.ptr(disabled_devices)
         flags = cast.enum(flags)
 
         data_addr = packet.get_data_addr(self.state, pkt)

@@ -47,12 +47,12 @@ void net_flood(struct net_packet* packet, enum net_transmit_flags flags)
 	}
 }
 
-void net_flood_except(struct net_packet* packet, bool* enabled_devices, enum net_transmit_flags flags)
+void net_flood_except(struct net_packet* packet, bool* disabled_devices, enum net_transmit_flags flags)
 {
 	for (size_t n = 0; n < devices_count - 1; n++) {
 		device_t device = device_from_index(packet, n);
 		handle_flags(packet, device, flags);
-		current_output_lengths[n] = enabled_devices[device] ? packet->length : 0;
+		current_output_lengths[n] = disabled_devices[device] ? 0 : packet->length;
 	}
 }
 
