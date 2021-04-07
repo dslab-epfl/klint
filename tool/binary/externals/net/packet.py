@@ -39,6 +39,5 @@ def alloc(state, devices_count):
     packet_addr = state.memory.allocate(1, PACKET_SIZE // 8, name="packet")
     packet_data = packet_device.concat(packet_length).concat(data_addr + PACKET_MTU)
     state.memory.store(packet_addr, packet_data, endness=state.arch.memory_endness)
-    # attach to packet_addr just because we need something to attach to... TODO it'd be nice to have statewide metadata
-    state.metadata.set(packet_addr, NetworkMetadata(get_data(state, packet_addr), data_addr, packet_device, packet_length, []))
+    state.metadata.append(None, NetworkMetadata(get_data(state, packet_addr), data_addr, packet_device, packet_length, []))
     return packet_addr

@@ -18,7 +18,7 @@ class LpmAlloc(angr.SimProcedure):
         result = claripy.BVS("lpm", bitsizes.ptr)
         table = self.state.maps.new(IP_LEN + bitsizes.uint8_t, bitsizes.uint16_t, "lpm_table")
         self.state.maps.havoc(table, claripy.BVS("lpm_table_length", 64), False)
-        self.state.metadata.set(result, Lpm(table))
+        self.state.metadata.append(result, Lpm(table))
         print(f"!!! lpm_alloc -> {result}")
         return result
 

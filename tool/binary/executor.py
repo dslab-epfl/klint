@@ -154,6 +154,7 @@ class CustomMemory(
     ObjectsMemoryMixin, # For modelled devices
     MapsMemoryMixin, # For the heap
     # --- Rest is inspired by DefaultMemory, minus stuff we definitely don't need; TODO: can we make this all read-only after init?
+    csms.ConvenientMappingsMixin,
     csms.StackAllocationMixin,
     csms.ClemoryBackerMixin,
     csms.DictBackerMixin,
@@ -161,7 +162,8 @@ class CustomMemory(
     csms.DefaultFillerMixin,
     csms.PagedMemoryMixin
 ):
-    pass
+    def _merge_values(self, values, merged_size):
+        return claripy.ite_cases([(g, v) for (v, g) in values[1:]], values[0][0])
 
 
 bin_exec_initialized = False

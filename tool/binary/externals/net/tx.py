@@ -17,7 +17,7 @@ class net_transmit(angr.SimProcedure):
         data = packet.get_data(self.state, pkt)
         length = packet.get_length(self.state, pkt)
 
-        metadata = self.state.metadata.get_unique(packet.NetworkMetadata)
+        metadata = self.state.metadata.get_one(packet.NetworkMetadata)
         metadata.transmitted.append((data, length, device, flags))
 
         self.state.memory.take(None, data_addr - packet.PACKET_MTU)
@@ -32,7 +32,7 @@ class net_flood(angr.SimProcedure):
         data = packet.get_data(self.state, pkt)
         length = packet.get_length(self.state, pkt)
 
-        metadata = self.state.metadata.get_unique(packet.NetworkMetadata)
+        metadata = self.state.metadata.get_one(packet.NetworkMetadata)
         metadata.transmitted.append((data, length, None, flags))
 
         self.state.memory.take(None, data_addr - packet.PACKET_MTU)
@@ -48,7 +48,7 @@ class net_flood_except(angr.SimProcedure):
         data = packet.get_data(self.state, pkt)
         length = packet.get_length(self.state, pkt)
 
-        metadata = self.state.metadata.get_unique(packet.NetworkMetadata)
+        metadata = self.state.metadata.get_one(packet.NetworkMetadata)
         metadata.transmitted.append((data, length, None, flags)) # TODO: output devices
 
         self.state.memory.take(None, data_addr - packet.PACKET_MTU)

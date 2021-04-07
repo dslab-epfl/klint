@@ -25,7 +25,7 @@ class index_pool_alloc(angr.SimProcedure):
         # Postconditions
         result = claripy.BVS("index_pool", bitsizes.ptr)
         items = self.state.maps.new(bitsizes.size_t, bitsizes.uint64_t, "pool_items")
-        self.state.metadata.set(result, Pool(size, expiration_time, items))
+        self.state.metadata.append(result, Pool(size, expiration_time, items))
         print("!!! index_pool_alloc", size, "->", result)
         return result
 

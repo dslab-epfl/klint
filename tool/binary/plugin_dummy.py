@@ -1,7 +1,10 @@
 from angr.state_plugins.plugin import SimStatePlugin
 
+# Nothing; just ensures angr doesn't use plugins behind our back
 class DummyPlugin(SimStatePlugin):
-    def __init__(self):
-        SimStatePlugin.__init__(self)
+    @SimStatePlugin.memo
+    def copy(self, memo):
+        return self
 
-    # Nothing; just ensures angr doesn't use plugins behind our back
+    def merge(self, others, merge_conditions, common_ancestor=None):
+        return True

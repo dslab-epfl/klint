@@ -39,7 +39,7 @@ class ObjectsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
     # writer: (state, base, offset, value) -> void
     def create_special_object(self, name, size, reader, writer):
         obj = claripy.BVS(name, bitsizes.ptr)
-        self.state.metadata.set(obj, ObjectsMemoryMixin.Metadata(size, reader, writer))
+        self.state.metadata.append(obj, ObjectsMemoryMixin.Metadata(size, reader, writer))
 
 
     def _obj_offset(self, addr):

@@ -30,7 +30,7 @@ class map_alloc(angr.SimProcedure):
         result = claripy.BVS("map", bitsizes.ptr)
         values = self.state.maps.new(key_size * 8, bitsizes.ptr, "map_values") # key_size is in bytes
         addrs = self.state.maps.new(key_size * 8, bitsizes.ptr, "map_addrs") # key_size is in bytes
-        self.state.metadata.set(result, Map(key_size, capacity, values, addrs))
+        self.state.metadata.append(result, Map(key_size, capacity, values, addrs))
         print("!!! map_alloc", key_size, capacity, "->", result)
         return result
 

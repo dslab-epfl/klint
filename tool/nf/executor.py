@@ -107,7 +107,6 @@ def havoc_iter(bin_path, state, devices_count, previous_results):
     for s in handled_states:
         print("State", id(s), "has", len(s.solver.constraints), "constraints")
         s.path.print()
-        #s.path.ghost_print()
 
     print("Inferring invariants... at ", datetime.datetime.now())
     (new_state, new_results, reached_fixpoint) = ghost_maps.infer_invariants(original_state, handled_states, previous_results)

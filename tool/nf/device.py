@@ -56,7 +56,7 @@ def device_writer(state, base, offset, value):
         packet_desc_meta = packet_length.zero_extend(64 - packet_length.size()) | (0b11 << 32) # DD and EOP, plus length
 
         state.solver.add(packet_length.UGE(packet.PACKET_MIN), packet_length.ULE(packet.PACKET_MTU))
-        state.metadata.set(packet_addr, packet.NetworkMetadata(packet_data, packet_addr, dev.index, packet_length, []))
+        state.metadata.append(packet_addr, packet.NetworkMetadata(packet_data, packet_addr, dev.index, packet_length, []))
 
         state.memory.store(packet_addr, packet_data, endness=state.arch.memory_endness)
         state.memory.store(rdba + 8, packet_desc_meta, endness=state.arch.memory_endness)

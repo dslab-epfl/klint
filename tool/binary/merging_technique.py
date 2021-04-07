@@ -1,6 +1,43 @@
-from angr.exploration_techniques import ExplorationTechnique
+import angr
+import claripy
 
-class MergingTechnique(ExplorationTechnique):
+# Version of SimState.merge that succeeds only if all plugins successfully merge, and returns the state or None
+def merge_states(states):
+    merge_flag = claripy.BVS("state_merge", 16)
+    merge_conditions =  [merge_flag == b for b in range(len(states))]
+
+    merged = states[0].copy()
+
+    # same fix as in SimState.merge
+    merged.history.parent = states[0].history
+
+    for plugin_key in states[0].plugins.keys():
+        # Some plugins have nothing to merge by design
+        if plugin_key in ('regs', 'mem', 'scratch'):
+            continue
+
+        our_plugin = getattr(merged, plugin_key)
+        other_plugins = [getattr(st, plugin_key) for st in states[1:]]
+        
+        # Callstack merely logs an error if there's an issue and never returns anything...
+        if plugin_key == 'callstack':
+            if any(o != our_plugin for o in other_plugins):
+                return None
+            continue
+
+        if not our_plugin.merge(other_plugins, merge_conditions):
+            # Memory returns false if nothing was merged, but that just means the memory was untouched
+            if plugin_key in ('memory'):
+                continue
+            return None
+
+    merged.add_constraints(merged.solver.Or(*merge_conditions))
+    return merged
+
+# Explores the state with the earliest instruction pointer first;
+# if there are multiple, attempts to merge them.
+# This is useful to merge states resulting from checks such as "if (a == X || a == Y)"
+class MergingTechnique(angr.exploration_techniques.ExplorationTechnique):
     def __init__(self, deferred_stash='deferred'):
         super(MergingTechnique, self).__init__()
         self.deferred_stash = deferred_stash
@@ -40,11 +77,11 @@ class MergingTechnique(ExplorationTechnique):
         if len(lowest) == 1:
             new_state = lowest[0]
         else:
-            (merged, _, was_merged) = lowest[0].merge(*lowest[1:])
-            if was_merged:
-                new_state = merged
-            else:
+            merged  = merge_states(lowest)
+            if merged is None:
                 new_state = lowest[0]
                 simgr.stashes[self.deferred_stash].extend(lowest[1:])
+            else:
+                new_state = merged
         simgr.stashes[stash].append(new_state)
         return simgr

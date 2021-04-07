@@ -14,7 +14,7 @@ PciDevices = namedtuple('PciDevices', ['ptr', 'count'])
 # TODO the uses of .reversed in this file are driving me nuts, really need to move to the latest memory model...
 
 def get_device(state, bus, device, function):
-    meta = state.metadata.get_unique(PciDevices)
+    meta = state.metadata.get_one(PciDevices)
     index = claripy.BVS("pci_index", bitsizes.size_t)
     state.solver.add(index.ULT(meta.count))
     value = state.memory.load(meta.ptr + index * 8, 8).reversed # 8 == sizeof(os_pci_address)
@@ -23,7 +23,7 @@ def get_device(state, bus, device, function):
     value_function = value[23:16]
     state.solver.add(bus == value_bus, device.zero_extend(3) == value_device, function.zero_extend(5) == value_function)
     index = state.solver.eval_one(index, cast_to=int) # technically not needed?
-    return state.metadata.get(SpecDevice, index, default_ctor=lambda: spec_device_create_default(state, index))
+    return state.metadata.get(SpecDevice, index, default_init=lambda: spec_device_create_default(state, index))
 
 def pci_read(state, address):
     (b, d, f, reg) = address
@@ -62,7 +62,7 @@ class os_pci_enumerate(angr.SimProcedure):
                 self.state.memory.allocate(count, 8, name="pci_devices", constraint=lambda k, v: (v.reversed & 0x00_E0_F8_FFFFFFFFFF) == 0), # 8 == sizeof(os_pci_address); enforce constraints on BDF and padding
                 count
             )
-            self.state.metadata.set(None, meta)
+            self.state.metadata.append(None, meta)
             # ouch! TODO we need to do better... see above if count were to be symbolic
             self.state.solver.add(self.state.memory.load(meta.ptr + 0 * 8, 8) != self.state.memory.load(meta.ptr + 1 * 8, 8))
         else:

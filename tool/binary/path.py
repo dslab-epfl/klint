@@ -1,7 +1,10 @@
 from angr import SimProcedure
 from angr.state_plugins.plugin import SimStatePlugin
 from angr.state_plugins.sim_action import SimActionObject
+import copy
 import inspect
+
+from . import utils
 
 class ExternalWrapper(SimProcedure):
     def __init__(self, wrapped):
@@ -24,21 +27,16 @@ class ExternalWrapper(SimProcedure):
 
 
 class PathPlugin(SimStatePlugin):
-    def __init__(self, segments=None, ghost_segments=None):
+    def __init__(self, _segments=[]):
         SimStatePlugin.__init__(self)
-        self.segments = segments or []
-        self.ghost_segments = ghost_segments or []
-        self.ghost_index = 0
+        self._segments = _segments
 
     @SimStatePlugin.memo
     def copy(self, memo):
-        return PathPlugin(segments=self.segments.copy(), ghost_segments=self.ghost_segments.copy())
+        return PathPlugin(_segments=copy.deepcopy(self._segments, memo))
 
     def merge(self, others, merge_conditions, common_ancestor=None):
-        self.segments = [] if common_ancestor is None else common_ancestor.segments
-        self.ghost_segments = [] if common_ancestor is None else common_ancestor.ghost_segments
-        self.ghost_index = 0
-        return True
+        return all(utils.structural_eq(o._segments, self._segments) for o in others)
 
     @staticmethod
     def wrap(external):
@@ -46,32 +44,13 @@ class PathPlugin(SimStatePlugin):
     
 
     def begin_record(self, name, args):
-        self.segments.append((name, args))
+        self._segments.append((name, args, None))
 
     def end_record(self, ret):
-        (name, args) = self.segments.pop()
-        self.segments.append((name, args, ret))
-
-    def ghost_record(self, value_factory):
-        self.ghost_segments.append(value_factory())
-
-    def ghost_dequeue(self):
-        result = self.ghost_segments[self.ghost_index]
-        self.ghost_index = self.ghost_index + 1
-        return result
-
-    def ghost_free(self, classes):
-        while self.ghost_index < len(self.ghost_segments) and type(self.ghost_segments[self.ghost_index]) in classes:
-            self.ghost_index = self.ghost_index + 1
-
-    def ghost_get_remaining(self):
-        return self.ghost_segments[self.ghost_index:]
+        (name, args, _) = self._segments.pop()
+        self._segments.append((name, args, ret))
 
 
     def print(self):
-        for (name, args, ret) in self.segments:
+        for (name, args, ret) in self._segments:
             print("  ", name, "(", ", ".join(map(str, args)) + ")", ("" if ret is None else (" -> " + str(ret))))
-
-    def ghost_print(self):
-        for value in self.ghost_segments:
-            print("  ", value)

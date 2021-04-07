@@ -27,7 +27,7 @@ class ChtAlloc(angr.SimProcedure):
 
         # Postconditions
         result = claripy.BVS("cht", bitsizes.ptr)
-        self.state.metadata.set(result, Cht(cht_height, backend_capacity))
+        self.state.metadata.append(result, Cht(cht_height, backend_capacity))
         print(f"!!! cht_alloc [cht_height: {cht_height}, backend_capcity: {backend_capacity}] -> {result}")
         return result
 

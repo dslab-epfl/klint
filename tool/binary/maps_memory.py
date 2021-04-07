@@ -86,7 +86,7 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
         fractions = self.state.maps.new_array(bitsizes.ptr, 8, count, name + MapsMemoryMixin.FRACS_NAME)
         self.state.solver.add(self.state.maps.forall(fractions, lambda k, v: v == 100))
 
-        self.state.metadata.set(addr, MapsMemoryMixin.Metadata(count, size, fractions))
+        self.state.metadata.append(addr, MapsMemoryMixin.Metadata(count, size, fractions))
 
         return addr
 

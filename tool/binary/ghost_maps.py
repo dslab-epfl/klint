@@ -414,35 +414,25 @@ class Map:
     def __repr__(self):
         return f"[Map {self.meta.name} v{self.version()}]"
 
+    def _asdict(self): # pretend we are a namedtuple so functions that expect one will work (e.g. utils.structural_eq)
+        return {'meta': self.meta, '_length': self._length, '_invariants': self._invariants, '_known_items': self._known_items, '_previous': self._previous, '_filter': self._filter, '_map': self._map}
 
-# Recording stuff
-RecordNew = namedtuple('RecordNew', ['key_size', 'value_size', 'result'])
-RecordNewArray = namedtuple('RecordNewArray', ['key_size', 'value_size', 'length', 'result'])
-RecordLength = namedtuple('RecordLength', ['obj', 'result'])
-RecordGet = namedtuple('RecordGet', ['obj', 'key', 'result'])
-RecordSet = namedtuple('RecordSet', ['obj', 'key', 'value'])
-RecordRemove = namedtuple('RecordRemove', ['obj', 'key'])
-RecordForall = namedtuple('RecordForall', ['obj', 'pred', 'result'])
 
 class GhostMapsPlugin(SimStatePlugin):
     # === Public API ===
 
     def new(self, key_size, value_size, name):
         obj = claripy.BVS(name, bitsizes.ptr)
-        self.state.metadata.set(obj, Map.new(self.state, key_size, value_size, name))
-        self.state.path.ghost_record(lambda: RecordNew(key_size, value_size, obj))
+        self[obj] = Map.new(self.state, key_size, value_size, name)
         return obj
 
     def new_array(self, key_size, value_size, length, name):
         obj = claripy.BVS(name, bitsizes.ptr)
-        self.state.metadata.set(obj, Map.new_array(self.state, key_size, value_size, length, name))
-        self.state.path.ghost_record(lambda: RecordNewArray(key_size, value_size, length, obj))
+        self[obj] = Map.new_array(self.state, key_size, value_size, length, name)
         return obj
 
     def length(self, obj):
-        result = self[obj].length()
-        self.state.path.ghost_record(lambda: RecordLength(obj, result))
-        return result
+        return self[obj].length()
 
     def key_size(self, obj):
         return self[obj].meta.key_size
@@ -457,19 +447,16 @@ class GhostMapsPlugin(SimStatePlugin):
                         " (" + str(len(list(map.known_items()))) + " items, " + str(len(self.state.solver.constraints)) + " constraints)")
         result = map.get(self.state, key, value=value, condition=condition, version=version)
         LOGEND(self.state)
-        self.state.path.ghost_record(lambda: RecordGet(obj, key, result))
         return result
 
     def set(self, obj, key, value, UNSAFE_can_flatten=False):
         # UNSAFE_can_flatten, as its name implies, is only safe if the map has not been used for anything else (e.g. an invariant of another map)
         # This is an optimization aimed at memory. Ideally we'd remove it because it's weird and requires being careful,
         # but as long as we have big concrete slabs of memory for RX and TX descriptors we need it.
-        self.state.metadata.set(obj, self[obj].set(self.state, key, value, UNSAFE_can_flatten=UNSAFE_can_flatten), override=True)
-        self.state.path.ghost_record(lambda: RecordSet(obj, key, value))
+        self[obj] = self[obj].set(self.state, key, value, UNSAFE_can_flatten=UNSAFE_can_flatten)
 
     def remove(self, obj, key):
-        self.state.metadata.set(obj, self[obj].remove(self.state, key), override=True)
-        self.state.path.ghost_record(lambda: RecordRemove(obj, key))
+        self[obj] = self[obj].remove(self.state, key)
 
     def forall(self, obj, pred):
         map = self[obj]
@@ -477,7 +464,6 @@ class GhostMapsPlugin(SimStatePlugin):
         LOG(self.state, "forall " + str(obj) + " ( " + str(len(self.state.solver.constraints)) + " constraints)")
         result = map.forall(self.state, pred)
         LOGEND(self.state)
-        self.state.path.ghost_record(lambda: RecordForall(obj, pred, result))
         return result
 
     # === Havocing, to mimic BPF userspace ===
@@ -488,28 +474,32 @@ class GhostMapsPlugin(SimStatePlugin):
     # === Import and Export ===
 
     def get_all(self):
-        return self.state.metadata.get_all(Map).items()
+        return {obj.ast: m for (obj, m) in self._maps.items()}
 
     def set_all(self, items):
-        self.state.metadata.remove_all(Map)
-        for (obj, m) in items:
-            self.state.metadata.set(obj, m)
+        self._maps = {obj.cache_key: m for (obj, m) in items}
 
     # === Private API, including for invariant inference ===
 
-    def __init__(self):
+    def __getitem__(self, obj):
+        return self._maps[obj.cache_key]
+
+    def __setitem__(self, obj, map):
+        self._maps[obj.cache_key] = map
+
+    # === Angr stuff ===
+
+    def __init__(self, _maps={}):
         SimStatePlugin.__init__(self)
+        self._maps = _maps
 
     @SimStatePlugin.memo
     def copy(self, memo):
-        return GhostMapsPlugin()
+        return GhostMapsPlugin(_maps=copy.deepcopy(self._maps, memo))
 
     def merge(self, others, merge_conditions, common_ancestor=None):
-        return True
-
-    def __getitem__(self, obj):
-        # Shortcut
-        return self.state.metadata.get(Map, obj)
+        # Very basic merging for now: only if they all match
+        return all(utils.structural_eq(o._maps, self._maps) for o in others)
 
 
 class ResultType(Enum):
@@ -954,7 +944,7 @@ def maps_merge_one(states_to_merge, obj, ancestor_state):
 def infer_invariants(ancestor_state, states, previous_results=None):
     # note that we keep track of objs as their string representations to avoid comparing Claripy ASTs (which don't like ==)
     previous_results = copy.deepcopy(previous_results or [])
-    ancestor_objs = [o for (o, _) in ancestor_state.maps.get_all()]
+    ancestor_objs = ancestor_state.maps.get_all().keys()
 
     across_results = maps_merge_across(states, ancestor_objs, ancestor_state)
     # To check if we have reached a superset of the previous results, remove all values we now have

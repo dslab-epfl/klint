@@ -108,7 +108,7 @@ class GhostMapsReplayPlugin:
 
 
 def init_network_if_needed(state):
-    if current_state.metadata.get_unique(os_network.NetworkMetadata) is None:
+    if current_state.metadata.get_or_none(os_network.NetworkMetadata, None) is None:
         packet.alloc(current_state, current_devices_count)
 
 def ptr_alloc(state, type):
