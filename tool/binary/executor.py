@@ -6,6 +6,7 @@ from angr.simos import SimOS
 import claripy
 
 from . import clock
+from . import merging_technique
 from .ghost_maps import GhostMapsPlugin
 from .maps_memory import MapsMemoryMixin
 from .metadata import MetadataPlugin
@@ -200,6 +201,5 @@ def create_sim_manager(binary, ext_funcs, main_func_name, *main_func_args, base_
     if state_modifier is not None:
         state_modifier(init_state)
     sm = proj.factory.simulation_manager(init_state)
-    # We want exhaustive symbex, DFS makes debugging a lot easier by not interleaving paths
-    sm.use_technique(angr.exploration_techniques.DFS())
+    sm.use_technique(merging_technique.MergingTechnique())
     return sm
