@@ -1,9 +1,7 @@
-# Standard/External libraries
 import angr
 import claripy
 from collections import namedtuple
 
-# Us
 from .index_pool import Pool
 import binary.bitsizes as bitsizes
 import binary.cast as cast

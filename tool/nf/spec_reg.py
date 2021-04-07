@@ -1031,7 +1031,7 @@ registers = {
         'fields' : {
             # Upon read it gets the actual status of the queue 
             # (internal indication that the queue is actually 
-            # enabled/disabled).
+            # enabled or disabled).
             'ENABLE' : {
                 'init'   : 0b0,
                 'start'  : 25,
@@ -1375,7 +1375,7 @@ registers = {
             }
         }
     },
-    # RAL / RAH (8.2.3.7.8/9)
+    # RAL, RAH (8.2.3.7.8,9)
     'RAL' : {
         'addr'   : [(0x0A200, 8, 127)], # base, multiplier, limit
         'length' : 32,

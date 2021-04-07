@@ -1,10 +1,8 @@
-# Standard/External libraries
 import angr
 import archinfo
 import claripy
 from collections import namedtuple
 
-# Us
 from ... import bitsizes
 from ... import cast
 from ... import utils
@@ -14,7 +12,7 @@ PACKET_MTU = 1514 # 1500 (Ethernet spec) + 2xMAC + EtherType
 
 NetworkMetadata = namedtuple('NetworkMetadata', ['received', 'received_addr', 'received_device', 'received_length', 'transmitted'])
 
-# For the packet layout, see os/include/net/packet.h (not reproducing here to avoid getting out of sync with changes)
+# For the packet layout, see the C header (not reproducing here to avoid getting out of sync with changes)
 PACKET_SIZE = bitsizes.ptr + bitsizes.size_t + bitsizes.uint16_t
 
 def get_data_addr(state, packet_addr):

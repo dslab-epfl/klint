@@ -1,13 +1,11 @@
-# Standard/External libraries
 import angr
 import claripy
 from collections import namedtuple
 
-# Us
 from . import bitsizes
 from . import utils
 
-# TODO: Only query the fractions map if 'take' has been called at least once for it; but this means the metadata may not be the same before/after init, how to handle that?
+# TODO: Only query the fractions map if 'take' has been called at least once for it; but this means the metadata may not be the same before and after init, how to handle that?
 
 # General note: we ignore presence bits when if they are false then the fractions checks will definitely fail
 # Also, recall that all sizes are in bytes, and all offsets are in bits
@@ -105,14 +103,11 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
         meta = self.state.metadata.get(MapsMemoryMixin.Metadata, base)
 
         current_fraction, present = self.state.maps.get(meta.fractions, index)
-        if utils.can_be_false(self.state.solver, present):
-            raise Exception("Cannot take if the item may not be present")
-
         if fraction is None:
             fraction = current_fraction
 
-        if utils.can_be_true(self.state.solver, current_fraction.ULT(fraction)):
-            raise Exception("Cannot take " + str(fraction) + " ; there is only " + str(current_fraction))
+        if utils.can_be_true(self.state.solver, ~present | current_fraction.ULT(fraction)):
+            raise Exception("Cannot take if the item may not be present or if the fraction is too much")
 
         self.state.maps.set(meta.fractions, index, current_fraction - fraction)
 
@@ -185,11 +180,11 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
 
             meta = self.state.metadata.get(MapsMemoryMixin.Metadata, base)
             offset = self.state.solver.eval_one(added % meta.size, cast_to=int)
-            # Don't make the index be a weird '0 // ...' expr if we can avoid it
-            if utils.definitely_true(self.state.solver, added == offset):
+            # Don't make the index be a weird '0 // ...' expr if we can avoid it, but don't call the solver for that
+            if (added == offset).is_true():
                 index = claripy.BVV(0, 64)
             else:
-                index = (added - offset) / meta.size
+                index = (added - offset) // meta.size
             return (base, index, offset * 8)
 
         addr = self.state.solver.simplify(addr) # this handles the descriptor addresses, which are split between two NIC registers

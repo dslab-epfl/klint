@@ -1,3 +1,3 @@
 """
-Contains verif/ models.
+Contains verif models.
 """

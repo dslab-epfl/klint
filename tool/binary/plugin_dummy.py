@@ -1,4 +1,3 @@
-# Standard/External libraries
 from angr.state_plugins.plugin import SimStatePlugin
 
 class DummyPlugin(SimStatePlugin):

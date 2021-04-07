@@ -1,9 +1,7 @@
-# Standard/External libraries
 import angr
 import claripy
 from collections import namedtuple
 
-# Us
 import binary.bitsizes as bitsizes
 import binary.cast as cast
 import binary.utils as utils
@@ -39,7 +37,7 @@ class LpmUpdateElem(angr.SimProcedure):
         self.state.maps.set(lpmp.table, prefix.concat(prefixlen), value)
         return claripy.BVV(1, bitsizes.bool)
 
-# TODO: The issue right now is that there could be two routes (P,L)/(P',L) where (P >> L) == (P' >> L) but P != P'...
+# TODO: The issue right now is that there could be two routes (P,L) and (P',L) where (P >> L) == (P' >> L) but P != P'...
 class LpmLookupElem(angr.SimProcedure):
     def run(self, lpm, key, out_value, out_prefix, out_prefixlen):
         # Casts

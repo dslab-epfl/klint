@@ -1,4 +1,3 @@
-# Standard/External libraries
 import faulthandler
 import random
 import angr
@@ -6,7 +5,6 @@ from angr.sim_state import SimState
 from angr.simos import SimOS
 import claripy
 
-# Us
 from . import clock
 from .ghost_maps import GhostMapsPlugin
 from .maps_memory import MapsMemoryMixin
@@ -53,7 +51,7 @@ class EmptyLibrary():
     def copy(self): return self
 
 
-# Keep only what we need in the engine, and handle hlt and in/out
+# Keep only what we need in the engine, and handle hlt, in, and out
 from angr.engines.failure import SimEngineFailure
 from angr.engines.hook import HooksMixin
 from angr.engines.vex import HeavyVEXMixin
@@ -79,7 +77,7 @@ class CustomEngine(SimEngineFailure, HooksMixin, HeavyVEXMixin):
             return None
 
         if func_name == 'amd64g_dirtyhelper_RDTSC': # no args
-            return clock.get_current_time(self.state) * clock.frequency_num / clock.frequency_denom
+            return (clock.get_current_time(self.state) * clock.frequency_num) // clock.frequency_denom
 
         raise angr.errors.UnsupportedDirtyError("Unexpected angr 'dirty' call")
 

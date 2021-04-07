@@ -1,10 +1,8 @@
-# Standard/External libraries
 import angr
 import archinfo
 import claripy
 from collections import namedtuple
 
-# Us
 from ... import cast
 from . import packet
 

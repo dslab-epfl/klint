@@ -1,3 +1,3 @@
 """
-Contains net/ models.
+Contains net models.
 """

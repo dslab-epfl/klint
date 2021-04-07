@@ -13,7 +13,7 @@ import verif.executor as verif_executor
 #nf_executor.execute_full(os.path.join(Path(__file__).parent.absolute(), "..", "os", "bin"))
 #sys.exit(0)
 
-nf_to_verify = "vigor-firewall"
+nf_to_verify = "vigor-bridge"
 if len(sys.argv) >= 2:
     nf_to_verify = sys.argv[1]
 
@@ -28,6 +28,6 @@ if not use_cached_results:
     states, devices_count = nf_executor.execute(os.path.join(nf_root_folder, "libnf.so"))
     verif_persist.dump_data(states, devices_count, cached_data_path)
 
-spec = (Path(nf_root_folder) / "spec.py").read_text()
-for data in verif_persist.load_data(cached_data_path):
-    verif_executor.verify(data, spec)
+#spec = (Path(nf_root_folder) / "spec.py").read_text()
+#for data in verif_persist.load_data(cached_data_path):
+#    verif_executor.verify(data, spec)

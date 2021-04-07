@@ -1,4 +1,3 @@
-# Standard/External libraries
 import angr
 import claripy
 

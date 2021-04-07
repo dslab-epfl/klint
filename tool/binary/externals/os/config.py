@@ -1,9 +1,7 @@
-# Standard/External libraries
 import angr
 import claripy
 from collections import namedtuple
 
-# Us
 from ... import bitsizes
 from ... import cast
 from binary.metadata import MetadataPlugin

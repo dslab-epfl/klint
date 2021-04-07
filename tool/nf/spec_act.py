@@ -14,7 +14,7 @@ promiscuous = {
         "action"   : Node(AST.Set, [Node(AST.Reg, ["RXCTRL.RXEN"])]),
     },
     # 8.2.3.7.1
-    # Before receive filters are updated/modified the RXCTRL.RXEN bit should be
+    # Before receive filters are updated or modified the RXCTRL.RXEN bit should be
     # set to 0b. After the proper filters have been set the RXCTRL.RXEN bit can be
     # set to 1b to re-enable the receiver"
     "Set Unicast Filtering" : {
@@ -234,7 +234,7 @@ enable_transmit_queue = {
             # during validation
             Node(AST.Value, [lambda bv: True])]),
     },
-    # 5. If needed, set TDWBAL/TWDBAH to enable head write back.
+    # 5. If needed, set TDWBAL and TWDBAH to enable head write back.
     "Program TDWBAL" : {
        "action" : Node(AST.Write, [
             Node(AST.Reg, ["TDBAL.TDBAL"]), 

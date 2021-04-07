@@ -1,3 +1,3 @@
 """
-Contains structs/ models.
+Contains structs models.
 """

@@ -1,8 +1,6 @@
-# Standard/External libraries
 import angr
 import claripy
 
-# Us
 import binary.bitsizes as bitsizes
 import binary.cast as cast
 import binary.utils as utils
@@ -29,7 +27,9 @@ class os_memory_alloc(angr.SimProcedure):
 
         # Postconditions
         result = self.state.memory.allocate(count, size, name="allocated", default=claripy.BVV(0, self.state.solver.eval_one(size, cast_to=int) * 8))
-        utils.add_constraints_and_check_sat(self.state, (count * size == 0) | (result % (count * size) == 0))
+        # Optimization: Avoid use of a modulo
+        multiplier = claripy.BVS("memory_mult", bitsizes.ptr)
+        utils.add_constraints_and_check_sat(self.state, result == multiplier * (count * size))
         print("!!! os_memory_alloc", count, size, "->", result)
         return result
 
@@ -41,7 +41,7 @@ class os_memory_phys_to_virt(angr.SimProcedure):
 
         original_addr = addr.args[0].args[2].args[0]
         if utils.can_be_false(self.state.solver, addr == original_addr):
-            raise Exception("Sorry, expected an addr as a BAR0 high/low pair")
+            raise Exception("Sorry, expected an addr as a BAR0 high-low pair")
 
         devices = self.state.metadata.get_all(nf_device.SpecDevice)
         for dev in devices.values():

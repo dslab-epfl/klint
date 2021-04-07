@@ -1,3 +1,3 @@
 """
-Contains external stubs.
+Contains external models.
 """

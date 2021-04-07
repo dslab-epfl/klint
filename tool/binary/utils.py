@@ -1,4 +1,3 @@
-# Standard/External libraries
 import angr
 import claripy
 
@@ -64,7 +63,7 @@ def get_exact_match(solver, item, candidates, assumption=claripy.true, selector=
 def fork_always(proc, state, case_true, case_false):
     false_was_unsat = False
     if not state.solver.satisfiable():
-        raise Exception("too lazy to handle this :/")
+        raise Exception("I'm too lazy to handle this...")
 
     try:
         state_copy = state.copy()

@@ -1,4 +1,3 @@
-# Standard/External libraries
 from angr.state_plugins.plugin import SimStatePlugin
 import claripy
 import copy
@@ -11,7 +10,6 @@ from enum import Enum
 
 import datetime
 
-# Us
 from . import bitsizes
 from . import utils
 
@@ -38,9 +36,8 @@ def MapGet(map, key, value_size, version=None):
 claripy.operations.leaf_operations.add("MapHas")
 claripy.operations.leaf_operations.add("MapGet")
 
+# note: replace_dict must have AST .cache_key as keys
 def eval_map_ast_core(expr, replace_dict, has_handler, get_handler):
-    # claripy.ast.Base.replace_dict needs a dict with .cache_key
-    replace_dict = {k.cache_key: v for (k,v) in replace_dict.items()}
     def replacer(leaf):
         if not isinstance(leaf, claripy.ast.Base):
             return leaf
@@ -89,7 +86,8 @@ class MapInvariant:
         self.present = present
 
     def __call__(self, state, item, condition=claripy.true):
-        return eval_map_ast(state, self.expr, replace_dict={self.key: item.key, self.value: item.value, self.present: item.present}, condition=item.present & condition)
+        replace_dict = {self.key.cache_key: item.key, self.value.cache_key: item.value, self.present.cache_key: item.present}
+        return eval_map_ast(state, self.expr, replace_dict=replace_dict, condition=item.present & condition)
 
     def __eq__(self, other):
         return self.expr.structurally_match(other.expr)
@@ -385,7 +383,7 @@ class Map:
             self.meta,
             self._length,
             self.invariant_conjunctions(),
-            self.known_items() if keep_known_items else [] # useful for exporting data without also exporting _map/_filter which are lambdas
+            self.known_items() if keep_known_items else [] # useful for exporting data without also exporting _map and _filter which are lambdas
         )
 
     def set_length(self, new_length):
@@ -468,7 +466,7 @@ class GhostMapsPlugin(SimStatePlugin):
     def set(self, obj, key, value, UNSAFE_can_flatten=False):
         # UNSAFE_can_flatten, as its name implies, is only safe if the map has not been used for anything else (e.g. an invariant of another map)
         # This is an optimization aimed at memory. Ideally we'd remove it because it's weird and requires being careful,
-        # but as long as we have big concrete slabs of memory for RX/TX descriptors we need it.
+        # but as long as we have big concrete slabs of memory for RX and TX descriptors we need it.
         self.state.metadata.set(obj, self[obj].set(self.state, key, value, UNSAFE_can_flatten=UNSAFE_can_flatten), override=True)
         self.state.path.ghost_record(lambda: RecordSet(obj, key, value))
 
@@ -490,7 +488,7 @@ class GhostMapsPlugin(SimStatePlugin):
     def havoc(self, obj, max_length, is_array):
         self[obj].havoc(self.state, max_length, is_array)
 
-    # === Import/Export ===
+    # === Import and Export ===
 
     def get_all(self):
         return self.state.metadata.get_all(Map).items()
@@ -702,7 +700,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
     if all(_ancestor_state.maps[o].ever_havoced or _ancestor_state.memory.get_obj_and_size_from_fracs_obj(o) != (None, None) for o in objs):
         return []
 
-    # Initialize the cache for fast read/write acces during invariant inference
+    # Initialize the cache for fast read and write acces during invariant inference
     init_cache(objs)
 
     results = queue.Queue() # pairs: (ID, maps, lambda states, maps: returns None for no changes or maps to overwrite them)
@@ -844,7 +842,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
 
     # Multithreading disabled because it causes weird errors (maybe we're configuring angr wrong; we end up with a claripy mixin shared between threads)
     # and even segfaults (which look like z3 is accessed concurrently when it shouldn't be)
-    # See https://github.com/angr/angr/issues/938
+    # See angr issue #938
     thread_main(_ancestor_state.copy(), [s.copy() for s in _states])
     """threads = []
     for n in range(os.cpu_count()): # os.sched_getaffinity(0) would be better (get the CPUs we might be restricted to) but is not available on Win and OSX

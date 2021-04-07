@@ -1,10 +1,8 @@
-# Standard/External libraries
 import angr
 import claripy
 from angr.state_plugins.plugin import SimStatePlugin
 import copy
 
-# Us
 from . import utils
 
 # TODO can we specialize this class? remove it? use ghost maps directly instead somehow (eg an enum for IDs)?

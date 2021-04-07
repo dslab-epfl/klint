@@ -1,9 +1,7 @@
-# Standard/External libraries
 import angr
 import claripy
 from collections import namedtuple
 
-# Us
 from ... import bitsizes
 from ... import cast
 from ... import utils
@@ -61,7 +59,7 @@ class os_pci_enumerate(angr.SimProcedure):
         if len(meta) == 0:
             utils.add_constraints_and_check_sat(self.state, count.ULT(256 * 32 * 8)) # 256 buses, 32 devices, 8 functions
             meta = PciDevices(
-                self.state.memory.allocate(count, 8, name="pci_devices", constraint=lambda k, v: (v.reversed & 0x00_E0_F8_FFFFFFFFFF) == 0), # 8 == sizeof(os_pci_address); enforce constraints on B/D/F and padding
+                self.state.memory.allocate(count, 8, name="pci_devices", constraint=lambda k, v: (v.reversed & 0x00_E0_F8_FFFFFFFFFF) == 0), # 8 == sizeof(os_pci_address); enforce constraints on BDF and padding
                 count
             )
             self.state.metadata.set(None, meta)

@@ -1,3 +1,3 @@
 """
-Contains os/ models.
+Contains os models.
 """

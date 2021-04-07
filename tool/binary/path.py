@@ -1,4 +1,3 @@
-# Standard/External libraries
 from angr import SimProcedure
 from angr.state_plugins.plugin import SimStatePlugin
 from angr.state_plugins.sim_action import SimActionObject

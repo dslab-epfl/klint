@@ -1,4 +1,3 @@
-# Standard/External libraries
 import claripy
 
 from . import bitsizes

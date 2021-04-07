@@ -1,9 +1,7 @@
-# Standard/External libraries
 import angr
 import claripy
 from collections import namedtuple
 
-# Us
 import binary.bitsizes as bitsizes
 import binary.cast as cast
 import binary.utils as utils
@@ -108,7 +106,7 @@ class OsMap2Set(angr.SimProcedure):
         value = self.state.memory.load(value_ptr, mapp.value_size, endness=self.state.arch.memory_endness)
         if utils.can_be_false(self.state.solver, claripy.Not(self.state.maps.get(mapp.items, key)[1])):
             raise Exception("Precondition does not hold: ghostmap_get(items, key) == none")
-        print("!!! os_map2_set key/value", key, value)
+        print("!!! os_map2_set key and value", key, value)
 
         # Postconditions
         def case_true(state):

@@ -1,8 +1,6 @@
-# Standard/External libraries
 import angr
 import claripy
 
-# Us
 from ... import cast
 from ... import utils
 

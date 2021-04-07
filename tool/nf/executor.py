@@ -1,11 +1,9 @@
-# Standard/External libraries
 import angr
 import claripy
 import datetime
 import subprocess
 import os
 
-# Us
 import binary.clock as binary_clock
 import binary.executor as bin_exec
 import binary.utils as utils

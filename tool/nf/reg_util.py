@@ -94,7 +94,7 @@ def find_reg_from_addr(state, addr, _cache={}):
             for b, m, l in data['addr']:
                 high = b + (l-idx)*m + len_bytes
                 if b <= conc_addr and conc_addr < high:
-                    reg_index = 0 if m == 0 else ((conc_addr - b) / m + idx)
+                    reg_index = 0 if m == 0 else ((conc_addr - b) // m + idx)
                     if int(reg_index) == reg_index:
                         reg_index = int(reg_index) # they compare as equal but without this reg_index is still a float
                         #print(f"{reg}[{reg_index}]")

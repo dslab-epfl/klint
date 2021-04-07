@@ -1,8 +1,7 @@
-# Standard/External libraries
 import claripy
 from angr.state_plugins.plugin import SimStatePlugin
 
-# Only supports port I/O to PCI devices (and enforces it)
+# Only supports port IO to PCI devices (and enforces it)
 class PciPlugin(SimStatePlugin):
     def __init__(self, address=None, flushed=False, handle_read=None, handle_write=None):
         SimStatePlugin.__init__(self)
@@ -31,9 +30,9 @@ class PciPlugin(SimStatePlugin):
 
     def handle_in(self, port, size):
         if port != 0xCFC:
-            raise Exception("Unknown port to read from for port I/O")
+            raise Exception("Unknown port to read from for port IO")
         if not self._flushed:
-            raise Exception("Attempt to read from PCI via I/O without having addressed and flushed first")
+            raise Exception("Attempt to read from PCI via IO without having addressed and flushed first")
 
         return self._handle_read(self.state, self._address)
 
@@ -46,10 +45,10 @@ class PciPlugin(SimStatePlugin):
                 self._flushed = True
         elif port == 0xCFC:
             if not self._flushed:
-                raise Exception("Attempt to write to PCI via port I/O without having addressed and flushed first")
+                raise Exception("Attempt to write to PCI via port IO without having addressed and flushed first")
             self._handle_write(self.state, self._address, data)
         else:
-            raise Exception("Unknown port to write to for port I/O")
+            raise Exception("Unknown port to write to for port IO")
 
 
     def _parse_address(self, data):
