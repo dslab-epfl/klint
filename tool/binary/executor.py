@@ -130,6 +130,14 @@ class CustomSolver(
         template_solver_string = template_solver_string or SolverCompositeChild(track=track, backend=backends.z3)
         super().__init__(template_solver, template_solver_string, track=track, **kwargs)
 
+    def add(self, constraints, **kwargs):
+        if False: # debug
+            for con in constraints:
+                super().add([con], **kwargs)
+                if not self.satisfiable():
+                    raise Exception("UNSAT after adding constraint: " + str(con))
+        return super().add(constraints, **kwargs)
+
 # Keep only what we need in the memory, including our custom layers
 import angr.storage.memory_mixins as csms
 class CustomMemory(

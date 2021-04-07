@@ -106,15 +106,3 @@ def structural_eq(a, b):
     if hasattr(a, '__iter__') and hasattr(b, '__iter__') and hasattr(a, '__len__') and hasattr(b, '__len__'):
         return len(a) == len(b) and all(structural_eq(ai, bi) for (ai, bi) in zip(a, b))
     return a == b
-
-def add_constraints_and_check_sat(state, *constraints, **kwargs):
-    if False: # debug; slower!
-        for c in constraints:
-            state.add_constraints(c, **kwargs)
-            if not state.solver.satisfiable():
-                raise angr.errors.SimUnsatError("UNSAT after adding constraint")
-        return
-    # TODO why is this simplify needed here? constraints shouldn't be added if c is like "false || true" but without it they are
-    state.add_constraints(*[state.solver.simplify(c) for c in constraints], **kwargs)
-    if not state.solver.satisfiable():
-        raise angr.errors.SimUnsatError("UNSAT after adding constraints")

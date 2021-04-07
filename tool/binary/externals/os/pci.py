@@ -16,12 +16,12 @@ PciDevices = namedtuple('PciDevices', ['ptr', 'count'])
 def get_device(state, bus, device, function):
     meta = state.metadata.get_unique(PciDevices)
     index = claripy.BVS("pci_index", bitsizes.size_t)
-    utils.add_constraints_and_check_sat(state, index.ULT(meta.count))
+    state.solver.add(index.ULT(meta.count))
     value = state.memory.load(meta.ptr + index * 8, 8).reversed # 8 == sizeof(os_pci_address)
     value_bus = value[7:0] # this is kind of .reversed since it should be 63:56! same for the others
     value_device = value[15:8]
     value_function = value[23:16]
-    utils.add_constraints_and_check_sat(state, bus == value_bus, device.zero_extend(3) == value_device, function.zero_extend(5) == value_function)
+    state.solver.add(bus == value_bus, device.zero_extend(3) == value_device, function.zero_extend(5) == value_function)
     index = state.solver.eval_one(index, cast_to=int) # technically not needed?
     return state.metadata.get(SpecDevice, index, default_ctor=lambda: spec_device_create_default(state, index))
 
@@ -57,14 +57,14 @@ class os_pci_enumerate(angr.SimProcedure):
 
         meta = self.state.metadata.get_all(PciDevices)
         if len(meta) == 0:
-            utils.add_constraints_and_check_sat(self.state, count.ULT(256 * 32 * 8)) # 256 buses, 32 devices, 8 functions
+            self.state.solver.add(count.ULT(256 * 32 * 8)) # 256 buses, 32 devices, 8 functions
             meta = PciDevices(
                 self.state.memory.allocate(count, 8, name="pci_devices", constraint=lambda k, v: (v.reversed & 0x00_E0_F8_FFFFFFFFFF) == 0), # 8 == sizeof(os_pci_address); enforce constraints on BDF and padding
                 count
             )
             self.state.metadata.set(None, meta)
             # ouch! TODO we need to do better... see above if count were to be symbolic
-            utils.add_constraints_and_check_sat(self.state, self.state.memory.load(meta.ptr + 0 * 8, 8) != self.state.memory.load(meta.ptr + 1 * 8, 8))
+            self.state.solver.add(self.state.memory.load(meta.ptr + 0 * 8, 8) != self.state.memory.load(meta.ptr + 1 * 8, 8))
         else:
             meta = next(iter(meta.values()))
 

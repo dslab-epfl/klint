@@ -21,7 +21,7 @@ class foreach_index(angr.SimProcedure):
 
         def case_nonzero(state):
             index = claripy.BVS("foreach_index", bitsizes.size_t)
-            utils.add_constraints_and_check_sat(self.state, index.ULT(length))
+            self.state.solver.add(index.ULT(length))
             func_state = self.state.project.factory.call_state(func.args[0], *[index, st], base_state=self.state)
             func_sm = self.state.project.factory.simulation_manager(func_state)
             func_sm.use_technique(angr.exploration_techniques.DFS())

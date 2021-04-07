@@ -83,7 +83,7 @@ def nf_init(bin_path, devices_count):
     # Something very fishy in here, why do we need to reverse this? angr's endianness handling keeps puzzling me
     args = [devices_count.reversed]
     sm = bin_exec.create_sim_manager(bin_path, init_externals, "nf_init", *args, state_modifier=state_modifier)
-    utils.add_constraints_and_check_sat(sm.active[0], devices_count.UGT(0))
+    sm.active[0].solver.add(devices_count.UGT(0))
     sm.run()
     if len(sm.errored) > 0:
         sm.errored[0].reraise()
@@ -124,7 +124,7 @@ def execute(bin_path):
         cc = angr.DEFAULT_CC[state.project.arch.name](state.project.arch)
         init_result = cc.get_return_val(state, stack_base=state.regs.sp - cc.STACKARG_SP_DIFF)
         try:
-            utils.add_constraints_and_check_sat(state, init_result != 0)
+            state.solver.add(init_result != 0)
         except angr.errors.SimUnsatError:
             continue
         reached_fixpoint = False

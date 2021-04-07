@@ -70,8 +70,7 @@ class LpmLookupElem(angr.SimProcedure):
         def case_some(state):
             print("!!! lpm_lookup_elem: some")
             (value, has) = state.maps.get(lpmp.table, out_route)
-            utils.add_constraints_and_check_sat(
-                state,
+            state.solver.add(
                 state.maps.forall(lpmp.table, lambda k, v: ~matches(k) | (k[7:0] < out_prefixlen_bv) | (v == out_value_bv)),
                 has,
                 value == out_value_bv,

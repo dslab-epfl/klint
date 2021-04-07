@@ -80,14 +80,14 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
             if count.structurally_match(claripy.BVV(1, count.size())):
                 self.state.maps.set(addr, claripy.BVV(0, bitsizes.ptr), default) # simpler
             else:
-                utils.add_constraints_and_check_sat(self.state, self.state.maps.forall(addr, lambda k, v: v == default))
+                self.state.solver.add(self.state.maps.forall(addr, lambda k, v: v == default))
         if constraint is not None:
-            utils.add_constraints_and_check_sat(self.state, self.state.maps.forall(addr, constraint))
+            self.state.solver.add(self.state.maps.forall(addr, constraint))
         # neither null nor so high it overflows (note the -1 becaus 1-past-the-array is legal C)
-        utils.add_constraints_and_check_sat(self.state, addr != 0, addr.ULE(claripy.BVV(2**bitsizes.ptr-1, bitsizes.ptr) - max_size - 1))
+        self.state.solver.add(addr != 0, addr.ULE(claripy.BVV(2**bitsizes.ptr-1, bitsizes.ptr) - max_size - 1))
 
         fractions = self.state.maps.new_array(bitsizes.ptr, 8, count, name + MapsMemoryMixin.FRACS_NAME)
-        utils.add_constraints_and_check_sat(self.state, self.state.maps.forall(fractions, lambda k, v: v == 100))
+        self.state.solver.add(self.state.maps.forall(fractions, lambda k, v: v == 100))
 
         self.state.metadata.set(addr, MapsMemoryMixin.Metadata(count, size, fractions))
 

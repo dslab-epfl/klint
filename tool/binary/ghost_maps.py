@@ -200,7 +200,7 @@ class Map:
         else:
             known_length_lte_total = self.known_length() <= self.length()
 
-        utils.add_constraints_and_check_sat(state, 
+        state.solver.add(
             # Add K = K' => (V = V' and P = P') to the path constraint for each existing known item (K', V', P') in the map,
             *[Implies(key == i.key, (value == i.value) & (present == i.present)) for i in known_items],
             # Add UK => invariant(M)(K', V', P') to the path constraint [conditioned]
@@ -301,7 +301,7 @@ class Map:
     def havoc(self, state, max_length, is_array):
         if max_length is not None:
             self._length = claripy.BVS("havoced_length", max_length.size())
-            utils.add_constraints_and_check_sat(state, self._length.ULE(max_length))
+            state.solver.add(self._length.ULE(max_length))
         if is_array:
             self._invariants = [MapInvariant.new(state, self.meta, lambda i, length=self._length: (i.key < length) == i.present)]
         else:

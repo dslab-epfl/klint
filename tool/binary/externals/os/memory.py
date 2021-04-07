@@ -29,7 +29,7 @@ class os_memory_alloc(angr.SimProcedure):
         result = self.state.memory.allocate(count, size, name="allocated", default=claripy.BVV(0, self.state.solver.eval_one(size, cast_to=int) * 8))
         # Optimization: Avoid use of a modulo
         multiplier = claripy.BVS("memory_mult", bitsizes.ptr)
-        utils.add_constraints_and_check_sat(self.state, result == multiplier * (count * size))
+        self.state.solver.add(result == multiplier * (count * size))
         print("!!! os_memory_alloc", count, size, "->", result)
         return result
 

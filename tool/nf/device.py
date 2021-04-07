@@ -55,7 +55,7 @@ def device_writer(state, base, offset, value):
         packet_data = state.memory.allocate(1, packet.PACKET_MTU, name="packet_data")
         packet_desc_meta = packet_length.zero_extend(64 - packet_length.size()) | (0b11 << 32) # DD and EOP, plus length
 
-        utils.add_constraints_and_check_sat(state, packet_length.UGE(packet.PACKET_MIN), packet_length.ULE(packet.PACKET_MTU))
+        state.solver.add(packet_length.UGE(packet.PACKET_MIN), packet_length.ULE(packet.PACKET_MTU))
         state.metadata.set(packet_addr, packet.NetworkMetadata(packet_data, packet_addr, dev.index, packet_length, []))
 
         state.memory.store(packet_addr, packet_data, endness=state.arch.memory_endness)
@@ -82,7 +82,7 @@ def spec_device_create_default(state, index):
     device = SpecDevice(index, claripy.BVS("dev_phys_addr", bitsizes.ptr), claripy.BVS("dev_virt_addr", bitsizes.ptr), bar_size, {}, {}, [0], [False], [None], {})
 
     # Phys addr handling
-    utils.add_constraints_and_check_sat(state, device.phys_addr & 0b1111 == 0) # since the bottom 4 bits of the BAR are non-address stuff
+    state.solver.add(device.phys_addr & 0b1111 == 0) # since the bottom 4 bits of the BAR are non-address stuff
     phys_addr_low = (device.phys_addr & 0xFFFFFFFF) | 0b0100
     phys_addr_high = device.phys_addr >> 32
     reg_util.update_reg(device.pci_regs, 'BAR0', None, spec_reg.pci_regs['BAR0'], phys_addr_low)

@@ -69,7 +69,7 @@ class index_pool_borrow(angr.SimProcedure):
         self.state.memory.store(out_used, used, endness=self.state.arch.memory_endness)
 
         result = claripy.BVS("borrow_result", bitsizes.bool)
-        utils.add_constraints_and_check_sat(self.state,
+        self.state.solver.add(
             claripy.If(
                 self.state.maps.length(poolp.items) == poolp.size,
                 claripy.If(
@@ -82,7 +82,7 @@ class index_pool_borrow(angr.SimProcedure):
         )
         def case_true(state):
             print("!!! index_pool_borrow true")
-            utils.add_constraints_and_check_sat(state,
+            state.solver.add(
                 index.ULT(poolp.size),
                 claripy.If(
                     used != claripy.BVV(0, bitsizes.bool),
