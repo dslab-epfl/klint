@@ -414,9 +414,6 @@ class Map:
     def __repr__(self):
         return f"[Map {self.meta.name} v{self.version()}]"
 
-    def _asdict(self): # pretend we are a namedtuple so functions that expect one will work (e.g. utils.structural_eq)
-        return {'meta': self.meta, '_length': self._length, '_invariants': self._invariants, '_known_items': self._known_items, '_previous': self._previous, '_filter': self._filter, '_map': self._map}
-
 
 # Recording stuff
 RecordNew = namedtuple('RecordNew', ['key_size', 'value_size', 'result'])
@@ -718,7 +715,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
         ancestor_length = _ancestor_state.maps.length(o)
         for state in _states_to_merge:
             if utils.can_be_false(state.solver, state.maps.length(o) == ancestor_length):
-                print("Length of map", o, " was changed; making it symbolic")
+                print("Length of map", o, "was changed; making it symbolic")
                 results.put((ResultType.LENGTH_VAR, [o], lambda st, ms: ms[0].set_length(claripy.BVS("map_length", ms[0].length().size()))))
                 break
 
@@ -897,15 +894,10 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
     return cross_results + length_results
 
 def maps_merge_one(states_to_merge, obj, ancestor_state):
-    # Do not even consider maps that have not changed at all, e.g. those that are de facto readonly after initialization
-    # This is not an optimization, if we don't check this we'll end up havocing the contents of e.g. a "state" struct
-    # in theory this could be fine if we collected constraints about it like "the first 64 bits are the pointer to another struct"
-    # but we don't, so.
-    if all(utils.structural_eq(ancestor_state.maps[obj], st.maps[obj]) for st in states_to_merge):
-        return (ancestor_state.maps[obj], False)
-
     # Optimization: Drop states in which the map has not changed at all
-    states_to_merge = [st for st in states_to_merge if not utils.structural_eq(ancestor_state.maps[obj], st.maps[obj])]
+    states_to_merge = [st for st in states_to_merge if st.maps[obj].version() != ancestor_state.maps[obj].version()]
+    if len(states_to_merge) == 0:
+        return (ancestor_state.maps[obj], False)
 
     print("Merging map", obj)
     # helper function to find constraints that hold on an expression in a state

@@ -21,10 +21,8 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
         (base, index, offset) = self._base_index_offset(addr)
 
         meta = self.state.metadata.get(MapsMemoryMixin.Metadata, base)
-        fraction, _ = self.state.maps.get(meta.fractions, index)
-        if utils.can_be_true(self.state.solver, fraction == 0):
-            raise Exception("Attempt to load without definitely having access to the object at addr " + str(addr) + " ; fraction is " + str(fraction) + " ; constraints are " + str(self.state.solver.constraints) + " ; e.g. could be " + str(self.state.solver.eval_upto(fraction, 10, cast_to=int)))
-        
+        fraction, present = self.state.maps.get(meta.fractions, index)
+        self.state.solver.add(present & (fraction != 0))
         data, _ = self.state.maps.get(base, index)
 
         if endness is not None and endness != self.endness:
@@ -49,9 +47,8 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
         (base, index, offset) = self._base_index_offset(addr)
 
         meta = self.state.metadata.get(MapsMemoryMixin.Metadata, base)
-        fraction, _ = self.state.maps.get(meta.fractions, index)
-        if utils.can_be_true(self.state.solver, fraction != 100):
-            raise Exception("Attempt to store without definitely owning the object at addr " + str(addr) + " ; fraction is " + str(fraction) + " ; constraints are " + str(self.state.solver.constraints) + " ; e.g. could be " + str(self.state.solver.eval_upto(fraction, 10, cast_to=int)))
+        fraction, present = self.state.maps.get(meta.fractions, index)
+        self.state.solver.add(present & (fraction == 100))
 
         if data.size() != self.state.maps.value_size(base):
             current, _ = self.state.maps.get(base, index)
@@ -105,9 +102,7 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
         current_fraction, present = self.state.maps.get(meta.fractions, index)
         if fraction is None:
             fraction = current_fraction
-
-        if utils.can_be_true(self.state.solver, ~present | current_fraction.ULT(fraction)):
-            raise Exception("Cannot take if the item may not be present or if the fraction is too much")
+        self.state.solver.add(present & current_fraction.UGE(fraction))
 
         self.state.maps.set(meta.fractions, index, current_fraction - fraction)
 
@@ -122,9 +117,8 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
 
         meta = self.state.metadata.get(MapsMemoryMixin.Metadata, base)
 
-        current_fraction, _ = self.state.maps.get(meta.fractions, index)
-        if utils.can_be_true(self.state.solver, (current_fraction + fraction).UGT(100)):
-            raise Exception("Cannot give " + str(fraction) + " ; there is already " + str(current_fraction))
+        current_fraction, present = self.state.maps.get(meta.fractions, index)
+        self.state.solver.add(present & (current_fraction + fraction).ULE(100))
 
         self.state.maps.set(meta.fractions, index, current_fraction + fraction)
 
@@ -179,7 +173,7 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
             added = sum([a for a in addr.args if not a.structurally_match(base)])
 
             meta = self.state.metadata.get(MapsMemoryMixin.Metadata, base)
-            offset = self.state.solver.eval_one(added % meta.size, cast_to=int)
+            offset = self.state.solver.eval_one(modulo_simplify(added, meta.size), cast_to=int)
             # Don't make the index be a weird '0 // ...' expr if we can avoid it, but don't call the solver for that
             if (added == offset).is_true():
                 index = claripy.BVV(0, 64)
@@ -192,3 +186,52 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
             return (addr, claripy.BVV(0, 64), 0)
 
         raise Exception("B_I_O doesn't know what to do with: " + str(addr) + " of type " + str(type(addr)) + " ; op is " + str(addr.op) + " ; args is " + str(addr.args) + " ; constrs are " + str(self.state.solver.constraints))
+
+
+# Optimization: the "modulo_simplify" function allows MapsMemoryMixin to avoid calling the solver when computing the offset of a memory access
+
+# Returns a dictionary such that ast == sum(e.ast * m for (e, m) in result.items())
+def as_mult_add(ast):
+    if ast.op == '__lshift__':
+        nested = as_mult_add(ast.args[0])
+        return {e: m << ast.args[1] for (e, m) in nested.items()}
+    if ast.op == '__add__' or ast.op == '__sub__':
+        coeff = 1
+        result = {}
+        for arg in ast.args:
+            nested = as_mult_add(arg)
+            for e, m in nested.items():
+                result.setdefault(e, 0)
+                result[e] += coeff * m
+            coeff = 1 if ast.op == '__add__' else -1
+        return result
+    if ast.op == '__mul__':
+        lone_sym = None
+        con = None
+        for arg in ast.args:
+            if arg.symbolic:
+                if lone_sym is not None:
+                    break
+                lone_sym = arg
+            else:
+                # Avoid introducing "1 * ..." terms
+                if con is None:
+                    con = arg
+                else:
+                    con *= arg
+        else:
+            if con is None:
+                return as_mult_add(lone_sym)
+            else:
+                return {e: m * con for (e, m) in as_mult_add(lone_sym).items()}
+    return {ast.cache_key: 1}
+
+# Returns a simplified form of a % b
+def modulo_simplify(a, b):
+    result = 0
+    for (e, m) in as_mult_add(a).items():
+        # note that is_true just performs basic checks, so if as_mult_add decomposed it nicely, we'll skip the modulo entirely
+        # e.g. (x * 4) % 2 can be simplified to 0
+        if not (e.ast % b == claripy.BVV(0, a.size())).is_true() and not (m % b == claripy.BVV(0, a.size())).is_true():
+            result += e.ast * m
+    return result % b

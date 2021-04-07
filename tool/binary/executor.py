@@ -14,13 +14,19 @@ from .path import PathPlugin
 from .pci import PciPlugin
 from .plugin_dummy import DummyPlugin
 
-# Disable logs we don't care about
-import logging
-logging.getLogger('cle.loader').setLevel('ERROR')
-logging.getLogger('cle.backends.externs').setLevel('ERROR')
-logging.getLogger('angr.engines.successors').setLevel('ERROR')
-logging.getLogger('angr.project').setLevel('ERROR')
-#logging.getLogger('angr').setLevel('DEBUG')
+
+DEBUG = False
+
+claripy.set_debug(DEBUG)
+if not DEBUG:
+    # Disable logs we don't care about
+    import logging
+    logging.getLogger('cle.loader').setLevel('ERROR')
+    logging.getLogger('cle.backends.externs').setLevel('ERROR')
+    logging.getLogger('angr.engines.successors').setLevel('ERROR')
+    logging.getLogger('angr.project').setLevel('ERROR')
+    #logging.getLogger('angr').setLevel('DEBUG')
+
 
 # Instantiate this and call install() on it to make angr's externals management sound (i.e., any external call will error, not silently be symbolic)
 class EmptyLibrary():
@@ -131,7 +137,7 @@ class CustomSolver(
         super().__init__(template_solver, template_solver_string, track=track, **kwargs)
 
     def add(self, constraints, **kwargs):
-        if False: # debug
+        if DEBUG:
             for con in constraints:
                 super().add([con], **kwargs)
                 if not self.satisfiable():

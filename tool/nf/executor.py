@@ -97,7 +97,7 @@ def nf_handle(bin_path, state, devices_count):
     if len(sm.errored) > 0:
         sm.errored[0].reraise()
     if len(sm.unsat) > 0:
-        raise Exception("There are unsat states! e.g. " + ", ".join(map(str, sm.unsat[0].solver.constraints)))
+        raise Exception("There are unsat states! e.g. " + ", ".join([str(c) for c in sm.unsat[0].solver.constraints]))
     return sm.deadended
 
 def havoc_iter(bin_path, state, devices_count, previous_results):
@@ -123,9 +123,8 @@ def execute(bin_path):
         # code to get the return value copied from angr's "Callable" implementation
         cc = angr.DEFAULT_CC[state.project.arch.name](state.project.arch)
         init_result = cc.get_return_val(state, stack_base=state.regs.sp - cc.STACKARG_SP_DIFF)
-        try:
-            state.solver.add(init_result != 0)
-        except angr.errors.SimUnsatError:
+        state.solver.add(init_result != 0)
+        if not state.solver.satisfiable():
             continue
         reached_fixpoint = False
         previous_results = None

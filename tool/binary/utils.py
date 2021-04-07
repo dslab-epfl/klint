@@ -2,38 +2,38 @@ import angr
 import claripy
 
 def read_str(state, ptr):
-  result = ""
-  while True:
-    char = state.memory.load(ptr, 1)
-    if char.symbolic:
-      raise Exception("Trying to read a symbolic string!")
-    char = state.solver.eval_one(char, cast_to=int)
-    if char == 0:
-      break
-    result += chr(char)
-    ptr = ptr + 1
-  return result
+    result = ""
+    while True:
+        char = state.memory.load(ptr, 1)
+        if char.symbolic:
+            raise Exception("Trying to read a symbolic string!")
+        char = state.solver.eval_one(char, cast_to=int)
+        if char == 0:
+            break
+        result += chr(char)
+        ptr = ptr + 1
+    return result
 
 
 def can_be_true(solver, cond):
-  return solver.satisfiable(extra_constraints=[cond])
+    return solver.satisfiable(extra_constraints=[cond])
 
 def can_be_false(solver, cond):
-  return solver.satisfiable(extra_constraints=[~cond])
+    return solver.satisfiable(extra_constraints=[~cond])
 
 def definitely_true(solver, cond):
-  return not can_be_false(solver, cond)
+    return not can_be_false(solver, cond)
 
 def definitely_false(solver, cond):
-  return not can_be_true(solver, cond)
+    return not can_be_true(solver, cond)
 
 def get_if_constant(solver, expr, **kwargs):
-  sols = solver.eval_upto(expr, 2, **kwargs)
-  if len(sols) == 0:
-    raise Exception("Could not evaluate: " + str(expr))
-  if len(sols) == 1:
-      return sols[0]
-  return None
+    sols = solver.eval_upto(expr, 2, **kwargs)
+    if len(sols) == 0:
+        raise Exception("Could not evaluate: " + str(expr))
+    if len(sols) == 1:
+        return sols[0]
+    return None
 
 def get_exact_match(solver, item, candidates, assumption=claripy.true, selector=lambda i: i):
     # at one point this exact pattern, even after calling solver.simplify, caused the solver to hang...
@@ -86,23 +86,3 @@ def fork_guarded_has(proc, state, ghost_map, key, case_has, case_not):
     def case_false(state):
         return case_not(state)
     return fork_guarded(proc, state, present, case_true, case_false)
-
-
-def structural_eq(a, b):
-    if a is None and b is None:
-        return True
-    if a is None or b is None:
-        return False
-    if isinstance(a, claripy.ast.Base) and isinstance(b, claripy.ast.Base):
-        return a.structurally_match(b)
-    if hasattr(a, '_asdict') and hasattr(b, '_asdict'): # namedtuple
-        ad = a._asdict()
-        bd = b._asdict()
-        return structural_eq(ad, bd)
-    if isinstance(a, dict) and isinstance(b, dict):
-        return all(structural_eq(a[k], b[k]) for k in set(a.keys()).union(b.keys()))
-    if isinstance(a, str) and isinstance(b, str):
-        return a == b # no point in doing it the complicated way
-    if hasattr(a, '__iter__') and hasattr(b, '__iter__') and hasattr(a, '__len__') and hasattr(b, '__len__'):
-        return len(a) == len(b) and all(structural_eq(ai, bi) for (ai, bi) in zip(a, b))
-    return a == b

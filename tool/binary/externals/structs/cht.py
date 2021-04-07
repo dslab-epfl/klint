@@ -19,13 +19,11 @@ class ChtAlloc(angr.SimProcedure):
         backend_capacity = cast.size_t(backend_capacity)
 
         # Preconditions
-        precond = claripy.And(
+        self.state.solver.add(
             0 < cht_height, cht_height < MAX_CHT_HEIGHT,
             0 < backend_capacity, backend_capacity < cht_height, 
             cht_height * backend_capacity < (2 ** bitsizes.uint32_t - 1)
         )
-        if utils.can_be_false(self.state.solver, precond):
-            raise Exception("Precondition does not hold.")
 
         # Postconditions
         result = claripy.BVS("cht", bitsizes.ptr)
@@ -50,8 +48,7 @@ class ChtFindPreferredAvailableBackend(angr.SimProcedure):
         cht = self.state.metadata.get(Cht, cht)
         active_backends = self.state.metadata.get(Pool, active_backends)
         self.state.memory.load(chosen_backend, bitsizes.size_t // 8)
-        if utils.can_be_false(self.state.solver, cht.backend_capacity <= active_backends.size):
-            raise Exception("Precondition does not hold.")
+        self.state.solver.add(cht.backend_capacity <= active_backends.size)
 
         # Postconditions
         backend = claripy.BVS("backend", bitsizes.size_t)

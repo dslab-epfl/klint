@@ -20,8 +20,7 @@ class index_pool_alloc(angr.SimProcedure):
         expiration_time = cast.uint64_t(expiration_time)
 
         # Preconditions
-        if utils.can_be_false(self.state.solver, (size * bitsizes.uint64_t).ULE(2 ** bitsizes.size_t - 1)):
-            raise Exception("Precondition does not hold: size * sizeof(time_t) <= SIZE_MAX")
+        self.state.solver.add((size * bitsizes.uint64_t).ULE(2 ** bitsizes.size_t - 1))
 
         # Postconditions
         result = claripy.BVS("index_pool", bitsizes.ptr)
@@ -57,8 +56,7 @@ class index_pool_borrow(angr.SimProcedure):
 
         # Preconditions
         poolp = self.state.metadata.get(Pool, pool)
-        if utils.can_be_false(self.state.solver, time != 0xFF_FF_FF_FF_FF_FF_FF_FF):
-            raise Exception("Precondition does not hold: time != TIME_MAX")
+        self.state.solver.add(time != 0xFF_FF_FF_FF_FF_FF_FF_FF)
         self.state.memory.load(out_index, bitsizes.size_t // 8)
         self.state.memory.load(out_used, bitsizes.bool // 8)
 
@@ -115,12 +113,11 @@ class index_pool_refresh(angr.SimProcedure):
 
         # Preconditions
         poolp = self.state.metadata.get(Pool, pool)
-        if utils.can_be_false(self.state.solver, time != 0xFF_FF_FF_FF_FF_FF_FF_FF):
-            raise Exception("Precondition does not hold: time != TIME_MAX")
-        if utils.can_be_false(self.state.solver, index < poolp.size):
-            raise Exception("Precondition does not hold: index < size")
-        if utils.can_be_false(self.state.solver, self.state.maps.get(poolp.items, index)[1]):
-            raise Exception("Precondition does not hold: ghostmap_get(items, index) != none")
+        self.state.solver.add(
+            time != 0xFF_FF_FF_FF_FF_FF_FF_FF,
+            index < poolp.size,
+            self.state.maps.get(poolp.items, index)[1]
+        )
 
         # Postconditions
         self.state.maps.set(poolp.items, index, time)
@@ -172,10 +169,10 @@ class index_pool_return(angr.SimProcedure):
 
         # Preconditions
         poolp = self.state.metadata.get(Pool, pool)
-        if utils.can_be_false(self.state.solver, index < poolp.size):
-            raise Exception("Precondition does not hold: index < size")
-        if utils.can_be_false(self.state.solver, self.state.maps.get(poolp.items, index)[1]):
-            raise Exception("Precondition does not hold: ghostmap_get(items, index) != none")
+        self.state.solver.add(
+            index < poolp.size,
+            self.state.maps.get(poolp.items, index)[1]
+        )
 
         # Postconditions
         self.state.maps.remove(poolp.items, index)

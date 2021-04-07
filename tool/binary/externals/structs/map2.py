@@ -31,16 +31,13 @@ class OsMap2Alloc(angr.SimProcedure):
             raise Exception("key_size cannot be symbolic")
 
         # Preconditions
-        if utils.can_be_false(self.state.solver, key_size.UGT(0)):
-            raise Exception("Precondition does not hold: key_size > 0")
-        if utils.can_be_false(self.state.solver, (key_size * capacity * 2).ULE(2 ** bitsizes.size_t - 1)):
-            raise Exception("Precondition does not hold: key_size * capacity * 2 <= SIZE_MAX")
-        if utils.can_be_false(self.state.solver, value_size.UGT(0)):
-            raise Exception("Precondition does not hold: value_size > 0")
-        if utils.can_be_false(self.state.solver, (value_size * capacity * 2).ULE(2 ** bitsizes.size_t - 1)):
-            raise Exception("Precondition does not hold: value_size * capacity * 2 <= SIZE_MAX")
-        if utils.can_be_false(self.state.solver, (capacity * bitsizes.size_t * 2).ULE(2 ** bitsizes.size_t - 1)):
-            raise Exception("Precondition does not hold: capacity * sizeof(size_t) * 2 <= SIZE_MAX")
+        self.state.solver.add(
+            key_size.UGT(0),
+            (key_size * capacity * 2).ULE(2 ** bitsizes.size_t - 1),
+            value_size.UGT(0),
+            (value_size * capacity * 2).ULE(2 ** bitsizes.size_t - 1),
+            (capacity * bitsizes.size_t * 2).ULE(2 ** bitsizes.size_t - 1)
+        )
 
         # Postconditions
         result = claripy.BVS("os_map2", bitsizes.ptr)
@@ -104,8 +101,7 @@ class OsMap2Set(angr.SimProcedure):
         mapp = self.state.metadata.get(Map, map)
         key = self.state.memory.load(key_ptr, mapp.key_size, endness=self.state.arch.memory_endness)
         value = self.state.memory.load(value_ptr, mapp.value_size, endness=self.state.arch.memory_endness)
-        if utils.can_be_false(self.state.solver, claripy.Not(self.state.maps.get(mapp.items, key)[1])):
-            raise Exception("Precondition does not hold: ghostmap_get(items, key) == none")
+        self.state.solver.add(claripy.Not(self.state.maps.get(mapp.items, key)[1]))
         print("!!! os_map2_set key and value", key, value)
 
         # Postconditions
@@ -133,8 +129,7 @@ class OsMap2Remove(angr.SimProcedure):
         # Preconditions
         mapp = self.state.metadata.get(Map, map)
         key = self.state.memory.load(key_ptr, mapp.key_size, endness=self.state.arch.memory_endness)
-        if utils.can_be_false(self.state.solver, self.state.maps.get(mapp.items, key)[1]):
-            raise Exception("Precondition does not hold: ghostmap_get(items, key) != none")
+        self.state.solver.add(self.state.maps.get(mapp.items, key)[1])
         print("!!! os_map2_remove key", key)
 
         # Postconditions
