@@ -18,7 +18,7 @@ class ExternalWrapper(SimProcedure):
         self.state.path.begin_record(self.true_display_name, [a.ast if isinstance(a, SimActionObject) else a for a in args])
         ret = self.wrapped.run(*args, **kwargs)
         # This will execute for the current state in case the procedure forked, not the other one;
-        # to handle the other one, we explicitly deal with it in utils.fork_always
+        # to handle the other one, we explicitly deal with it in utils.fork
         self.state.path.end_record(ret)
         return ret
 

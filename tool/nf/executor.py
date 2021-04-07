@@ -96,6 +96,8 @@ def nf_handle(bin_path, state, devices_count):
     sm.run()
     if len(sm.errored) > 0:
         sm.errored[0].reraise()
+    if len(sm.unsat) > 0:
+        raise Exception("There are unsat states! e.g. " + ", ".join(map(str, sm.unsat[0].solver.constraints)))
     return sm.deadended
 
 def havoc_iter(bin_path, state, devices_count, previous_results):

@@ -60,42 +60,24 @@ def get_exact_match(solver, item, candidates, assumption=claripy.true, selector=
 
     return None
 
-def fork_always(proc, state, case_true, case_false):
-    false_was_unsat = False
-    if not state.solver.satisfiable():
-        raise Exception("I'm too lazy to handle this...")
-
-    try:
-        state_copy = state.copy()
-        ret_expr = case_false(state_copy)
-        state_copy.path.end_record(ret_expr) # hacky, see Path
-        ret_addr = proc.cc.teardown_callsite(state_copy, ret_expr, arg_types=[False]*proc.num_args if proc.cc.args is None else None)
-    except angr.errors.SimUnsatError:
-        false_was_unsat = True
-    else:
-        proc.successors.add_successor(state_copy, ret_addr, claripy.true, 'Ijk_Ret')
-
-    try:
-        return case_true(state)
-    except angr.errors.SimUnsatError as e:
-        if false_was_unsat:
-            raise Exception("Both cases were unsat!")
-        else:
-            raise e # let it bubble up to angr
 
 def fork_guarded(proc, state, guard, case_true, case_false):
-    if definitely_true(state.solver, guard):
-        return case_true(state)
-    elif definitely_false(state.solver, guard):
-        return case_false(state)
-    else:
-        def case_true_prime(state):
-            add_constraints_and_check_sat(state, guard)
+    guard_value = get_if_constant(state.solver, guard)
+    if guard_value is not None:
+        if guard_value:
             return case_true(state)
-        def case_false_prime(state):
-            add_constraints_and_check_sat(state, ~guard)
+        else:
             return case_false(state)
-        return fork_always(proc, state, case_true_prime, case_false_prime)
+
+    state_copy = state.copy()
+    state_copy.solver.add(~guard)
+    false_ret_expr = case_false(state_copy)
+    state_copy.path.end_record(false_ret_expr) # hacky, see Path
+    false_ret_addr = proc.cc.teardown_callsite(state_copy, false_ret_expr, arg_types=[False]*proc.num_args if proc.cc.args is None else None)
+    proc.successors.add_successor(state_copy, false_ret_addr, claripy.true, 'Ijk_Ret')
+
+    state.solver.add(guard)
+    return case_true(state)
 
 def fork_guarded_has(proc, state, ghost_map, key, case_has, case_not):
     (value, present) = state.maps.get(ghost_map, key)
