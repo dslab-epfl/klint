@@ -690,31 +690,27 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
     # Initialize the cache for fast read and write acces during invariant inference
     init_cache(objs)
 
+    remaining_work = queue.Queue() # all possible combinations of objects, plus once (o, None) per object
     results = queue.Queue() # pairs: (ID, maps, lambda states, maps: returns None for no changes or maps to overwrite them)
     to_cache = queue.Queue() # set_cached(...) will be called with all elements in there
 
     # Invariant inference algorithm: if some property P holds in all states to merge and the ancestor state, optimistically assume it is part of the invariant
-
-    # Optimization: Ignore maps that have not changed at all
-    objs = [o for o in objs if any(st.maps[o].version() != _ancestor_state.maps[o].version() for st in _states_to_merge)]
-
-    for o in objs:
-        # Step 1: Length variation.
-        # If the length may have changed in any state from the one in the ancestor state,
-        # replace the length with a fresh symbol
-        ancestor_length = _ancestor_state.maps.length(o)
-        for state in _states_to_merge:
-            if utils.can_be_false(state.solver, state.maps.length(o) == ancestor_length):
-                print("Length of map", o, "was changed; making it symbolic")
-                results.put((ResultType.LENGTH_VAR, [o], lambda st, ms: ms[0].set_length(claripy.BVS("map_length", ms[0].length().size()))))
-                break
-
     def thread_main(ancestor_state, _orig_states):
         while True:
             try:
                 (o1, o2) = remaining_work.get(block=False)
             except queue.Empty:
                 return
+
+            if o2 is None: # we are just getting one map, for the length
+                # Step 1: Length variation.
+                # If the length may have changed in any state from the one in the ancestor state,
+                # replace the length with a fresh symbol
+                ancestor_length = ancestor_state.maps.length(o1)
+                if any(utils.can_be_false(st.solver, st.maps.length(o1) == ancestor_length) for st in _orig_states):
+                    print("Length of map", o1, "was changed; making it symbolic")
+                    results.put((ResultType.LENGTH_VAR, [o1], lambda st, ms: ms[0].set_length(claripy.BVS("map_length", ms[0].length().size()))))
+                continue
 
             # Optimization: Ignore the combination if neither map changed
             orig_states = [st for st in _orig_states if st.maps[o1].version() != 0 or st.maps[o2].version() != 0]
@@ -823,7 +819,11 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                 to_cache.put([o1, o2, "p", []])
                 to_cache.put([o1, o2, "k", None])
 
-    remaining_work = queue.Queue()
+    # Optimization: Ignore maps that have not changed at all
+    objs = [o for o in objs if any(st.maps[o].version() != _ancestor_state.maps[o].version() for st in _states_to_merge)]
+
+    for o in objs:
+        remaining_work.put((o, None))
     for (o1, o2) in itertools.permutations(objs, 2):
         remaining_work.put((o1, o2))
 
