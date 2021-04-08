@@ -1,4 +1,5 @@
-# This file is included before every specification, it contains common helpers
+# This file is prefixed to all specifications.
+# It contains helpers that are not key to specifications but may be useful for some of them.
 
 class ExpiringSet:
     def __init__(self, elem_type, expiration_time, capacity):
