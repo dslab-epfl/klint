@@ -18,7 +18,7 @@ nf_to_verify = "vigor-firewall"
 if len(sys.argv) >= 2:
     nf_to_verify = sys.argv[1]
 
-use_cached_results = False
+use_cached_results = True
 if len(sys.argv) >= 3 and sys.argv[2] == "use-cache":
     use_cached_results = True
 
@@ -29,6 +29,6 @@ if not use_cached_results:
     states, devices_count = nf_executor.execute(os.path.join(nf_root_folder, "libnf.so"))
     verif_persist.dump_data(states, devices_count, cached_data_path)
 
-#spec = (Path(nf_root_folder) / "spec.py").read_text()
-#for data in verif_persist.load_data(cached_data_path):
-#    verif_executor.verify(data, spec)
+spec = (Path(nf_root_folder) / "spec.py").read_text()
+for data in verif_persist.load_data(cached_data_path):
+    verif_executor.verify(data, spec)

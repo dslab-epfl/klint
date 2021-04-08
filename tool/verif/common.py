@@ -1,10 +1,9 @@
 import angr
-from angr.state_plugins.solver import SimSolver
 from archinfo.arch_amd64 import ArchAMD64
 import claripy
+from collections import namedtuple
 
-from binary.executor import CustomMemory
-from .defs import *
+from binary.executor import CustomMemory, CustomSolver
 from binary import bitsizes
 from binary import utils
 
@@ -151,6 +150,35 @@ def type_size(type):
     raise VerificationException(f"idk what to do with type '{type}'")
 
 
+EthernetHeader = namedtuple(
+    "EthernetHeader", [
+        "dst",
+        "src",
+        "type"
+    ]
+)
+
+IPv4Header = namedtuple(
+    "Ipv4Header", [
+        # TODO other fields - don't care for now
+        "version",
+        "ihl",
+        "total_length",
+        "time_to_live",
+        "protocol",
+        "checksum",
+        "src",
+        "dst"
+    ]
+)
+
+TcpUdpHeader = namedtuple(
+    "TcpUdpHeader", [
+        "src",
+        "dst"
+    ]
+)
+
 class SpecFloodedDevice:
     def __init__(self, state, orig_device, devices_count):
         self._state = state
@@ -253,7 +281,7 @@ def create_angr_state(constraints):
     state.memory = CustomMemory(memory_id="mem")
     state.memory.set_state(state)
 
-    state.solver = SimSolver()
+    state.solver = CustomSolver()
     state.solver.set_state(state)
     state.solver.add(*constraints)
 

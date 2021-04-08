@@ -1,32 +1,39 @@
-# TODO rewrite for FW
+Flow = {
+    'src_ip': 32, 
+    'dst_ip': 32, 
+    'src_port': 16, 
+    'dst_port': 16, 
+    'protocol': 8
+}
 
-Flow = Struct({'src_ip': 32, 'dst_ip': 32, 'src_port': 16, 'dst_port': 16, 'protocol': 8})
-
-NatTransmitFlags = TransmitFlags.UPDATE_ETHERNET_ADDRESSES | TransmitFlags.UPDATE_IPV4_CHECKSUM | TransmitFlags.UPDATE_TCPUDP_CHECKSUM
-
-def spec(packet, config, state, sent_packets):
+def spec(packet, config, transmitted_packet):
     if packet.ipv4 is None or packet.tcpudp is None:
-        assert sent_packets == []
+        assert transmitted_packet is None
+        return
 
-    flow_map = state.structs.get_expirable_map(Flow, config["max flows"])
-    time = state.clock.now()
+    flows = ExpiringSet(Flow, config["expiration time"], config["max flows"])
 
-    if packet.device == config["external port"]:
-        flow_index = packet.tcpudp.dst_port - config["start port"]
-        flow = flow_map.get_by_index(flow_index, time, config["expiration time"])
-        if flow is not None and flow.dst_ip == packet.ipv4.src_addr and flow.dst_port == packet.tcpudp.src_port and flow.protocol == packet.ipv4.protocol:
-            packet.ipv4.dst_addr = flow.src_ip
-            packet.tcpudp.dst_port = flow.src_port
-            assert sent_packets == [(packet, 1 - config["external port"], NatTransmitFlags)]
+    if packet.device == config["wan device"]:
+        flow = {
+            'src_ip': packet.ipv4.dst,
+            'dst_ip': packet.ipv4.src,
+            'src_port': packet.tcpudp.dst,
+            'dst_port': packet.tcpudp.src,
+            'protocol': packet.ipv4.protocol
+        }
+
+        if flow in flows:
+            assert transmitted_packet == packet
+        else:
+            assert transmitted_packet is None
     else:
-        flow = Flow(packet.ipv4.src_addr, packet.ipv4.dst_addr, packet.tcpudp.src_port, packet.tcpudp.dst_port, packet.ipv4.protocol)
-        index = flow_map.get_by_item(flow, time)
-        if index is None:
-            flow_map.expire_item(time, config["expiration time"])
-            index = flow_map.add(flow, time)
-            if index is None:
-                assert sent_packets == []
-                return
-        packet.ipv4.src_addr = config["external address"]
-        packet.tcpudp.src_port = config["start port"] + index
-        assert sent_packets == [(packet, config["external port"], NatTransmitFlags)]
+        flow = {
+            'src_ip': packet.ipv4.src,
+            'dst_ip': packet.ipv4.dst,
+            'src_port': packet.tcpudp.src,
+            'dst_port': packet.tcpudp.dst,
+            'protocol': packet.ipv4.protocol
+        }
+
+        assert flows.full() or flow in new(flows)
+        assert transmitted_packet == packet

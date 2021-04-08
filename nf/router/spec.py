@@ -2,7 +2,6 @@ Route = {
     "length": "uint8_t",
     "dest": "uint32_t"
 }
-Device = "uint16_t"
 
 def matches(route, ip):
     return (route.dest >> route.length) == (ip >> route.length)
