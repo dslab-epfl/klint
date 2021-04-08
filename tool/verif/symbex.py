@@ -8,36 +8,40 @@ We extend it to support an 'or' combination for any value, so that one can say s
 This provides a form of existential quantification to the code under symbex, similar to https://www.usenix.org/conference/hotos13/session/bugnion
 
 The code under verification can call the '__choose__(choices)' function, which returns a choice, to use existential quantification.
-
-The "run" function executes one path through the code, controllable with the following global variables:
-- `__branches__`, list of (formula, bool) tuples, where the formula is the branch condition and the bool is its assignment for the path
-- `__choices__`, list of lists, where the first item is the one that is used and the remaining are the alternatives
-In both cases, they can be pre-populated to force a specific path prefix, and will contain the entirety of the path at the end
-
-Additional global variables:
-- `__state__`, the current state
-
-Private global variables:
-- `__branch_index__`, the index in `__branches__`
-- `__choice_index__`, the index in `__choices__`
 """
 
-def verif_builtin_choose(choices):
-    global __choices__, __choice_index__
-    if __choice_index__ == len(__choices__):
-        __choices__.append(choices)
-    result = __choices__[__choice_index__][0]
-    __choice_index__ = __choice_index__ + 1
+# Container for symbex
+class _SymbexData:
+    def __init__(self):
+        # list of (formula, bool) tuples, where the formula is the branch condition and the bool is its assignment for the path
+        self.branches = None
+        # the index in `__branches__`
+        self.branch_index = 0
+        # list of lists, where the first item is the one that is used and the remaining are the alternatives
+        self.choices = None
+        # the index in `__choices__`
+        self.choice_index = 0
+        # the current state
+        self.state = None
+        # Both branches and choices can be pre-populated to force a specific path prefix, and will contain the entirety of the path at the end
+
+
+def symbex_builtin_choose(choices):
+    global __symbex__
+    if __symbex__.choice_index == len(__symbex__.choices):
+        __symbex__.choices.append(choices)
+    result = __symbex__.choices[__symbex__.choice_index][0]
+    __symbex__.choice_index = __symbex__.choice_index + 1
     return result
     
 
-def verif_builtin_type_size(type):
+def symbex_builtin_type_size(type):
     if isinstance(type, int):
         return type
     if isinstance(type, str):
         return getattr(bitsizes, type)
     if isinstance(type, dict):
-        return sum([verif_builtin_type_size(v) for v in type.values()])
+        return sum([symbex_builtin_type_size(v) for v in type.values()])
     raise Exception(f"idk what to do with type '{type}'")
 
 
@@ -50,7 +54,7 @@ class ValueProxy:
         if type is None:
             return result
         else:
-            size = verif_builtin_type_size(type)
+            size = symbex_builtin_type_size(type)
             assert size >= result.size(), "the actual type should have a size at least that of the result's"
             return result.zero_extend(size - result.size())
 
@@ -64,7 +68,7 @@ class ValueProxy:
         self._value = value
         self._type = type
         if self._type is not None:
-            size = verif_builtin_type_size(self._type)
+            size = symbex_builtin_type_size(self._type)
             assert size <= self._value.size(), "the actual type should have a size at most that of the result's"
             if size < self._value.size():
                 self._value = self._value[size-1:0]
@@ -79,11 +83,13 @@ class ValueProxy:
                 offset = 0
                 for (k, v) in self._type.items(): # Python preserves insertion order from 3.7 (3.6 for CPython)
                     if k == name:
-                        return ValueProxy(self._value[verif_builtin_type_size(v)+offset-1:offset], type=v)
-                    offset = offset + verif_builtin_type_size(v)
+                        return ValueProxy(self._value[symbex_builtin_type_size(v)+offset-1:offset], type=v)
+                    offset = offset + symbex_builtin_type_size(v)
 
         # Only forward attrs if we're not a Claripy instance
         if not isinstance(self._value, claripy.ast.Base) and hasattr(self._value, name):
+            if callable(getattr(self._value, name)):
+                return ValueProxy.wrap_func(getattr(self._value, name))
             return ValueProxy(getattr(self._value, name))
 
         raise Exception(f"idk what to do about attr '{name}'")
@@ -99,6 +105,9 @@ class ValueProxy:
         return self._value.__repr__()
 
     def _op(self, other, op):
+        if not isinstance(self._value, claripy.ast.Base):
+            return getattr(self._value, op)(other)
+
         if isinstance(self._type, dict):
             raise Exception("Cannot perform ops on a composite type")
 
@@ -127,20 +136,20 @@ class ValueProxy:
 
         assert isinstance(self._value, claripy.ast.Bool)
 
-        global __branches__, __branch_index__, __state__
+        global __symbex__
 
-        path_condition = [f if b else ~f for (f, b) in __branches__[:__branch_index__]]
-        outcomes = __state__.solver.eval_upto(self._value, 3, extra_constraints=path_condition) # ask for 3 just in case something goes wrong; we want 1 or 2
+        path_condition = [f if b else ~f for (f, b) in __symbex__.branches[:__symbex__.branch_index]]
+        outcomes = __symbex__.state.solver.eval_upto(self._value, 3, extra_constraints=path_condition) # ask for 3 just in case something goes wrong; we want 1 or 2
 
         if len(outcomes) == 1:
             return outcomes[0]
 
         assert len(outcomes) == 2
 
-        if __branch_index__ == len(__branches__):
-            __branches__.append((self._value, True))
-        result = __branches__[__branch_index__][1]
-        __branch_index__ = __branch_index__ + 1
+        if __symbex__.branch_index == len(__symbex__.branches):
+            __symbex__.branches.append((self._value, True))
+        result = __symbex__.branches[__symbex__.branch_index][1]
+        __symbex__.branch_index = __symbex__.branch_index + 1
         return result
 
     
@@ -200,14 +209,14 @@ class ValueProxy:
 
 
 def _symbex_one(state, func, branches, choices):
-    global __branches__, __branch_index__, __choices__, __choice_index__, __state__
-    __branches__ = branches
-    __branch_index__ = 0
-    __choices__ = choices
-    __choice_index__ = 0
-    __state__ = state
+    global __symbex__
+    __symbex__.branches = branches
+    __symbex__.branch_index = 0
+    __symbex__.choices = choices
+    __symbex__.choice_index = 0
+    __symbex__.state = state
     func()
-    return __branches__[:__branch_index__], __choices__[:__choice_index__]
+    return __symbex__.branches[:__symbex__.branch_index], __symbex__.choices[:__symbex__.choice_index]
 
 def _symbex(state, func):
     branches = []
@@ -235,12 +244,14 @@ def _symbex(state, func):
         # Otherwise, flip the last branch
         branches[-1] = False
 
-__branches__, __branch_index__, __choices__, __choice_index__, __state__ = None, None, None, None, None
-def symbex(state, program, func_name, args, _globs):
-    globs = globals()
-    globs.update(_globs)
-    globs['__choose__'] = verif_builtin_choose
-    globs['__type_size__'] = verif_builtin_type_size
+def symbex(state, program, func_name, args, globs):
+    global __symbex__
+    __symbex__ = _SymbexData()
+    #globs = globals()
+    #globs.update(_globs)
+    globs['__symbex__'] = __symbex__
+    globs['__choose__'] = symbex_builtin_choose
+    globs['__type_size__'] = symbex_builtin_type_size
     globs = {k: (ValueProxy.wrap_func(v) if callable(v) else v) for (k, v) in globs.items()}
     args = [ValueProxy(arg) for arg in args]
     # locals have to be the same as globals, otherwise Python encapsulates the program in a class and then one can't use classes inside it...

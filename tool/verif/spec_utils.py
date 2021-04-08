@@ -13,4 +13,4 @@ class ExpiringSet:
                (time() < self.expiration_time | self._indices_to_times.forall(lambda k, v: v >= time() - self.expiration_time))
 
     def __contains__(self, item):
-        return item in self.elems_to_indices
+        return item in self._elems_to_indices

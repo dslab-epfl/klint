@@ -137,14 +137,6 @@ class _SpecConfig:
         return self._devices_count
 
     def __getitem__(self, index):
-        global __state__
-        global __type_size__
-        print("HELLO", index, self._meta)
-        print("WORLD", self._meta[index])
-        for (k, v) in globals().items():
-            print("GLOBAL", k, v)
-        print("XXX", __state__)
-        print("XXX", __type_size__)
         if index not in self._meta:
             raise Exception("Unknown config item: " + str(index))
         return self._meta[index]
@@ -152,12 +144,12 @@ class _SpecConfig:
 
 # === Maps ===
 
-# TODO use __contains__ for has, __getitem__ for get?
 class Map:
     def __init__(self, key_type, value_type):
+        global __symbex__
         key_size = __type_size__(key_type)
         value_size = ... if value_type is ... else __type_size__(value_type)
-        candidates = [m for m in __state__.maps if m.meta.key_size >= key_size and ((value_size is ...) or (m.meta.value_size == value_size))]
+        candidates = [m for m in __symbex__.state.maps if m.meta.key_size >= key_size and ((value_size is ...) or (m.meta.value_size == value_size))]
         # Ignore maps that the user did not declare
         candidates = [m for m in candidates if "allocated_" not in m.meta.name and "packet_" not in m.meta.name]
         if len(candidates) == 0:
@@ -169,20 +161,24 @@ class Map:
         #self._real_key_type = map.meta.key_size
         #self._value_type = None if value_type is ... else value_type
 
-    def has(self, key):
-        (value, present) = self._map.get(__state__, key) # of type=self._real_key_type...
+    def __contains__(self, key):
+        global __symbex__
+        (value, present) = self._map.get(__symbex__.state, key) # of type=self._real_key_type...
         return present
 
     # TODO friendlier API?
-    def get(self, key):
-        (value, present) = self._map.get(__state__, key) # of type=self._real_key_type...
-        if utils.can_be_false(__state__.solver, present):
+    def __getitem__(self, key):
+        global __symbex__
+        (value, present) = self._map.get(__symbex__.state, key) # of type=self._real_key_type...
+        present_values = __symbex__.state.solver.eval_upto(present, 2)
+        if present_values != [True]:
             raise Exception("Spec called get but element may not be there")
         return value # of self._value_type...
 
     def forall(self, pred):
-        pred = MapInvariant.new(__state__, self._map.meta, lambda i: ~i.present | pred(i.key, i.value)) # of types self._key_type / _value_type...
-        return self._map.forall(__state__, pred)
+        global __symbex__
+        pred = MapInvariant.new(__symbex__.state, self._map.meta, lambda i: ~i.present | pred(i.key, i.value)) # of types self._key_type / _value_type...
+        return self._map.forall(__symbex__.state, pred)
 
     @property
     def length(self):
@@ -192,8 +188,9 @@ class Map:
 # === Spec 'built-in' functions ===
 
 def exists(type, func):
-    value = __state__.solver.BVS("exists_value", __type_size__(type))
-    results = __state__.solver.eval_upto(func(value), 2)
+    global __symbex__
+    value = __symbex__.state.solver.BVS("exists_value", __type_size__(type))
+    results = __symbex__.state.solver.eval_upto(func(value), 2)
     return results == [True]
 
 
