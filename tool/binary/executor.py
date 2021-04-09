@@ -7,6 +7,7 @@ import claripy
 
 from . import clock
 from . import merging_technique
+from .casts import CastsPlugin
 from .ghost_maps import GhostMapsPlugin
 from .maps_memory import MapsMemoryMixin
 from .metadata import MetadataPlugin
@@ -182,7 +183,8 @@ def create_sim_manager(binary, ext_funcs, main_func_name, *main_func_args, base_
         SimState.register_default("globals", DummyPlugin)
         # No explicit heap (we use our memory's "allocate" instead)
         SimState.register_default("heap", DummyPlugin)
-        # Our plugins
+        # Our plugins (TODO: have a proper 'plugins' submodule, which imports them on init, and is imported by our own init, etc)
+        SimState.register_default("casts", CastsPlugin)
         SimState.register_default("metadata", MetadataPlugin)
         SimState.register_default("maps", GhostMapsPlugin)
         SimState.register_default("path", PathPlugin)

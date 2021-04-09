@@ -2,7 +2,6 @@ import angr
 import claripy
 from collections import namedtuple
 
-from ... import cast
 from ... import utils
 from nf.device import *
 from nf import spec_reg
@@ -49,7 +48,7 @@ def pci_write(state, address, value):
 # size_t os_pci_enumerate(struct os_pci_address** out_devices);
 class os_pci_enumerate(angr.SimProcedure):
     def run(self, out_devices):
-        out_devices = cast.ptr(out_devices)
+        out_devices = self.state.casts.ptr(out_devices)
 
         self.state.pci.set_handlers(pci_read, pci_write)
         count = claripy.BVV(2, self.state.sizes.size_t) #TODO: claripy.BVS("pci_devices_count", self.state.sizes.size_t), but then how do we ensure they're unique?

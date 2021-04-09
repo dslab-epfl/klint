@@ -8,9 +8,9 @@ from ... import utils
 # void foreach_index(size_t length, foreach_index_function* func, void* state);
 class foreach_index(angr.SimProcedure):
     def run(self, length, func, st):
-        length = cast.size_t(length)
-        func = cast.ptr(func)
-        st = cast.ptr(st)
+        length = self.state.casts.size_t(length)
+        func = self.state.casts.ptr(func)
+        st = self.state.casts.ptr(st)
 
         if func.op != 'BVV':
             raise Exception("Function pointer cannot be symbolic")

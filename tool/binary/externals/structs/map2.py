@@ -2,7 +2,6 @@ import angr
 import claripy
 from collections import namedtuple
 
-import binary.cast as cast
 import binary.utils as utils
 
 
@@ -19,9 +18,9 @@ Map = namedtuple('mapp', ['key_size', 'value_size', 'capacity', 'items'])
 class OsMap2Alloc(angr.SimProcedure):
     def run(self, key_size, value_size, capacity):
         # Casts
-        key_size = cast.size_t(key_size)
-        value_size = cast.size_t(value_size)
-        capacity = cast.size_t(capacity)
+        key_size = self.state.casts.size_t(key_size)
+        value_size = self.state.casts.size_t(value_size)
+        capacity = self.state.casts.size_t(capacity)
 
         # Symbolism assumptions
         if key_size.symbolic:
@@ -58,9 +57,9 @@ class OsMap2Alloc(angr.SimProcedure):
 class OsMap2Get(angr.SimProcedure):
     def run(self, map, key_ptr, out_value_ptr):
         # Casts
-        map = cast.ptr(map)
-        key_ptr = cast.ptr(key_ptr)
-        out_value_ptr = cast.ptr(out_value_ptr)
+        map = self.state.casts.ptr(map)
+        key_ptr = self.state.casts.ptr(key_ptr)
+        out_value_ptr = self.state.casts.ptr(out_value_ptr)
         print("!!! os_map2_get", map, key_ptr, out_value_ptr)
 
         # Preconditions
@@ -91,9 +90,9 @@ class OsMap2Get(angr.SimProcedure):
 class OsMap2Set(angr.SimProcedure):
     def run(self, map, key_ptr, value_ptr):
         # Casts
-        map = cast.ptr(map)
-        key_ptr = cast.ptr(key_ptr)
-        value_ptr = cast.ptr(value_ptr)
+        map = self.state.casts.ptr(map)
+        key_ptr = self.state.casts.ptr(key_ptr)
+        value_ptr = self.state.casts.ptr(value_ptr)
         print("!!! os_map2_set", map, key_ptr, value_ptr)
 
         # Preconditions
@@ -121,8 +120,8 @@ class OsMap2Set(angr.SimProcedure):
 class OsMap2Remove(angr.SimProcedure):
     def run(self, map, key_ptr):
         # Casts
-        map = cast.ptr(map)
-        key_ptr = cast.ptr(key_ptr)
+        map = self.state.casts.ptr(map)
+        key_ptr = self.state.casts.ptr(key_ptr)
         print("!!! os_map2_remove", map, key_ptr)
 
         # Preconditions
@@ -137,7 +136,7 @@ class OsMap2Remove(angr.SimProcedure):
 # No contract, not exposed publicly, only for symbex harnesses
 class OsMap2Havoc(angr.SimProcedure):
     def run(self, map):
-        map = cast.ptr(map)
+        map = self.state.casts.ptr(map)
         print("!!! os_map2_havoc", map)
         mapp = self.state.metadata.get(Map, map)
         self.state.maps.havoc(mapp.items, mapp.capacity, False)

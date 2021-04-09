@@ -3,7 +3,6 @@ import archinfo
 import claripy
 from collections import namedtuple
 
-from ... import cast
 from ... import utils
 
 PACKET_MIN = 64 # the NIC will pad it if shorter

@@ -1,7 +1,6 @@
 import angr
 import claripy
 
-import binary.cast as cast
 import binary.utils as utils
 import nf.device as nf_device
 
@@ -13,8 +12,8 @@ import nf.device as nf_device
 class os_memory_alloc(angr.SimProcedure):
     def run(self, count, size):
         # Casts
-        count = cast.size_t(count)
-        size = cast.size_t(size)
+        count = self.state.casts.size_t(count)
+        size = self.state.casts.size_t(size)
 
         # Symbolism assumptions
         if size.symbolic:
@@ -34,8 +33,8 @@ class os_memory_alloc(angr.SimProcedure):
 # void* os_memory_phys_to_virt(uintptr_t addr, size_t size);
 class os_memory_phys_to_virt(angr.SimProcedure):
     def run(self, addr, size):
-        addr = cast.ptr(addr)
-        size = cast.size_t(size)
+        addr = self.state.casts.ptr(addr)
+        size = self.state.casts.size_t(size)
 
         original_addr = addr.args[0].args[2].args[0]
         if utils.can_be_false(self.state.solver, addr == original_addr):
@@ -53,13 +52,13 @@ class os_memory_phys_to_virt(angr.SimProcedure):
 # uintptr_t os_memory_virt_to_phys(const void* addr);
 class os_memory_virt_to_phys(angr.SimProcedure):
     def run(self, addr):
-        addr = cast.ptr(addr)
+        addr = self.state.casts.ptr(addr)
         return addr # TODO proper handling
 
 
 # No contract, not exposed publicly, only for symbex harnesses
 class os_memory_havoc(angr.SimProcedure):
     def run(self, ptr):
-        ptr = cast.ptr(ptr)
+        ptr = self.state.casts.ptr(ptr)
         print("!!! os_memory_havoc", ptr)
         self.state.memory.havoc(ptr)

@@ -1,6 +1,5 @@
 import angr
 
-from ... import cast
 from ... import utils
 
 # TODO: Is this file still needed?

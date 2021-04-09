@@ -2,7 +2,6 @@ import angr
 import claripy
 from collections import namedtuple
 
-from ... import cast
 from binary.metadata import MetadataPlugin
 from ... import utils
 
@@ -13,8 +12,8 @@ ConfigMetadata = namedtuple('ConfigMetadata', ['items'])
 # bool os_config_try_get(const char* name, uint64_t* out_value);
 class os_config_try_get(angr.SimProcedure):
     def run(self, name, out_value):
-        name = cast.ptr(name)
-        out_value = cast.ptr(out_value)
+        name = self.state.casts.ptr(name)
+        out_value = self.state.casts.ptr(out_value)
 
         if name.symbolic:
             raise Exception("name cannot be symbolic")

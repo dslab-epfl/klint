@@ -2,7 +2,6 @@ import angr
 import claripy
 from collections import namedtuple
 
-import binary.cast as cast
 import binary.utils as utils
 
 Lpm = namedtuple("lpmp", ["table"])
@@ -24,10 +23,10 @@ class LpmAlloc(angr.SimProcedure):
 class LpmUpdateElem(angr.SimProcedure):
     def run(self, lpm, prefix, prefixlen, value):
         # Casts
-        lpm = cast.ptr(lpm)
-        prefix = cast.uint32_t(prefix)
-        prefixlen = cast.uint8_t(prefixlen)
-        value = cast.uint16_t(value)
+        lpm = self.state.casts.ptr(lpm)
+        prefix = self.state.casts.uint32_t(prefix)
+        prefixlen = self.state.casts.uint8_t(prefixlen)
+        value = self.state.casts.uint16_t(value)
         print(  f"!!! lpm_update_elem [lpm: {lpm}, prefix: {prefix}, " 
                 f"prefixlen: {prefixlen}, value: {value}]")
 
@@ -40,11 +39,11 @@ class LpmUpdateElem(angr.SimProcedure):
 class LpmLookupElem(angr.SimProcedure):
     def run(self, lpm, key, out_value, out_prefix, out_prefixlen):
         # Casts
-        lpm = cast.ptr(lpm)
-        key = cast.uint32_t(key)
-        out_value = cast.ptr(out_value)
-        out_prefix = cast.ptr(out_prefix)
-        out_prefixlen = cast.ptr(out_prefixlen)
+        lpm = self.state.casts.ptr(lpm)
+        key = self.state.casts.uint32_t(key)
+        out_value = self.state.casts.ptr(out_value)
+        out_prefix = self.state.casts.ptr(out_prefix)
+        out_prefixlen = self.state.casts.ptr(out_prefixlen)
         print(  f"!!! lpm_lookup_elem [lpm: {lpm}, key: {key}, " +
                 f"out_value: {out_value}, out_prefix: {out_prefix}, out_prefixlen: {out_prefixlen}]")
 

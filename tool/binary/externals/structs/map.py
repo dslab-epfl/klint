@@ -2,7 +2,6 @@ import angr
 import claripy
 from collections import namedtuple
 
-import binary.cast as cast
 import binary.utils as utils
 
 
@@ -15,8 +14,8 @@ Map = namedtuple('mapp', ['key_size', 'capacity', 'values', 'addrs'])
 class map_alloc(angr.SimProcedure):
     def run(self, key_size, capacity):
         # Casts
-        key_size = cast.size_t(key_size)
-        capacity = cast.size_t(capacity)
+        key_size = self.state.casts.size_t(key_size)
+        capacity = self.state.casts.size_t(capacity)
 
         # Symbolism assumptions
         if key_size.symbolic:
@@ -46,9 +45,9 @@ class map_alloc(angr.SimProcedure):
 class map_get(angr.SimProcedure):
     def run(self, map, key_ptr, out_value):
         # Casts
-        map = cast.ptr(map)
-        key_ptr = cast.ptr(key_ptr)
-        out_value = cast.ptr(out_value)
+        map = self.state.casts.ptr(map)
+        key_ptr = self.state.casts.ptr(key_ptr)
+        out_value = self.state.casts.ptr(out_value)
         print("!!! map_get", map, key_ptr, out_value)
 
         # Preconditions
@@ -77,9 +76,9 @@ class map_get(angr.SimProcedure):
 class map_set(angr.SimProcedure):
     def run(self, map, key_ptr, value):
         # Casts
-        map = cast.ptr(map)
-        key_ptr = cast.ptr(key_ptr)
-        value = cast.ptr(value)
+        map = self.state.casts.ptr(map)
+        key_ptr = self.state.casts.ptr(key_ptr)
+        value = self.state.casts.ptr(value)
         print("!!! map_set", map, key_ptr, value)
 
         # Preconditions
@@ -108,8 +107,8 @@ class map_set(angr.SimProcedure):
 class map_remove(angr.SimProcedure):
     def run(self, map, key_ptr):
         # Casts
-        map = cast.ptr(map)
-        key_ptr = cast.ptr(key_ptr)
+        map = self.state.casts.ptr(map)
+        key_ptr = self.state.casts.ptr(key_ptr)
         print("!!! map_remove", map, key_ptr)
 
         # Preconditions

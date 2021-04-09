@@ -2,7 +2,6 @@ import angr
 import claripy
 from collections import namedtuple
 
-import binary.cast as cast
 import binary.utils as utils
 
 
@@ -15,8 +14,8 @@ Pool = namedtuple('poolp', ['size', 'expiration_time', 'items'])
 class index_pool_alloc(angr.SimProcedure):
     def run(self, size, expiration_time):
         # Casts
-        size = cast.size_t(size)
-        expiration_time = cast.uint64_t(expiration_time)
+        size = self.state.casts.size_t(size)
+        expiration_time = self.state.casts.uint64_t(expiration_time)
 
         # Preconditions
         self.state.solver.add((size * self.state.sizes.uint64_t).ULE(2 ** self.state.sizes.size_t - 1))
@@ -47,10 +46,10 @@ class index_pool_alloc(angr.SimProcedure):
 class index_pool_borrow(angr.SimProcedure):
     def run(self, pool, time, out_index, out_used):
         # Casts
-        pool = cast.ptr(pool)
-        time = cast.int64_t(time)
-        out_index = cast.ptr(out_index)
-        out_used = cast.ptr(out_used)
+        pool = self.state.casts.ptr(pool)
+        time = self.state.casts.uint64_t(time)
+        out_index = self.state.casts.ptr(out_index)
+        out_used = self.state.casts.ptr(out_used)
         print("!!! index_pool_borrow", pool, time, out_index, out_used)
 
         # Preconditions
@@ -105,9 +104,9 @@ class index_pool_borrow(angr.SimProcedure):
 class index_pool_refresh(angr.SimProcedure):
     def run(self, pool, time, index):
         # Casts
-        pool = cast.ptr(pool)
-        time = cast.uint64_t(time)
-        index = cast.size_t(index)
+        pool = self.state.casts.ptr(pool)
+        time = self.state.casts.uint64_t(time)
+        index = self.state.casts.size_t(index)
         print("!!! index_pool_refresh", pool, time, index)
 
         # Preconditions
@@ -131,9 +130,9 @@ class index_pool_refresh(angr.SimProcedure):
 class index_pool_used(angr.SimProcedure):
     def run(self, pool, time, index):
         # Casts
-        pool = cast.ptr(pool)
-        time = cast.uint64_t(time)
-        index = cast.size_t(index)
+        pool = self.state.casts.ptr(pool)
+        time = self.state.casts.uint64_t(time)
+        index = self.state.casts.size_t(index)
         print("!!! index_pool_used", pool, index, time)
 
         # Preconditions
@@ -162,8 +161,8 @@ class index_pool_used(angr.SimProcedure):
 class index_pool_return(angr.SimProcedure):
     def run(self, pool, index):
         # Casts
-        pool = cast.ptr(pool)
-        index = cast.size_t(index)
+        pool = self.state.casts.ptr(pool)
+        index = self.state.casts.size_t(index)
         print("!!! index_pool_return", pool, index)
 
         # Preconditions

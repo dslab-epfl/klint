@@ -3,7 +3,6 @@ import claripy
 from collections import namedtuple
 
 from .index_pool import Pool
-import binary.cast as cast
 import binary.utils as utils
 
 # predicate poolp(struct os_pool* pool, size_t size, list<pair<size_t, time_t> > items);
@@ -14,8 +13,8 @@ MAX_CHT_HEIGHT = 40000
 class ChtAlloc(angr.SimProcedure):
     def run(self, cht_height, backend_capacity):
         # Casts
-        cht_height = cast.size_t(cht_height)
-        backend_capacity = cast.size_t(backend_capacity)
+        cht_height = self.state.casts.size_t(cht_height)
+        backend_capacity = self.state.casts.size_t(backend_capacity)
 
         # Preconditions
         self.state.solver.add(
@@ -34,12 +33,12 @@ class ChtAlloc(angr.SimProcedure):
 class ChtFindPreferredAvailableBackend(angr.SimProcedure):
     def run(self, cht, obj, obj_size, active_backends, chosen_backend, time):
         # Casts
-        cht = cast.ptr(cht)
-        obj = cast.ptr(obj)
-        obj_size = cast.size_t(obj_size)
-        active_backends = cast.ptr(active_backends)
-        chosen_backend = cast.ptr(chosen_backend)
-        time = cast.uint64_t(time)
+        cht = self.state.casts.ptr(cht)
+        obj = self.state.casts.ptr(obj)
+        obj_size = self.state.casts.size_t(obj_size)
+        active_backends = self.state.casts.ptr(active_backends)
+        chosen_backend = self.state.casts.ptr(chosen_backend)
+        time = self.state.casts.uint64_t(time)
         print(  f"!!! cht_find_preferred_available_backend [obj: {obj}, obj_size: {obj_size}, " +
                 f"active_backends: {active_backends}, chosen_backend: {chosen_backend}]" )
 
