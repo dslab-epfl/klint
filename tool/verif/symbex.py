@@ -44,7 +44,7 @@ class ValueProxy:
 
     @staticmethod
     def wrap_func(func):
-        return lambda *args: ValueProxy(func(*[ValueProxy.unwrap(arg) for arg in args]))
+        return lambda *args, **kwargs: ValueProxy(func(*[ValueProxy.unwrap(arg) for arg in args], **{k: ValueProxy.unwrap(v) for (k, v) in kwargs.items()}))
 
     def __init__(self, value):
         assert value is not None and value is not NotImplemented and not isinstance(value, ValueProxy), "value should make sense"
@@ -73,9 +73,6 @@ class ValueProxy:
         return self._value.__repr__()
 
     def _op(self, other, op):
-        if not isinstance(self._value, claripy.ast.Base):
-            return getattr(self._value, op)(other)
-
         other_value = other
         self_value = self._value
 
@@ -84,8 +81,9 @@ class ValueProxy:
             other_value = other._value
         if isinstance(other_value, float) and other_value == other_value // 1:
             other_value = int(other_value)
-        if not isinstance(other_value, claripy.ast.Base):
-            if isinstance(other_value, int):
+        if isinstance(other_value, int):
+            if not isinstance(self_value, int):
+                assert isinstance(self_value, claripy.ast.BV), "what else could it be?"
                 other_value = claripy.BVV(other_value, max(8, self_value.size())) # 8 bits minimum
 
         if isinstance(self_value, claripy.ast.BV):
@@ -104,7 +102,8 @@ class ValueProxy:
         global __symbex__
 
         path_condition = [f if b else ~f for (f, b) in __symbex__.branches[:__symbex__.branch_index]]
-        outcomes = __symbex__.state.solver.eval_upto(self._value, 3, extra_constraints=path_condition) # ask for 3 just in case something goes wrong; we want 1 or 2
+        # note that 'state' here is a ValueProxy!
+        outcomes = ValueProxy.unwrap(__symbex__.state).solver.eval_upto(self._value, 3, extra_constraints=path_condition) # ask for 3 just in case something goes wrong; we want 1 or 2
 
         if len(outcomes) == 1:
             return outcomes[0]
@@ -126,6 +125,11 @@ class ValueProxy:
         assert not isinstance(self._value, claripy.ast.Base), "len cannot be called on an AST"
         return len(self._value)
 
+    def __int__(self):
+        assert not isinstance(self._value, claripy.ast.Base), "int cannot be called on an AST"
+        return int(self._value)
+
+
     def __invert__(self):
         return ValueProxy(~self._value)
 
@@ -135,12 +139,12 @@ class ValueProxy:
     def __and__(self, other):
         return self._op(other, "__and__")
     def __rand__(self, other):
-        return self._op(other, "__and__")
+        return self._op(other, "__rand__")
     
     def __or__(self, other):
         return self._op(other, "__or__")
     def __ror__(self, other):
-        return self._op(other, "__or__")
+        return self._op(other, "__ror__")
 
     def __eq__(self, other):
         return self._op(other, "__eq__")
@@ -163,12 +167,17 @@ class ValueProxy:
     def __add__(self, other):
         return self._op(other, "__add__")
     def __radd__(self, other):
-        return self._op(other, "__add__")
+        return self._op(other, "__radd__")
+
+    def __sub__(self, other):
+        return self._op(other, "__sub__")
+    def __rsub__(self, other):
+        return self._op(other, "__rsub__")
     
     def __mul__(self, other):
         return self._op(other, "__mul__")
     def __rmul__(self, other):
-        return self._op(other, "__mul__")
+        return self._op(other, "__rmul__")
     
     def __rshift__(self, other):
         return self._op(other, "LShR")
@@ -183,8 +192,8 @@ def _symbex_one(state, prev_state, func, branches, choices):
     __symbex__.branch_index = 0
     __symbex__.choices = choices
     __symbex__.choice_index = 0
-    __symbex__.state = state
-    __symbex__.prev_state = prev_state
+    __symbex__.state = ValueProxy(state)
+    __symbex__.prev_state = ValueProxy(prev_state)
     func()
     return __symbex__.branches[:__symbex__.branch_index], __symbex__.choices[:__symbex__.choice_index]
 
@@ -217,11 +226,8 @@ def _symbex(state, prev_state, func):
 def symbex(state, prev_state, program, func_name, args, globs):
     global __symbex__
     __symbex__ = _SymbexData()
-    #globs = globals()
-    #globs.update(_globs)
     globs['__symbex__'] = __symbex__
     globs['__choose__'] = symbex_builtin_choose
-    globs = {k: (ValueProxy.wrap_func(v) if callable(v) else v) for (k, v) in globs.items()}
     args = [ValueProxy(arg) for arg in args]
     # locals have to be the same as globals, otherwise Python encapsulates the program in a class and then one can't use classes inside it...
     exec(program, globs, globs)

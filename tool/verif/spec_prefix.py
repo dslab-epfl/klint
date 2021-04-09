@@ -10,59 +10,40 @@ from collections import namedtuple
 def type_size(type):
     if isinstance(type, dict):
         return sum([type_size(v) for v in type.values()])
-    if isinstance(type, int):
-        return type
     if isinstance(type, str):
         global __symbex__
-        return getattr(__symbex__.state.sizes, type)
-    raise Exception(f"idk what to do with type '{type}'")
+        return int(getattr(__symbex__.state.sizes, type))
+    return int(type)
 
 
-class TypedProxy:
-    @staticmethod
-    def wrap(value, type):
-        if isinstance(type, dict):
-            return TypedProxy(value, type)
+def type_wrap(value, type):
+    if not isinstance(type, dict):
         return value
+    result = {}
+    offset = 0
+    for (k, v) in self._type.items(): # Python preserves insertion order from 3.7 (3.6 for CPython)
+        result[k] = value[type_size(v)+offset-1:offset]
+        offset = offset + type_size(v)
+    return result
 
-    @staticmethod
-    def unwrap(value, size):
-        if isinstance(value, dict):
-            assert value != {}, "please don't use empty dicts"
-            # almost a proxy, let's handle it here...
-            result = None
-            for (k, v) in value.items():
-                if result is None:
-                    result = v
-                else:
-                    result = v.concat(result)
-            result
-        elif isinstance(value, TypedProxy):
-            result = value._value
+def type_unwrap(value, type):
+    if not isinstance(value, dict):
+        return value
+    if isinstance(type, dict):
+        assert value.keys() == type.keys(), "please don't cast in weird ways"
+        return value
+    assert value != {}, "please don't use empty dicts"
+    # almost a proxy, let's handle it here...
+    result = None
+    total_size = 0
+    for v in value.values():
+        if result is None:
+            result = v
         else:
-            result = value
-
-        if result.size() < size:
-            result = result.zero_extend(size - result.size())
-        return result
-
-    def __init__(self, value, type):
-        assert value is not None and not isinstance(value, TypedProxy), "value should make sense"
-        assert type is not None and isinstance(type, dict), "type should make sense"
-        self._value = value
-        self._type = type
-
-    def __getattr__(self, name):
-        if name[0] == "_":
-            # Private members, for use within the class itself
-            return super().__getattr__(name, value)
-
-        assert name in self._type, "attribute should be known"
-        offset = 0
-        for (k, v) in self._type.items(): # Python preserves insertion order from 3.7 (3.6 for CPython)
-            if k == name:
-                return TypedProxy(self._value[type_size(v)+offset-1:offset], v)
-            offset = offset + type_size(v)
+            result = v.concat(result)
+    if result.size() < type_size(type):
+        result = result.zero_extend(type_size(type) - result.size())
+    return result
 
 
 # === Spec 'built-in' functions ===
@@ -78,6 +59,8 @@ def exists(type, func):
 
 class Map:
     def __init__(self, key_type, value_type, _state=None, _map=None):
+        print("!!! map", self, type(self), key_type, type(key_type), value_type, type(value_type), _state, type(_state), _map, type(_map))
+
         if _state is None:
             global __symbex__
             _state = __symbex__.state
@@ -88,9 +71,9 @@ class Map:
             value_size = ... if value_type is ... else type_size(value_type)
             candidates = [m for m in self._state.maps if m.meta.key_size >= key_size and ((value_size is ...) or (m.meta.value_size == value_size))]
             # Ignore maps that the user did not declare
-            candidates = [m for m in candidates if "allocated_" not in m.meta.name and "packet_" not in m.meta.name]
+            candidates = [m for m in candidates if "fracs_" not in m.meta.name and "packet_" not in m.meta.name]
             if len(candidates) == 0:
-                raise Exception("No such map.")
+                raise Exception("No such map: " + str(key_type) + " -> " + str(value_type))
             _map = __choose__(candidates)
 
         self._map = _map
@@ -104,18 +87,18 @@ class Map:
         return Map(self._key_type, self._value_type, __symbex__.prev_state, self._map)
 
     def __contains__(self, key):
-        (value, present) = self._map.get(self._state, TypedProxy.unwrap(key, self._map.meta.key_size))
+        (_, present) = self._map.get(self._state, type_unwrap(key, self._map.meta.key_size))
         return present
 
     def __getitem__(self, key):
-        (value, present) = self._map.get(self._state, TypedProxy.unwrap(key, self._map.meta.key_size))
+        (value, present) = self._map.get(self._state, type_unwrap(key, self._map.meta.key_size))
         present_values = self._state.solver.eval_upto(present, 2)
         if present_values != [True]:
             raise Exception("Spec called get but element may not be there")
-        return TypedProxy.wrap(value, self._value_type)
+        return type_wrap(value, self._value_type)
 
     def forall(self, pred):
-        pred = MapInvariant.new(self._state, self._map.meta, lambda i: ~i.present | pred(TypedProxy.wrap(i.key, self._key_type), TypedProxy.wrap(i.value, self._value_type)))
+        pred = MapInvariant.new(self._state, self._map.meta, lambda i: ~i.present | pred(type_wrap(i.key, self._key_type), type_wrap(i.value, self._value_type)))
         return self._map.forall(self._state, pred)
 
     # we can't override __len__ because python enforces that it returns an 'int'
