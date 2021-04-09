@@ -36,8 +36,8 @@ def alloc(state, devices_count):
     packet_device = claripy.BVS("packet_device", state.sizes.uint16_t)
     state.solver.add(packet_device.ULT(devices_count))
     # Ignore the _padding and os_tag, we just pretend they don't exist so that code cannot possibly access them
-    packet_addr = state.memory.allocate(1, PACKET_SIZE // 8, name="packet")
-    packet_data = packet_device.concat(packet_length).concat(data_addr + PACKET_MTU)
+    packet_addr = state.memory.allocate(1, packet_size(state) // 8, name="packet")
+    packet_data = packet_device.concat(packet_length).concat(data_addr) # + PACKET_MTU)
     state.memory.store(packet_addr, packet_data, endness=state.arch.memory_endness)
     state.metadata.append(None, NetworkMetadata(get_data(state, packet_addr), data_addr, packet_device, packet_length, []))
     return packet_addr

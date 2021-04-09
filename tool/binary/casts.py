@@ -1,5 +1,6 @@
 import angr
 from angr.state_plugins.plugin import SimStatePlugin
+from angr.state_plugins.sim_action import SimActionObject
 
 from .sizes import TYPES, ALIASES
 
@@ -16,12 +17,12 @@ class CastsPlugin(angr.state_plugins.plugin.SimStatePlugin):
         return o
 
     def set_state(self, state):
-        for type in TYPES:
-            setattr(self, type, lambda s, arg: CastsPlugin._fix(arg)[getattr(s.state.sizes, type)-1:0])
-        for (name, type) in ALIASES.items():
-            setattr(self, name, lambda s, arg: CastsPlugin._fix(arg)[getattr(s.state.sizes, type)-1:0])
-        for type in EXTRA:
-            setattr(self, type, lambda s, arg: CastsPlugin._fix(arg))
+        for t in TYPES:
+            setattr(self, t, lambda arg, t=t: CastsPlugin._fix(arg)[getattr(self.state.sizes, t)-1:0])
+        for (n, t) in ALIASES:
+            setattr(self, n, lambda arg, t=t: CastsPlugin._fix(arg)[getattr(self.state.sizes, n)-1:0])
+        for t in EXTRA:
+            setattr(self, t, lambda arg: CastsPlugin._fix(arg))
         return super().set_state(state)
 
     @SimStatePlugin.memo

@@ -1,5 +1,6 @@
 # This file is prefixed to all specifications.
 # It contains core verification-related concepts, including the "_spec_wrapper" that is called by the verification engine.
+# It "talks" to the outside world via the global __symbex__ variable.
 
 from collections import namedtuple
 
@@ -76,12 +77,16 @@ class Map:
         self._key_type = key_type
         self._value_type = None if value_type is ... else value_type
 
+    @property
+    def old(self):
+        global __symbex__
+        ...
+
     def __contains__(self, key):
         global __symbex__
         (value, present) = self._map.get(__symbex__.state, TypedProxy.unwrap(key))
         return present
 
-    # TODO friendlier API?
     def __getitem__(self, key):
         global __symbex__
         (value, present) = self._map.get(__symbex__.state, TypedProxy.unwrap(key))
@@ -95,6 +100,7 @@ class Map:
         pred = MapInvariant.new(__symbex__.state, self._map.meta, lambda i: ~i.present | pred(TypedProxy.wrap(i.key, self._key_type), TypedProxy.wrap(i.value, self._value_type)))
         return self._map.forall(__symbex__.state, pred)
 
+    # we can't override __len__ because python enforces that it returns an 'int'
     @property
     def length(self):
         return self._map.length()
@@ -119,6 +125,7 @@ class _SpecConfig:
 
 # === Network headers ===
 
+# TODO remove and make typed instead?
 _EthernetHeader = namedtuple(
     "_EthernetHeader", [
         "dst",
@@ -205,7 +212,9 @@ class _SpecPacket:
     def ipv4(self):
         if self.ether is None:
             return None
-        if self.ether.type != 0x0008: # TODO should explicitly handle endianness here (we're in LE)
+        global __symbex__
+        print("ethertype", self.ether.type, "constraints", __symbex__.state.solver.constraints)
+        if self.ether.type != 0x0800:
             return None
         start = 14*8
         return _IPv4Header(
@@ -238,16 +247,13 @@ def ipv4_checksum(header):
     return header.checksum # TODO
 
 
-
-
-
 # === Spec wrapper ===
 
 def _spec_wrapper(data):
     received_packet = _SpecPacket(data.network.received, data.network.received_length, _SpecSingleDevice(data.network.received_device))
     
     transmitted_packet = None
-    if data.network.transmitted:
+    if len(data.network.transmitted) != 0:
         if len(data.network.transmitted) > 1:
             raise Exception("TODO support multiple transmitted packets")
         tx_dev_int = data.network.transmitted[0][2]

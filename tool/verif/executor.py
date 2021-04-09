@@ -1,32 +1,26 @@
-import angr
+from angr.state_plugins import SimSolver
 from archinfo.arch_amd64 import ArchAMD64
-import claripy
 import datetime
 import os
 from pathlib import Path
 
 from binary.sizes import SizesPlugin
-from binary.executor import CustomMemory, CustomSolver
+from binary.executor import CustomSolver
 
 from . import symbex
 
 
-class SpecState: pass
+class _VerifState: pass
 
 def create_state(constraints): 
-    state = SpecState()
+    state = _VerifState()
 
     # Angr plugins make some assumptions about structure
-    state._get_weakref = lambda: state # not really a weakref; whatever
-    state._global_condition = None
+    state._get_weakref = lambda: state # for SimStatePlugin.set_state; not really a weakref; whatever
+    state._global_condition = None # for the solver
     state.arch = ArchAMD64() # TODO use original arch!
-    state.options = angr.options.symbolic
-    state.supports_inspect = False
 
-    state.memory = CustomMemory(memory_id="mem")
-    state.memory.set_state(state)
-
-    state.solver = angr.state_plugins.SimSolver()
+    state.solver = SimSolver()
     state.solver.set_state(state)
     state.solver._stored_solver = CustomSolver()
     state.solver.add(*constraints)
@@ -42,6 +36,9 @@ def verify(data, spec):
     state.maps = data.maps.values()
     state.path = data.path # useful for debugging
     
+    prev_state = create_state(data.prev_constraints)
+    prev_state.maps = data.prev_maps.values()
+
     this_folder = Path(__file__).parent.absolute()
     spec_prefix = (this_folder / "spec_prefix.py").read_text()
     spec_utils = (this_folder / "spec_utils.py").read_text()
@@ -53,6 +50,6 @@ def verify(data, spec):
         "Device": "uint16_t"
     }
 
-    for (path, choices) in symbex.symbex(state, full_spec_text, "_spec_wrapper", [data], globals):
-        print("NF sub-state verified! at", datetime.datetime.now())
+    for (path, choices) in symbex.symbex(state, prev_state, full_spec_text, "_spec_wrapper", [data], globals):
+        print("NF sub-state verified! at", datetime.datetime.now(), path, choices)
     print("NF state verified!")

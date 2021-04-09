@@ -2,11 +2,16 @@
 # It contains helpers that are not key to specifications but may be useful for some of them.
 
 class ExpiringSet:
-    def __init__(self, elem_type, expiration_time, capacity):
+    def __init__(self, elem_type, expiration_time, capacity, _elems_to_indices=None, _indices_to_times=None):
+        self.elem_type = elem_type
         self.expiration_time = expiration_time
         self.capacity = capacity
-        self._elems_to_indices = Map(elem_type, "size_t")
-        self._indices_to_times = Map("size_t", "uint64_t")
+        self._elems_to_indices = _elems_to_indices or Map(elem_type, "size_t")
+        self._indices_to_times = _indices_to_times or Map("size_t", "uint64_t")
+
+    @property
+    def old(self):
+        return ExpiringSet(self.elem_type, self.expiration_time, self.capacity, self._elems_to_indices.old, self._indices_to_times.old)
 
     @property
     def full(self):

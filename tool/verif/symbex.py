@@ -21,6 +21,8 @@ class _SymbexData:
         self.choice_index = 0
         # the current state
         self.state = None
+        # the previous state
+        self.prev_state = None
         # Both branches and choices can be pre-populated to force a specific path prefix, and will contain the entirety of the path at the end
 
 
@@ -127,6 +129,10 @@ class ValueProxy:
         assert not isinstance(self._value, claripy.ast.Base)
         return item in self._value
 
+    def __len__(self):
+        assert not isinstance(self._value, claripy.ast.Base)
+        return len(self._value)
+
     def __invert__(self):
         return ValueProxy(~self._value)
 
@@ -178,23 +184,24 @@ class ValueProxy:
         return self._op(other, "__lshift__")
 
 
-def _symbex_one(state, func, branches, choices):
+def _symbex_one(state, prev_state, func, branches, choices):
     global __symbex__
     __symbex__.branches = branches
     __symbex__.branch_index = 0
     __symbex__.choices = choices
     __symbex__.choice_index = 0
     __symbex__.state = state
+    __symbex__.prev_state = prev_state
     func()
     return __symbex__.branches[:__symbex__.branch_index], __symbex__.choices[:__symbex__.choice_index]
 
-def _symbex(state, func):
+def _symbex(state, prev_state, func):
     branches = []
     while True:
         choices = []
         while True:
             try:
-                (branches, choices) = _symbex_one(state, func, branches, choices)
+                (branches, choices) = _symbex_one(state, prev_state, func, branches, choices)
                 break # yay, we found a good set of choices!
             except:
                 # Prune choice sets that were fully explored
@@ -214,7 +221,7 @@ def _symbex(state, func):
         # Otherwise, flip the last branch
         branches[-1] = False
 
-def symbex(state, program, func_name, args, globs):
+def symbex(state, prev_state, program, func_name, args, globs):
     global __symbex__
     __symbex__ = _SymbexData()
     #globs = globals()
@@ -225,4 +232,4 @@ def symbex(state, program, func_name, args, globs):
     args = [ValueProxy(arg) for arg in args]
     # locals have to be the same as globals, otherwise Python encapsulates the program in a class and then one can't use classes inside it...
     exec(program, globs, globs)
-    return _symbex(state, lambda: globs[func_name](*args))
+    return _symbex(state, prev_state, lambda: globs[func_name](*args))
