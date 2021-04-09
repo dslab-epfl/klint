@@ -22,7 +22,8 @@ def spec(packet, config, transmitted_packet):
             'protocol': packet.ipv4.protocol
         }
 
-        if flow in flows:
+        if flow in flows.old:
+            assert flows.did_refresh(flow)
             assert transmitted_packet == packet
         else:
             assert transmitted_packet is None
@@ -35,5 +36,5 @@ def spec(packet, config, transmitted_packet):
             'protocol': packet.ipv4.protocol
         }
 
-        assert flows.full() or flow in new(flows)
+        assert flows.full or flow in flows
         assert transmitted_packet == packet

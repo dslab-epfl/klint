@@ -8,6 +8,7 @@ class ExpiringSet:
         self._elems_to_indices = Map(elem_type, "size_t")
         self._indices_to_times = Map("size_t", "time_t")
 
+    @property
     def full(self):
         return (self._elems_to_indices.length() == self.capacity) & \
                (time() < self.expiration_time | self._indices_to_times.forall(lambda k, v: v >= time() - self.expiration_time))

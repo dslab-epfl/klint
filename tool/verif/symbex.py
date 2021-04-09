@@ -35,16 +35,6 @@ def symbex_builtin_choose(choices):
     return result
     
 
-def symbex_builtin_type_size(type):
-    if isinstance(type, int):
-        return type
-    if isinstance(type, str):
-        return getattr(bitsizes, type)
-    if isinstance(type, dict):
-        return sum([symbex_builtin_type_size(v) for v in type.values()])
-    raise Exception(f"idk what to do with type '{type}'")
-
-
 class ValueProxy:
     @staticmethod
     def unwrap(value, type=None):
@@ -62,29 +52,14 @@ class ValueProxy:
     def wrap_func(func):
         return lambda *args: ValueProxy(func(*[ValueProxy.unwrap(arg) for arg in args]))
 
-    def __init__(self, value, type=None):
-        assert value is not None and value is not NotImplemented
-        assert not isinstance(value, ValueProxy)
+    def __init__(self, value):
+        assert value is not None and value is not NotImplemented and not isinstance(value, ValueProxy)
         self._value = value
-        self._type = type
-        if self._type is not None:
-            size = symbex_builtin_type_size(self._type)
-            assert size <= self._value.size(), "the actual type should have a size at most that of the result's"
-            if size < self._value.size():
-                self._value = self._value[size-1:0]
 
     def __getattr__(self, name):
         if name[0] == "_":
             # Private members, for use within the class itself
             return super().__getattr__(name, value)
-
-        if isinstance(self._type, dict):
-            if name in self._type:
-                offset = 0
-                for (k, v) in self._type.items(): # Python preserves insertion order from 3.7 (3.6 for CPython)
-                    if k == name:
-                        return ValueProxy(self._value[symbex_builtin_type_size(v)+offset-1:offset], type=v)
-                    offset = offset + symbex_builtin_type_size(v)
 
         # Only forward attrs if we're not a Claripy instance
         if not isinstance(self._value, claripy.ast.Base) and hasattr(self._value, name):
@@ -107,9 +82,6 @@ class ValueProxy:
     def _op(self, other, op):
         if not isinstance(self._value, claripy.ast.Base):
             return getattr(self._value, op)(other)
-
-        if isinstance(self._type, dict):
-            raise Exception("Cannot perform ops on a composite type")
 
         other_value = other
         self_value = self._value
@@ -251,7 +223,6 @@ def symbex(state, program, func_name, args, globs):
     #globs.update(_globs)
     globs['__symbex__'] = __symbex__
     globs['__choose__'] = symbex_builtin_choose
-    globs['__type_size__'] = symbex_builtin_type_size
     globs = {k: (ValueProxy.wrap_func(v) if callable(v) else v) for (k, v) in globs.items()}
     args = [ValueProxy(arg) for arg in args]
     # locals have to be the same as globals, otherwise Python encapsulates the program in a class and then one can't use classes inside it...

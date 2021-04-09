@@ -4,6 +4,118 @@
 from collections import namedtuple
 
 
+# === Typing ===
+
+def type_size(type):
+    if isinstance(type, dict):
+        return sum([type_size(v) for v in type.values()])
+    if isinstance(type, int):
+        return type
+    if isinstance(type, str):
+        return getattr(bitsizes, type)
+    raise Exception(f"idk what to do with type '{type}'")
+
+
+class TypedProxy:
+    @staticmethod
+    def wrap(value, type):
+        if isinstance(type, dict):
+            return TypedProxy(value, type)
+        return value
+
+    @staticmethod
+    def unwrap(value):
+        if not isinstance(value, TypedProxy):
+            return value
+        return value._value
+
+    def __init__(self, value, type):
+        assert value is not None and not isinstance(value, TypedProxy)
+        assert type is not None and isinstance(type, dict)
+        self._value = value
+        self._type = type
+
+    def __getattr__(self, name):
+        if name[0] == "_":
+            # Private members, for use within the class itself
+            return super().__getattr__(name, value)
+
+        assert name in self._type
+        offset = 0
+        for (k, v) in self._type.items(): # Python preserves insertion order from 3.7 (3.6 for CPython)
+            if k == name:
+                return ValueProxy(self._value[type_size(v)+offset-1:offset], type=v)
+            offset = offset + type_size(v)
+
+
+# === Spec 'built-in' functions ===
+
+def exists(type, func):
+    global __symbex__
+    value = __symbex__.state.solver.BVS("exists_value", type_size(type))
+    results = __symbex__.state.solver.eval_upto(func(value), 2)
+    return results == [True]
+
+
+# === Maps ===
+
+class Map:
+    def __init__(self, key_type, value_type):
+        global __symbex__
+        key_size = type_size(key_type)
+        value_size = ... if value_type is ... else type_size(value_type)
+        candidates = [m for m in __symbex__.state.maps if m.meta.key_size >= key_size and ((value_size is ...) or (m.meta.value_size == value_size))]
+        # Ignore maps that the user did not declare
+        candidates = [m for m in candidates if "allocated_" not in m.meta.name and "packet_" not in m.meta.name]
+        if len(candidates) == 0:
+            # TODO padding can mess things up, ideally this should do candidate_size >= desired_size and then truncate
+            raise Exception("No such map.")
+
+        self._map = __choose__(candidates)
+        self._key_type = key_type
+        self._value_type = None if value_type is ... else value_type
+
+    def __contains__(self, key):
+        global __symbex__
+        (value, present) = self._map.get(__symbex__.state, TypedProxy.unwrap(key))
+        return present
+
+    # TODO friendlier API?
+    def __getitem__(self, key):
+        global __symbex__
+        (value, present) = self._map.get(__symbex__.state, TypedProxy.unwrap(key))
+        present_values = __symbex__.state.solver.eval_upto(present, 2)
+        if present_values != [True]:
+            raise Exception("Spec called get but element may not be there")
+        return TypedProxy.wrap(value, self._value_type)
+
+    def forall(self, pred):
+        global __symbex__
+        pred = MapInvariant.new(__symbex__.state, self._map.meta, lambda i: ~i.present | pred(TypedProxy.wrap(i.key, self._key_type), TypedProxy.wrap(i.value, self._value_type)))
+        return self._map.forall(__symbex__.state, pred)
+
+    @property
+    def length(self):
+        return self._map.length()
+
+
+# === Config ===
+
+class _SpecConfig:
+    def __init__(self, meta, devices_count):
+        self._meta = meta
+        self._devices_count = devices_count
+
+    @property
+    def devices_count(self):
+        return self._devices_count
+
+    def __getitem__(self, index):
+        if index not in self._meta:
+            raise Exception("Unknown config item: " + str(index))
+        return self._meta[index]
+
+
 # === Network headers ===
 
 _EthernetHeader = namedtuple(
@@ -125,73 +237,7 @@ def ipv4_checksum(header):
     return header.checksum # TODO
 
 
-# === Config ===
 
-class _SpecConfig:
-    def __init__(self, meta, devices_count):
-        self._meta = meta
-        self._devices_count = devices_count
-
-    @property
-    def devices_count(self):
-        return self._devices_count
-
-    def __getitem__(self, index):
-        if index not in self._meta:
-            raise Exception("Unknown config item: " + str(index))
-        return self._meta[index]
-
-
-# === Maps ===
-
-class Map:
-    def __init__(self, key_type, value_type):
-        global __symbex__
-        key_size = __type_size__(key_type)
-        value_size = ... if value_type is ... else __type_size__(value_type)
-        candidates = [m for m in __symbex__.state.maps if m.meta.key_size >= key_size and ((value_size is ...) or (m.meta.value_size == value_size))]
-        # Ignore maps that the user did not declare
-        candidates = [m for m in candidates if "allocated_" not in m.meta.name and "packet_" not in m.meta.name]
-        if len(candidates) == 0:
-            # TODO padding can mess things up, ideally this should do candidate_size >= desired_size and then truncate
-            raise Exception("No such map.")
-
-        self._map = __choose__(candidates)
-        #self._key_type = key_type
-        #self._real_key_type = map.meta.key_size
-        #self._value_type = None if value_type is ... else value_type
-
-    def __contains__(self, key):
-        global __symbex__
-        (value, present) = self._map.get(__symbex__.state, key) # of type=self._real_key_type...
-        return present
-
-    # TODO friendlier API?
-    def __getitem__(self, key):
-        global __symbex__
-        (value, present) = self._map.get(__symbex__.state, key) # of type=self._real_key_type...
-        present_values = __symbex__.state.solver.eval_upto(present, 2)
-        if present_values != [True]:
-            raise Exception("Spec called get but element may not be there")
-        return value # of self._value_type...
-
-    def forall(self, pred):
-        global __symbex__
-        pred = MapInvariant.new(__symbex__.state, self._map.meta, lambda i: ~i.present | pred(i.key, i.value)) # of types self._key_type / _value_type...
-        return self._map.forall(__symbex__.state, pred)
-
-    @property
-    def length(self):
-        return self._map.length()
-
-
-# === Spec 'built-in' functions ===
-
-def exists(type, func):
-    global __symbex__
-    value = __symbex__.state.solver.BVS("exists_value", __type_size__(type))
-    results = __symbex__.state.solver.eval_upto(func(value), 2)
-    return results == [True]
 
 
 # === Spec wrapper ===
