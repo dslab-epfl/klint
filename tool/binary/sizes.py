@@ -1,4 +1,5 @@
 import angr
+from angr.state_plugins.plugin import SimStatePlugin
 
 # note: as of 09/04/2021 you can't add 'intmax_t' or 'uintmax_t' because angr typedefs them to int/unsigned int for some reason
 TYPES = [
@@ -12,12 +13,12 @@ ALIASES = {
     "ptr": "void*"
 }
 
-class SizesPlugin(angr.state_plugins.plugin.SimStatePlugin):
+class SizesPlugin(SimStatePlugin):
     def set_state(self, state):
         for type in TYPES:
-            setattr(self, type, angr.types.parse_type(type).with_state(state).size)
+            setattr(self, type, angr.types.parse_type(type).with_arch(state.arch).size)
         for (name, type) in ALIASES.items():
-            setattr(self, name, angr.types.parse_type(type).with_state(state).size)
+            setattr(self, name, angr.types.parse_type(type).with_arch(state.arch).size)
         return super().set_state(state)
 
     @SimStatePlugin.memo

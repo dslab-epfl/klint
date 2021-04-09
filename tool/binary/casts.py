@@ -1,4 +1,6 @@
 import angr
+from angr.state_plugins.plugin import SimStatePlugin
+
 from .sizes import TYPES, ALIASES
 
 EXTRA = [

@@ -6,7 +6,7 @@ class ExpiringSet:
         self.expiration_time = expiration_time
         self.capacity = capacity
         self._elems_to_indices = Map(elem_type, "size_t")
-        self._indices_to_times = Map("size_t", "time_t")
+        self._indices_to_times = Map("size_t", "uint64_t")
 
     @property
     def full(self):

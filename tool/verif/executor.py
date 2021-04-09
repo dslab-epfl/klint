@@ -5,6 +5,7 @@ import datetime
 import os
 from pathlib import Path
 
+from binary.sizes import SizesPlugin
 from binary.executor import CustomMemory, CustomSolver
 
 from . import symbex
@@ -29,6 +30,9 @@ def create_state(constraints):
     state.solver.set_state(state)
     state.solver._stored_solver = CustomSolver()
     state.solver.add(*constraints)
+
+    state.sizes = SizesPlugin()
+    state.sizes.set_state(state)
 
     return state
 

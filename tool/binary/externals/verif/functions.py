@@ -1,7 +1,6 @@
 import angr
 import claripy
 
-from ... import cast
 from ... import utils
 
 # typedef void foreach_index_function(size_t index, void* state);
