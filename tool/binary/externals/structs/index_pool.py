@@ -2,7 +2,6 @@ import angr
 import claripy
 from collections import namedtuple
 
-import binary.bitsizes as bitsizes
 import binary.cast as cast
 import binary.utils as utils
 
@@ -20,11 +19,11 @@ class index_pool_alloc(angr.SimProcedure):
         expiration_time = cast.uint64_t(expiration_time)
 
         # Preconditions
-        self.state.solver.add((size * bitsizes.uint64_t).ULE(2 ** bitsizes.size_t - 1))
+        self.state.solver.add((size * self.state.sizes.uint64_t).ULE(2 ** self.state.sizes.size_t - 1))
 
         # Postconditions
-        result = claripy.BVS("index_pool", bitsizes.ptr)
-        items = self.state.maps.new(bitsizes.size_t, bitsizes.uint64_t, "pool_items")
+        result = claripy.BVS("index_pool", self.state.sizes.ptr)
+        items = self.state.maps.new(self.state.sizes.size_t, self.state.sizes.uint64_t, "pool_items")
         self.state.metadata.append(result, Pool(size, expiration_time, items))
         print("!!! index_pool_alloc", size, "->", result)
         return result
@@ -57,25 +56,25 @@ class index_pool_borrow(angr.SimProcedure):
         # Preconditions
         poolp = self.state.metadata.get(Pool, pool)
         self.state.solver.add(time != 0xFF_FF_FF_FF_FF_FF_FF_FF)
-        self.state.memory.load(out_index, bitsizes.size_t // 8)
-        self.state.memory.load(out_used, bitsizes.bool // 8)
+        self.state.memory.load(out_index, self.state.sizes.size_t // 8)
+        self.state.memory.load(out_used, self.state.sizes.bool // 8)
 
         # Postconditions
-        index = claripy.BVS("index", bitsizes.size_t)
-        used = claripy.BVS("used", bitsizes.bool)
+        index = claripy.BVS("index", self.state.sizes.size_t)
+        used = claripy.BVS("used", self.state.sizes.bool)
         self.state.memory.store(out_index, index, endness=self.state.arch.memory_endness)
         self.state.memory.store(out_used, used, endness=self.state.arch.memory_endness)
 
-        result = claripy.BVS("borrow_result", bitsizes.bool)
+        result = claripy.BVS("borrow_result", self.state.sizes.bool)
         self.state.solver.add(
             claripy.If(
                 self.state.maps.length(poolp.items) == poolp.size,
                 claripy.If(
                     self.state.maps.forall(poolp.items, lambda k, v: time.ULT(poolp.expiration_time) | (time - poolp.expiration_time).ULE(v)),
-                    result == claripy.BVV(0, bitsizes.bool),
-                    (result != claripy.BVV(0, bitsizes.bool)) & (used != claripy.BVV(0, bitsizes.bool))
+                    result == claripy.BVV(0, self.state.sizes.bool),
+                    (result != claripy.BVV(0, self.state.sizes.bool)) & (used != claripy.BVV(0, self.state.sizes.bool))
                 ),
-                result != claripy.BVV(0, bitsizes.bool)
+                result != claripy.BVV(0, self.state.sizes.bool)
             )
         )
         def case_true(state):
@@ -83,7 +82,7 @@ class index_pool_borrow(angr.SimProcedure):
             state.solver.add(
                 index.ULT(poolp.size),
                 claripy.If(
-                    used != claripy.BVV(0, bitsizes.bool),
+                    used != claripy.BVV(0, self.state.sizes.bool),
                     state.maps.get(poolp.items, index)[1] & ~(time.ULT(poolp.expiration_time) | (time - poolp.expiration_time).ULE(state.maps.get(poolp.items, index)[0])),
                     ~(state.maps.get(poolp.items, index)[1])
                 )
@@ -95,7 +94,7 @@ class index_pool_borrow(angr.SimProcedure):
             print("!!! index_pool_borrow false")
             return result
 
-        return utils.fork_guarded(self, self.state, result != claripy.BVV(0, bitsizes.bool), case_true, case_false)
+        return utils.fork_guarded(self, self.state, result != claripy.BVV(0, self.state.sizes.bool), case_true, case_false)
 
 # void index_pool_refresh(struct index_pool* pool, time_t time, size_t index);
 # requires poolp(pool, ?size, ?exp_time, ?items) &*&
@@ -144,14 +143,14 @@ class index_pool_used(angr.SimProcedure):
         def case_has(state, t):
             print("!!! index_pool_used has", time)
             def case_true(state):
-                return claripy.BVV(1, bitsizes.bool)
+                return claripy.BVV(1, self.state.sizes.bool)
             def case_false(state):
-                return claripy.BVV(0, bitsizes.bool)
+                return claripy.BVV(0, self.state.sizes.bool)
             return utils.fork_guarded(self, state, time.ULT(poolp.expiration_time) | (time - poolp.expiration_time).ULE(t), case_true, case_false)
 
         def case_not(state):
             print("!!! index_pool_used not")
-            return claripy.BVV(0, bitsizes.bool)
+            return claripy.BVV(0, self.state.sizes.bool)
 
         return utils.fork_guarded_has(self, self.state, poolp.items, index, case_has, case_not)
 

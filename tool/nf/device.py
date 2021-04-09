@@ -3,7 +3,6 @@ import claripy
 from collections import namedtuple
 import copy
 
-from binary import bitsizes
 from binary import utils
 from . import spec_act
 from . import spec_reg
@@ -49,8 +48,8 @@ def device_writer(state, base, offset, value):
         rdbah = dev.regs["RDBAH"][index].zero_extend(32)
         rdba = (rdbah << 32) | rdbal
         # TODO virt2phys handling
-        buffer_length = dev.regs["SRRCTL"][index][4:0].zero_extend(bitsizes.size_t - 5) * 1024
-        packet_length = claripy.BVS("packet_len", bitsizes.size_t) # TODO how to enforce packet_length here?
+        buffer_length = dev.regs["SRRCTL"][index][4:0].zero_extend(state.sizes.size_t - 5) * 1024
+        packet_length = claripy.BVS("packet_len", state.sizes.size_t) # TODO how to enforce packet_length here?
         packet_addr = state.memory.load(rdba, 8, endness=state.arch.memory_endness)
         packet_data = state.memory.allocate(1, packet.PACKET_MTU, name="packet_data")
         packet_desc_meta = packet_length.zero_extend(64 - packet_length.size()) | (0b11 << 32) # DD and EOP, plus length
@@ -79,7 +78,7 @@ def device_writer(state, base, offset, value):
 
 def spec_device_create_default(state, index):
     bar_size = 128 * 1024 # Intel 82599
-    device = SpecDevice(index, claripy.BVS("dev_phys_addr", bitsizes.ptr), claripy.BVS("dev_virt_addr", bitsizes.ptr), bar_size, {}, {}, [0], [False], [None], {})
+    device = SpecDevice(index, claripy.BVS("dev_phys_addr", state.sizes.ptr), claripy.BVS("dev_virt_addr", bitsizes.ptr), bar_size, {}, {}, [0], [False], [None], {})
 
     # Phys addr handling
     state.solver.add(device.phys_addr & 0b1111 == 0) # since the bottom 4 bits of the BAR are non-address stuff

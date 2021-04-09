@@ -1,7 +1,5 @@
 import claripy
 
-from binary import bitsizes # ugh! TODO remove need for this
-
 """
 The original peer symbex approach from https://hoheinzollern.files.wordpress.com/2008/04/seer1.pdf works for exhaustive symbex of all boolean conditions.
 We extend it to support an 'or' combination for any value, so that one can say symbex succeeds if any one of a given set of choices succeeds.

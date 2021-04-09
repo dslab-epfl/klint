@@ -4,7 +4,7 @@
 struct config_item
 {
 	const char* name;
-	uintmax_t value;
+	uint64_t value;
 };
 
 static struct config_item items[] =
@@ -36,7 +36,7 @@ static bool string_compare(const char* a, const char* b)
 	return n == SIZE_MAX;
 }
 
-bool os_config_try_get(const char* name, uintmax_t* out_value)
+bool os_config_try_get(const char* name, uint64_t* out_value)
 //@ requires [?f]*name |-> _ &*& *out_value |-> _;
 //@ ensures [f]*name |-> _ &*& *out_value |-> _;
 {

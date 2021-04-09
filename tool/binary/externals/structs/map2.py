@@ -2,7 +2,6 @@ import angr
 import claripy
 from collections import namedtuple
 
-import binary.bitsizes as bitsizes
 import binary.cast as cast
 import binary.utils as utils
 
@@ -33,14 +32,14 @@ class OsMap2Alloc(angr.SimProcedure):
         # Preconditions
         self.state.solver.add(
             key_size.UGT(0),
-            (key_size * capacity * 2).ULE(2 ** bitsizes.size_t - 1),
+            (key_size * capacity * 2).ULE(2 ** self.state.sizes.size_t - 1),
             value_size.UGT(0),
-            (value_size * capacity * 2).ULE(2 ** bitsizes.size_t - 1),
-            (capacity * bitsizes.size_t * 2).ULE(2 ** bitsizes.size_t - 1)
+            (value_size * capacity * 2).ULE(2 ** self.state.sizes.size_t - 1),
+            (capacity * self.state.sizes.size_t * 2).ULE(2 ** self.state.sizes.size_t - 1)
         )
 
         # Postconditions
-        result = claripy.BVS("os_map2", bitsizes.ptr)
+        result = claripy.BVS("os_map2", self.state.sizes.ptr)
         items = self.state.maps.new(key_size * 8, value_size * 8, "map_items") # key_size and value_size are in bytes
         self.state.metadata.append(result, Map(key_size, value_size, capacity, items))
         print("!!! os_map2_alloc", key_size, value_size, capacity, "->", result)
@@ -74,10 +73,10 @@ class OsMap2Get(angr.SimProcedure):
         def case_has(state, v):
             print("!!! os_map2_get has", v)
             self.state.memory.store(out_value_ptr, v, endness=self.state.arch.memory_endness)
-            return claripy.BVV(1, bitsizes.bool)
+            return claripy.BVV(1, self.state.sizes.bool)
         def case_not(state):
             print("!!! os_map2_get not")
-            return claripy.BVV(0, bitsizes.bool)
+            return claripy.BVV(0, self.state.sizes.bool)
         return utils.fork_guarded_has(self, self.state, mapp.items, key, case_has, case_not)
 
 # void os_map2_set(struct os_map2* map, void* key_ptr, void* value_ptr);
@@ -107,9 +106,9 @@ class OsMap2Set(angr.SimProcedure):
         # Postconditions
         def case_true(state):
             self.state.maps.set(mapp.items, key, value)
-            return claripy.BVV(1, bitsizes.bool)
+            return claripy.BVV(1, self.state.sizes.bool)
         def case_false(state):
-            return claripy.BVV(0, bitsizes.bool)
+            return claripy.BVV(0, self.state.sizes.bool)
         return utils.fork_guarded(self, self.state, self.state.maps.length(mapp.items).ULT(mapp.capacity), case_true, case_false)
 
 

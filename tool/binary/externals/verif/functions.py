@@ -1,7 +1,6 @@
 import angr
 import claripy
 
-from ... import bitsizes
 from ... import cast
 from ... import utils
 
@@ -20,7 +19,7 @@ class foreach_index(angr.SimProcedure):
             pass
 
         def case_nonzero(state):
-            index = claripy.BVS("foreach_index", bitsizes.size_t)
+            index = claripy.BVS("foreach_index", self.state.sizes.size_t)
             self.state.solver.add(index.ULT(length))
             func_state = self.state.project.factory.call_state(func.args[0], *[index, st], base_state=self.state)
             func_sm = self.state.project.factory.simulation_manager(func_state)

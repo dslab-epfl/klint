@@ -10,7 +10,6 @@ from enum import Enum
 
 import datetime
 
-from . import bitsizes
 from . import utils
 
 
@@ -142,7 +141,7 @@ class Map:
         if _length is None:
             _length = 0
         if isinstance(_length, int):
-            _length = claripy.BVV(_length, bitsizes.size_t)
+            _length = claripy.BVV(_length, state.sizes.size_t)
 
         result = Map(MapMeta(name, key_size, value_size), _length, [], [])
         if _invariants is None:
@@ -422,12 +421,12 @@ class GhostMapsPlugin(SimStatePlugin):
     # === Public API ===
 
     def new(self, key_size, value_size, name):
-        obj = claripy.BVS(name, bitsizes.ptr)
+        obj = claripy.BVS(name, self.state.sizes.ptr)
         self[obj] = Map.new(self.state, key_size, value_size, name)
         return obj
 
     def new_array(self, key_size, value_size, length, name):
-        obj = claripy.BVS(name, bitsizes.ptr)
+        obj = claripy.BVS(name, self.state.sizes.ptr)
         self[obj] = Map.new_array(self.state, key_size, value_size, length, name)
         return obj
 

@@ -2,7 +2,6 @@ import angr
 import claripy
 from collections import namedtuple
 
-from ... import bitsizes
 from ... import cast
 from ... import utils
 from nf.device import *
@@ -15,7 +14,7 @@ PciDevices = namedtuple('PciDevices', ['ptr', 'count'])
 
 def get_device(state, bus, device, function):
     meta = state.metadata.get_one(PciDevices)
-    index = claripy.BVS("pci_index", bitsizes.size_t)
+    index = claripy.BVS("pci_index", state.sizes.size_t)
     state.solver.add(index.ULT(meta.count))
     value = state.memory.load(meta.ptr + index * 8, 8).reversed # 8 == sizeof(os_pci_address)
     value_bus = value[7:0] # this is kind of .reversed since it should be 63:56! same for the others
@@ -53,7 +52,7 @@ class os_pci_enumerate(angr.SimProcedure):
         out_devices = cast.ptr(out_devices)
 
         self.state.pci.set_handlers(pci_read, pci_write)
-        count = claripy.BVV(2, bitsizes.size_t) #TODO: claripy.BVS("pci_devices_count", bitsizes.size_t), but then how do we ensure they're unique?
+        count = claripy.BVV(2, self.state.sizes.size_t) #TODO: claripy.BVS("pci_devices_count", self.state.sizes.size_t), but then how do we ensure they're unique?
 
         meta = self.state.metadata.get_all(PciDevices)
         if len(meta) == 0:

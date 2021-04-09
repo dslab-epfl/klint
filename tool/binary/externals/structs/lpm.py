@@ -2,21 +2,20 @@ import angr
 import claripy
 from collections import namedtuple
 
-import binary.bitsizes as bitsizes
 import binary.cast as cast
 import binary.utils as utils
 
 Lpm = namedtuple("lpmp", ["table"])
 
-IP_LEN = bitsizes.uint32_t
+IP_LEN = 32
 
 # TODO: Split allocation and fill-from-config
 class LpmAlloc(angr.SimProcedure):
     def run(self):
 
         # Postconditions
-        result = claripy.BVS("lpm", bitsizes.ptr)
-        table = self.state.maps.new(IP_LEN + bitsizes.uint8_t, bitsizes.uint16_t, "lpm_table")
+        result = claripy.BVS("lpm", self.state.sizes.ptr)
+        table = self.state.maps.new(IP_LEN + self.state.sizes.uint8_t, self.state.sizes.uint16_t, "lpm_table")
         self.state.maps.havoc(table, claripy.BVS("lpm_table_length", 64), False)
         self.state.metadata.append(result, Lpm(table))
         print(f"!!! lpm_alloc -> {result}")
@@ -35,7 +34,7 @@ class LpmUpdateElem(angr.SimProcedure):
         # Postconditions
         lpmp = self.state.metadata.get(Lpm, lpm)
         self.state.maps.set(lpmp.table, prefix.concat(prefixlen), value)
-        return claripy.BVV(1, bitsizes.bool)
+        return claripy.BVV(1, self.state.sizes.bool)
 
 # TODO: The issue right now is that there could be two routes (P,L) and (P',L) where (P >> L) == (P' >> L) but P != P'...
 class LpmLookupElem(angr.SimProcedure):
@@ -51,9 +50,9 @@ class LpmLookupElem(angr.SimProcedure):
 
         # Postconditions
         lpmp = self.state.metadata.get(Lpm, lpm)
-        out_value_bv = claripy.BVS("out_value", bitsizes.uint16_t)
+        out_value_bv = claripy.BVS("out_value", self.state.sizes.uint16_t)
         out_prefix_bv = claripy.BVS("out_prefix", IP_LEN)
-        out_prefixlen_bv = claripy.BVS("out_prefixlen", bitsizes.uint8_t)
+        out_prefixlen_bv = claripy.BVS("out_prefixlen", self.state.sizes.uint8_t)
         out_route = out_prefix_bv.concat(out_prefixlen_bv)
         self.state.memory.store(out_value, out_value_bv, endness=self.state.arch.memory_endness)
         self.state.memory.store(out_prefix, out_prefix_bv, endness=self.state.arch.memory_endness)
@@ -66,7 +65,7 @@ class LpmLookupElem(angr.SimProcedure):
         
         def case_none(state):
             print("!!! lpm_lookup_elem: none")
-            return claripy.BVV(0, bitsizes.bool)
+            return claripy.BVV(0, self.state.sizes.bool)
         def case_some(state):
             print("!!! lpm_lookup_elem: some")
             (value, has) = state.maps.get(lpmp.table, out_route)
@@ -76,6 +75,6 @@ class LpmLookupElem(angr.SimProcedure):
                 value == out_value_bv,
                 matches(out_route)
             )
-            return claripy.BVV(1, bitsizes.bool)
+            return claripy.BVV(1, self.state.sizes.bool)
 
         return utils.fork_guarded(self, self.state, self.state.maps.forall(lpmp.table, lambda k, v: ~matches(k)), case_none, case_some)

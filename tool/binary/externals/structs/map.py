@@ -2,7 +2,6 @@ import angr
 import claripy
 from collections import namedtuple
 
-import binary.bitsizes as bitsizes
 import binary.cast as cast
 import binary.utils as utils
 
@@ -24,12 +23,12 @@ class map_alloc(angr.SimProcedure):
             raise Exception("key_size cannot be symbolic")
 
         # Preconditions
-        self.state.solver.add((capacity * 64).ULE(2 ** bitsizes.size_t - 1))
+        self.state.solver.add((capacity * 64).ULE(2 ** self.state.sizes.size_t - 1))
 
         # Postconditions
-        result = claripy.BVS("map", bitsizes.ptr)
-        values = self.state.maps.new(key_size * 8, bitsizes.ptr, "map_values") # key_size is in bytes
-        addrs = self.state.maps.new(key_size * 8, bitsizes.ptr, "map_addrs") # key_size is in bytes
+        result = claripy.BVS("map", self.state.sizes.ptr)
+        values = self.state.maps.new(key_size * 8, self.state.sizes.ptr, "map_values") # key_size is in bytes
+        addrs = self.state.maps.new(key_size * 8, self.state.sizes.ptr, "map_addrs") # key_size is in bytes
         self.state.metadata.append(result, Map(key_size, capacity, values, addrs))
         print("!!! map_alloc", key_size, capacity, "->", result)
         return result
@@ -55,17 +54,17 @@ class map_get(angr.SimProcedure):
         # Preconditions
         mapp = self.state.metadata.get(Map, map)
         key = self.state.memory.load(key_ptr, mapp.key_size, endness=self.state.arch.memory_endness)
-        self.state.memory.load(out_value, bitsizes.ptr // 8)
+        self.state.memory.load(out_value, self.state.sizes.ptr // 8)
         print("!!! map_get key", key)
 
         # Postconditions
         def case_has(state, v):
             print("!!! map_get has", v)
             self.state.memory.store(out_value, v, endness=self.state.arch.memory_endness)
-            return claripy.BVV(1, bitsizes.bool)
+            return claripy.BVV(1, self.state.sizes.bool)
         def case_not(state):
             print("!!! map_get not")
-            return claripy.BVV(0, bitsizes.bool)
+            return claripy.BVV(0, self.state.sizes.bool)
         return utils.fork_guarded_has(self, self.state, mapp.values, key, case_has, case_not)
 
 # void map_set(struct map* map, void* key_ptr, size_t value);

@@ -2,8 +2,6 @@ import angr
 import claripy
 from collections import namedtuple
 
-from . import bitsizes
-
 
 class ObjectsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
     Metadata = namedtuple('ObjectsMemoryMetadata', ['size', 'reader', 'writer'])
@@ -38,7 +36,7 @@ class ObjectsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
     # reader: (state, base, offset) -> value
     # writer: (state, base, offset, value) -> void
     def create_special_object(self, name, size, reader, writer):
-        obj = claripy.BVS(name, bitsizes.ptr)
+        obj = claripy.BVS(name, self.state.sizes.ptr)
         self.state.metadata.append(obj, ObjectsMemoryMixin.Metadata(size, reader, writer))
 
 

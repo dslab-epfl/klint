@@ -14,6 +14,7 @@ from .objs_memory import ObjectsMemoryMixin
 from .path import PathPlugin
 from .pci import PciPlugin
 from .plugin_dummy import DummyPlugin
+from .sizes import SizesPlugin
 
 
 DEBUG = False
@@ -172,20 +173,24 @@ def create_sim_manager(binary, ext_funcs, main_func_name, *main_func_args, base_
     global bin_exec_initialized
     if not bin_exec_initialized:
         EmptyLibrary().install()
-        random.seed(10) # not sure if this is useful, but just in case...
-        faulthandler.enable()
-        bin_exec_initialized = True
 
-    # No explicit globals (we use metadata instead)
-    SimState.register_default("globals", DummyPlugin)
-    # No explicit heap (we use our memory's "allocate" instead)
-    SimState.register_default("heap", DummyPlugin)
-    # Our plugins
-    SimState.register_default("metadata", MetadataPlugin)
-    SimState.register_default("maps", GhostMapsPlugin)
-    SimState.register_default("path", PathPlugin)
-    SimState.register_default("pci", PciPlugin)
-    SimState.register_default("sym_memory", CustomMemory) # Has to be named that way for angr to use it as default
+        random.seed(10) # not sure if this is useful, but just in case...
+
+        faulthandler.enable()
+
+        # No explicit globals (we use metadata instead)
+        SimState.register_default("globals", DummyPlugin)
+        # No explicit heap (we use our memory's "allocate" instead)
+        SimState.register_default("heap", DummyPlugin)
+        # Our plugins
+        SimState.register_default("metadata", MetadataPlugin)
+        SimState.register_default("maps", GhostMapsPlugin)
+        SimState.register_default("path", PathPlugin)
+        SimState.register_default("pci", PciPlugin)
+        SimState.register_default("sizes", SizesPlugin)
+        SimState.register_default("sym_memory", CustomMemory) # Has to be named that way for angr to use it as default
+
+        bin_exec_initialized = True
 
     proj = angr.Project(binary, auto_load_libs=False, use_sim_procedures=False, engine=CustomEngine, simos=SimOS)
     for (fname, fproc) in ext_funcs.items():

@@ -12,7 +12,8 @@ def type_size(type):
     if isinstance(type, int):
         return type
     if isinstance(type, str):
-        return getattr(bitsizes, type)
+        global __symbex__
+        return getattr(__symbex__.state.sizes, type)
     raise Exception(f"idk what to do with type '{type}'")
 
 

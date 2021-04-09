@@ -1,7 +1,6 @@
 import angr
 import claripy
 
-import binary.bitsizes as bitsizes
 import binary.cast as cast
 import binary.utils as utils
 import nf.device as nf_device
@@ -22,12 +21,12 @@ class os_memory_alloc(angr.SimProcedure):
             raise Exception("size cannot be symbolic")
 
         # Preconditions
-        self.state.solver.add((count == 1) | (count * size <= (2 ** bitsizes.size_t - 1)))
+        self.state.solver.add((count == 1) | (count * size <= (2 ** self.state.sizes.size_t - 1)))
 
         # Postconditions
         result = self.state.memory.allocate(count, size, name="allocated", default=claripy.BVV(0, self.state.solver.eval_one(size, cast_to=int) * 8))
         # Optimization: Avoid use of a modulo
-        multiplier = claripy.BVS("memory_mult", bitsizes.ptr)
+        multiplier = claripy.BVS("memory_mult", self.state.sizes.ptr)
         self.state.solver.add(result == multiplier * (count * size))
         print("!!! os_memory_alloc", count, size, "->", result)
         return result

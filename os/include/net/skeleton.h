@@ -22,7 +22,7 @@ void nf_handle(struct net_packet* packet);
 // Convenience method
 static inline bool os_config_get_device(const char* name, device_t devices_count, device_t* out_value)
 {
-	uintmax_t value;
+	uint64_t value;
 	if (!os_config_get(name, 0, devices_count, &value)) {
 		return false;
 	}

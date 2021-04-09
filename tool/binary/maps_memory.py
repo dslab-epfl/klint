@@ -2,7 +2,6 @@ import angr
 import claripy
 from collections import namedtuple
 
-from . import bitsizes
 from . import utils
 
 # TODO: Only query the fractions map if 'take' has been called at least once for it; but this means the metadata may not be the same before and after init, how to handle that?
@@ -72,18 +71,18 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
             raise Exception("That's a huge block you want to allocate... let's just not: " + str(max_size))
 
         name = (name or "memory") + "_addr"
-        addr = self.state.maps.new_array(bitsizes.ptr, max_size * 8, count, name)
+        addr = self.state.maps.new_array(self.state.sizes.ptr, max_size * 8, count, name)
         if default is not None:
             if count.structurally_match(claripy.BVV(1, count.size())):
-                self.state.maps.set(addr, claripy.BVV(0, bitsizes.ptr), default) # simpler
+                self.state.maps.set(addr, claripy.BVV(0, self.state.sizes.ptr), default) # simpler
             else:
                 self.state.solver.add(self.state.maps.forall(addr, lambda k, v: v == default))
         if constraint is not None:
             self.state.solver.add(self.state.maps.forall(addr, constraint))
         # neither null nor so high it overflows (note the -1 becaus 1-past-the-array is legal C)
-        self.state.solver.add(addr != 0, addr.ULE(claripy.BVV(2**bitsizes.ptr-1, bitsizes.ptr) - max_size - 1))
+        self.state.solver.add(addr != 0, addr.ULE(claripy.BVV(2**self.state.sizes.ptr-1, self.state.sizes.ptr) - max_size - 1))
 
-        fractions = self.state.maps.new_array(bitsizes.ptr, 8, count, name + MapsMemoryMixin.FRACS_NAME)
+        fractions = self.state.maps.new_array(self.state.sizes.ptr, 8, count, name + MapsMemoryMixin.FRACS_NAME)
         self.state.solver.add(self.state.maps.forall(fractions, lambda k, v: v == 100))
 
         self.state.metadata.append(addr, MapsMemoryMixin.Metadata(count, size, fractions))
