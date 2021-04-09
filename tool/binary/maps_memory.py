@@ -6,11 +6,11 @@ from . import utils
 
 # TODO: Only query the fractions map if 'take' has been called at least once for it; but this means the metadata may not be the same before and after init, how to handle that?
 
-# General note: we ignore presence bits when if they are false then the fractions checks will definitely fail
-# Also, recall that all sizes are in bytes, and all offsets are in bits
+# All sizes are in bytes, and all offsets are in bits
+# We store maps data in the state's memory endianness rather than in self.endness, this makes for fewer flips / more readable constraints
 class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
     FRACS_NAME = "_fracs"
-    Metadata = namedtuple('MapsMemoryMetadata', ['count', 'size', 'fractions'])
+    Metadata = namedtuple('MapsMemoryMetadata', ['count', 'size', 'fractions', 'endness'])
 
     def load(self, addr, size=None, endness=None, **kwargs):
         if not isinstance(addr, claripy.ast.Base) or not addr.symbolic:
@@ -24,7 +24,7 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
         self.state.solver.add(present & (fraction != 0))
         data, _ = self.state.maps.get(base, index)
 
-        if endness is not None and endness != self.endness:
+        if endness is not None and endness != meta.endness:
             data = data.reversed
 
         if offset != 0:
@@ -51,14 +51,14 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
 
         if data.size() != self.state.maps.value_size(base):
             current, _ = self.state.maps.get(base, index)
-            if endness is not None and endness != self.endness:
+            if endness is not None and endness != meta.endness:
                 current = current.reversed
             if offset != 0:
                 data = data.concat(current[offset-1:0])
             if data.size() != current.size():
                 data = current[current.size()-1:data.size()].concat(data)
 
-        if endness is not None and endness != self.endness:
+        if endness is not None and endness != meta.endness:
             data = data.reversed
 
         self.state.maps.set(base, index, data, UNSAFE_can_flatten=True) # memory cannot escape to an invariant aside from v0 thus this is safe)
@@ -85,7 +85,7 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
         fractions = self.state.maps.new_array(self.state.sizes.ptr, 8, count, name + MapsMemoryMixin.FRACS_NAME)
         self.state.solver.add(self.state.maps.forall(fractions, lambda k, v: v == 100))
 
-        self.state.metadata.append(addr, MapsMemoryMixin.Metadata(count, size, fractions))
+        self.state.metadata.append(addr, MapsMemoryMixin.Metadata(count, size, fractions, self.state.arch.memory_endness))
 
         return addr
 

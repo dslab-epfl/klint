@@ -37,23 +37,17 @@ def symbex_builtin_choose(choices):
 
 class ValueProxy:
     @staticmethod
-    def unwrap(value, type=None):
+    def unwrap(value):
         if not isinstance(value, ValueProxy):
             return value
-        result = value._value
-        if type is None:
-            return result
-        else:
-            size = symbex_builtin_type_size(type)
-            assert size >= result.size(), "the actual type should have a size at least that of the result's"
-            return result.zero_extend(size - result.size())
+        return value._value
 
     @staticmethod
     def wrap_func(func):
         return lambda *args: ValueProxy(func(*[ValueProxy.unwrap(arg) for arg in args]))
 
     def __init__(self, value):
-        assert value is not None and value is not NotImplemented and not isinstance(value, ValueProxy)
+        assert value is not None and value is not NotImplemented and not isinstance(value, ValueProxy), "value should make sense"
         self._value = value
 
     def __getattr__(self, name):
@@ -61,8 +55,7 @@ class ValueProxy:
             # Private members, for use within the class itself
             return super().__getattr__(name, value)
 
-        # Only forward attrs if we're not a Claripy instance
-        if not isinstance(self._value, claripy.ast.Base) and hasattr(self._value, name):
+        if hasattr(self._value, name):
             if callable(getattr(self._value, name)):
                 return ValueProxy.wrap_func(getattr(self._value, name))
             return ValueProxy(getattr(self._value, name))
@@ -106,7 +99,7 @@ class ValueProxy:
         if not isinstance(self._value, claripy.ast.Base):
             return bool(self._value)
 
-        assert isinstance(self._value, claripy.ast.Bool)
+        assert isinstance(self._value, claripy.ast.Bool), "can't turn a ValueProxy over a non-bool AST into a bool"
 
         global __symbex__
 
@@ -116,7 +109,7 @@ class ValueProxy:
         if len(outcomes) == 1:
             return outcomes[0]
 
-        assert len(outcomes) == 2
+        assert len(outcomes) == 2, "solver eval_upto for a bool should return 1 or 2 outcomes"
 
         if __symbex__.branch_index == len(__symbex__.branches):
             __symbex__.branches.append((self._value, True))
@@ -126,11 +119,11 @@ class ValueProxy:
 
     
     def __contains__(self, item):
-        assert not isinstance(self._value, claripy.ast.Base)
+        assert not isinstance(self._value, claripy.ast.Base), "contains cannot be called on an AST"
         return item in self._value
 
     def __len__(self):
-        assert not isinstance(self._value, claripy.ast.Base)
+        assert not isinstance(self._value, claripy.ast.Base), "len cannot be called on an AST"
         return len(self._value)
 
     def __invert__(self):

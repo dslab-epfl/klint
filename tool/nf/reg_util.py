@@ -65,7 +65,7 @@ def __init_reg_val_con(data):
 def get_pci_reg(base, spec): 
     for name, info in spec.items():
         b, m, _ = info['addr'][0]
-        assert(m == 0)
+        assert m == 0, "PCI m must be 0"
         if b == base:
             return name
     raise Exception(f"PCI register with address 0x{base:x} is not in the spec.")
