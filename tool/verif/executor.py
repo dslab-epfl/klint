@@ -45,9 +45,10 @@ def verify(data, spec):
 
     full_spec_text = spec_prefix + os.linesep + spec_utils + os.linesep + spec
 
-    # TODO move this somewhere... maybe just use "device_t" since we have time_t and such?
     globals = {
-        "Device": "uint16_t"
+        # TODO move this somewhere... maybe just use "device_t" since we have time_t and such?
+        "Device": "uint16_t",
+        "time": lambda: data.times[0] # TODO!
     }
 
     for (path, choices) in symbex.symbex(state, prev_state, full_spec_text, "_spec_wrapper", [data], globals):

@@ -9,7 +9,7 @@ from . import utils
 # Optimization: objects are compared structurally instead of with the solver, which might cause spurious failures
 # (this does not work unless ghost maps are doing the "use existing items if possible in get" optimization)
 
-# Append-only key-value metadata per class
+# Key-value metadata per class
 class MetadataPlugin(SimStatePlugin):
     def __init__(self, _items=None):
         SimStatePlugin.__init__(self)

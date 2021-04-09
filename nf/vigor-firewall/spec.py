@@ -21,7 +21,6 @@ def spec(packet, config, transmitted_packet):
             'dst_port': packet.tcpudp.src,
             'protocol': packet.ipv4.protocol
         }
-        print("HI",flow)
 
         if flow in flows.old:
             assert flows.did_refresh(flow)
@@ -36,7 +35,6 @@ def spec(packet, config, transmitted_packet):
             'dst_port': packet.tcpudp.dst,
             'protocol': packet.ipv4.protocol
         }
-        print("HI2",flow)
 
         assert flows.full or flow in flows
         assert transmitted_packet == packet

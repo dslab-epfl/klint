@@ -59,8 +59,6 @@ def exists(type, func):
 
 class Map:
     def __init__(self, key_type, value_type, _state=None, _map=None):
-        print("!!! map", self, type(self), key_type, type(key_type), value_type, type(value_type), _state, type(_state), _map, type(_map))
-
         if _state is None:
             global __symbex__
             _state = __symbex__.state

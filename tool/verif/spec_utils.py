@@ -15,7 +15,7 @@ class ExpiringSet:
 
     @property
     def full(self):
-        return (self._elems_to_indices.length() == self.capacity) & \
+        return (self._elems_to_indices.length == self.capacity) & \
                (time() < self.expiration_time | self._indices_to_times.forall(lambda k, v: v >= time() - self.expiration_time))
 
     def __contains__(self, item):
