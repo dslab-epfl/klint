@@ -83,7 +83,7 @@ class ValueProxy:
             other_value = other._value
         if isinstance(other_value, float) and other_value == other_value // 1:
             other_value = int(other_value)
-        if isinstance(other_value, int):
+        if isinstance(other_value, int) and not isinstance(other_value, bool): # Python quirk: bool subclasses int...
             if not isinstance(self_value, int):
                 assert isinstance(self_value, claripy.ast.BV), "what else could it be?"
                 other_value = claripy.BVV(other_value, max(8, self_value.size())) # 8 bits minimum
@@ -91,6 +91,12 @@ class ValueProxy:
         if isinstance(self_value, claripy.ast.BV):
             self_value = self_value.zero_extend(max(0, other_value.size() - self_value.size()))
             other_value = other_value.zero_extend(max(0, self_value.size() - other_value.size()))
+
+        # Claripy bug #214: Bool doesn't support rand/ror
+        if op == '__ror__':
+            op = '__or__'
+        if op == '__rand__':
+            op = '__and__'
 
         return ValueProxy.wrap(getattr(self_value, op)(other_value))
 

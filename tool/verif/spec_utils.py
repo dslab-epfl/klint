@@ -13,12 +13,12 @@ class ExpiringSet:
 
     @property
     def old(self):
-        return ExpiringSet(self.elem_type, self.expiration_time, self.capacity, self._elems_to_indices.old, self._indices_to_times.old)
+        return ExpiringSet(self.elem_type, self.expiration_time, self.capacity, _elems_to_indices=self._elems_to_indices.old, _indices_to_times=self._indices_to_times.old)
 
     @property
     def full(self):
         return (self._elems_to_indices.length == self.capacity) & \
-               ((time() < self.expiration_time) | self._indices_to_times.forall(lambda k, v: v >= (time() - self.expiration_time)))
+               self._indices_to_times.forall(lambda k, v: (time() < self.expiration_time) | (v >= time() - self.expiration_time))
 
     def __contains__(self, item):
         return item in self._elems_to_indices

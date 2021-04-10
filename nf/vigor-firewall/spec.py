@@ -7,7 +7,7 @@ Flow = {
 }
 
 def spec(packet, config, transmitted_packet):
-    if packet.ipv4 is None or packet.tcpudp is None:
+    if (packet.ipv4 is None) | (packet.tcpudp is None):
         assert transmitted_packet is None
         return
 
@@ -36,7 +36,7 @@ def spec(packet, config, transmitted_packet):
             'protocol': packet.ipv4.protocol
         }
 
-        assert flows.full or flow in flows
+        assert (flow in flows) | flows.old.full
 
     assert transmitted_packet.data == packet.data
     assert transmitted_packet.device == 1 - packet.device
