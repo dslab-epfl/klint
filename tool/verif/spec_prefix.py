@@ -96,8 +96,7 @@ class Map:
         return type_wrap(value, self._value_type)
 
     def forall(self, pred):
-        pred = MapInvariant.new(self._state, self._map.meta, lambda i: ~i.present | pred(type_wrap(i.key, self._key_type), type_wrap(i.value, self._value_type)))
-        return self._map.forall(self._state, pred)
+        return self._map.forall(self._state, lambda k, v: pred(type_wrap(k, self._key_type), type_wrap(v, self._value_type)))
 
     # we can't override __len__ because python enforces that it returns an 'int'
     @property

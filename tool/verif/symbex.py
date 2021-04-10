@@ -37,14 +37,18 @@ def symbex_builtin_choose(choices):
 
 class ValueProxy:
     @staticmethod
+    def wrap(value):
+        if callable(value):
+            return lambda *args, **kwargs: ValueProxy.wrap(value(*[ValueProxy.unwrap(arg) for arg in args], **{k: ValueProxy.unwrap(v) for (k, v) in kwargs.items()}))
+        return ValueProxy(value)
+
+    @staticmethod
     def unwrap(value):
+        if callable(value):
+            return lambda *args, **kwargs: ValueProxy.unwrap(value(*[ValueProxy.wrap(arg) for arg in args], **{k: ValueProxy.wrap(v) for (k, v) in kwargs.items()}))
         if not isinstance(value, ValueProxy):
             return value
         return value._value
-
-    @staticmethod
-    def wrap_func(func):
-        return lambda *args, **kwargs: ValueProxy(func(*[ValueProxy.unwrap(arg) for arg in args], **{k: ValueProxy.unwrap(v) for (k, v) in kwargs.items()}))
 
     def __init__(self, value):
         assert value is not None and value is not NotImplemented and not isinstance(value, ValueProxy), "value should make sense"
@@ -56,9 +60,7 @@ class ValueProxy:
             return super().__getattr__(name, value)
 
         if hasattr(self._value, name):
-            if callable(getattr(self._value, name)):
-                return ValueProxy.wrap_func(getattr(self._value, name))
-            return ValueProxy(getattr(self._value, name))
+            return ValueProxy.wrap(getattr(self._value, name))
 
         raise Exception(f"idk what to do about attr '{name}'")
 
@@ -90,7 +92,7 @@ class ValueProxy:
             self_value = self_value.zero_extend(max(0, other_value.size() - self_value.size()))
             other_value = other_value.zero_extend(max(0, self_value.size() - other_value.size()))
 
-        return ValueProxy(getattr(self_value, op)(other_value))
+        return ValueProxy.wrap(getattr(self_value, op)(other_value))
 
 
     def __bool__(self):
@@ -131,10 +133,10 @@ class ValueProxy:
 
 
     def __invert__(self):
-        return ValueProxy(~self._value)
+        return ValueProxy.wrap(~self._value)
 
     def __getitem__(self, item):
-        return ValueProxy(self._value[item])
+        return ValueProxy.wrap(self._value[item])
 
     def __and__(self, other):
         return self._op(other, "__and__")
@@ -192,8 +194,8 @@ def _symbex_one(state, prev_state, func, branches, choices):
     __symbex__.branch_index = 0
     __symbex__.choices = choices
     __symbex__.choice_index = 0
-    __symbex__.state = ValueProxy(state)
-    __symbex__.prev_state = ValueProxy(prev_state)
+    __symbex__.state = ValueProxy.wrap(state)
+    __symbex__.prev_state = ValueProxy.wrap(prev_state)
     func()
     return __symbex__.branches[:__symbex__.branch_index], __symbex__.choices[:__symbex__.choice_index]
 
@@ -228,7 +230,7 @@ def symbex(state, prev_state, program, func_name, args, globs):
     __symbex__ = _SymbexData()
     globs['__symbex__'] = __symbex__
     globs['__choose__'] = symbex_builtin_choose
-    args = [ValueProxy(arg) for arg in args]
+    args = [ValueProxy.wrap(arg) for arg in args]
     # locals have to be the same as globals, otherwise Python encapsulates the program in a class and then one can't use classes inside it...
     exec(program, globs, globs)
     return _symbex(state, prev_state, lambda: globs[func_name](*args))

@@ -249,8 +249,8 @@ class Map:
         )
 
     def forall(self, state, pred):
-        # NOTE: pred is a MapInvariant here, we already did present=>pred in GhostMapsPlugin.forall
-        # TODO: add type annotations everywhere...
+        if not isinstance(pred, MapInvariant):
+            pred = MapInvariant.new(state, self.meta, (lambda i, old_pred=pred: Implies(i.present, old_pred(i.key, i.value))))
 
         # Optimization: If the map is empty, the answer is always true
         if self.is_empty():
@@ -459,7 +459,6 @@ class GhostMapsPlugin(SimStatePlugin):
 
     def forall(self, obj, pred):
         map = self[obj]
-        pred = MapInvariant.new(self.state, map.meta, (lambda i, old_pred=pred: Implies(i.present, old_pred(i.key, i.value))))
         LOG(self.state, "forall " + str(obj) + " ( " + str(len(self.state.solver.constraints)) + " constraints)")
         result = map.forall(self.state, pred)
         LOGEND(self.state)
