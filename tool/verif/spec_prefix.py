@@ -67,9 +67,12 @@ class Map:
         if _map is None:
             key_size = type_size(key_type)
             value_size = ... if value_type is ... else type_size(value_type)
-            candidates = [m for m in self._state.maps if m.meta.key_size >= key_size and ((value_size is ...) or (m.meta.value_size == value_size))]
-            # Ignore maps that the user did not declare
-            candidates = [m for m in candidates if "fracs_" not in m.meta.name and "packet_" not in m.meta.name]
+            candidates = []
+            for (_, m) in self._state.maps.items():
+                # Ignore maps that the user did not declare, i.e., fractions ones and the packet itself
+                if "fracs_" not in m.meta.name and "packet_" not in m.meta.name and \
+                  m.meta.key_size >= key_size and ((value_size is ...) or (m.meta.value_size == value_size)):
+                    candidates.append(m)
             if len(candidates) == 0:
                 raise Exception("No such map: " + str(key_type) + " -> " + str(value_type))
             _map = __choose__(candidates)

@@ -131,6 +131,9 @@ class ValueProxy:
         assert not isinstance(self._value, claripy.ast.Base), "int cannot be called on an AST"
         return int(self._value)
 
+    def __iter__(self):
+        assert not isinstance(self._value, claripy.ast.Base), "iter cannot be called on an AST"
+        return map(ValueProxy.wrap, iter(self._value))
 
     def __invert__(self):
         return ValueProxy.wrap(~self._value)
@@ -223,7 +226,7 @@ def _symbex(state, prev_state, func):
         # If all branches were fully explored, we're done
         if len(branches) == 0: return
         # Otherwise, flip the last branch
-        branches[-1] = False
+        branches[-1] = (branches[-1][0], False)
 
 def symbex(state, prev_state, program, func_name, args, globs):
     global __symbex__

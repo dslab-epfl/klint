@@ -24,6 +24,8 @@ def Implies(a, b):
 MapMeta = namedtuple("MapMeta", ["name", "key_size", "value_size"]) # sizes are ints (not BVs!), in bits
 MapItem = namedtuple("MapItem", ["key", "value", "present"])
 
+# TODO it is weird that MapHas/MapGet take in an obj to pass to state.maps[...] instead of a map... can we fix this? might require major refactor of invariant inf
+
 # value=None -> returns whether the map has the key; value!=None -> also checks whether the map has exactly that value for the key
 def MapHas(map, key, value=None, version=None):
     return claripy.ast.Bool("MapHas", [map, key, value, version])
@@ -59,12 +61,12 @@ def eval_map_ast(state, expr, replace_dict={}, condition=claripy.true):
         replaced_key = replacer(ast.args[1])
         replaced_value = replacer(ast.args[2])
         if replaced_value is None:
-            return state.maps.get(ast.args[0], replaced_key, condition=condition, version=ast.args[2])[1]
-        result = state.maps.get(ast.args[0], replaced_key, value=replaced_value, condition=condition, version=ast.args[3])
+            return state.maps[ast.args[0]].get(state, replaced_key, condition=condition, version=ast.args[2])[1]
+        result = state.maps[ast.args[0]].get(state, replaced_key, value=replaced_value, condition=condition, version=ast.args[3])
         return result[1] & (result[0] == replaced_value)
     def get_handler(ast, replacer):
         replaced_key = replacer(ast.args[1])
-        return state.maps.get(ast.args[0], replaced_key, condition=condition, version=ast.args[2])[0]
+        return state.maps[ast.args[0]].get(state, replaced_key, condition=condition, version=ast.args[2])[0]
     return eval_map_ast_core(expr, replace_dict, has_handler, get_handler)
 
 

@@ -33,11 +33,11 @@ def create_state(constraints):
 
 def verify(data, spec):
     state = create_state(data.constraints)
-    state.maps = list(data.maps.values())
+    state.maps = data.maps
     state.path = data.path # useful for debugging
     
     prev_state = create_state(data.prev_constraints)
-    prev_state.maps = list(data.prev_maps.values())
+    prev_state.maps = data.prev_maps
 
     this_folder = Path(__file__).parent.absolute()
     spec_prefix = (this_folder / "spec_prefix.py").read_text()
