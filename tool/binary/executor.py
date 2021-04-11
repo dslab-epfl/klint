@@ -86,7 +86,7 @@ class CustomEngine(SimEngineFailure, HooksMixin, HeavyVEXMixin):
             return None
 
         if func_name == 'amd64g_dirtyhelper_RDTSC': # no args
-            return (clock.get_current_time(self.state) * clock.frequency_num) // clock.frequency_denom
+            return clock.get_current_cycles(self.state)
 
         raise angr.errors.UnsupportedDirtyError("Unexpected angr 'dirty' call")
 

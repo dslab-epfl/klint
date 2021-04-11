@@ -67,12 +67,20 @@ class Map:
         if _map is None:
             key_size = type_size(key_type)
             value_size = ... if value_type is ... else type_size(value_type)
-            candidates = []
+
+            if value_type == "size_t":
+                candidates = [m for (_, m) in self._state.maps.items() if "map_values_4" in str(m)]
+            elif value_type == "uint64_t":
+                candidates = [m for (_, m) in self._state.maps.items() if "pool_items_6" in str(m)]
+            else:
+                raise "oh"
+
+            """candidates = []
             for (_, m) in self._state.maps.items():
                 # Ignore maps that the user did not declare, i.e., fractions ones & the packet itself
                 if ("fracs_" not in m.meta.name) & ("packet_" not in m.meta.name) & \
                   (m.meta.key_size >= key_size) & ((value_size is ...) | (m.meta.value_size == value_size)):
-                    candidates.append(m)
+                    candidates.append(m)"""
             if len(candidates) == 0:
                 raise Exception("No such map: " + str(key_type) + " -> " + str(value_type))
             _map = __choose__(candidates)
@@ -93,8 +101,7 @@ class Map:
 
     def __getitem__(self, key):
         (value, present) = self._map.get(self._state, type_unwrap(key, self._map.meta.key_size))
-        present_values = self._state.solver.eval_upto(present, 2)
-        if present_values != [True]:
+        if not present:
             raise Exception("Spec called get but element may not be there")
         return type_wrap(value, self._value_type)
 
@@ -105,6 +112,12 @@ class Map:
     @property
     def length(self):
         return self._map.length()
+
+
+# === Time ===
+
+# Set in spec_wrapper
+time = lambda: None
 
 
 # === Config ===
@@ -249,6 +262,12 @@ def ipv4_checksum(header):
 # === Spec wrapper ===
 
 def _spec_wrapper(data):
+    global __symbex__
+    print("ze path is", __symbex__.state.path._value._segments)
+
+    global time
+    time = lambda: data.times[0] # TODO fix the whole time thing! (make it a spec arg!)
+
     received_packet = _SpecPacket(data.network.received, data.network.received_length, _SpecSingleDevice(data.network.received_device))
     
     transmitted_packet = None

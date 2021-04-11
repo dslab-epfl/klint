@@ -19,7 +19,7 @@ if len(sys.argv) >= 2:
     nf_to_verify = sys.argv[1]
 
 use_cached_results = True
-if len(sys.argv) >= 3 and sys.argv[2] == "use-cache":
+if len(sys.argv) >= 3 and sys.argv[2] == "use-cache": # TODO reverse this switch, make it "force reverify" or smth
     use_cached_results = True
 
 nf_root_folder = os.path.join(Path(__file__).parent.absolute(), "..", "nf", nf_to_verify)
@@ -30,5 +30,4 @@ if not use_cached_results:
     verif_persist.dump_data(state_pairs, devices_count, cached_data_path)
 
 spec = (Path(nf_root_folder) / "spec.py").read_text()
-for data in verif_persist.load_data(cached_data_path):
-    verif_executor.verify(data, spec)
+verif_executor.verify(verif_persist.load_data(cached_data_path), spec)

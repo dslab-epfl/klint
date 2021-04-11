@@ -2,15 +2,11 @@
 
 #include <stdint.h>
 
-// x86intrin ends up transitively depending on stdlib for some bizarre reason, but not if we only want the IA-32 intrinsics
-#define __iamcu__
-#include <x86intrin.h>
-#undef __iamcu__
 
 static inline uint64_t tsc_get(void)
 {
 	// Let's offload the work to the compiler on this one
-	return __rdtsc();
+	return __builtin_ia32_rdtsc();
 }
 
 // Gets the frequency of the timestamp counter in nanohertz as a rational number, given an MSR-reading function

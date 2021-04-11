@@ -78,8 +78,8 @@ def nf_init(bin_path, devices_count):
     def state_modifier(state):
         cpu_freq_numerator = state.project.loader.find_symbol("cpu_freq_numerator")
         cpu_freq_denominator = state.project.loader.find_symbol("cpu_freq_denominator")
-        state.memory.store(cpu_freq_numerator.rebased_addr, binary_clock.frequency_num)
-        state.memory.store(cpu_freq_denominator.rebased_addr, binary_clock.frequency_denom)
+        state.memory.store(cpu_freq_numerator.rebased_addr, binary_clock.frequency_num, endness=state.arch.memory_endness)
+        state.memory.store(cpu_freq_denominator.rebased_addr, binary_clock.frequency_denom, endness=state.arch.memory_endness)
     # Something very fishy in here, why do we need to reverse this? angr's endianness handling keeps puzzling me
     args = [devices_count.reversed]
     sm = bin_exec.create_sim_manager(bin_path, init_externals, "nf_init", *args, state_modifier=state_modifier)

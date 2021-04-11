@@ -15,7 +15,7 @@ def dump_data(state_pairs, devices_count, path): # TODO why do we have to move t
         prev_maps = {k: v.flatten(keep_known_items=True) for (k, v) in prev_state.maps.get_all().items()},
         prev_constraints = prev_state.solver.constraints,
         path = state.path,
-        times = (state.metadata.get_or_none(clock.Times, None) or clock.Times([])).values,
+        times = [(t * clock.frequency_denom) // clock.frequency_num for t in (state.metadata.get_or_none(clock.Times, None) or clock.Times([])).values],
         network = state.metadata.get_one(net_packet.NetworkMetadata),
         config = (state.metadata.get_or_none(os_config.ConfigMetadata, None) or os_config.ConfigMetadata({})).items,
         devices_count = devices_count

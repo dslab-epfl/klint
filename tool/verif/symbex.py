@@ -114,9 +114,11 @@ class ValueProxy:
         outcomes = ValueProxy.unwrap(__symbex__.state).solver.eval_upto(self._value, 3, extra_constraints=path_condition) # ask for 3 just in case something goes wrong; we want 1 or 2
 
         if len(outcomes) == 1:
+            print("single outcome of", self._value, "is", outcomes[0])
             return outcomes[0]
 
         assert len(outcomes) == 2, "solver eval_upto for a bool should return 1 or 2 outcomes"
+        print("multi outcomes for", self._value)
 
         if __symbex__.branch_index == len(__symbex__.branches):
             __symbex__.branches.append((self._value, True))
@@ -203,43 +205,51 @@ def _symbex_one(state, prev_state, func, branches, choices):
     __symbex__.branch_index = 0
     __symbex__.choices = choices
     __symbex__.choice_index = 0
-    __symbex__.state = ValueProxy.wrap(state)
-    __symbex__.prev_state = ValueProxy.wrap(prev_state)
+    __symbex__.state = ValueProxy.wrap(state.copy())
+    __symbex__.prev_state = ValueProxy.wrap(prev_state.copy())
     func()
     return __symbex__.branches[:__symbex__.branch_index], __symbex__.choices[:__symbex__.choice_index]
 
-def _symbex(state, prev_state, func):
-    branches = []
+def _symbex(state_data):
+    choices = []
     while True:
-        choices = []
-        while True:
-            try:
-                (branches, choices) = _symbex_one(state, prev_state, func, branches, choices)
-                break # yay, we found a good set of choices!
-            except:
-                # Prune choice sets that were fully explored
-                while len(choices) > 0 and len(choices[-1]) == 1: choices.pop()
-                # If all choices were explored, we failed
-                if len(choices) == 0: raise
-                # Otherwise, change the last choice
-                choices[-1].pop(0)
-        
-        # Path succeeded
-        yield ([f if b else ~f for (f, b) in branches], [cs[0] for cs in choices])
+        try:
+            results = []
+            for (state, prev_state, func) in state_data:
+                state_results = []
+                branches = []
+                while True:
+                    (branches, choices) = _symbex_one(state, prev_state, func, branches, choices)
+                    # Path succeeded
+                    state_results.append([f if b else ~f for (f, b) in branches])
+                    # Prune branches that were fully explored
+                    while len(branches) > 0 and not branches[-1][1]: branches.pop()
+                    # If all branches were fully explored, we're done with this state!
+                    if len(branches) == 0:
+                        results.append(state_results)
+                        break
+                    # Otherwise, flip the last branch
+                    branches[-1] = (branches[-1][0], False)
+            # If we reached the end of the loop, we're all done!
+            return ([cs[0] for cs in choices], results)
+        except:
+            # Prune choice sets that were fully explored
+            while len(choices) > 0 and len(choices[-1]) == 1: choices.pop()
+            # If all choices were explored, we failed
+            if len(choices) == 0: raise
+            # Otherwise, change the last choice
+            choices[-1].pop(0)
 
-        # Prune branches that were fully explored
-        while len(branches) > 0 and not branches[-1][1]: branches.pop()
-        # If all branches were fully explored, we're done
-        if len(branches) == 0: return
-        # Otherwise, flip the last branch
-        branches[-1] = (branches[-1][0], False)
-
-def symbex(state, prev_state, program, func_name, args, globs):
+def symbex(program, func_name, globs, state_data):
     global __symbex__
     __symbex__ = _SymbexData()
     globs['__symbex__'] = __symbex__
     globs['__choose__'] = symbex_builtin_choose
-    args = [ValueProxy.wrap(arg) for arg in args]
     # locals have to be the same as globals, otherwise Python encapsulates the program in a class and then one can't use classes inside it...
     exec(program, globs, globs)
-    return _symbex(state, prev_state, lambda: globs[func_name](*args))
+
+    return _symbex([(
+        state,
+        prev_state,
+        lambda args=args: globs[func_name](*[ValueProxy.wrap(arg) for arg in args])
+    ) for (state, prev_state, args) in state_data])
