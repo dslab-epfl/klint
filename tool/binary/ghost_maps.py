@@ -141,7 +141,7 @@ class Map:
         _name_counter[0] = _name_counter[0] + 1
 
         if _length is None:
-            _length = 0
+            _length = claripy.BVV(0, state.sizes.size_t)
         if isinstance(_length, int):
             _length = claripy.BVV(_length, state.sizes.size_t)
 
