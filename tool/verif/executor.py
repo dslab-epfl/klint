@@ -1,5 +1,6 @@
 from angr.state_plugins import SimSolver
 from archinfo.arch_amd64 import ArchAMD64
+import copy
 import datetime
 import os
 from pathlib import Path
@@ -31,7 +32,7 @@ class _VerifState:
         self.path = path
 
     def copy(self):
-        return _VerifState(self.solver.constraints, self.maps, self.prev_maps, self.path)
+        return _VerifState(self.solver.constraints.copy(), copy.deepcopy(self.maps), copy.deepcopy(self.prev_maps), copy.deepcopy(self.path))
 
 
 def verify(all_data, spec):

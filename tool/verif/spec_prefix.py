@@ -2,10 +2,14 @@
 # It contains core verification-related concepts, including the "_spec_wrapper" that is called by the verification engine.
 # It "talks" to the outside world via the global __symbex__ variable.
 
-from collections import namedtuple
-
 
 # === Typing ===
+
+class TypedWrapper(dict): # for convenience: use dict.item instead of dict['item']
+    def __getattr__(self, item):
+        return self[item]
+    def __setattr__(self, item, value):
+        self[item] = value
 
 def type_size(type):
     if isinstance(type, dict):
@@ -15,13 +19,12 @@ def type_size(type):
         return int(getattr(__symbex__.state.sizes, type))
     return int(type)
 
-
 def type_wrap(value, type):
     if not isinstance(type, dict):
         return value
-    result = {}
+    result = TypedWrapper()
     offset = 0
-    for (k, v) in self._type.items(): # Python preserves insertion order from 3.7 (3.6 for CPython)
+    for (k, v) in type.items(): # Python preserves insertion order from 3.7 (3.6 for CPython)
         result[k] = value[type_size(v)+offset-1:offset]
         offset = offset + type_size(v)
     return result
@@ -32,7 +35,7 @@ def type_unwrap(value, type):
     if isinstance(type, dict):
         assert value.keys() == type.keys(), "please don't cast in weird ways"
         return value
-    assert value != {}, "please don't use empty dicts"
+    assert len(value) != 0, "please don't use empty dicts"
     # almost a proxy, let's handle it here...
     result = None
     total_size = 0
@@ -138,39 +141,6 @@ class _SpecConfig:
         return self._meta[index]
 
 
-# === Network headers ===
-
-# TODO remove and make typed instead?
-_EthernetHeader = namedtuple(
-    "_EthernetHeader", [
-        "dst",
-        "src",
-        "type"
-    ]
-)
-
-_IPv4Header = namedtuple(
-    "_Ipv4Header", [
-        # TODO other fields - don't care for now
-        "version",
-        "ihl",
-        "total_length",
-        "time_to_live",
-        "protocol",
-        "checksum",
-        "src",
-        "dst"
-    ]
-)
-
-_TcpUdpHeader = namedtuple(
-    "_TcpUdpHeader", [
-        "src",
-        "dst"
-    ]
-)
-
-
 # === Network devices ===
 
 class _SpecFloodedDevice:
@@ -200,6 +170,31 @@ class _SpecSingleDevice:
 # === Network packet ===
 
 class _SpecPacket:
+    _ETHER_HEADER = {
+        'dst': 48,
+        'src': 48,
+        'type': 16
+    }
+    _IPV4_HEADER = {
+        'version': 4,
+        'ihl': 4,
+        'dscp': 6,
+        'ecn': 2,
+        'total_length': 16,
+        'identification': 16,
+        'flags': 3,
+        'fragment_offset': 13,
+        'time_to_live': 8,
+        'protocol': 8,
+        'checksum': 16,
+        'src': 32,
+        'dst': 32
+    }
+    _TCPUDP_HEADER = {
+        'src': 16,
+        'dst': 16
+    }
+
     def __init__(self, data, length, devices):
         self.data = data
         self.length = length
@@ -217,11 +212,7 @@ class _SpecPacket:
 
     @property
     def ether(self):
-        return _EthernetHeader(
-            dst=self.data[6*8-1:0],
-            src=self.data[12*8-1:6*8],
-            type=self.data[14*8-1:12*8]
-        )
+        return type_wrap(self.data, _SpecPacket._ETHER_HEADER)
 
     @property
     def ipv4(self):
@@ -229,17 +220,7 @@ class _SpecPacket:
             return None
         if self.ether.type != 0x0008: # TODO handle endness in spec
             return None
-        start = 14*8
-        return _IPv4Header(
-            version=self.data[start+4-1:start],
-            ihl=self.data[start+8-1:start+4],
-            total_length=self.data[start+4*8-1:start+2*8],
-            time_to_live=self.data[start+9*8-1:start+8*8],
-            protocol=self.data[start+10*8-1:start+9*8],
-            checksum=self.data[start+12*8-1:start+10*8],
-            src=self.data[start+16*8-1:start+12*8],
-            dst=self.data[start+20*8-1:start+16*8]
-        )
+        return type_wrap(self.data[:type_size(_SpecPacket._ETHER_HEADER)], _SpecPacket._IPV4_HEADER)
 
     @property
     def tcpudp(self):
@@ -247,11 +228,7 @@ class _SpecPacket:
             return None
         if (self.ipv4.protocol != 6) & (self.ipv4.protocol != 17):
             return None
-
-        return _TcpUdpHeader(
-            src=self.data[36*8-1:34*8],
-            dst=self.data[38*8-1:36*8]
-        )
+        return type_wrap(self.data[:type_size(_SpecPacket._ETHER_HEADER)+type_size(_SpecPacket._IPV4_HEADER)], _SpecPacket._TCPUDP_HEADER)
 
 
 # === Network 'built-in' functions ===

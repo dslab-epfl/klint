@@ -36,6 +36,7 @@ def spec(packet, config, transmitted_packet):
             'protocol': packet.ipv4.protocol
         }
 
+        print("FLOW", flow, type_unwrap(flow, 128))
         if flow not in flows:
             assert flows.old.full
 

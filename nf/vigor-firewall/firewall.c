@@ -42,10 +42,10 @@ void nf_handle(struct net_packet* packet)
 
 	if (packet->device == wan_device) {
 		struct flow flow = { // inverted!
-			.src_port = tcpudp_header->dst_port,
-			.dst_port = tcpudp_header->src_port,
 			.src_ip = ipv4_header->dst_addr,
 			.dst_ip = ipv4_header->src_addr,
+			.src_port = tcpudp_header->dst_port,
+			.dst_port = tcpudp_header->src_port,
 			.protocol = ipv4_header->next_proto_id
 		};
 		if (!flow_table_has_external(table, time, &flow)) {
@@ -54,10 +54,10 @@ void nf_handle(struct net_packet* packet)
 		}
 	} else {
 		struct flow flow = {
-			.src_port = tcpudp_header->src_port,
-			.dst_port = tcpudp_header->dst_port,
 			.src_ip = ipv4_header->src_addr,
 			.dst_ip = ipv4_header->dst_addr,
+			.src_port = tcpudp_header->src_port,
+			.dst_port = tcpudp_header->dst_port,
 			.protocol = ipv4_header->next_proto_id,
 		};
 
