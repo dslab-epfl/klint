@@ -12,7 +12,7 @@ from . import symbex
 
 
 class _VerifState:
-    def __init__(self, constraints, maps, path):
+    def __init__(self, constraints, maps, prev_maps, path):
         # Angr plugins make some assumptions about structure
         self._get_weakref = lambda: self # for SimStatePlugin.set_state; not really a weakref; whatever
         self._global_condition = None # for the solver
@@ -27,10 +27,11 @@ class _VerifState:
         self.solver.add(*constraints)
 
         self.maps = maps
+        self.prev_maps = prev_maps
         self.path = path
 
     def copy(self):
-        return _VerifState(self.solver.constraints, self.maps, self.path)
+        return _VerifState(self.solver.constraints, self.maps, self.prev_maps, self.path)
 
 
 def verify(all_data, spec):
@@ -46,8 +47,7 @@ def verify(all_data, spec):
     }
     
     state_data = [(
-        _VerifState(data.constraints, data.maps, data.path), # state; path is useful for debugging
-        _VerifState(data.prev_constraints, data.prev_maps, None), # prev_state
+        _VerifState(data.constraints, data.maps, data.prev_maps, data.path), # path is useful for debugging
         [data] # args
     ) for data in all_data]
     (choices, results) = symbex.symbex(full_spec_text, "_spec_wrapper", globals, state_data)

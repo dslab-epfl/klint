@@ -58,55 +58,56 @@ def exists(type, func):
 # === Maps ===
 
 class Map:
-    def __init__(self, key_type, value_type, _state=None, _map=None):
-        if _state is None:
-            global __symbex__
-            _state = __symbex__.state
-        self._state = _state
+    def __init__(self, key_type, value_type, _obj=None):
+        global __symbex__
 
-        if _map is None:
+        if _obj is None:
             key_size = type_size(key_type)
             value_size = ... if value_type is ... else type_size(value_type)
 
             if value_type == "size_t":
-                candidates = [m for (_, m) in self._state.maps.items() if "map_values_4" in str(m)]
+                candidates = [(o, m) for (o, m) in __symbex__.state.maps.items() if "map_values_4" in str(m)]
             elif value_type == "uint64_t":
-                candidates = [m for (_, m) in self._state.maps.items() if "pool_items_6" in str(m)]
+                candidates = [(o, m) for (o, m) in __symbex__.state.maps.items() if "pool_items_6" in str(m)]
             else:
                 raise "oh"
 
             """candidates = []
-            for (_, m) in self._state.maps.items():
+            for (o, m) in __symbex__.state.maps.items():
                 # Ignore maps that the user did not declare, i.e., fractions ones & the packet itself
                 if ("fracs_" not in m.meta.name) & ("packet_" not in m.meta.name) & \
                   (m.meta.key_size >= key_size) & ((value_size is ...) | (m.meta.value_size == value_size)):
-                    candidates.append(m)"""
+                    candidates.append((o, m))"""
             if len(candidates) == 0:
                 raise Exception("No such map: " + str(key_type) + " -> " + str(value_type))
-            _map = __choose__(candidates)
+            (_obj, map) = __choose__(candidates)
+        else:
+            map = next(m for (o, m) in __symbex__.state.prev_maps.items() if o.structurally_match(_obj))
 
-        self._map = _map
+        self._obj = _obj
+        self._map = map
         self._key_type = key_type
         self._value_type = None if value_type is ... else value_type
 
     @property
     def old(self):
-        global __symbex__
-        assert self._state is not __symbex__.prev_state, "cannot use old twice!"
-        return Map(self._key_type, self._value_type, __symbex__.prev_state, self._map)
+        return Map(self._key_type, self._value_type, _obj=self._obj)
 
     def __contains__(self, key):
-        (_, present) = self._map.get(self._state, type_unwrap(key, self._map.meta.key_size))
+        global __symbex__
+        (_, present) = self._map.get(__symbex__.state, type_unwrap(key, self._map.meta.key_size))
         return present
 
     def __getitem__(self, key):
-        (value, present) = self._map.get(self._state, type_unwrap(key, self._map.meta.key_size))
+        global __symbex__
+        (value, present) = self._map.get(__symbex__.state, type_unwrap(key, self._map.meta.key_size))
         if not present:
             raise Exception("Spec called get but element may not be there")
         return type_wrap(value, self._value_type)
 
     def forall(self, pred):
-        return self._map.forall(self._state, lambda k, v: pred(type_wrap(k, self._key_type), type_wrap(v, self._value_type)))
+        global __symbex__
+        return self._map.forall(__symbex__.state, lambda k, v: pred(type_wrap(k, self._key_type), type_wrap(v, self._value_type)))
 
     # we can't override __len__ because python enforces that it returns an 'int'
     @property

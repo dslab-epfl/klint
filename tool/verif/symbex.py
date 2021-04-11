@@ -21,8 +21,6 @@ class _SymbexData:
         self.choice_index = 0
         # the current state
         self.state = None
-        # the previous state
-        self.prev_state = None
         # Both branches and choices can be pre-populated to force a specific path prefix, and will contain the entirety of the path at the end
 
 
@@ -199,14 +197,13 @@ class ValueProxy:
         return self._op(other, "__lshift__")
 
 
-def _symbex_one(state, prev_state, func, branches, choices):
+def _symbex_one(state, func, branches, choices):
     global __symbex__
     __symbex__.branches = branches
     __symbex__.branch_index = 0
     __symbex__.choices = choices
     __symbex__.choice_index = 0
     __symbex__.state = ValueProxy.wrap(state.copy())
-    __symbex__.prev_state = ValueProxy.wrap(prev_state.copy())
     func()
     return __symbex__.branches[:__symbex__.branch_index], __symbex__.choices[:__symbex__.choice_index]
 
@@ -215,11 +212,11 @@ def _symbex(state_data):
     while True:
         try:
             results = []
-            for (state, prev_state, func) in state_data:
+            for (state, func) in state_data:
                 state_results = []
                 branches = []
                 while True:
-                    (branches, choices) = _symbex_one(state, prev_state, func, branches, choices)
+                    (branches, choices) = _symbex_one(state, func, branches, choices)
                     # Path succeeded
                     state_results.append([f if b else ~f for (f, b) in branches])
                     # Prune branches that were fully explored
@@ -250,6 +247,5 @@ def symbex(program, func_name, globs, state_data):
 
     return _symbex([(
         state,
-        prev_state,
         lambda args=args: globs[func_name](*[ValueProxy.wrap(arg) for arg in args])
-    ) for (state, prev_state, args) in state_data])
+    ) for (state, args) in state_data])

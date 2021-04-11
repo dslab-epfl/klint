@@ -36,7 +36,8 @@ def spec(packet, config, transmitted_packet):
             'protocol': packet.ipv4.protocol
         }
 
-        assert (flow in flows) | flows.old.full
+        if flow not in flows:
+            assert flows.old.full
 
     assert transmitted_packet.data == packet.data
     assert transmitted_packet.device == 1 - packet.device
