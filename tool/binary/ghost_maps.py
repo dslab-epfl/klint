@@ -431,9 +431,6 @@ class Map:
             _unknown_item=self._unknown_item
         )
 
-    def set_length(self, new_length):
-        self._length = new_length
-
     def is_empty(self):
         l = self.length()
         return l.structurally_match(claripy.BVV(0, l.size()))
@@ -746,16 +743,6 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
             except queue.Empty:
                 return
 
-            if o2 is None: # we are just getting one map, for the length
-                # Step 1: Length variation.
-                # If the length may have changed in any state from the one in the ancestor state,
-                # replace the length with a fresh symbol
-                ancestor_length = ancestor_state.maps.length(o1)
-                if any(utils.can_be_false(st.solver, st.maps.length(o1) == ancestor_length) for st in _orig_states):
-                    print("Length of map", o1, "was changed; making it symbolic")
-                    results.put((ResultType.LENGTH_VAR, [o1], lambda st, ms: ms[0].set_length(claripy.BVS("map_length", ms[0].length().size()))))
-                continue
-
             # Optimization: Ignore the combination if neither map changed
             orig_states = [st for st in _orig_states if st.maps[o1].version() != 0 or st.maps[o2].version() != 0]
             if len(orig_states) == 0:
@@ -777,7 +764,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
             #   then assume this holds in the merged state
             if all(utils.definitely_true(st.solver, st.maps.length(o1) <= st.maps.length(o2)) for st in orig_states):
                 #print("Inferred: Length of", o1, "is always <= that of", o2)
-                results.put((ResultType.LENGTH_LTE, [o1, o2], lambda st, ms: st.add_constraints(ms[0].length() <= ms[1].length())))
+                results.put((ResultType.LENGTH_LTE, [o1, o2], lambda st, o1=o1, o2=o2: st.solver.add(st.maps.length(o1) <= st.maps.length(o2))))
 
             # Step 3: Map relationships.
             # For each pair of maps (M1, M2),
@@ -836,22 +823,22 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
             for fp in fps:
                 log_text = ""
                 if fv and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk, fv=fv: \
-                                                                                             Implies(fp(MapItem(k, v, None)), MapHas(o2, fk(MapItem(k, v, None)), value=fv(MapItem(k, v, None)))))) for st in states):
+                                                                                             Implies(fp(k, v), MapHas(o2, fk(k, v), value=fv(k, v))))) for st in states):
                         to_cache.put([o1, o2, "p", [fp]]) # only put the working one, don't have us try a pointless one next time
                         to_cache.put([o1, o2, "k", fk])
                         to_cache.put([o1, o2, "v", fv])
                         log_text +=   f"Inferred: when {o1} contains (K,V), if {fp(log_item)} then {o2} contains {fk(log_item)}"
                         log_text += f"\n          in addition, the value is {fv(log_item)}"
                         results.put((ResultType.CROSS_VAL, [o1, o2],
-                                     lambda state, maps, o2=o2, fp=fp, fk=fk, fv=fv: maps[0].add_invariant_conjunction(state, lambda i: Implies(i.present, Implies(fp(i), MapHas(o2, fk(i), value=fv(i)))))))
+                                     lambda state, o1=o1, o2=o2, fp=fp, fk=fk, fv=fv: state.solver.add(state.maps.forall(o1, lambda k, v: Implies(fp(k, v), MapHas(o2, fk(k, v), value=fv(k, v)))))))
                 else:
                     to_cache.put([o1, o2, "v", None]) # do not cache fv since it didn't work
 
                     # No point in trying a cross-key if o2 is an array, we already know what its keys are
-                    if not o2_is_array and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk: Implies(fp(MapItem(k, v, None)), MapHas(o2, fk(MapItem(k, v, None)))))) for st in states):
+                    if not o2_is_array and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk: Implies(fp(k, v), MapHas(o2, fk(k, v))))) for st in states):
                         log_text += f"Inferred: when {o1} contains (K,V), if {fp(log_item)} then {o2} contains {fk(log_item)}"
                         results.put((ResultType.CROSS_KEY, [o1, o2],
-                                     lambda state, maps, o2=o2, fp=fp, fk=fk: maps[0].add_invariant_conjunction(state, lambda i: Implies(i.present, Implies(fp(i), MapHas(o2, fk(i)))))))
+                                     lambda state, o1=o1, o2=o2, fp=fp, fk=fk: state.solver.add(state.maps.forall(o1, lambda k, v: Implies(fp(k, v), MapHas(o2, fk(k, v)))))))
                         to_cache.put([o1, o2, "p", [fp]]) # only put the working one, don't have us try a pointless one next time
                         to_cache.put([o1, o2, "k", fk])
 
@@ -866,8 +853,6 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
     # Optimization: Ignore maps that have not changed at all
     objs = [o for o in objs if any(st.maps[o].version() != _ancestor_state.maps[o].version() for st in _states_to_merge)]
 
-    for o in objs:
-        remaining_work.put((o, None))
     for (o1, o2) in itertools.permutations(objs, 2):
         remaining_work.put((o1, o2))
 
@@ -957,6 +942,15 @@ def maps_merge_one(states_to_merge, obj, ancestor_state):
             results.append(replacement[expr.size()-1:expr.size()-expr.args[0].size()] == 0)
         return results
 
+    # Length variation.
+    # If the length may have changed in any state from the one in the ancestor state,
+    # replace the length with a fresh symbol
+    map_length = ancestor_state.maps.length(obj)
+    if any(utils.can_be_true(st.solver, st.maps.length(obj) != map_length) for st in states_to_merge):
+        print("Length of map", obj, "was changed; making it symbolic")
+        map_length = claripy.BVS("map_length", map_length.size())
+
+
     # Oblivion algorithm: "forget" known items by integrating them into the unknown items invariant
     # For each conjunction in the unknown items invariant,
     # for each known item in any state,
@@ -977,7 +971,7 @@ def maps_merge_one(states_to_merge, obj, ancestor_state):
                     print("Item", item, "in map", obj, "does not comply with invariant conjunction", conj)
         invariant_conjs.append(conjunction)
 
-    return (ancestor_state.maps[obj].flatten().with_invariant_conjunctions(invariant_conjs), changed)
+    return (ancestor_state.maps[obj].flatten().with_invariant_conjunctions(invariant_conjs).with_length(map_length), changed)
 
 
 # Returns (new_state, new_results, reached_fixpoint), where
@@ -1018,8 +1012,7 @@ def infer_invariants(ancestor_state, states, previous_results=None):
     new_state = ancestor_state.copy()
     new_state.maps.set_all(merged_maps)
 
-    for (_, objs, func) in across_results:
-        vals = [new_state.maps[obj] for obj in objs]
-        func(new_state, vals)
+    for (_, _, func) in across_results:
+        func(new_state)
 
     return (new_state, new_results, reached_fixpoint)
