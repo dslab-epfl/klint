@@ -20,9 +20,11 @@ def empty_state():
     proj = angr.Project(os.path.dirname(os.path.realpath(__file__)) + "/empty_binary")
     return proj.factory.blank_state()
 
-k = claripy.BVS("K", 8)
-k2 = claripy.BVS("K2", 8)
-v = claripy.BVS("V", 16)
+K = claripy.BVS("K", 8)
+K2 = claripy.BVS("K2", 8)
+V = claripy.BVS("V", 16)
+X = claripy.BVS("X", 16)
+Y = claripy.BVS("Y", 16)
 
 class Tests(unittest.TestCase):
     def assertSolver(self, state, cond):
@@ -31,30 +33,67 @@ class Tests(unittest.TestCase):
     def test_get_after_set(self):
         state = empty_state()
         map = Map.new(state, 8, 16, "test")
-        map = map.set(state, k, v)
-        result = map.get(state, k)
+        map = map.set(state, K, V)
+        result = map.get(state, K)
         self.assertSolver(state, result[1])
-        self.assertSolver(state, result[0] == v)
+        self.assertSolver(state, result[0] == V)
 
     def test_get_when_empty(self):
         state = empty_state()
         map = Map.new(state, 8, 16, "test")
-        self.assertSolver(state, map.get(state, k)[1] == claripy.false)
+        self.assertSolver(state, map.get(state, K)[1] == claripy.false)
 
     def test_get_after_set_and_remove(self):
         state = empty_state()
         map = Map.new(state, 8, 16, "test")
-        map = map.set(state, k, v)
-        map = map.remove(state, k)
-        self.assertSolver(state, map.get(state, k)[1] == claripy.false)
+        map = map.set(state, K, V)
+        map = map.remove(state, K)
+        self.assertSolver(state, map.get(state, K)[1] == claripy.false)
 
     def test_get_time_travels(self):
         state = empty_state()
-        state.solver.add(k != k2)
+        state.solver.add(K != K2)
         map = Map.new_array(state, 8, 16, 10, "test")
-        map2 = map.set(state, k, v)
-        state.solver.add(map2.get(state, k2)[1])
-        self.assertSolver(state, map.get(state, k2)[1])
+        map2 = map.set(state, K, V)
+        state.solver.add(map2.get(state, K2)[1])
+        self.assertSolver(state, map.get(state, K2)[1])
+
+    def test_get_time_travels_2(self):
+        state = empty_state()
+        state.solver.add(K != K2)
+        map = Map.new_array(state, 8, 16, 10, "test")
+        map2 = map.set(state, K, V)
+        state.solver.add(map.get(state, K2)[1])
+        self.assertSolver(state, map2.get(state, K2)[1])
+
+    def test_forall(self):
+        state = empty_state()
+        map = Map.new_array(state, 8, 16, 10, "test")
+        state.solver.add(map.forall(state, lambda k, v: v == 42))
+        result = map.get(state, K)
+        self.assertSolver(state, ~result[1] | (result[0] == 42))
+
+    def test_forall_implies(self):
+        state = empty_state()
+        map = Map.new_array(state, 8, 16, 10, "test")
+        ge_x = map.forall(state, lambda k, v: v >= X)
+        ge_y = map.forall(state, lambda k, v: v >= Y)
+        self.assertSolver(state, ~(ge_x & (X >= Y)) | ge_y)
+
+    def test_forall_time_travels(self):
+        state = empty_state()
+        map = Map.new_array(state, 8, 16, 10, "test")
+        map2 = map.set(state, K, 42)
+        state.solver.add(map2.forall(state, lambda k, v: v == 42))
+        self.assertSolver(state, map.forall(state, lambda k, v: v == 42))
+
+    def test_forall_time_travels_2(self):
+        state = empty_state()
+        map = Map.new_array(state, 8, 16, 10, "test")
+        map2 = map.set(state, K, 42)
+        state.solver.add(map.forall(state, lambda k, v: v == 42))
+        self.assertSolver(state, map2.forall(state, lambda k, v: v == 42))
+
 
 if __name__ == '__main__':
     unittest.main()
