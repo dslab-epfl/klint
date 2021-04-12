@@ -216,5 +216,11 @@ class Tests(unittest.TestCase):
         map = Map.new(state, KEY_SIZE, VALUE_SIZE, "test", _length=10, _invariants=[lambda i: ~i.present | i.value == 42])
         self.assertSolver(state, map.forall(state, lambda k, v: v >= 42))
 
+    def test_forall_impossible_invariant(self):
+        state = empty_state()
+        map1 = Map.new_array(state, KEY_SIZE, VALUE_SIZE, 10, "test1")
+        map2 = Map.new_array(state, KEY_SIZE, VALUE_SIZE, 100, "test2")
+        self.assertSolver(state, ~map2.forall(state, lambda k, v: map1.get(state, k)[1]))
+
 if __name__ == '__main__':
     unittest.main()
