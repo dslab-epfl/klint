@@ -80,6 +80,13 @@ class Tests(unittest.TestCase):
         ge_y = map.forall(state, lambda k, v: v >= Y)
         self.assertSolver(state, ~(ge_x & (X >= Y)) | ge_y)
 
+    def test_forall_implies_2(self):
+        state = empty_state()
+        map = Map.new_array(state, 8, 16, 10, "test")
+        ge_x = map.forall(state, lambda k, v: v >= X)
+        ge_y = map.forall(state, lambda k, v: v >= Y)
+        self.assertSolver(state, ~(ge_y & (Y >= X)) | ge_x)
+
     def test_forall_time_travels(self):
         state = empty_state()
         map = Map.new_array(state, 8, 16, 10, "test")
