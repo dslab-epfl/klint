@@ -29,6 +29,10 @@ V = claripy.BVS("V", VALUE_SIZE)
 X = claripy.BVS("X", VALUE_SIZE)
 Y = claripy.BVS("Y", VALUE_SIZE)
 
+# TODO add "forking" tests, i.e. M1 -> M2 and M1 -> M3 then assert stuff on M2 and M3
+
+# TODO this is a good way to prototype a better API for the ghost maps in code...
+
 class Tests(unittest.TestCase):
     def assertSolver(self, state, cond):
         self.assertEqual(state.solver.eval_one(cond), True)
@@ -157,9 +161,23 @@ class Tests(unittest.TestCase):
     def test_forall_time_travels_future_true(self):
         state = empty_state()
         map = Map.new_array(state, KEY_SIZE, VALUE_SIZE, 10, "test")
-        map2 = map.set(state, K, 42)
+        map2 = map.set(state, claripy.BVV(500, KEY_SIZE), claripy.BVV(42, VALUE_SIZE)) # wasn't there
         state.solver.add(map2.forall(state, lambda k, v: v == 42))
         self.assertSolver(state, map.forall(state, lambda k, v: v == 42))
+
+    def test_forall_time_travels_future_false(self):
+        state = empty_state()
+        map = Map.new_array(state, KEY_SIZE, VALUE_SIZE, 10, "test")
+        map2 = map.set(state, K, claripy.BVV(42, VALUE_SIZE))
+        state.solver.add(~map2.forall(state, lambda k, v: v == 42))
+        self.assertSolver(state, ~map.forall(state, lambda k, v: v == 42))
+
+    def test_forall_time_travels_future_unknown(self):
+        state = empty_state()
+        map = Map.new_array(state, KEY_SIZE, VALUE_SIZE, 10, "test")
+        map2 = map.remove(state, K)
+        state.solver.add(map2.forall(state, lambda k, v: v == 42))
+        self.assertSolverUnknown(state, map.forall(state, lambda k, v: v == 42))
 
     def test_forall_time_travels_past_true(self):
         state = empty_state()
@@ -168,19 +186,19 @@ class Tests(unittest.TestCase):
         state.solver.add(map.forall(state, lambda k, v: v == 42))
         self.assertSolver(state, map2.forall(state, lambda k, v: v == 42))
 
-    def test_forall_time_travels_future_false(self):
-        state = empty_state()
-        map = Map.new_array(state, KEY_SIZE, VALUE_SIZE, 10, "test")
-        map2 = map.set(state, K, 42)
-        state.solver.add(~map2.forall(state, lambda k, v: v == 42))
-        self.assertSolver(state, ~map.forall(state, lambda k, v: v == 42))
-
     def test_forall_time_travels_past_false(self):
         state = empty_state()
         map = Map.new_array(state, KEY_SIZE, VALUE_SIZE, 10, "test")
-        map2 = map.set(state, K, 42)
+        map2 = map.set(state, claripy.BVV(500, KEY_SIZE), claripy.BVV(42, VALUE_SIZE)) # wasn't there!
         state.solver.add(~map.forall(state, lambda k, v: v == 42))
         self.assertSolver(state, ~map2.forall(state, lambda k, v: v == 42))
+
+    def test_forall_time_travels_past_unknown(self):
+        state = empty_state()
+        map = Map.new_array(state, KEY_SIZE, VALUE_SIZE, 10, "test")
+        map2 = map.set(state, K, claripy.BVV(42, VALUE_SIZE))
+        state.solver.add(~map.forall(state, lambda k, v: v == 42))
+        self.assertSolverUnknown(state, ~map2.forall(state, lambda k, v: v == 42))
 
 
 if __name__ == '__main__':
