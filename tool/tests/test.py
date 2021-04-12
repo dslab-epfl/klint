@@ -35,7 +35,12 @@ Y = claripy.BVS("Y", VALUE_SIZE)
 
 class Tests(unittest.TestCase):
     def assertSolver(self, state, cond):
-        self.assertEqual(state.solver.eval_one(cond), True)
+        result = state.solver.eval_upto(cond, 2)
+        if result == [True]:
+            return # Good!
+        if result == [False]:
+            raise Exception("UNSOUND! VERY BAD! FIX ASAP!!!!!")
+        raise Exception("Incomplete, but sound")
 
     def assertSolverUnknown(self, state, cond):
         self.assertEqual(len(state.solver.eval_upto(cond, 2)), 2)
@@ -94,6 +99,12 @@ class Tests(unittest.TestCase):
         result = map.get(state, K)
         state.solver.add(map.forall(state, lambda k, v: v == 42))
         self.assertSolver(state, ~result[1] | (result[0] == 42))
+
+    def test_forall_3(self):
+        state = empty_state()
+        map = Map.new_array(state, KEY_SIZE, VALUE_SIZE, 10, "test")
+        state.solver.add(map.forall(state, lambda k, v: v == 42))
+        self.assertSolver(state, map.forall(state, lambda k, v: v >= 42))
 
     def test_forall_all_known(self):
         state = empty_state()
@@ -200,6 +211,10 @@ class Tests(unittest.TestCase):
         state.solver.add(~map.forall(state, lambda k, v: v == 42))
         self.assertSolverUnknown(state, ~map2.forall(state, lambda k, v: v == 42))
 
+    def test_forall_existing_invariant(self):
+        state = empty_state()
+        map = Map.new(state, KEY_SIZE, VALUE_SIZE, "test", _length=10, _invariants=[lambda i: ~i.present | i.value == 42])
+        self.assertSolver(state, map.forall(state, lambda k, v: v >= 42))
 
 if __name__ == '__main__':
     unittest.main()
