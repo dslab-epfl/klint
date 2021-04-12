@@ -116,6 +116,16 @@ class Tests(unittest.TestCase):
         map = Map.new_array(state, KEY_SIZE, VALUE_SIZE, 10, "test")
         self.assertSolverUnknown(state, map.forall(state, lambda k, v: v == 42))
 
+    def test_forall_unknown_2(self):
+        state = empty_state()
+        map = Map.new_array(state, KEY_SIZE, VALUE_SIZE, 10, "test")
+        result = map.get(state, K)
+        forall_result = map.forall(state, lambda k, v: v == 42)
+        state.solver.add(result[1] & (result[0] == 0))
+        result2 = map.get(state, K2)
+        state.solver.add(result2[1])
+        self.assertSolverUnknown(state, result2[0] == 42)
+
     def test_forall_implies(self):
         state = empty_state()
         map = Map.new_array(state, KEY_SIZE, VALUE_SIZE, 10, "test")
@@ -144,19 +154,33 @@ class Tests(unittest.TestCase):
         gt_y = map.forall(state, lambda k, v: v > Y)
         self.assertSolver(state, ~(gt_y & (Y > X)) | ~lt_x)
 
-    def test_forall_time_travels(self):
+    def test_forall_time_travels_future_true(self):
         state = empty_state()
         map = Map.new_array(state, KEY_SIZE, VALUE_SIZE, 10, "test")
         map2 = map.set(state, K, 42)
         state.solver.add(map2.forall(state, lambda k, v: v == 42))
         self.assertSolver(state, map.forall(state, lambda k, v: v == 42))
 
-    def test_forall_time_travels_2(self):
+    def test_forall_time_travels_past_true(self):
         state = empty_state()
         map = Map.new_array(state, KEY_SIZE, VALUE_SIZE, 10, "test")
         map2 = map.set(state, K, 42)
         state.solver.add(map.forall(state, lambda k, v: v == 42))
         self.assertSolver(state, map2.forall(state, lambda k, v: v == 42))
+
+    def test_forall_time_travels_future_false(self):
+        state = empty_state()
+        map = Map.new_array(state, KEY_SIZE, VALUE_SIZE, 10, "test")
+        map2 = map.set(state, K, 42)
+        state.solver.add(~map2.forall(state, lambda k, v: v == 42))
+        self.assertSolver(state, ~map.forall(state, lambda k, v: v == 42))
+
+    def test_forall_time_travels_past_false(self):
+        state = empty_state()
+        map = Map.new_array(state, KEY_SIZE, VALUE_SIZE, 10, "test")
+        map2 = map.set(state, K, 42)
+        state.solver.add(~map.forall(state, lambda k, v: v == 42))
+        self.assertSolver(state, ~map2.forall(state, lambda k, v: v == 42))
 
 
 if __name__ == '__main__':
