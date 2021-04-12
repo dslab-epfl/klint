@@ -84,6 +84,13 @@ class Tests(unittest.TestCase):
         result = map.get(state, K)
         self.assertSolver(state, ~result[1] | (result[0] == 42))
 
+    def test_forall_2(self):
+        state = empty_state()
+        map = Map.new_array(state, KEY_SIZE, VALUE_SIZE, 10, "test")
+        result = map.get(state, K)
+        state.solver.add(map.forall(state, lambda k, v: v == 42))
+        self.assertSolver(state, ~result[1] | (result[0] == 42))
+
     def test_forall_all_known(self):
         state = empty_state()
         map = Map.new_array(state, KEY_SIZE, VALUE_SIZE, 1, "test")
@@ -122,6 +129,20 @@ class Tests(unittest.TestCase):
         ge_x = map.forall(state, lambda k, v: v >= X)
         ge_y = map.forall(state, lambda k, v: v >= Y)
         self.assertSolver(state, ~(ge_y & (Y >= X)) | ge_x)
+
+    def test_forall_implies_not(self):
+        state = empty_state()
+        map = Map.new_array(state, KEY_SIZE, VALUE_SIZE, 10, "test")
+        lt_x = map.forall(state, lambda k, v: v < X)
+        gt_y = map.forall(state, lambda k, v: v > Y)
+        self.assertSolver(state, ~(lt_x & (X < Y)) | ~gt_y)
+
+    def test_forall_implies_not_2(self):
+        state = empty_state()
+        map = Map.new_array(state, KEY_SIZE, VALUE_SIZE, 10, "test")
+        lt_x = map.forall(state, lambda k, v: v < X)
+        gt_y = map.forall(state, lambda k, v: v > Y)
+        self.assertSolver(state, ~(gt_y & (Y > X)) | ~lt_x)
 
     def test_forall_time_travels(self):
         state = empty_state()
