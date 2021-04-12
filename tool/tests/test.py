@@ -84,6 +84,13 @@ class Tests(unittest.TestCase):
         result = map.get(state, K)
         self.assertSolver(state, ~result[1] | (result[0] == 42))
 
+    def test_forall_all_known(self):
+        state = empty_state()
+        map = Map.new_array(state, KEY_SIZE, VALUE_SIZE, 1, "test")
+        state.solver.add(map.forall(state, lambda k, v: v == 0))
+        map2 = map.set(state, claripy.BVV(0, KEY_SIZE), claripy.BVV(42, VALUE_SIZE))
+        self.assertSolver(state, map2.forall(state, lambda k, v: v == 42))
+
     def test_forall_false(self):
         state = empty_state()
         map = Map.new_array(state, KEY_SIZE, VALUE_SIZE, 10, "test")
