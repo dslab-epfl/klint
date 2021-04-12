@@ -12,7 +12,6 @@ import datetime
 
 from . import utils
 
-
 # NOTE: All optimizations should be periodically re-evaluated, since adding new features may make them pointless or even harmful
 #       (e.g., making solver calls that are unnecessary due to some other change)
 
@@ -25,6 +24,8 @@ MapMeta = namedtuple("MapMeta", ["name", "key_size", "value_size"]) # sizes are 
 MapItem = namedtuple("MapItem", ["key", "value", "present"])
 
 # TODO it is weird that MapHas/MapGet take in an obj to pass to state.maps[...] instead of a map... can we fix this? might require major refactor of invariant inf
+#      Then we can take only the solver as parameter everywhere, not the entire state
+
 
 # value=None -> returns whether the map has the key; value!=None -> also checks whether the map has exactly that value for the key
 def MapHas(map, key, value=None, version=None):
@@ -147,6 +148,7 @@ class Map:
 
         result = Map(MapMeta(name, key_size, value_size), _length, [], [])
         if _invariants is None:
+            # we have to have >0 invariants
             result.add_invariant_conjunction(state, lambda i: ~i.present)
         else:
             for inv in _invariants:
@@ -254,52 +256,81 @@ class Map:
         if not isinstance(pred, MapInvariant):
             pred = MapInvariant.new(state, self.meta, (lambda i, old_pred=pred: Implies(i.present, old_pred(i.key, i.value))))
 
+        # TODO: I wonder if it makes sense to refactor as "map" and "map layer" since the layer can only have stuff on known items?
+
         # Optimization: If the map is empty, the answer is always true
         if self.is_empty():
             return claripy.true
 
+        result = claripy.BoolS(self.meta.name + "_forall")
+
+        known_items_result = claripy.And(*[pred(state, i) for i in self.known_items()])
+
+        # Optimization: No need to go further if we already have an invariant known to imply the predicate
+        """for inv in self.invariant_conjunctions():
+            if inv.quick_implies(pred):
+                print("Quick implies!", inv, "->", pred)
+                return known_items_result"""
+
+        unknown_items_result = Implies(self.known_length() < self.length(), pred(state, self._unknown_item))
+        #unknown_items_result = Implies(claripy.And(*[inv(state, test_item) for inv in self.invariant_conjunctions()]), pred(state, test_item))
+
+        # Optimization: No need to go further if we already know the answer
+        """const_result = utils.get_if_constant(state.solver, unknown_items_result)
+        if const_result is True:
+            return known_items_result
+        if const_result is False:
+            return claripy.false"""
+
+        state.solver.add(result == claripy.And(known_items_result, unknown_items_result))
+
+        self.add_invariant_conjunction(state, pred.with_expr(lambda e, i: Implies(result, e)))
+
+        return result
+
+
         # Let K' be a fresh symbolic key, V' a fresh symbolic value, and P' a fresh symbolic presence bit
-        test_key = claripy.BVS(self.meta.name + "_test_key", self.meta.key_size)
-        test_value = claripy.BVS(self.meta.name + "_test_value", self.meta.value_size)
-        test_present = claripy.BoolS(self.meta.name + "_test_present")
-        test_item = MapItem(test_key, test_value, test_present)
+        #test_key = claripy.BVS(self.meta.name + "_test_key", self.meta.key_size)
+        #test_value = claripy.BVS(self.meta.name + "_test_value", self.meta.value_size)
+        #test_present = claripy.BoolS(self.meta.name + "_test_present")
+        #test_item = MapItem(test_key, test_value, test_present)
 
         # Let L be the number of known items whose presence bit is set
         # Let F = ((P1 => pred(K1, V1)) and (P2 => pred(K2, V2)) and (...) and ((L < length(M)) => (invariant(M)(K', V', P') => (P' => pred(K', V')))))
 
-        # Optimization: Exclude items resulting from a call to 'get', they are implicitly tested through the unknown items invariant
-        known_items_result = claripy.And(*[pred(state, i) for i in self.known_items(exclude_get=True)])
+       # known_items_result = claripy.And(*[pred(state, i) for i in self.known_items()])
 
         # Optimization: No need to go further if we already have an invariant known to imply the predicate
-        for inv in self.invariant_conjunctions():
-            if inv.quick_implies(pred):
-                return known_items_result
+        #for inv in self.invariant_conjunctions():
+        #    if inv.quick_implies(pred):
+        #        return known_items_result
 
         # Optimization: We can start by testing the invariant conjunctions one by one, if we find one that definitely implies then the overall invariant definitely implies pred
         #               We expect this to be the common case during invariant inference
-        for inv in self.invariant_conjunctions():
-            if utils.definitely_true(state.solver, Implies(inv(state, test_item), pred(state, test_item))):
-                return known_items_result
+        #for inv in self.invariant_conjunctions():
+        #    if utils.definitely_true(state.solver, Implies(inv(state, test_item), pred(state, test_item))):
+        #        return known_items_result
 
-        unknown_items_result = Implies(claripy.And(*[inv(state, test_item) for inv in self.invariant_conjunctions()]), pred(state, test_item))
+        #unknown_items_result = Implies(claripy.And(*[inv(state, test_item) for inv in self.invariant_conjunctions()]), pred(state, test_item))
 
-        result = known_items_result & Implies(self.known_length() < self.length(), unknown_items_result)
+        #result = known_items_result & Implies(self.known_length() < self.length(), unknown_items_result)
 
         # Optimization: No need to change the invariant if the predicate definitely holds or does not hold,
         # since in the former case it is already implied and in the latter case it would add nothing
-        const_result = utils.get_if_constant(state.solver, result)
-        if const_result is not None:
-            return claripy.true if const_result else claripy.false
+        #const_result = utils.get_if_constant(state.solver, result)
+        #if const_result is not None:
+        #    return claripy.true if const_result else claripy.false
 
         # MUTATE the map's invariant by adding F => (P => pred(K, V))
-        self.add_invariant_conjunction(state, pred.with_expr(lambda e, i: Implies(result, e)))
+        #self.add_invariant_conjunction(state, pred.with_expr(lambda e, i: Implies(result, e)))
 
         # Return F
-        return result
+        #return result
 
     # Havocs the map contents, mutating the map, with the given optional max_length (otherwise uses the current one)
     # Do not use unless you know what you're doing; this is intended for init only, to mimic an external program configuring a map
-    def havoc(self, state, max_length, is_array):
+    # TODO I have no idea if this still works, it's old code, commenting out for now
+    """def havoc(self, state, max_length, is_array):
         if max_length is not None:
             self._length = claripy.BVS("havoced_length", max_length.size())
             state.solver.add(self._length.ULE(max_length))
@@ -308,11 +339,11 @@ class Map:
         else:
             self._invariants = [MapInvariant.new(state, self.meta, lambda i: claripy.true)]
         self._known_items = []
-        self.ever_havoced = True
+        self.ever_havoced = True"""
 
     # === Private API, also used by invariant inference ===
 
-    def __init__(self, meta, length, invariants, known_items, _previous=None, _filter=None, _map=None, ever_havoced=False):
+    def __init__(self, meta, length, invariants, known_items, _previous=None, _unknown_item=None, _filter=None, _map=None, ever_havoced=False):
         # "length" is symbolic, and may be larger than len(items) if there are items that are not exactly known
         # "invariants" is a list of conjunctions that represents unknown items: each is a lambda that takes (state, item) and returns a Boolean expression
         # "items" contains exactly known items, which do not have to obey the invariants
@@ -321,6 +352,13 @@ class Map:
         self._invariants = invariants
         self._known_items = known_items
         self._previous = _previous
+        if _unknown_item is None:
+            _unknown_item = MapItem(
+                claripy.BVS(self.meta.name + "_unknown_key", self.meta.key_size),
+                claripy.BVS(self.meta.name + "_unknown_value", self.meta.value_size),
+                claripy.BoolS(self.meta.name + "_unknown_present")
+            )
+        self._unknown_item = _unknown_item
         # Do not use defaults for _filter and _map so that flattened maps can be serialized easily (i.e., without referring to lambdas)
         self._filter = _filter
         self._map = _map
@@ -333,24 +371,26 @@ class Map:
     def invariant_conjunctions(self):
         if self._previous is None:
             return self._invariants
-        return self._invariants + self._previous.invariant_conjunctions()
+        return self._previous.invariant_conjunctions()
 
     def add_invariant_conjunction(self, state, inv):
-        if isinstance(inv, MapInvariant):
+        if not isinstance(inv, MapInvariant): # TODO we really need types to avoid that sort of thing
+            inv = MapInvariant.new(state, self.meta, inv)
+        if self._previous is None:
             self._invariants.append(inv)
         else:
-            self._invariants.append(MapInvariant.new(state, self.meta, inv))
+            self._previous.add_invariant_conjunction(state, inv)
 
     def with_invariant_conjunctions(self, new_invariant_conjunctions):
         result = self.__copy__()
-        result._invariants = new_invariant_conjunctions
+        oldest = result
+        while oldest._previous is not None:
+            oldest = oldest._previous
+        oldest._invariants = new_invariant_conjunctions
         return result
 
-    def known_items(self, exclude_get=False):
-        if self._previous is None and exclude_get:
-            # we are in version 0, which only has items added by a call to 'get'
-            return []
-        return self._known_items + list(map(self._map or (lambda i: i), filter(self._filter or (lambda i: True), () if self._previous is None else self._previous.known_items(exclude_get=exclude_get))))
+    def known_items(self):
+        return self._known_items + list(map(self._map or (lambda i: i), filter(self._filter or (lambda i: True), () if self._previous is None else self._previous.known_items())))
 
     def add_item(self, item):
         if self._previous is None:
@@ -358,6 +398,7 @@ class Map:
         else:
             self._previous.add_item(item)
 
+    # TODO get rid of this unsafe thing if we can...
     def with_items_layer(self, items, length_change, filter, map, UNSAFE_can_flatten=False):
         if UNSAFE_can_flatten and self._previous is not None: # only flatten v>0
             return Map(
@@ -366,6 +407,7 @@ class Map:
                 self._invariants,
                 [map(i) for i in self._known_items if filter(i)] + items,
                 _previous=self._previous,
+                _unknown_item=self._unknown_item,
                 _filter=lambda i, old=filter: old(i) and filter(i),
                 _map=lambda i, old=map: map(old(i))
             )
@@ -375,6 +417,7 @@ class Map:
             [], # no extra invariants, just use the ones in _previous
             items,
             _previous=self,
+            _unknown_item=self._unknown_item,
             _filter=filter,
             _map=map
         )
@@ -384,7 +427,8 @@ class Map:
             self.meta,
             self._length,
             self.invariant_conjunctions(),
-            self.known_items() if keep_known_items else [] # useful for exporting data without also exporting _map and _filter which are lambdas
+            self.known_items() if keep_known_items else [], # useful for exporting data without also exporting _map and _filter which are lambdas
+            _unknown_item=self._unknown_item
         )
 
     def set_length(self, new_length):
@@ -408,7 +452,7 @@ class Map:
         return self.__deepcopy__({})
 
     def __deepcopy__(self, memo):
-        result = Map(self.meta, self._length, copy.deepcopy(self._invariants, memo), copy.deepcopy(self._known_items, memo), copy.deepcopy(self._previous, memo), self._filter, self._map, self.ever_havoced)
+        result = Map(self.meta, self._length, copy.deepcopy(self._invariants, memo), copy.deepcopy(self._known_items, memo), copy.deepcopy(self._previous, memo), self._unknown_item, self._filter, self._map, self.ever_havoced)
         memo[id(self)] = result
         return result
 
@@ -416,7 +460,7 @@ class Map:
         return f"[Map {self.meta.name} v{self.version()}]"
 
     def _asdict(self): # pretend we are a namedtuple so functions that expect one will work (e.g. utils.structural_eq)
-        return {'meta': self.meta, '_length': self._length, '_invariants': self._invariants, '_known_items': self._known_items, '_previous': self._previous, '_filter': self._filter, '_map': self._map}
+        return {'meta': self.meta, '_length': self._length, '_invariants': self._invariants, '_known_items': self._known_items, '_previous': self._previous, '_unknown_item': self._unknown_item, '_filter': self._filter, '_map': self._map}
 
 
 class GhostMapsPlugin(SimStatePlugin):
@@ -555,9 +599,9 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
         _cache[o1][o2] = {k: (True, None) for k in ["k", "p", "v"]}
 
     # helper function to get only the items that are definitely in the map associated with the given obj in the given state
-    def filter_present(state, obj, exclude_get=False):
+    def filter_present(state, obj):
         present_items = set()
-        for i in state.maps[obj].known_items(exclude_get=exclude_get):
+        for i in state.maps[obj].known_items():
             if utils.definitely_true(state.solver, claripy.And(i.present, *[i.key != pi.key for pi in present_items])):
                 present_items.add(i)
         return present_items
@@ -680,7 +724,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
 
     # Helper function to find FP
     def find_fps(states, o, sel, is_likely_array):
-        constants = {c for c in {utils.get_if_constant(state.solver, sel(i)) for state in states for i in filter_present(state, o, exclude_get=True)} if c is not None}
+        constants = {c for c in {utils.get_if_constant(state.solver, sel(i)) for state in states for i in filter_present(state, o)} if c is not None}
         return ([] if is_likely_array else [lambda i: claripy.true]) + [lambda i, c=c: sel(i) == claripy.BVV(c, sel(i).size()) for c in constants]
 
     # Optimization: If _all_ non-frac maps were havoced in the initial state, there are no invariants to find
@@ -923,7 +967,7 @@ def maps_merge_one(states_to_merge, obj, ancestor_state):
     changed = False
     for conjunction in ancestor_state.maps[obj].invariant_conjunctions():
         for state in states_to_merge:
-            for item in state.maps[obj].known_items(exclude_get=True):
+            for item in state.maps[obj].known_items():
                 conj = conjunction.with_latest_map_versions(state)(state, item)
                 if utils.can_be_false(state.solver, Implies(item.present, conj)):
                     changed = True
