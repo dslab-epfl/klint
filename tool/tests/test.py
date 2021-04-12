@@ -33,6 +33,9 @@ class Tests(unittest.TestCase):
     def assertSolver(self, state, cond):
         self.assertEqual(state.solver.eval_one(cond), True)
 
+    def assertSolverUnknown(self, state, cond):
+        self.assertEqual(len(state.solver.eval_upto(cond, 2)), 2)
+
     def test_get_after_set(self):
         state = empty_state()
         map = Map.new(state, KEY_SIZE, VALUE_SIZE, "test")
@@ -69,6 +72,11 @@ class Tests(unittest.TestCase):
         state.solver.add(map.get(state, K2)[1])
         self.assertSolver(state, map2.get(state, K2)[1])
 
+    def test_get_unknown(self):
+        state = empty_state()
+        map = Map.new_array(state, KEY_SIZE, VALUE_SIZE, 10, "test")
+        self.assertSolverUnknown(state, map.get(state, K)[1])
+
     def test_forall(self):
         state = empty_state()
         map = Map.new_array(state, KEY_SIZE, VALUE_SIZE, 10, "test")
@@ -88,6 +96,11 @@ class Tests(unittest.TestCase):
         state.solver.add(map.forall(state, lambda k, v: v == 0))
         map2 = map.set(state, K, claripy.BVV(42, VALUE_SIZE))
         self.assertSolver(state, ~map2.forall(state, lambda k, v: v == 0))
+
+    def test_forall_unknown(self):
+        state = empty_state()
+        map = Map.new_array(state, KEY_SIZE, VALUE_SIZE, 10, "test")
+        self.assertSolverUnknown(state, map.forall(state, lambda k, v: v == 42))
 
     def test_forall_implies(self):
         state = empty_state()
