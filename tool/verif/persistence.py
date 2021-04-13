@@ -5,13 +5,12 @@ from binary import clock
 from binary.externals.os import config as os_config
 from binary.externals.net import packet as net_packet
 
-StateData = namedtuple('StateData', ['arch', 'maps', 'prev_maps', 'constraints', 'path', 'times', 'network', 'config', 'devices_count'])
+StateData = namedtuple('StateData', ['arch', 'maps', 'constraints', 'path', 'times', 'network', 'config', 'devices_count'])
 
 def dump_data(state_pairs, devices_count, path): # TODO why do we have to move the devices_count around like that? :/
     data = [StateData(
         arch = state.arch,
-        maps = {k: v.flatten(keep_known_items=True) for (k, v) in state.maps.get_all().items()},
-        prev_maps = {k: v.flatten(keep_known_items=True) for (k, v) in prev_state.maps.get_all().items()},
+        maps = state.maps.get_all(),
         constraints = state.solver.constraints,
         path = state.path,
         times = [(t * clock.frequency_denom) // clock.frequency_num for t in (state.metadata.get_or_none(clock.Times, None) or clock.Times([])).values],

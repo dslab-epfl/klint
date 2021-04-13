@@ -219,7 +219,7 @@ class Map:
         # Return (V, P)
         return (value, present)
 
-    def set(self, state, key, value, UNSAFE_can_flatten=False): # see GhostMapsPlugin.set for an explanation of UNSAFE_can_flatten
+    def set(self, state, key, value):
         # Let P be get(M, K) != None
         (_, present) = self.get(state, key)
 
@@ -230,12 +230,9 @@ class Map:
         #   ITE(P, 0, 1) added to the map length.
         #   Each known item (K', V', P') updated to (K', ITE(K = K', V', V), ITE(K = K', true, P'))
         #   (K, V, true) added to the known items
-        return self.with_items_layer(
-            items=[MapItem(key, value, claripy.true)],
+        return self.with_item_layer(
+            item=MapItem(key, value, claripy.true),
             length_change=claripy.If(present, claripy.BVV(0, self.length().size()), claripy.BVV(1, self.length().size())),
-            filter=lambda i: not i.key.structurally_match(key), # Optimization: Filter out known-obsolete keys already
-            map=lambda i: MapItem(i.key, claripy.If(i.key == key, value, i.value), claripy.If(i.key == key, claripy.true, i.present)),
-            UNSAFE_can_flatten=UNSAFE_can_flatten
         )
 
     def remove(self, state, key):
@@ -249,11 +246,9 @@ class Map:
         #   ITE(P, -1, 0) added to the map length
         #   Each known item (K', V', P') updated to (K', ITE(K = K', V, V'), ITE(K = K', false, P'))
         #   (K, V, false) added to the known items
-        return self.with_items_layer(
-            items=[MapItem(key, value, claripy.false)],
+        return self.with_item_layer(
+            item=MapItem(key, value, claripy.false),
             length_change=claripy.If(present, claripy.BVV(-1, self.length().size()), claripy.BVV(0, self.length().size())),
-            filter=lambda i: not i.key.structurally_match(key), # Optimization: Filter out known-obsolete keys already
-            map=lambda i: MapItem(i.key, claripy.If(i.key == key, value, i.value), claripy.If(i.key == key, claripy.false, i.present))
         )
 
     def forall(self, state, pred, _exclude_get=False):
@@ -348,7 +343,7 @@ class Map:
 
     # === Private API, also used by invariant inference ===
 
-    def __init__(self, meta, length, invariants, known_items, _previous=None, _unknown_item=None, _filter=None, _map=None, ever_havoced=False):
+    def __init__(self, meta, length, invariants, known_items, _previous=None, _unknown_item=None, _layer_item=None, ever_havoced=False):
         # "length" is symbolic, and may be larger than len(items) if there are items that are not exactly known
         # "invariants" is a list of conjunctions that represents unknown items: each is a lambda that takes (state, item) and returns a Boolean expression
         # "items" contains exactly known items, which do not have to obey the invariants
@@ -364,9 +359,7 @@ class Map:
                 claripy.BoolS(self.meta.name + "_unknown_present")
             )
         self._unknown_item = _unknown_item
-        # Do not use defaults for _filter and _map so that flattened maps can be serialized easily (i.e., without referring to lambdas)
-        self._filter = _filter
-        self._map = _map
+        self._layer_item = _layer_item
         self.ever_havoced = ever_havoced
 
     def version(self):
@@ -390,7 +383,16 @@ class Map:
     def known_items(self, _exclude_get=False):
         if _exclude_get == True and self._previous is None:
             return []
-        return self._known_items + list(map(self._map or (lambda i: i), filter(self._filter or (lambda i: True), () if self._previous is None else self._previous.known_items(_exclude_get=_exclude_get))))
+
+        result = self._known_items
+        if self._previous is not None:
+            assert self._layer_item is not None
+            result = result + [
+                MapItem(i.key, claripy.If(i.key == self._layer_item.key, self._layer_item.value, i.value), claripy.If(i.key == self._layer_item.key, self._layer_item.present, i.present))
+                for i in self._previous.known_items(_exclude_get=_exclude_get)
+                if not i.key.structurally_match(self._layer_item.key)
+            ]
+        return result
 
     def add_item(self, item):
         if self._previous is None:
@@ -399,27 +401,15 @@ class Map:
             self._previous.add_item(item)
 
     # TODO get rid of this unsafe thing if we can...
-    def with_items_layer(self, items, length_change, filter, map, UNSAFE_can_flatten=False):
-        if UNSAFE_can_flatten and self._previous is not None: # only flatten v>0
-            return Map(
-                self.meta,
-                self._length + length_change,
-                self._invariants,
-                [map(i) for i in self._known_items if filter(i)] + items,
-                _previous=self._previous,
-                _unknown_item=self._unknown_item,
-                _filter=lambda i, old=filter: old(i) and filter(i),
-                _map=lambda i, old=map: map(old(i))
-            )
+    def with_item_layer(self, item, length_change):
         return Map(
             self.meta,
             self._length + length_change,
             [], # no extra invariants, just use the ones in _previous
-            items,
+            [item],
             _previous=self,
             _unknown_item=self._unknown_item,
-            _filter=filter,
-            _map=map
+            _layer_item=item
         )
 
     def relax(self, state, new_invariant_conjunctions, new_length):
@@ -451,7 +441,7 @@ class Map:
         return self.__deepcopy__({})
 
     def __deepcopy__(self, memo):
-        result = Map(self.meta, self._length, copy.deepcopy(self._invariants, memo), copy.deepcopy(self._known_items, memo), copy.deepcopy(self._previous, memo), self._unknown_item, self._filter, self._map, self.ever_havoced)
+        result = Map(self.meta, self._length, copy.deepcopy(self._invariants, memo), copy.deepcopy(self._known_items, memo), copy.deepcopy(self._previous, memo), self._unknown_item, self._layer_item, self.ever_havoced)
         memo[id(self)] = result
         return result
 
@@ -459,7 +449,7 @@ class Map:
         return f"[Map {self.meta.name} v{self.version()}]"
 
     def _asdict(self): # pretend we are a namedtuple so functions that expect one will work (e.g. utils.structural_eq)
-        return {'meta': self.meta, '_length': self._length, '_invariants': self._invariants, '_known_items': self._known_items, '_previous': self._previous, '_unknown_item': self._unknown_item, '_filter': self._filter, '_map': self._map}
+        return {'meta': self.meta, '_length': self._length, '_invariants': self._invariants, '_known_items': self._known_items, '_previous': self._previous, '_unknown_item': self._unknown_item, '_layer_item': self._layer_item, 'ever_havoced': self.ever_havoced}
 
 
 class GhostMapsPlugin(SimStatePlugin):
@@ -493,11 +483,8 @@ class GhostMapsPlugin(SimStatePlugin):
         LOGEND(self.state)
         return result
 
-    def set(self, obj, key, value, UNSAFE_can_flatten=False):
-        # UNSAFE_can_flatten, as its name implies, is only safe if the map has not been used for anything else (e.g. an invariant of another map)
-        # This is an optimization aimed at memory. Ideally we'd remove it because it's weird and requires being careful,
-        # but as long as we have big concrete slabs of memory for RX and TX descriptors we need it.
-        self[obj] = self[obj].set(self.state, key, value, UNSAFE_can_flatten=UNSAFE_can_flatten)
+    def set(self, obj, key, value):
+        self[obj] = self[obj].set(self.state, key, value)
 
     def remove(self, obj, key):
         self[obj] = self[obj].remove(self.state, key)

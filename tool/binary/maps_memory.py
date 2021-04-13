@@ -61,7 +61,7 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
         if endness is not None and endness != meta.endness:
             data = data.reversed
 
-        self.state.maps.set(base, index, data, UNSAFE_can_flatten=True) # memory cannot escape to an invariant aside from v0 thus this is safe)
+        self.state.maps.set(base, index, data)
  
 
     # New method!
