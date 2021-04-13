@@ -99,8 +99,12 @@ class MapInvariant:
     def __repr__(self):
         return str(self.expr)
 
-    def quick_implies(self, other): # if False, just means couldn't be determined quickly
+    def quick_implies(self, state, other): # if False, just means couldn't be determined quickly
         to_check = [(self.expr, other.expr)]
+        # HACK: If it's of the shape "forall_XYZ => ...", which is often the case due to how the invariants are built in forall, recognize that
+        if self.expr.op == 'Or' and self.expr.args[0].op == 'Not' and self.expr.args[0].args[0].op == 'BoolS' and "forall" in self.expr.args[0].args[0].args[0] and \
+           utils.get_if_constant(state.solver, self.expr.args[0]) == False:
+            to_check = [(claripy.Or(*self.expr.args[1:]), other.expr)]
         while len(to_check) > 0:
             (l, r) = to_check.pop()
             if l.op != r.op: return False
@@ -261,71 +265,21 @@ class Map:
         if self.is_empty():
             return claripy.true
 
-        result = claripy.BoolS(self.meta.name + "_forall")
-
         known_items = self.known_items(_exclude_get=_exclude_get)
         known_items_result = claripy.And(*[pred(state, i) for i in known_items])
 
         # Optimization: No need to go further if we already have an invariant known to imply the predicate
-        """for inv in self.invariant_conjunctions():
-            if inv.quick_implies(pred):
-                print("Quick implies!", inv, "->", pred)
-                return known_items_result"""
+        for inv in self.invariant_conjunctions():
+            if inv.quick_implies(state, pred):
+                return known_items_result
 
         unknown_is_not_known = claripy.And(*[Implies(self._unknown_item.key == i.key, (self._unknown_item.value == i.value) & (self._unknown_item.present == i.present)) for i in known_items])
         unknown_items_result = Implies(self.known_length() < self.length(), Implies(unknown_is_not_known, pred(state, self._unknown_item)))
 
-        # Optimization: No need to go further if we already know the answer
-        """const_result = utils.get_if_constant(state.solver, unknown_items_result)
-        if const_result is True:
-            return known_items_result
-        if const_result is False:
-            return claripy.false"""
-
+        result = claripy.BoolS(self.meta.name + "_forall")
         state.solver.add(result == claripy.And(known_items_result, unknown_items_result))
-
         self.add_invariant_conjunction(state, pred.with_expr(lambda e, i: Implies(result, e)))
-
         return result
-
-
-        # Let K' be a fresh symbolic key, V' a fresh symbolic value, and P' a fresh symbolic presence bit
-        #test_key = claripy.BVS(self.meta.name + "_test_key", self.meta.key_size)
-        #test_value = claripy.BVS(self.meta.name + "_test_value", self.meta.value_size)
-        #test_present = claripy.BoolS(self.meta.name + "_test_present")
-        #test_item = MapItem(test_key, test_value, test_present)
-
-        # Let L be the number of known items whose presence bit is set
-        # Let F = ((P1 => pred(K1, V1)) and (P2 => pred(K2, V2)) and (...) and ((L < length(M)) => (invariant(M)(K', V', P') => (P' => pred(K', V')))))
-
-       # known_items_result = claripy.And(*[pred(state, i) for i in self.known_items()])
-
-        # Optimization: No need to go further if we already have an invariant known to imply the predicate
-        #for inv in self.invariant_conjunctions():
-        #    if inv.quick_implies(pred):
-        #        return known_items_result
-
-        # Optimization: We can start by testing the invariant conjunctions one by one, if we find one that definitely implies then the overall invariant definitely implies pred
-        #               We expect this to be the common case during invariant inference
-        #for inv in self.invariant_conjunctions():
-        #    if utils.definitely_true(state.solver, Implies(inv(state, test_item), pred(state, test_item))):
-        #        return known_items_result
-
-        #unknown_items_result = Implies(claripy.And(*[inv(state, test_item) for inv in self.invariant_conjunctions()]), pred(state, test_item))
-
-        #result = known_items_result & Implies(self.known_length() < self.length(), unknown_items_result)
-
-        # Optimization: No need to change the invariant if the predicate definitely holds or does not hold,
-        # since in the former case it is already implied and in the latter case it would add nothing
-        #const_result = utils.get_if_constant(state.solver, result)
-        #if const_result is not None:
-        #    return claripy.true if const_result else claripy.false
-
-        # MUTATE the map's invariant by adding F => (P => pred(K, V))
-        #self.add_invariant_conjunction(state, pred.with_expr(lambda e, i: Implies(result, e)))
-
-        # Return F
-        #return result
 
     # Havocs the map contents, mutating the map, with the given optional max_length (otherwise uses the current one)
     # Do not use unless you know what you're doing; this is intended for init only, to mimic an external program configuring a map
