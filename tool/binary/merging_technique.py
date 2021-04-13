@@ -1,6 +1,8 @@
 import angr
 import claripy
 
+# TODO move states that could not merge to some other stash so we don't retry with 1 less state next time?
+
 # Version of SimState.merge that succeeds only if all plugins successfully merge, and returns the state or None
 def merge_states(states):
     merge_flag = claripy.BVS("state_merge", 16)
