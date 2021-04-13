@@ -151,7 +151,7 @@ class CustomSolver(
 import angr.storage.memory_mixins as csms
 class CustomMemory(
     csms.NameResolutionMixin, # To allow uses of register names, which angr does internally when this is used for regs
-    csms.DataNormalizationMixin, # To always get ASTs values
+    csms.DataNormalizationMixin, # To always get AST values
     csms.SizeNormalizationMixin, # To always get actual sizes in stores (required by some angr mixins)
     ObjectsMemoryMixin, # For modelled devices
     MapsMemoryMixin, # For the heap

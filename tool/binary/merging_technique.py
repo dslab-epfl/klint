@@ -13,23 +13,27 @@ def merge_states(states):
     # same fix as in SimState.merge
     merged.history.parent = states[0].history
 
-    for plugin_key in states[0].plugins.keys():
+    all_plugins = set()
+    for state in states:
+        all_plugins.update(state.plugins.keys())
+
+    for plugin in all_plugins:
         # Some plugins have nothing to merge by design
-        if plugin_key in ('regs', 'mem', 'scratch'):
+        if plugin in ('regs', 'mem', 'scratch'):
             continue
 
-        our_plugin = getattr(merged, plugin_key)
-        other_plugins = [getattr(st, plugin_key) for st in states[1:]]
+        our_plugin = getattr(merged, plugin)
+        other_plugins = [getattr(st, plugin) for st in states[1:] if hasattr(st, plugin)]
         
         # Callstack merely logs an error if there's an issue and never returns anything...
-        if plugin_key == 'callstack':
+        if plugin == 'callstack':
             if any(o != our_plugin for o in other_plugins):
                 return None
             continue
 
         if not our_plugin.merge(other_plugins, merge_conditions):
             # Memory returns false if nothing was merged, but that just means the memory was untouched
-            if plugin_key in ('memory'):
+            if plugin in ('memory'):
                 continue
             return None
 

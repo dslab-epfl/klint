@@ -11,18 +11,14 @@ import verif.persistence as verif_persist
 import verif.executor as verif_executor
 
 
-#from tests import test as my_test
-#my_test.Tests().test_forall_time_travels_future_true()
-#sys.exit(0)
-
 #nf_executor.execute_full(os.path.join(Path(__file__).parent.absolute(), "..", "os", "bin"))
 #sys.exit(0)
 
-nf_to_verify = "vigor-firewall"
+nf_to_verify = "vigor-nat"
 if len(sys.argv) >= 2:
     nf_to_verify = sys.argv[1]
 
-use_cached_results = True
+use_cached_results = False
 if len(sys.argv) >= 3 and sys.argv[2] == "use-cache": # TODO reverse this switch, make it "force reverify" or smth
     use_cached_results = True
 
