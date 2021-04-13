@@ -27,6 +27,7 @@ MapItem = namedtuple("MapItem", ["key", "value", "present"])
 #      Then we can take only the solver as parameter everywhere, not the entire state
 #      And maybe even move the solver optimizations part (constants and such) to the plugin itself instead of the maps?
 
+# TODO: Any way we can remove ITEs completely here? out of curiosity...
 
 # value=None -> returns whether the map has the key; value!=None -> also checks whether the map has exactly that value for the key
 def MapHas(map, key, value=None, version=None):
@@ -255,7 +256,7 @@ class Map:
             map=lambda i: MapItem(i.key, claripy.If(i.key == key, value, i.value), claripy.If(i.key == key, claripy.false, i.present))
         )
 
-    def forall(self, state, pred):
+    def forall(self, state, pred, _exclude_get=False):
         if not isinstance(pred, MapInvariant):
             pred = MapInvariant.new(state, self.meta, (lambda i, old_pred=pred: Implies(i.present, old_pred(i.key, i.value))))
 
@@ -267,7 +268,8 @@ class Map:
 
         result = claripy.BoolS(self.meta.name + "_forall")
 
-        known_items_result = claripy.And(*[pred(state, i) for i in self.known_items()])
+        known_items = self.known_items(_exclude_get=_exclude_get)
+        known_items_result = claripy.And(*[pred(state, i) for i in known_items])
 
         # Optimization: No need to go further if we already have an invariant known to imply the predicate
         """for inv in self.invariant_conjunctions():
@@ -275,8 +277,8 @@ class Map:
                 print("Quick implies!", inv, "->", pred)
                 return known_items_result"""
 
-        unknown_items_result = Implies(self.known_length() < self.length(), pred(state, self._unknown_item))
-        #unknown_items_result = Implies(claripy.And(*[inv(state, test_item) for inv in self.invariant_conjunctions()]), pred(state, test_item))
+        unknown_is_not_known = claripy.And(*[Implies(self._unknown_item.key == i.key, (self._unknown_item.value == i.value) & (self._unknown_item.present == i.present)) for i in known_items])
+        unknown_items_result = Implies(self.known_length() < self.length(), Implies(unknown_is_not_known, pred(state, self._unknown_item)))
 
         # Optimization: No need to go further if we already know the answer
         """const_result = utils.get_if_constant(state.solver, unknown_items_result)
@@ -385,8 +387,10 @@ class Map:
         else:
             self._previous.add_invariant_conjunction(state, inv)
 
-    def known_items(self):
-        return self._known_items + list(map(self._map or (lambda i: i), filter(self._filter or (lambda i: True), () if self._previous is None else self._previous.known_items())))
+    def known_items(self, _exclude_get=False):
+        if _exclude_get == True and self._previous is None:
+            return []
+        return self._known_items + list(map(self._map or (lambda i: i), filter(self._filter or (lambda i: True), () if self._previous is None else self._previous.known_items(_exclude_get=_exclude_get))))
 
     def add_item(self, item):
         if self._previous is None:
@@ -498,10 +502,10 @@ class GhostMapsPlugin(SimStatePlugin):
     def remove(self, obj, key):
         self[obj] = self[obj].remove(self.state, key)
 
-    def forall(self, obj, pred):
+    def forall(self, obj, pred, _exclude_get=False):
         map = self[obj]
         LOG(self.state, "forall " + str(obj) + " ( " + str(len(self.state.solver.constraints)) + " constraints)")
-        result = map.forall(self.state, pred)
+        result = map.forall(self.state, pred, _exclude_get=_exclude_get)
         LOGEND(self.state)
         return result
 
@@ -540,9 +544,8 @@ class GhostMapsPlugin(SimStatePlugin):
 
 class ResultType(Enum):
     LENGTH_LTE = 0
-    LENGTH_VAR = 1
-    CROSS_VAL = 2
-    CROSS_KEY = 3
+    CROSS_VAL = 1
+    CROSS_KEY = 2
 
     def is_cross_result(self):
         return self == ResultType.CROSS_VAL or self == ResultType.CROSS_KEY
@@ -593,7 +596,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
     # helper function to get only the items that are definitely in the map associated with the given obj in the given state
     def filter_present(state, obj):
         present_items = set()
-        for i in state.maps[obj].known_items():
+        for i in state.maps[obj].known_items(_exclude_get=True):
             if utils.definitely_true(state.solver, claripy.And(i.present, *[i.key != pi.key for pi in present_items])):
                 present_items.add(i)
         return present_items
@@ -820,7 +823,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
             for fp in fps:
                 log_text = ""
                 if fv and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk, fv=fv: \
-                                                                                             Implies(fp(k, v), MapHas(o2, fk(k, v), value=fv(k, v))))) for st in states):
+                                                                                             Implies(fp(k, v), MapHas(o2, fk(k, v), value=fv(k, v))), _exclude_get=True)) for st in states):
                         to_cache.put([o1, o2, "p", [fp]]) # only put the working one, don't have us try a pointless one next time
                         to_cache.put([o1, o2, "k", fk])
                         to_cache.put([o1, o2, "v", fv])
@@ -832,7 +835,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                     to_cache.put([o1, o2, "v", None]) # do not cache fv since it didn't work
 
                     # No point in trying a cross-key if o2 is an array, we already know what its keys are
-                    if not o2_is_array and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk: Implies(fp(k, v), MapHas(o2, fk(k, v))))) for st in states):
+                    if not o2_is_array and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk: Implies(fp(k, v), MapHas(o2, fk(k, v))), _exclude_get=True)) for st in states):
                         log_text += f"Inferred: when {o1} contains (K,V), if {fp(log_k, log_v)} then {o2} contains {fk(log_k, log_v)}"
                         results.put((ResultType.CROSS_KEY, [o1, o2],
                                      lambda state, o1=o1, o2=o2, fp=fp, fk=fk: state.solver.add(state.maps.forall(o1, lambda k, v: Implies(fp(k, v), MapHas(o2, fk(k, v)))))))
@@ -913,7 +916,7 @@ def maps_merge_one(states_to_merge, obj, ancestor_state, new_state):
     # Optimization: Drop states in which the map has not changed at all
     states_to_merge = [st for st in states_to_merge if st.maps[obj].version() != ancestor_state.maps[obj].version()]
     if len(states_to_merge) == 0:
-        return (ancestor_state.maps[obj], False)
+        return False
 
     print("Merging map", obj)
     # helper function to find constraints that hold on an expression in a state
@@ -939,16 +942,14 @@ def maps_merge_one(states_to_merge, obj, ancestor_state, new_state):
             results.append(replacement[expr.size()-1:expr.size()-expr.args[0].size()] == 0)
         return results
 
-    changed = False
-
     # Length variation.
     # If the length may have changed in any state from the one in the ancestor state,
     # replace the length with a fresh symbol
+    # TODO should we just always do this?
     map_length = ancestor_state.maps.length(obj)
     if any(utils.can_be_true(st.solver, st.maps.length(obj) != map_length) for st in states_to_merge):
         print("Length of map", obj, "was changed; making it symbolic")
         map_length = claripy.BVS("map_length", map_length.size())
-        changed = True
 
     # Oblivion algorithm: "forget" known items by integrating them into the unknown items invariant
     # For each conjunction in the unknown items invariant,
@@ -956,10 +957,11 @@ def maps_merge_one(states_to_merge, obj, ancestor_state, new_state):
     #  if the conjunction may not hold on that item assuming the item is present,
     #  find constraints that do hold and add them as a disjunction to the conjunction.
     # except this is done on the latest map versions... i.e. we take invs designed for v0 and apply them to vNow; not sure how to best phrase this
+    changed = False
     invariant_conjs = []
     for conjunction in ancestor_state.maps[obj].invariant_conjunctions():
         for state in states_to_merge:
-            for item in state.maps[obj].known_items():
+            for item in state.maps[obj].known_items(_exclude_get=True):
                 conj = conjunction.with_latest_map_versions(state)(state, item)
                 if utils.can_be_false(state.solver, Implies(item.present, conj)):
                     changed = True

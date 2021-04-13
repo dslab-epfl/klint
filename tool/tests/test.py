@@ -222,5 +222,12 @@ class Tests(unittest.TestCase):
         map2 = Map.new_array(state, KEY_SIZE, VALUE_SIZE, 100, "test2")
         self.assertSolver(state, ~map2.forall(state, lambda k, v: map1.get(state, k)[1]))
 
+    def test_forall_split(self):
+        state = empty_state()
+        map = Map.new_array(state, KEY_SIZE, VALUE_SIZE, 10, "test")
+        state.solver.add(map.forall(state, lambda k, v: v == X))
+        map2 = map.set(state, claripy.BVV(0, KEY_SIZE), Y)
+        self.assertSolver(state, map2.forall(state, lambda k, v: v == claripy.If(k == 0, Y, X)))
+
 if __name__ == '__main__':
     unittest.main()
