@@ -61,40 +61,38 @@ def exists(type, func):
 # === Maps ===
 
 class Map:
-    def __init__(self, key_type, value_type, _obj=None):
+    def __init__(self, key_type, value_type, _map=None):
         global __symbex__
 
-        if _obj is None:
+        if _map is None:
             key_size = type_size(key_type)
             value_size = ... if value_type is ... else type_size(value_type)
 
             if value_type == "size_t":
-                candidates = [(o, m) for (o, m) in __symbex__.state.maps.items() if "map_values_4" in str(m)]
+                candidates = [o for (o, m) in __symbex__.state.maps if "map_values_4" in str(m)]
             elif value_type == "uint64_t":
-                candidates = [(o, m) for (o, m) in __symbex__.state.maps.items() if "pool_items_6" in str(m)]
+                candidates = [o for (o, m) in __symbex__.state.maps if "pool_items_6" in str(m)]
             else:
                 raise "oh"
 
             """candidates = []
-            for (o, m) in __symbex__.state.maps.items():
+            for (o, m) in __symbex__.state.maps:
                 # Ignore maps that the user did not declare, i.e., fractions ones & the packet itself
                 if ("fracs_" not in m.meta.name) & ("packet_" not in m.meta.name) & \
                   (m.meta.key_size >= key_size) & ((value_size is ...) | (m.meta.value_size == value_size)):
-                    candidates.append((o, m))"""
+                    candidates.append(o)"""
             if len(candidates) == 0:
                 raise Exception("No such map: " + str(key_type) + " -> " + str(value_type))
-            (_obj, map) = __choose__(candidates)
-        else:
-            map = next(m for (o, m) in __symbex__.state.prev_maps.items() if o.structurally_match(_obj))
+            obj = __choose__(candidates)
+            _map = next(m for (o, m) in __symbex__.state.maps if o.structurally_match(obj))
 
-        self._obj = _obj
-        self._map = map
+        self._map = _map
         self._key_type = key_type
         self._value_type = None if value_type is ... else value_type
 
     @property
     def old(self):
-        return Map(self._key_type, self._value_type, _obj=self._obj)
+        return Map(self._key_type, self._value_type, _map=self._map.oldest_version())
 
     def __contains__(self, key):
         global __symbex__
@@ -240,9 +238,6 @@ def ipv4_checksum(header):
 # === Spec wrapper ===
 
 def _spec_wrapper(data):
-    global __symbex__
-    print("ze path is", __symbex__.state.path._value._segments)
-
     global time
     time = lambda: data.times[0] # TODO fix the whole time thing! (make it a spec arg!)
 

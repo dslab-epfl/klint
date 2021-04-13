@@ -296,6 +296,7 @@ class Map:
         self.ever_havoced = True"""
 
     # === Private API, also used by invariant inference ===
+    # TODO sort out what's actually private and not; verif also uses stuff...
 
     def __init__(self, meta, length, invariants, known_items, _previous=None, _unknown_item=None, _layer_item=None, ever_havoced=False):
         # "length" is symbolic, and may be larger than len(items) if there are items that are not exactly known
@@ -319,6 +320,10 @@ class Map:
     def version(self):
         if self._previous is None: return 0
         else: return 1 + self._previous.version()
+
+    def oldest_version(self):
+        if self._previous is None: return self
+        return self._previous.oldest_version()
 
     def invariant_conjunctions(self):
         if self._previous is None:
@@ -457,8 +462,8 @@ class GhostMapsPlugin(SimStatePlugin):
 
     # === Import and Export ===
 
-    def get_all(self):
-        return {obj.ast: m for (obj, m) in self._maps.items()}
+    def get_all(self): # return .cache_key as keys!
+        return [(obj.ast, m) for (obj, m) in self._maps.items()]
 
     # === Private API, including for invariant inference ===
 
@@ -924,7 +929,7 @@ def maps_merge_one(states_to_merge, obj, ancestor_state, new_state):
 def infer_invariants(ancestor_state, states, previous_results=None):
     # note that we keep track of objs as their string representations to avoid comparing Claripy ASTs (which don't like ==)
     previous_results = copy.deepcopy(previous_results or [])
-    ancestor_objs = ancestor_state.maps.get_all().keys()
+    ancestor_objs = [o for (o, _) in ancestor_state.maps.get_all()]
 
     across_results = maps_merge_across(states, ancestor_objs, ancestor_state)
     # To check if we have reached a superset of the previous results, remove all values we now have
@@ -951,8 +956,12 @@ def infer_invariants(ancestor_state, states, previous_results=None):
         if len(previous_results) != 0:
             print("### - Invariants were removed: " + str(previous_results))
 
-    for (_, _, func) in across_results:
-        func(new_state)
+    if reached_fixpoint:
+        # No point in spending time setting up invariants on the new state if we won't use it
+        new_state = None
+    else:
+        for (_, _, func) in across_results:
+            func(new_state)
 
     new_results = [(id, list(map(str, objs))) for (id, objs, _) in across_results]
     return (new_state, new_results, reached_fixpoint)

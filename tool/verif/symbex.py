@@ -112,11 +112,9 @@ class ValueProxy:
         outcomes = ValueProxy.unwrap(__symbex__.state).solver.eval_upto(self._value, 3, extra_constraints=path_condition) # ask for 3 just in case something goes wrong; we want 1 or 2
 
         if len(outcomes) == 1:
-            print("single outcome of", self._value, "is", outcomes[0])
             return outcomes[0]
 
         assert len(outcomes) == 2, "solver eval_upto for a bool should return 1 or 2 outcomes"
-        print("multi outcomes for", self._value)
 
         if __symbex__.branch_index == len(__symbex__.branches):
             __symbex__.branches.append((self._value, True))
@@ -145,7 +143,7 @@ class ValueProxy:
         return ValueProxy.wrap(~self._value)
 
     def __getitem__(self, item):
-        return ValueProxy.wrap(self._value[item])
+        return ValueProxy.wrap(self._value[ValueProxy.unwrap(item)])
 
     def __and__(self, other):
         return self._op(other, "__and__")

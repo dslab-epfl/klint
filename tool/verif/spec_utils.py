@@ -20,6 +20,11 @@ class ExpiringSet:
         return (self._elems_to_indices.length == self.capacity) & \
                self._indices_to_times.forall(lambda k, v: (time() < self.expiration_time) | (time() - self.expiration_time <= v))
 
+    def did_refresh(self, item):
+        if item not in self._elems_to_indices:
+            return False
+        return self._indices_to_times[self._elems_to_indices[item]] == time()
+
     def __contains__(self, item):
         if item not in self._elems_to_indices:
             return False
