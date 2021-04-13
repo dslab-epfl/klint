@@ -12,6 +12,17 @@ from binary.executor import CustomSolver
 from . import symbex
 
 
+# TODO this class wouldn't need to exist if non-plugin stuff in ghost maps didn't depend on state.maps...
+class _VerifMaps:
+    def __init__(self, maps):
+        self._maps = maps
+
+    def __getitem__(self, obj):
+        return next(m for (o, m) in self._maps if o.structurally_match(obj))
+
+    def __iter__(self):
+        return iter(self._maps)
+
 class _VerifState:
     def __init__(self, constraints, maps, path):
         # Angr plugins make some assumptions about structure
@@ -27,11 +38,11 @@ class _VerifState:
         self.solver._stored_solver = CustomSolver()
         self.solver.add(*constraints)
 
-        self.maps = maps
+        self.maps = _VerifMaps(maps)
         self.path = path
 
     def copy(self):
-        return _VerifState(self.solver.constraints.copy(), copy.deepcopy(self.maps), copy.deepcopy(self.path))
+        return _VerifState(self.solver.constraints.copy(), copy.deepcopy(self.maps._maps), copy.deepcopy(self.path))
 
 
 def verify(all_data, spec):

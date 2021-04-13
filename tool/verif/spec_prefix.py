@@ -31,6 +31,8 @@ def type_wrap(value, type):
 
 def type_unwrap(value, type):
     if not isinstance(value, dict):
+        if value.size() < type_size(type):
+            value = value.zero_extend(type_size(type) - value.size())
         return value
     if isinstance(type, dict):
         assert value.keys() == type.keys(), "please don't cast in weird ways"
@@ -68,21 +70,17 @@ class Map:
             key_size = type_size(key_type)
             value_size = ... if value_type is ... else type_size(value_type)
 
-            if value_type == "size_t":
-                candidates = [o for (o, m) in __symbex__.state.maps if "map_values_4" in str(m)]
-            elif value_type == "uint64_t":
-                candidates = [o for (o, m) in __symbex__.state.maps if "pool_items_6" in str(m)]
-            else:
-                raise "oh"
-
-            """candidates = []
-            for (o, m) in __symbex__.state.maps:
+            possible_candidates = [
+                (o, m) for (o, m) in __symbex__.state.maps
                 # Ignore maps that the user did not declare, i.e., fractions ones & the packet itself
                 if ("fracs_" not in m.meta.name) & ("packet_" not in m.meta.name) & \
-                  (m.meta.key_size >= key_size) & ((value_size is ...) | (m.meta.value_size == value_size)):
-                    candidates.append(o)"""
-            if len(candidates) == 0:
+                   (m.meta.key_size >= key_size) & ((value_size is ...) | (m.meta.value_size == value_size))
+            ]
+            if len(possible_candidates) == 0:
                 raise Exception("No such map: " + str(key_type) + " -> " + str(value_type))
+            # Prioritize exact matches for the key
+            possible_candidates.sort(key=lambda c: c[1].meta.key_size)
+            candidates = [o for (o, m) in possible_candidates]
             obj = __choose__(candidates)
             _map = next(m for (o, m) in __symbex__.state.maps if o.structurally_match(obj))
 
