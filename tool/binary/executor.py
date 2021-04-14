@@ -147,6 +147,16 @@ class CustomSolver(
                     raise Exception("UNSAT after adding constraint: " + str(con))
         return super().add(constraints, **kwargs)
 
+    def simplify(self, **kwargs):
+        # TODO: Investigate this. There seems to be a bug in the simplification that drops constraints
+        return self.constraints
+        """prev_cons = self.constraints.copy()
+        result = super().simplify(**kwargs)
+        if any("map_values_4_present" in str(c) and (c.op == 'BoolS' or c.op == 'Not') for c in prev_cons) and \
+           not any("map_values_4_present" in str(c) and (c.op == 'BoolS' or c.op == 'Not') for c in self.constraints):
+            print("what") # at this point the map present bit has 2 possible values!
+        return result"""
+
 # Keep only what we need in the memory, including our custom layers
 import angr.storage.memory_mixins as csms
 class CustomMemory(

@@ -14,7 +14,7 @@ def spec(packet, config, transmitted_packet):
     flows = ExpiringSet(Flow, config["expiration time"], config["max flows"])
 
     if packet.device == config["wan device"]:
-        """flow_index = packet.tcpudp.dst - config["start port"]
+        flow_index = packet.tcpudp.dst - config["start port"]
         flow = flows.old.get_by_index(flow_index)
         if flow is None:
             assert transmitted_packet is None
@@ -23,12 +23,11 @@ def spec(packet, config, transmitted_packet):
             assert transmitted_packet is None
             return
 
-        #assert flows.did_refresh(flow)
+        assert flows.did_refresh(flow)
         #packet.ipv4.dst = flow.src_ip
         assert transmitted_packet.ipv4.dst == flow.src_ip
         #packet.tcpudp.dst = flow.src_port
-        assert transmitted_packet.tcpudp.dst == flow.src_port"""
-        return
+        assert transmitted_packet.tcpudp.dst == flow.src_port
     else:
         flow = {
             'src_ip': packet.ipv4.src,
@@ -43,10 +42,10 @@ def spec(packet, config, transmitted_packet):
             assert transmitted_packet is None
             return
 
-        #packet.ipv4.src_addr = config["external address"]
-        assert transmitted_packet.ipv4.src_addr == config["external address"]
-        #packet.tcpudp.src_port = config["start port"] + flows.get_index(flow)
-        assert transmitted_packet.tcpudp.src_port == config["start port"] + flows.get_index(flow)
+        #packet.ipv4.src = config["external address"]
+        assert transmitted_packet.ipv4.src == config["external addr"]
+        #packet.tcpudp.src = config["start port"] + flows.get_index(flow)
+        assert transmitted_packet.tcpudp.src == config["start port"] + flows.get_index(flow)
 
     #assert transmitted_packet.data == packet.data
     assert transmitted_packet.device == 1 - packet.device

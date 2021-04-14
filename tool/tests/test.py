@@ -3,6 +3,7 @@ import claripy
 import os
 import unittest
 
+from binary.executor import CustomSolver
 from binary.ghost_maps import Map
 from binary.sizes import SizesPlugin
 
@@ -18,7 +19,9 @@ angr.SimState.register_default("sizes", SizesPlugin)
 # Can't find another way to create an empty state...
 def empty_state():
     proj = angr.Project(os.path.dirname(os.path.realpath(__file__)) + "/empty_binary")
-    return proj.factory.blank_state()
+    state = proj.factory.blank_state()
+    state.solver._stored_solver = CustomSolver()
+    return state
 
 KEY_SIZE = 8
 VALUE_SIZE = 16
@@ -44,6 +47,7 @@ class Tests(unittest.TestCase):
 
     def assertSolverUnknown(self, state, cond):
         self.assertEqual(len(state.solver.eval_upto(cond, 2)), 2)
+
 
     def test_get_after_set(self):
         state = empty_state()
@@ -98,7 +102,7 @@ class Tests(unittest.TestCase):
         map = Map.new(state, KEY_SIZE, VALUE_SIZE, "test", _length=1, _invariants=[lambda i: claripy.true])
         state.solver.add(map.forall(state, lambda k, v: k == 42))
         result = map.get(state, K)
-        self.assertSolver(state, ~result[1] | K == 42)
+        self.assertSolver(state, ~result[1] | (K == 42))
 
     def test_forall_2(self):
         state = empty_state()

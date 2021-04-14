@@ -3,13 +3,10 @@ import claripy
 
 # Version of SimState.merge that succeeds only if all plugins successfully merge, and returns the state or None
 def merge_states(states):
+    states = [s.copy() for s in states]
+    merged = states[0]
     merge_flag = claripy.BVS("state_merge", 16)
     merge_conditions =  [merge_flag == b for b in range(len(states))]
-
-    merged = states[0].copy()
-
-    # same fix as in SimState.merge
-    merged.history.parent = states[0].history
 
     all_plugins = set()
     for state in states:
@@ -33,7 +30,6 @@ def merge_states(states):
             # Memory returns false if nothing was merged, but that just means the memory was untouched
             if plugin in ('memory'):
                 continue
-            print("Merge failed due to", plugin)
             return None
 
     merged.solver.add(merged.solver.Or(*merge_conditions))
@@ -66,7 +62,7 @@ class MergingTechnique(angr.exploration_techniques.ExplorationTechnique):
         simgr.split(from_stash=stash, to_stash=self.deferred_stash, limit=0)
         simgr.stashes[self.deferred_stash].sort(key=lambda s: s.regs.rip.args[0])
 
-        # If there were states that couldn't be merged before, just go with the first one
+        # If there were states that couldn't be merged before, go with the first one
         if len(simgr.stashes[self.nomerge_stash]) > 0:
             simgr.stashes[stash].append(simgr.stashes[self.nomerge_stash].pop(0))
             return simgr
@@ -87,14 +83,11 @@ class MergingTechnique(angr.exploration_techniques.ExplorationTechnique):
         if len(lowest) == 1:
             new_state = lowest[0]
         else:
-            print("Trying to merge! RIP=", lowest[0].regs.rip)
-            merged  = merge_states(lowest)
+            merged = merge_states(lowest)
             if merged is None:
-                print("Oh well.")
                 new_state = lowest[0]
                 simgr.stashes[self.nomerge_stash].extend(lowest[1:])
             else:
-                print("Yay!")
                 new_state = merged
         simgr.stashes[stash].append(new_state)
         return simgr
