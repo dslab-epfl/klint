@@ -641,20 +641,6 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                     return lambda k, v, x1=x1: claripy.Extract(x1.size() - 1, x1.args[0].args[1].size(), sel1(k, v) - x1.args[1]).zero_extend(x1.args[0].args[1].size())
         return None
 
-    def candidate_finder_othermap(state, o1, o2, sel1, sel2, it1, it2):
-        # The ugliest one: if o1 is a "fractions" obj, check if the corresponding value in the corresponding obj is equal to x2 (including the .reversed case...)
-        if sel1 is get_key:
-            # note that orig_size is in bytes, but x2.size() is in bits!
-            orig_o1, orig_size = state.memory.get_obj_and_size_from_fracs_obj(o1)
-            x2 = sel2(it2.key, it2.value)
-            if orig_o1 is not None and orig_o1 is not o2 and utils.definitely_true(state.solver, orig_size * 8 == x2.size()):
-                (orig_x1v, orig_x1p) = state.maps.get(orig_o1, it1.key)
-                if utils.definitely_true(state.solver, orig_x1p & (orig_x1v.reversed == x2)):
-                    return lambda k, v, orig_o1=orig_o1, x2size=x2.size(): MapGet(orig_o1, k, x2size).reversed
-                if utils.definitely_true(state.solver, orig_x1p & (orig_x1v == x2)):
-                    return lambda k, v, orig_o1=orig_o1, x2size=x2.size(): MapGet(orig_o1, k, x2size)
-        return None
-
     def candidate_finder_constant(state, o1, o2, sel1, sel2, it1, it2):
         x2 = sel2(it2.key, it2.value)
         if sel2 is get_value:
@@ -665,13 +651,14 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
         return None
 
     # Helper function to find FP
-    def find_fps(states, o, sel, is_likely_array):
-        constants = {c for c in {utils.get_if_constant(state.solver, sel(i.key, i.value)) for state in states for i in filter_present(state, o)} if c is not None}
-        return ([] if is_likely_array else [lambda k, v: claripy.true]) + [lambda k, v, c=c: sel(k, v) == claripy.BVV(c, sel(k, v).size()) for c in constants]
+    def find_fps(states, o, is_likely_array):
+        fracs = states[0].memory.get_fractions(o)
+        if fracs is not None:
+            frac_fps = find_fps(states, fracs, True)
+            return [lambda k, v: fp(k, MapGet(fracs, k, 8)) for fp in frac_fps]
 
-    # Optimization: If _all_ non-frac maps were havoced in the initial state, there are no invariants to find
-    if all(_ancestor_state.maps[o].ever_havoced or _ancestor_state.memory.get_obj_and_size_from_fracs_obj(o) != (None, None) for o in objs):
-        return []
+        constants = {c for c in {utils.get_if_constant(state.solver, i.value) for state in states for i in filter_present(state, o)} if c is not None}
+        return ([] if is_likely_array else [lambda k, v: claripy.true]) + [lambda k, v, c=c: v == claripy.BVV(c, v.size()) for c in constants]
 
     # Initialize the cache for fast read and write acces during invariant inference
     init_cache(objs)
@@ -693,12 +680,10 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
             if len(orig_states) == 0:
                 continue
 
-            # Optimization: Ignore the combination if they are an array and its fractions
-            other, _ = ancestor_state.memory.get_obj_and_size_from_fracs_obj(o1)
-            if other is o2:
+            # Optimization: Ignore o1 as fractions, that's rather useless, and ignore o1/o2 as array and its fractions
+            if ancestor_state.memory.is_fractions(o1):
                 continue
-            other, _ = ancestor_state.memory.get_obj_and_size_from_fracs_obj(o2)
-            if other is o1:
+            if ancestor_state.memory.get_fractions(o1) is o2:
                 continue
 
             #print("Considering", o1, o2, "at", datetime.datetime.now())
@@ -736,7 +721,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
             # Try to find FPs
             (fps_is_cached, fps) = get_cached(o1, o2, "p")
             if not fps_is_cached:
-                fps = find_fps(states, o1, get_value, o1_is_array)
+                fps = find_fps(states, o1, o1_is_array)
 
             if fps == []:
                 to_cache.put([o1, o2, "p", []])
@@ -746,7 +731,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
             # Try to find a FK
             (fk_is_cached, fk) = get_cached(o1, o2, "k")
             if not fk_is_cached:
-                fk_finders = [candidate_finder_various, candidate_finder_othermap]
+                fk_finders = [candidate_finder_various]
                 fk = find_f(states, o1, o2, get_key, get_key, fk_finders) \
                   or find_f(states, o1, o2, get_value, get_key, fk_finders)
             if not fk:
@@ -757,7 +742,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
             # Try to find a FV
             (fv_is_cached, fv) = get_cached(o1, o2, "v")
             if not fv_is_cached:
-                fv_finders = [candidate_finder_various, candidate_finder_othermap]
+                fv_finders = [candidate_finder_various]
                 if not (o1_is_array and o2_is_array):
                     fv_finders.append(candidate_finder_constant)
                 fv = find_f(states, o1, o2, get_key, get_value, fv_finders) \

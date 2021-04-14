@@ -121,14 +121,15 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
 
         self.state.maps.set(meta.fractions, index, current_fraction + fraction)
 
-    # DIRTY HACK for invariant inference
-    def get_obj_and_size_from_fracs_obj(self, fracs_obj):
-        if MapsMemoryMixin.FRACS_NAME not in str(fracs_obj):
-            return (None, None)
-        for (o, meta) in self.state.metadata.get_all(MapsMemoryMixin.Metadata).items():
-            if meta.fractions is fracs_obj:
-                return (o, meta.size)
-        raise Exception("What are you doing?")
+
+    # For invariant inference
+    def get_fractions(self, obj):
+        meta = self.state.metadata.get_or_none(MapsMemoryMixin.Metadata, obj)
+        if meta is None:
+            return None
+        return meta.fractions
+    def is_fractions(self, obj):
+        return MapsMemoryMixin.FRACS_NAME in str(obj)
 
     # TODO this should not exist
     def havoc(self, addr):
@@ -139,8 +140,8 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
 
     # Guarantees that:
     # - Result is of the form (base, index, offset)
-    # - 'base': BV, is a symbolic pointer, but "concrete" here in that it must be exactly 1 pointer
-    # - 'index': BV, is a symbolic index, could be anything
+    # - 'base': BV, is a symbolic pointer
+    # - 'index': BV, is a symbolic index
     # - 'offset': int, is an offset in bits, concrete
     def _base_index_offset(self, addr):
         def as_simple(val):
