@@ -30,6 +30,8 @@ def type_wrap(value, type):
     return result
 
 def type_unwrap(value, type):
+    if type is None:
+        return value
     if not isinstance(value, dict):
         if value.size() < type_size(type):
             value = value.zero_extend(type_size(type) - value.size())
@@ -68,20 +70,28 @@ class Map:
 
         if _map is None:
             key_size = type_size(key_type)
-            value_size = ... if value_type is ... else type_size(value_type)
+            value_size = 0 if value_type is ... else type_size(value_type)
 
             possible_candidates = [
                 (o, m) for (o, m) in __symbex__.state.maps
                 # Ignore maps that the user did not declare, i.e., fractions ones & the packet itself
                 if ("fracs_" not in m.meta.name) & ("packet_" not in m.meta.name) & \
-                   (m.meta.key_size >= key_size) & ((value_size is ...) | (m.meta.value_size == value_size))
+                   (m.meta.key_size >= key_size) & (m.meta.value_size >= value_size)
             ]
+            # TODO: Prioritize maps with symbolic lengths
+            if key_size == 104 and value_type == "size_t":
+                possible_candidates = [(o,m) for (o,m) in possible_candidates if "map_values" in m.meta.name]
+            elif key_type == "size_t" and value_type == "uint64_t":
+                possible_candidates = [(o,m) for (o,m) in possible_candidates if "pool_items" in m.meta.name]
+            possible_candidates = [(o,m) for (o,m) in possible_candidates if "allocated_addr_14" not in str(o)]
+            #print("cands:", possible_candidates, "for", key_type,value_type)
             if len(possible_candidates) == 0:
                 raise Exception("No such map: " + str(key_type) + " -> " + str(value_type))
-            # Prioritize exact matches for the key
-            possible_candidates.sort(key=lambda c: c[1].meta.key_size)
+            # Prioritize exact matches
+            possible_candidates.sort(key=lambda c: (c[1].meta.key_size - key_size) + (c[1].meta.value_size - value_size))
             candidates = [o for (o, m) in possible_candidates]
             obj = __choose__(candidates)
+            #print("Trying", obj, "for", key_type,"->",value_type)
             _map = next(m for (o, m) in __symbex__.state.maps if o.structurally_match(obj))
 
         self._map = _map
@@ -192,9 +202,18 @@ class _SpecPacket:
     }
 
     def __init__(self, data, length, devices):
-        self.data = data
         self.length = length
         self._devices = devices
+        self.ether = type_wrap(data, _SpecPacket._ETHER_HEADER)
+        self._rest = data[:type_size(_SpecPacket._ETHER_HEADER)]
+        self.ipv4 = None
+        self.tcpudp = None
+        if self.ether.type == 0x0008: # TODO handle endness in spec
+            self.ipv4 = type_wrap(data[:type_size(_SpecPacket._ETHER_HEADER)], _SpecPacket._IPV4_HEADER)
+            self._rest = self._rest[:type_size(_SpecPacket._IPV4_HEADER)]
+            if (self.ipv4.protocol == 6) | (self.ipv4.protocol == 17):
+                self.tcpudp = type_wrap(data[:type_size(_SpecPacket._ETHER_HEADER)+type_size(_SpecPacket._IPV4_HEADER)], _SpecPacket._TCPUDP_HEADER)
+                self._rest = self._rest[:type_size(_SpecPacket._TCPUDP_HEADER)]
 
     @property
     def device(self):
@@ -207,24 +226,14 @@ class _SpecPacket:
         return self._devices
 
     @property
-    def ether(self):
-        return type_wrap(self.data, _SpecPacket._ETHER_HEADER)
-
-    @property
-    def ipv4(self):
-        if self.ether is None:
-            return None
-        if self.ether.type != 0x0008: # TODO handle endness in spec
-            return None
-        return type_wrap(self.data[:type_size(_SpecPacket._ETHER_HEADER)], _SpecPacket._IPV4_HEADER)
-
-    @property
-    def tcpudp(self):
-        if self.ipv4 is None:
-            return None
-        if (self.ipv4.protocol != 6) & (self.ipv4.protocol != 17):
-            return None
-        return type_wrap(self.data[:type_size(_SpecPacket._ETHER_HEADER)+type_size(_SpecPacket._IPV4_HEADER)], _SpecPacket._TCPUDP_HEADER)
+    def data(self):
+        full = type_unwrap(self.ether, type_size(_SpecPacket._ETHER_HEADER))
+        if self.ipv4 is not None:
+            full = type_unwrap(self.ipv4, type_size(_SpecPacket._IPV4_HEADER)).concat(full)
+            if self.tcpudp is not None:
+                full = type_unwrap(self.tcpudp, type_size(_SpecPacket._TCPUDP_HEADER)).concat(full)
+        full = self._rest.concat(full)
+        return full
 
 
 # === Network 'built-in' functions ===
@@ -236,6 +245,9 @@ def ipv4_checksum(header):
 # === Spec wrapper ===
 
 def _spec_wrapper(data):
+    global __symbex__
+    print("PATH", __symbex__.state._value.path._segments)
+
     global time
     time = lambda: data.times[0] # TODO fix the whole time thing! (make it a spec arg!)
 

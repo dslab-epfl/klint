@@ -8,6 +8,9 @@ This provides a form of existential quantification to the code under symbex, sim
 The code under verification can call the '__choose__(choices)' function, which returns a choice, to use existential quantification.
 """
 
+# TODO: The 'choices' logic makes too many assumptions without checking them;
+#       we need to make sure the requested choices are the same in all paths
+
 # Container for symbex
 class _SymbexData:
     def __init__(self):
@@ -76,6 +79,12 @@ class ValueProxy:
         other_value = other
         self_value = self._value
 
+        # Claripy bug #214: Bool doesn't support rand/ror
+        if op == '__ror__':
+            op = '__or__'
+        if op == '__rand__':
+            op = '__and__'
+
         # Convert if needed
         if isinstance(other, ValueProxy):
             other_value = other._value
@@ -86,17 +95,21 @@ class ValueProxy:
                 assert isinstance(self_value, claripy.ast.BV), "what else could it be?"
                 other_value = claripy.BVV(other_value, max(8, self_value.size())) # 8 bits minimum
 
+        # If we're bigger, extend the other; otherwise, extend the result
+        # This is so that e.g. '16-bit A' + '64-bit B' is computed as 16-bits, as it would be in source
+        result_size = None
         if isinstance(self_value, claripy.ast.BV):
-            self_value = self_value.zero_extend(max(0, other_value.size() - self_value.size()))
-            other_value = other_value.zero_extend(max(0, self_value.size() - other_value.size()))
+            if self_value.size() > other_value.size():
+                other_value = other_value.zero_extend(self_value.size() - other_value.size())
+            elif self_value.size() < other_value.size():
+                result_size = other_value.size()
+                other_value = other_value[self_value.size()-1:0]
 
-        # Claripy bug #214: Bool doesn't support rand/ror
-        if op == '__ror__':
-            op = '__or__'
-        if op == '__rand__':
-            op = '__and__'
+        result = getattr(self_value, op)(other_value)
+        if result_size is not None and isinstance(result, claripy.ast.BV): # don't try to extend bools!
+            result = result.zero_extend(result_size - result.size())
 
-        return ValueProxy.wrap(getattr(self_value, op)(other_value))
+        return ValueProxy.wrap(result)
 
 
     def __bool__(self):
@@ -115,6 +128,7 @@ class ValueProxy:
             return outcomes[0]
 
         assert len(outcomes) == 2, "solver eval_upto for a bool should return 1 or 2 outcomes"
+        print("Multivalued! For: ", self._value)
 
         if __symbex__.branch_index == len(__symbex__.branches):
             __symbex__.branches.append((self._value, True))

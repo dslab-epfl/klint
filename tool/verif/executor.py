@@ -1,7 +1,9 @@
 from angr.state_plugins import SimSolver
 from archinfo.arch_amd64 import ArchAMD64
+import claripy
 import copy
 import datetime
+import itertools
 import os
 from pathlib import Path
 
@@ -46,6 +48,8 @@ class _VerifState:
 
 
 def verify(all_data, spec):
+    claripy.ast.base.var_counter = itertools.count(1000000)
+
     this_folder = Path(__file__).parent.absolute()
     spec_prefix = (this_folder / "spec_prefix.py").read_text()
     spec_utils = (this_folder / "spec_utils.py").read_text()
