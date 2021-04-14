@@ -202,7 +202,7 @@ class Map:
         unknown = claripy.And(*[key != i.key for i in known_items])
 
         # MUTATE the map's known items by adding (K, V, P)
-        # This must happen now; calling the invariant later might cause recursion which needs the item to be in there
+        # This must happen now; calling the invariant later might cause recursion which needs the item to be in there to stop
         self.add_item(MapItem(key, value, present))
 
         # Optimization: If the map length is concrete and there are definitely not too many items, don't even compute the known length

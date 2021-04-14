@@ -66,8 +66,7 @@ def fork_guarded(proc, state, guard, case_true, case_false):
     if guard_value is not None:
         if guard_value:
             return case_true(state)
-        else:
-            return case_false(state)
+        return case_false(state)
 
     state_copy = state.copy()
     state_copy.solver.add(~guard)

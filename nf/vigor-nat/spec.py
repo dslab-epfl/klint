@@ -14,7 +14,7 @@ def spec(packet, config, transmitted_packet):
     flows = ExpiringSet(Flow, config["expiration time"], config["max flows"])
 
     if packet.device == config["wan device"]:
-        flow_index = packet.tcpudp.dst - config["start port"]
+        """flow_index = packet.tcpudp.dst - config["start port"]
         flow = flows.old.get_by_index(flow_index)
         if flow is None:
             assert transmitted_packet is None
@@ -27,7 +27,8 @@ def spec(packet, config, transmitted_packet):
         #packet.ipv4.dst = flow.src_ip
         assert transmitted_packet.ipv4.dst == flow.src_ip
         #packet.tcpudp.dst = flow.src_port
-        assert transmitted_packet.tcpudp.dst == flow.src_port
+        assert transmitted_packet.tcpudp.dst == flow.src_port"""
+        return
     else:
         flow = {
             'src_ip': packet.ipv4.src,

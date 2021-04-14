@@ -81,7 +81,7 @@ class index_pool_borrow(angr.SimProcedure):
             state.solver.add(
                 index.ULT(poolp.size),
                 claripy.If(
-                    used != claripy.BVV(0, self.state.sizes.bool),
+                    used != claripy.BVV(0, state.sizes.bool),
                     state.maps.get(poolp.items, index)[1] & ~(time.ULT(poolp.expiration_time) | (time - poolp.expiration_time).ULE(state.maps.get(poolp.items, index)[0])),
                     ~(state.maps.get(poolp.items, index)[1])
                 )
@@ -142,14 +142,14 @@ class index_pool_used(angr.SimProcedure):
         def case_has(state, t):
             print("!!! index_pool_used has", time)
             def case_true(state):
-                return claripy.BVV(1, self.state.sizes.bool)
+                return claripy.BVV(1, state.sizes.bool)
             def case_false(state):
-                return claripy.BVV(0, self.state.sizes.bool)
+                return claripy.BVV(0, state.sizes.bool)
             return utils.fork_guarded(self, state, time.ULT(poolp.expiration_time) | (time - poolp.expiration_time).ULE(t), case_true, case_false)
 
         def case_not(state):
             print("!!! index_pool_used not")
-            return claripy.BVV(0, self.state.sizes.bool)
+            return claripy.BVV(0, state.sizes.bool)
 
         return utils.fork_guarded_has(self, self.state, poolp.items, index, case_has, case_not)
 

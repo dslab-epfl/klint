@@ -64,7 +64,7 @@ class LpmLookupElem(angr.SimProcedure):
         
         def case_none(state):
             print("!!! lpm_lookup_elem: none")
-            return claripy.BVV(0, self.state.sizes.bool)
+            return claripy.BVV(0, state.sizes.bool)
         def case_some(state):
             print("!!! lpm_lookup_elem: some")
             (value, has) = state.maps.get(lpmp.table, out_route)
@@ -74,6 +74,6 @@ class LpmLookupElem(angr.SimProcedure):
                 value == out_value_bv,
                 matches(out_route)
             )
-            return claripy.BVV(1, self.state.sizes.bool)
+            return claripy.BVV(1, state.sizes.bool)
 
         return utils.fork_guarded(self, self.state, self.state.maps.forall(lpmp.table, lambda k, v: ~matches(k)), case_none, case_some)

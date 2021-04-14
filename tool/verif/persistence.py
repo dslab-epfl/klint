@@ -17,7 +17,7 @@ def dump_data(state_pairs, devices_count, path): # TODO why do we have to move t
         network = state.metadata.get_one(net_packet.NetworkMetadata),
         config = (state.metadata.get_or_none(os_config.ConfigMetadata, None) or os_config.ConfigMetadata({})).items,
         devices_count = devices_count
-    ) for (prev_state, state) in state_pairs]
+    ) for state in state_pairs]
     with open(path, "wb") as file:
         pickle.dump(data, file, protocol=4)
 

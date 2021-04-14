@@ -59,11 +59,11 @@ class map_get(angr.SimProcedure):
         # Postconditions
         def case_has(state, v):
             print("!!! map_get has", v)
-            self.state.memory.store(out_value, v, endness=self.state.arch.memory_endness)
-            return claripy.BVV(1, self.state.sizes.bool)
+            state.memory.store(out_value, v, endness=state.arch.memory_endness)
+            return claripy.BVV(1, state.sizes.bool)
         def case_not(state):
             print("!!! map_get not")
-            return claripy.BVV(0, self.state.sizes.bool)
+            return claripy.BVV(0, state.sizes.bool)
         return utils.fork_guarded_has(self, self.state, mapp.values, key, case_has, case_not)
 
 # void map_set(struct map* map, void* key_ptr, size_t value);

@@ -128,10 +128,9 @@ def execute(bin_path):
         reached_fixpoint = False
         previous_results = None
         while not reached_fixpoint:
-            prev_state = state
             (handled_states, state, previous_results, reached_fixpoint) = havoc_iter(bin_path, state, devices_count, previous_results)
             if reached_fixpoint:
-                results += [(prev_state, s) for s in handled_states]
+                results += handled_states
     print("NF symbex done! at", datetime.datetime.now())
     return (results, devices_count)
 

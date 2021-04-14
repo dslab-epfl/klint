@@ -93,6 +93,13 @@ class Tests(unittest.TestCase):
         result = map.get(state, K)
         self.assertSolver(state, ~result[1] | (result[0] == 42))
 
+    def test_forall_lone_specific_key(self):
+        state = empty_state()
+        map = Map.new(state, KEY_SIZE, VALUE_SIZE, "test", _length=1, _invariants=[lambda i: claripy.true])
+        state.solver.add(map.forall(state, lambda k, v: k == 42))
+        result = map.get(state, K)
+        self.assertSolver(state, ~result[1] | K == 42)
+
     def test_forall_2(self):
         state = empty_state()
         map = Map.new_array(state, KEY_SIZE, VALUE_SIZE, 10, "test")

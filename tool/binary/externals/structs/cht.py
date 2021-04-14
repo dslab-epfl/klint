@@ -52,13 +52,13 @@ class ChtFindPreferredAvailableBackend(angr.SimProcedure):
         backend = claripy.BVS("backend", self.state.sizes.size_t)
         def case_true(state):
             print("!!! cht_find_preferred_available_backend: did not find available backend")
-            return claripy.BVV(0, self.state.sizes.bool)
+            return claripy.BVV(0, state.sizes.bool)
         def case_false(state):
             print("!!! cht_find_preferred_available_backend: found available backend")
-            state.memory.store(chosen_backend, backend, endness=self.state.arch.memory_endness)
+            state.memory.store(chosen_backend, backend, endness=state.arch.memory_endness)
             state.solver.add(0 <= backend, backend < cht.backend_capacity)
             state.solver.add(state.maps.get(active_backends.items, backend)[1])
-            return claripy.BVV(1, self.state.sizes.bool)
+            return claripy.BVV(1, state.sizes.bool)
 
         guard = self.state.maps.forall(active_backends.items, lambda k, v: claripy.Or(k < 0, k >= cht.backend_capacity))
         return utils.fork_guarded(self, self.state, guard, case_true, case_false)
