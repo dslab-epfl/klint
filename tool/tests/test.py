@@ -28,6 +28,7 @@ def empty_state():
 KEY_SIZE = 8
 VALUE_SIZE = 16
 
+B = claripy.BoolS("B")
 K = claripy.BVS("K", KEY_SIZE)
 K2 = claripy.BVS("K2", KEY_SIZE)
 V = claripy.BVS("V", VALUE_SIZE)
@@ -35,6 +36,8 @@ X = claripy.BVS("X", VALUE_SIZE)
 Y = claripy.BVS("Y", VALUE_SIZE)
 
 # TODO add "forking" tests, i.e. M1 -> M2 and M1 -> M3 then assert stuff on M2 and M3
+
+# TODO fix the naming of these tests...
 
 # TODO this is a good way to prototype a better API for the ghost maps in code...
 
@@ -45,7 +48,7 @@ class Tests(unittest.TestCase):
             return # Good!
         if result == [False]:
             raise Exception("UNSOUND! VERY BAD! FIX ASAP!!!!!")
-        raise Exception("Incomplete, but sound")
+        raise AssertionError("Incomplete, but sound")
 
     def assertSolverUnknown(self, state, cond):
         result = state.solver.eval_upto(cond, 2)
@@ -296,6 +299,17 @@ class Tests(unittest.TestCase):
         state.solver.add(state.maps.forall(o2, lambda k, v: v < X))
         state.solver.add(state.maps.forall(o2, lambda k, v: MapHas(o1, k, v))) # this seemingly-pointless line could cause a failure
         state.solver.add(state.maps.forall(o1, lambda k, v: MapHas(o2, k, v)))
+        self.assertSolver(state, state.maps.forall(o1, lambda k, v: v < X))
+
+    def test_forall_cross_o2first_forall_reversed(self):
+        state = empty_state()
+        o1 = claripy.BVS("O", 64)
+        o2 = claripy.BVS("O", 64)
+        state.maps[o1] = Map.new(state, KEY_SIZE, VALUE_SIZE, "test1", _length=10, _invariants=[lambda i: claripy.true])
+        state.maps[o2] = Map.new(state, VALUE_SIZE, KEY_SIZE, "test2", _length=10, _invariants=[lambda i: claripy.true])
+        state.solver.add(state.maps.forall(o2, lambda k, v: k < X))
+        state.solver.add(state.maps.forall(o2, lambda k, v: MapHas(o1, v, k))) # this seemingly-pointless line could cause a failure
+        state.solver.add(state.maps.forall(o1, lambda k, v: MapHas(o2, v, k)))
         self.assertSolver(state, state.maps.forall(o1, lambda k, v: v < X))
 
     def test_forall_implies_but_not_there(self):

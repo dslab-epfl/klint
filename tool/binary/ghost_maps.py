@@ -15,6 +15,9 @@ from . import utils
 # NOTE: All optimizations should be periodically re-evaluated, since adding new features may make them pointless or even harmful
 #       (e.g., making solver calls that are unnecessary due to some other change)
 
+# TODO through deepcopy we should be able to refer directly to maps, right? without the obj indirection because the map would be the updated one after copy...
+
+        # TODO: I wonder if it makes sense to refactor as "map" and "map layer" since the layer can only have stuff on known items?
 
 # Helper function to make expressions clearer
 def Implies(a, b):
@@ -183,6 +186,10 @@ class Map:
         if self.is_empty():
             return (claripy.BVS(self.meta.name + "_bad_value", self.meta.value_size), claripy.false)
 
+        # TODO this is weird, we shouldn't be doing solver calls in here...
+        if utils.definitely_true(state.solver, key == self._unknown_item.key):
+            return (self._unknown_item.value, self._unknown_item.present)
+
         # If the map contains an item (K', V', P') such that K' = K, then return (V', P') [assuming the condition]
         known_items = self.known_items()
         matching_item = utils.get_exact_match(state.solver, key, known_items, assumption=condition, selector=lambda i: i.key)
@@ -226,9 +233,6 @@ class Map:
         # Let P be get(M, K) != None
         (_, present) = self.get(state, key)
 
-        if utils.definitely_true(state.solver, present):
-            present = claripy.true
-
         # Return a new map with:
         #   ITE(P, 0, 1) added to the map length.
         #   Each known item (K', V', P') updated to (K', ITE(K = K', V', V), ITE(K = K', true, P'))
@@ -258,8 +262,6 @@ class Map:
         if not isinstance(pred, MapInvariant):
             pred = MapInvariant.new(state, self.meta, (lambda i, old_pred=pred: Implies(i.present, old_pred(i.key, i.value))))
 
-        # TODO: I wonder if it makes sense to refactor as "map" and "map layer" since the layer can only have stuff on known items?
-
         # Optimization: If the map is empty, the answer is always true
         if self.is_empty():
             return claripy.true
@@ -272,7 +274,7 @@ class Map:
             if inv.quick_implies(state, pred):
                 return known_items_result
 
-        unknown_is_not_known = claripy.And(*[Implies(self._unknown_item.key == i.key, (self._unknown_item.value == i.value) & (self._unknown_item.present == i.present)) for i in known_items])
+        unknown_is_not_known = claripy.And(*[self._unknown_item.key != i.key for i in known_items])
         unknown_items_result = Implies(self.known_length() < self.length(), Implies(unknown_is_not_known, pred(state, self._unknown_item)))
 
         result = claripy.BoolS(self.meta.name + "_forall")
