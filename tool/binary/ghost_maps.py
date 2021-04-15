@@ -195,7 +195,7 @@ class Map:
         elif not condition.structurally_match(claripy.true):
             value = claripy.If(condition, value, claripy.BVS(self.meta.name + "_other_value", self.meta.value_size))
 
-        # Let P be a fresh symbolic presence bit [or the existing condition]
+        # Let P be a fresh symbolic presence bit
         present = claripy.BoolS(self.meta.name + "_present")
 
         # Let UK be And(K != K') for each key K' in the map's known items
@@ -435,11 +435,11 @@ class GhostMapsPlugin(SimStatePlugin):
 
     def get(self, obj, key, value=None, condition=claripy.true, version=None):
         map = self[obj]
-        LOG(self.state, "GET " + str(obj) + f" version: {version} " + (" key: " + str(key)) + ((" value: " + str(value)) if value is not None else "") + \
-            (" cond: " + str(condition))  + \
-                        " (" + str(len(list(map.known_items()))) + " items, " + str(len(self.state.solver.constraints)) + " constraints)")
+        #LOG(self.state, "GET " + str(obj) + f" version: {version} " + (" key: " + str(key)) + ((" value: " + str(value)) if value is not None else "") + \
+        #    (" cond: " + str(condition))  + \
+        #                " (" + str(len(list(map.known_items()))) + " items, " + str(len(self.state.solver.constraints)) + " constraints)")
         result = map.get(self.state, key, value=value, condition=condition, version=version)
-        LOGEND(self.state)
+        #LOGEND(self.state)
         return result
 
     def set(self, obj, key, value):
@@ -450,9 +450,9 @@ class GhostMapsPlugin(SimStatePlugin):
 
     def forall(self, obj, pred, _exclude_get=False):
         map = self[obj]
-        LOG(self.state, "forall " + str(obj) + " ( " + str(len(self.state.solver.constraints)) + " constraints)")
+        #LOG(self.state, "forall " + str(obj) + " ( " + str(len(self.state.solver.constraints)) + " constraints)")
         result = map.forall(self.state, pred, _exclude_get=_exclude_get)
-        LOGEND(self.state)
+        #LOGEND(self.state)
         return result
 
     # === Havocing, to mimic BPF userspace ===
