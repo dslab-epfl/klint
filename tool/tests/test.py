@@ -263,9 +263,19 @@ class Tests(unittest.TestCase):
         state.maps[o2] = Map.new(state, KEY_SIZE, VALUE_SIZE, "test2", _length=10, _invariants=[lambda i: claripy.true])
         state.solver.add(state.maps.forall(o2, lambda k, v: v < X))
         state.solver.add(state.maps.forall(o1, lambda k, v: MapHas(o2, k, v)))
-        state.solver.add(state.maps.forall(o2, lambda k, v: MapHas(o1, k, v)))
-        (v, p) = state.maps.get(o1, K)
-        self.assertSolver(state, ~p | (v < X))
+        state.solver.add(state.maps.forall(o2, lambda k, v: MapHas(o1, k, v))) # this seemingly-pointless line could cause a failure
+        self.assertSolver(state, state.maps.forall(o1, lambda k, v: v < X))
+
+    def test_forall_cross_o1first_reversed(self):
+        state = empty_state()
+        o1 = claripy.BVS("O", 64)
+        o2 = claripy.BVS("O", 64)
+        state.maps[o1] = Map.new(state, KEY_SIZE, VALUE_SIZE, "test1", _length=10, _invariants=[lambda i: claripy.true])
+        state.maps[o2] = Map.new(state, VALUE_SIZE, KEY_SIZE, "test2", _length=10, _invariants=[lambda i: claripy.true])
+        state.solver.add(state.maps.forall(o2, lambda k, v: k < X))
+        state.solver.add(state.maps.forall(o1, lambda k, v: MapHas(o2, v, k)))
+        state.solver.add(state.maps.forall(o2, lambda k, v: MapHas(o1, v, k))) # this seemingly-pointless line could cause a failure
+        self.assertSolver(state, state.maps.forall(o1, lambda k, v: v < X))
 
     def test_forall_cross_o2first(self):
         state = empty_state()
@@ -274,34 +284,11 @@ class Tests(unittest.TestCase):
         state.maps[o1] = Map.new(state, KEY_SIZE, VALUE_SIZE, "test1", _length=10, _invariants=[lambda i: claripy.true])
         state.maps[o2] = Map.new(state, KEY_SIZE, VALUE_SIZE, "test2", _length=10, _invariants=[lambda i: claripy.true])
         state.solver.add(state.maps.forall(o2, lambda k, v: v < X))
-        state.solver.add(state.maps.forall(o2, lambda k, v: MapHas(o1, k, v)))
-        state.solver.add(state.maps.forall(o1, lambda k, v: MapHas(o2, k, v)))
-        (v, p) = state.maps.get(o1, K)
-        self.assertSolver(state, ~p | (v < X))
-
-    def test_forall_cross_o1first_forall(self):
-        state = empty_state()
-        o1 = claripy.BVS("O", 64)
-        o2 = claripy.BVS("O", 64)
-        state.maps[o1] = Map.new(state, KEY_SIZE, VALUE_SIZE, "test1", _length=10, _invariants=[lambda i: claripy.true])
-        state.maps[o2] = Map.new(state, KEY_SIZE, VALUE_SIZE, "test2", _length=10, _invariants=[lambda i: claripy.true])
-        state.solver.add(state.maps.forall(o2, lambda k, v: v < X))
-        state.solver.add(state.maps.forall(o1, lambda k, v: MapHas(o2, k, v)))
-        state.solver.add(state.maps.forall(o2, lambda k, v: MapHas(o1, k, v))) # this seemingly-pointless line could cause a failure
-        self.assertSolver(state, state.maps.forall(o1, lambda k, v: v < X))
-
-    def test_forall_cross_o2first_forall(self):
-        state = empty_state()
-        o1 = claripy.BVS("O", 64)
-        o2 = claripy.BVS("O", 64)
-        state.maps[o1] = Map.new(state, KEY_SIZE, VALUE_SIZE, "test1", _length=10, _invariants=[lambda i: claripy.true])
-        state.maps[o2] = Map.new(state, KEY_SIZE, VALUE_SIZE, "test2", _length=10, _invariants=[lambda i: claripy.true])
-        state.solver.add(state.maps.forall(o2, lambda k, v: v < X))
         state.solver.add(state.maps.forall(o2, lambda k, v: MapHas(o1, k, v))) # this seemingly-pointless line could cause a failure
         state.solver.add(state.maps.forall(o1, lambda k, v: MapHas(o2, k, v)))
         self.assertSolver(state, state.maps.forall(o1, lambda k, v: v < X))
 
-    def test_forall_cross_o2first_forall_reversed(self):
+    def test_forall_cross_o2first_reversed(self):
         state = empty_state()
         o1 = claripy.BVS("O", 64)
         o2 = claripy.BVS("O", 64)

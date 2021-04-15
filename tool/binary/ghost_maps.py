@@ -186,10 +186,6 @@ class Map:
         if self.is_empty():
             return (claripy.BVS(self.meta.name + "_bad_value", self.meta.value_size), claripy.false)
 
-        # TODO this is weird, we shouldn't be doing solver calls in here...
-        if utils.definitely_true(state.solver, key == self._unknown_item.key):
-            return (self._unknown_item.value, self._unknown_item.present)
-
         # If the map contains an item (K', V', P') such that K' = K, then return (V', P') [assuming the condition]
         known_items = self.known_items()
         matching_item = utils.get_exact_match(state.solver, key, known_items, assumption=condition, selector=lambda i: i.key)
@@ -219,7 +215,7 @@ class Map:
 
         state.solver.add(
             # Add K = K' => (V = V' and P = P') to the path constraint for each existing known item (K', V', P') in the map,
-            *[Implies(key == i.key, (value == i.value) & (present == i.present)) for i in known_items],
+            *[Implies(key == i.key, (value == i.value) & (present == i.present)) for i in known_items + [self._unknown_item]],
             # Add UK => invariant(M)(K', V', P') to the path constraint [conditioned]
             Implies(unknown, claripy.And(*[inv(state, MapItem(key, value, present), condition=condition) for inv in self.invariant_conjunctions()])),
             # Add L <= length(M)
@@ -387,6 +383,7 @@ class Map:
         l = self.length()
         return l.structurally_match(claripy.BVV(0, l.size()))
 
+    # TODO this is only used in a kl < length context, can be specialized (with eg the opt of not even checking if the length is concrete and len(known_items) is smaller)
     def known_length(self):
         l = self.length()
         known_len = claripy.BVV(0, l.size())
