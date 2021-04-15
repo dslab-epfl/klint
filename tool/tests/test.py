@@ -90,6 +90,13 @@ class Tests(unittest.TestCase):
         map = Map.new_array(state, KEY_SIZE, VALUE_SIZE, 10, "test")
         self.assertSolverUnknown(state, map.get(state, K)[1])
 
+    def test_get_different_values_imply_different_keys(self):
+        state = empty_state()
+        map = Map.new_array(state, KEY_SIZE, VALUE_SIZE, 10, "test")
+        (v1, p1) = map.get(state, K)
+        (v2, p2) = map.get(state, K2)
+        self.assertSolver(state, ~((p1 & p2) & (v1 != v2)) | (K != K2))
+
     def test_forall(self):
         state = empty_state()
         map = Map.new_array(state, KEY_SIZE, VALUE_SIZE, 10, "test")
