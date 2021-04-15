@@ -16,7 +16,7 @@ def spec(packet, config, transmitted_packet):
     if packet.device == config["wan device"]:
         flow_index = packet.tcpudp.dst - config["start port"]
         flow = flows.old.get_by_index(flow_index)
-        if flow is None:
+        """if flow is None:
             assert transmitted_packet is None
             return
         if (flow.dst_ip != packet.ipv4.src) | (flow.dst_port != packet.tcpudp.src) | (flow.protocol != packet.ipv4.protocol):
@@ -48,4 +48,4 @@ def spec(packet, config, transmitted_packet):
         assert transmitted_packet.tcpudp.src == config["start port"] + flows.get_index(flow)
 
     #assert transmitted_packet.data == packet.data
-    assert transmitted_packet.device == 1 - packet.device
+    assert transmitted_packet.device == 1 - packet.device"""

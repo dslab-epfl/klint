@@ -224,7 +224,7 @@ class Tests(unittest.TestCase):
 
     def test_forall_existing_invariant(self):
         state = empty_state()
-        map = Map.new(state, KEY_SIZE, VALUE_SIZE, "test", _length=10, _invariants=[lambda i: ~i.present | i.value == 42])
+        map = Map.new(state, KEY_SIZE, VALUE_SIZE, "test", _length=10, _invariants=[lambda i: ~i.present | (i.value == 42)])
         self.assertSolver(state, map.forall(state, lambda k, v: v >= 42))
 
     def test_forall_impossible_invariant(self):

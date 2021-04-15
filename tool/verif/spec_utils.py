@@ -34,6 +34,8 @@ class ExpiringSet:
             return None
         if index not in self._indices_to_elems:
             return None
+        assert self._indices_to_elems[index] in self._elems_to_indices
+        assert index == self._elems_to_indices[self._indices_to_elems[index]]
         return self._indices_to_elems[index]
 
     def get_index(self, item):

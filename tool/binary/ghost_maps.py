@@ -327,7 +327,7 @@ class Map:
 
     def invariant_conjunctions(self):
         if self._previous is None:
-            return self._invariants
+            return self._invariants.copy()
         return self._previous.invariant_conjunctions()
 
     def add_invariant_conjunction(self, state, inv):
@@ -343,7 +343,7 @@ class Map:
         if _exclude_get == True and self._previous is None:
             return []
 
-        result = self._known_items
+        result = self._known_items.copy()
         if self._previous is not None:
             assert self._layer_item is not None
             result = result + [
