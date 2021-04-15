@@ -48,7 +48,10 @@ class Tests(unittest.TestCase):
         raise Exception("Incomplete, but sound")
 
     def assertSolverUnknown(self, state, cond):
-        self.assertEqual(len(state.solver.eval_upto(cond, 2)), 2)
+        result = state.solver.eval_upto(cond, 2)
+        if len(result) == 1:
+            raise Exception("UNSOUND! VERY BAD! FIX ASAP!!!!!")
+        # OK
 
 
     def test_get_after_set(self):
@@ -272,6 +275,41 @@ class Tests(unittest.TestCase):
         state.solver.add(state.maps.forall(o1, lambda k, v: MapHas(o2, k, v)))
         (v, p) = state.maps.get(o1, K)
         self.assertSolver(state, ~p | (v < X))
+
+    def test_forall_cross_o1first_forall(self):
+        state = empty_state()
+        o1 = claripy.BVS("O", 64)
+        o2 = claripy.BVS("O", 64)
+        state.maps[o1] = Map.new(state, KEY_SIZE, VALUE_SIZE, "test1", _length=10, _invariants=[lambda i: claripy.true])
+        state.maps[o2] = Map.new(state, KEY_SIZE, VALUE_SIZE, "test2", _length=10, _invariants=[lambda i: claripy.true])
+        state.solver.add(state.maps.forall(o2, lambda k, v: v < X))
+        state.solver.add(state.maps.forall(o1, lambda k, v: MapHas(o2, k, v)))
+        state.solver.add(state.maps.forall(o2, lambda k, v: MapHas(o1, k, v))) # this seemingly-pointless line could cause a failure
+        self.assertSolver(state, state.maps.forall(o1, lambda k, v: v < X))
+
+    def test_forall_cross_o2first_forall(self):
+        state = empty_state()
+        o1 = claripy.BVS("O", 64)
+        o2 = claripy.BVS("O", 64)
+        state.maps[o1] = Map.new(state, KEY_SIZE, VALUE_SIZE, "test1", _length=10, _invariants=[lambda i: claripy.true])
+        state.maps[o2] = Map.new(state, KEY_SIZE, VALUE_SIZE, "test2", _length=10, _invariants=[lambda i: claripy.true])
+        state.solver.add(state.maps.forall(o2, lambda k, v: v < X))
+        state.solver.add(state.maps.forall(o2, lambda k, v: MapHas(o1, k, v))) # this seemingly-pointless line could cause a failure
+        state.solver.add(state.maps.forall(o1, lambda k, v: MapHas(o2, k, v)))
+        self.assertSolver(state, state.maps.forall(o1, lambda k, v: v < X))
+
+    def test_forall_implies_but_not_there(self):
+        state = empty_state()
+        o1 = claripy.BVS("O", 64)
+        o2 = claripy.BVS("O", 64)
+        state.maps[o1] = Map.new(state, KEY_SIZE, VALUE_SIZE, "test1", _length=10, _invariants=[lambda i: claripy.true])
+        state.maps[o2] = Map.new(state, KEY_SIZE, VALUE_SIZE, "test2", _length=10, _invariants=[lambda i: claripy.true])
+        state.solver.add(state.maps.forall(o1, lambda k, v: MapHas(o2, k, X)))
+        (v1, p1) = state.maps.get(o1, K)
+        state.solver.add(~p1)
+        (v2, p2) = state.maps.get(o2, K)
+        state.solver.add(p2)
+        self.assertSolverUnknown(state, v2 == X)
 
 if __name__ == '__main__':
     unittest.main()

@@ -65,7 +65,7 @@ def eval_map_ast(state, expr, replace_dict={}, condition=claripy.true):
         replaced_value = replacer(ast.args[2])
         if replaced_value is None:
             return state.maps[ast.args[0]].get(state, replaced_key, condition=condition, version=ast.args[2])[1]
-        result = state.maps[ast.args[0]].get(state, replaced_key, value=replaced_value, condition=condition, version=ast.args[3])
+        result = state.maps[ast.args[0]].get(state, replaced_key, conditioned_value=replaced_value, condition=condition, version=ast.args[3])
         return result[1] & (result[0] == replaced_value)
     def get_handler(ast, replacer):
         replaced_key = replacer(ast.args[1])
@@ -170,14 +170,14 @@ class Map:
     def length(self):
         return self._length
 
-    def get(self, state, key, value=None, condition=claripy.true, version=None):
+    def get(self, state, key, conditioned_value=None, condition=claripy.true, version=None):
         if version is not None:
             to_call = self
             self_ver = self.version()
             while version < self_ver:
                 to_call = to_call._previous
                 version = version + 1
-            return to_call.get(state, key, value=value, condition=condition)
+            return to_call.get(state, key, conditioned_value=conditioned_value, condition=condition)
 
         # Optimization: If the map is empty, the answer is always false
         if self.is_empty():
@@ -189,11 +189,10 @@ class Map:
         if matching_item is not None:
             return (matching_item.value, matching_item.present)
 
-        # Let V be a fresh symbolic value [or the hint]
-        if value is None:
-            value = claripy.BVS(self.meta.name + "_value", self.meta.value_size)
-        elif not condition.structurally_match(claripy.true):
-            value = claripy.If(condition, value, claripy.BVS(self.meta.name + "_other_value", self.meta.value_size))
+        # Let V be a fresh symbolic value [using the hint]
+        value = claripy.BVS(self.meta.name + "_value", self.meta.value_size)
+        if conditioned_value is not None:
+            state.solver.add(Implies(condition, value == conditioned_value))
 
         # Let P be a fresh symbolic presence bit
         present = claripy.BoolS(self.meta.name + "_present")
@@ -433,12 +432,12 @@ class GhostMapsPlugin(SimStatePlugin):
     def value_size(self, obj):
         return self[obj].meta.value_size
 
-    def get(self, obj, key, value=None, condition=claripy.true, version=None):
+    def get(self, obj, key, conditioned_value=None, condition=claripy.true, version=None):
         map = self[obj]
         #LOG(self.state, "GET " + str(obj) + f" version: {version} " + (" key: " + str(key)) + ((" value: " + str(value)) if value is not None else "") + \
         #    (" cond: " + str(condition))  + \
         #                " (" + str(len(list(map.known_items()))) + " items, " + str(len(self.state.solver.constraints)) + " constraints)")
-        result = map.get(self.state, key, value=value, condition=condition, version=version)
+        result = map.get(self.state, key, conditioned_value=conditioned_value, condition=condition, version=version)
         #LOGEND(self.state)
         return result
 
