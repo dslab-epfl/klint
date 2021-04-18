@@ -22,7 +22,7 @@ nf_to_verify = "vigor-nat"
 if len(sys.argv) >= 2:
     nf_to_verify = sys.argv[1]
 
-use_cached_results = False
+use_cached_results = True
 if len(sys.argv) >= 3 and sys.argv[2] == "use-cache": # TODO reverse this switch, make it "force reverify" or smth
     use_cached_results = True
 
