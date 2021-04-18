@@ -486,16 +486,6 @@ class GhostMapsPlugin(SimStatePlugin):
         return all(utils.structural_eq(o._maps, self._maps) for o in others)
 
 
-class ResultType(Enum):
-    LENGTH_LTE = 0
-    LENGTH_EQ = 1
-    CROSS_VAL = 2
-    CROSS_KEY = 3
-
-    def is_cross_result(self):
-        return self == ResultType.CROSS_VAL or self == ResultType.CROSS_KEY
-
-
 # Quick and dirty logging...
 LOG_levels = {}
 def LOG(state, text):
@@ -512,9 +502,11 @@ def LOGEND(state):
 def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
     print(f"Cross-merge of maps starting. State count: {len(_states_to_merge)}")
 
-    # NOTE: Most of this logic was written back when map invariants were represented as Python lambdas,
+    # TODO: Most of this logic was written back when map invariants were represented as Python lambdas,
     #       making comparisons hard; now that they are ASTs instead, we could compare them as part of heuristics,
     #       which would probably make some heuristics more robust and also more widely applicable...
+    # TODO at least we should have a more systematic approach to optimizations that remove objs/states,
+    #      and to what is and isn't parallelizable
 
     _states = _states_to_merge + [_ancestor_state]
 
@@ -678,7 +670,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                 # only for length
                 if all(utils.definitely_true(st.solver, st.maps.length(o1) == ancestor_state.maps.length(o1)) for st in _orig_states):
                     print("Inferred: Length of", o1, "has not changed")
-                    results.put((ResultType.LENGTH_EQ, [o1], lambda st, o1=o1: st.solver.add(st.maps.length(o1) == ancestor_state.maps.length(o1))))
+                    results.put(("length ==", [o1], lambda st, o1=o1: st.solver.add(st.maps.length(o1) == ancestor_state.maps.length(o1))))
                 continue
 
             # Optimization: Ignore the combination if neither map changed
@@ -700,7 +692,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
             #   then assume this holds in the merged state
             if all(utils.definitely_true(st.solver, st.maps.length(o1) <= st.maps.length(o2)) for st in orig_states):
                 #print("Inferred: Length of", o1, "is always <= that of", o2)
-                results.put((ResultType.LENGTH_LTE, [o1, o2], lambda st, o1=o1, o2=o2: st.solver.add(st.maps.length(o1) <= st.maps.length(o2))))
+                results.put(("length <=", [o1, o2], lambda st, o1=o1, o2=o2: st.solver.add(st.maps.length(o1) <= st.maps.length(o2))))
 
             # Map relationships.
             # For each pair of maps (M1, M2),
@@ -766,7 +758,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                         to_cache.put([o1, o2, "v", fv])
                         log_text +=   f"Inferred: when {o1} contains (K,V), if {fp(log_k, log_v)} then {o2} contains {fk(log_k, log_v)}"
                         log_text += f"\n          in addition, the value is {fv(log_k, log_v)}"
-                        results.put((ResultType.CROSS_VAL, [o1, o2],
+                        results.put(("cross-value", [o1, o2],
                                      lambda state, o1=o1, o2=o2, fp=fp, fk=fk, fv=fv: state.solver.add(state.maps.forall(o1, lambda k, v: Implies(fp(k, v), MapHas(o2, fk(k, v), value=fv(k, v)))))))
                 else:
                     to_cache.put([o1, o2, "v", None]) # do not cache fv since it didn't work
@@ -774,7 +766,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                     # No point in trying a cross-key if o2 is an array, we already know what its keys are
                     if not o2_is_array and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk: Implies(fp(k, v), MapHas(o2, fk(k, v))), _exclude_get=True)) for st in states):
                         log_text += f"Inferred: when {o1} contains (K,V), if {fp(log_k, log_v)} then {o2} contains {fk(log_k, log_v)}"
-                        results.put((ResultType.CROSS_KEY, [o1, o2],
+                        results.put(("cross-key", [o1, o2],
                                      lambda state, o1=o1, o2=o2, fp=fp, fk=fk: state.solver.add(state.maps.forall(o1, lambda k, v: Implies(fp(k, v), MapHas(o2, fk(k, v)))))))
                         to_cache.put([o1, o2, "p", [fp]]) # only put the working one, don't have us try a pointless one next time
                         to_cache.put([o1, o2, "k", fk])
@@ -797,57 +789,26 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
     # - with processes, we'd need to rearchitect this entire method to only pass pickle-able objects, i.e., never lambdas...
     thread_main(_ancestor_state.copy(), [s.copy() for s in _states])
     """threads = []
+    import gc
+    gc.disable()
     for n in range(os.cpu_count()): # os.sched_getaffinity(0) would be better (get the CPUs we might be restricted to) but is not available on Win and OSX
         t = threading.Thread(group=None, target=thread_main, name=None, args=[_ancestor_state.copy(), [s.copy() for s in _states]], kwargs=None, daemon=False)
         t.start()
         threads.append(t)
     for thread in threads:
-        thread.join()"""
+        thread.join()
+    gc.enable()"""
 
-    # Convert results queue into lists (split cross results from length results)
-    cross_results = []
-    length_results = []
+    # Convert results queue into a list
+    results_list = []
     while not results.empty():
-        res = results.get(block=False)
-        if res[0].is_cross_result():
-            cross_results.append(res)
-        else:
-            length_results.append(res)
+        results_list.append(results.get(block=False))
 
     # Fill cache
     while not to_cache.empty():
         set_cached(*(to_cache.get(block=False)))
 
-    # Ensure we don't pollute states through the next check
-    _orig_states = [s.copy() for s in _states]
-
-    def remove_results(lst, match):
-        to_remove = [r for r in lst if match(r)]
-        # cannot just use "r not in" due to claripy's == behavior
-        to_remove_ids = {id(r) for r in to_remove}
-        remaining = [r for r in lst if id(r) not in to_remove_ids]
-        return remaining, to_remove
-
-    # Optimization: Remove redundant inferences.
-    # That is, for pairs (M1, M2) of maps whose keys are the same in all states and which lead to the same number of inferences,
-    # remove all map relationships of the form (M2, M3) if (M1, M3) exists, as well as those of the form (M3, M2) if (M3, M1) exists.
-    # This is a conservative algorithm; a better version eliminating more things would need to keep track of whether relationships are lossy,
-    # to avoid eliminating a lossless relationship in favor of a lossy one, and create a proper graph instead of relying on pairs.
-    for (o1, o2) in itertools.combinations(objs, 2):
-        if _ancestor_state.maps.key_size(o1) == _ancestor_state.maps.key_size(o2) and \
-           sum(1 for r in cross_results if r[1][0] is o1) == sum(1 for r in cross_results if r[1][0] is o2):
-            states = [s.copy() for s in _orig_states]
-            if all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v: MapHas(o2, k))) for st in states):
-                cross_results, removed = remove_results(
-                    cross_results,
-                    lambda r: (r[1][0] is o2 and any(r2[1][0] is o1 and r2[1][1] is r[1][1] for r2 in cross_results)) \
-                           or (r[1][1] is o2 and any(r2[1][1] is o1 and r2[1][0] is r[1][0] for r2 in cross_results))
-                )
-                for r in removed:
-                    # TODO remove this entire thing if it doesn't fire any more
-                    print(f"Discarding redundant inference {r[0]} between {r[1]}")
-
-    return cross_results + length_results
+    return results_list
 
 def maps_merge_one(states_to_merge, obj, ancestor_state, new_state):
     # Optimization: Drop states in which the map has not changed at all
