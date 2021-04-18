@@ -193,7 +193,7 @@ def create_sim_manager(binary, ext_funcs, main_func_name, *main_func_args, base_
         SimState.register_default("globals", DummyPlugin)
         # No explicit heap (we use our memory's "allocate" instead)
         SimState.register_default("heap", DummyPlugin)
-        # Our plugins (TODO: have a proper 'plugins' submodule, which imports them on init, and is imported by our own init, etc)
+        # Our plugins (TODO: have a proper 'plugins' submodule, which imports them on init, and is imported by our own init, etc; use a plugin preset here so we don't need the dummy!)
         SimState.register_default("casts", CastsPlugin)
         SimState.register_default("metadata", MetadataPlugin)
         SimState.register_default("maps", GhostMapsPlugin)
