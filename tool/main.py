@@ -12,7 +12,7 @@ import verif.executor as verif_executor
 
 
 #from tests.test import Tests
-#Tests().test_forall_cross_o2first_forall()
+#Tests().test_forall_cross_o2first_weird()
 #sys.exit(0)
 
 #nf_executor.execute_full(os.path.join(Path(__file__).parent.absolute(), "..", "os", "bin"))

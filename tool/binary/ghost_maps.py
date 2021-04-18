@@ -188,7 +188,7 @@ class Map:
 
         # If the map contains an item (K', V', P') such that K' = K, then return (V', P') [assuming the condition]
         known_items = self.known_items()
-        matching_item = utils.get_exact_match(state.solver, key, known_items, assumption=condition, selector=lambda i: i.key)
+        matching_item = utils.get_exact_match(state.solver, key, known_items + [self._unknown_item], assumption=condition, selector=lambda i: i.key)
         if matching_item is not None:
             return (matching_item.value, matching_item.present)
 

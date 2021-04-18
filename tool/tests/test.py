@@ -132,6 +132,12 @@ class Tests(unittest.TestCase):
         state.solver.add(map.forall(state, lambda k, v: v == 42))
         self.assertSolver(state, map.forall(state, lambda k, v: v >= 42))
 
+    def test_forall_4(self):
+        state = empty_state()
+        map = Map.new_array(state, KEY_SIZE, VALUE_SIZE, 0, "test")
+        map2 = map.set(state, K, V)
+        self.assertSolver(state, ~map2.forall(state, lambda k, v: v != V))
+
     def test_forall_all_known(self):
         state = empty_state()
         map = Map.new_array(state, KEY_SIZE, VALUE_SIZE, 1, "test")
@@ -298,6 +304,28 @@ class Tests(unittest.TestCase):
         state.solver.add(state.maps.forall(o2, lambda k, v: MapHas(o1, v, k))) # this seemingly-pointless line could cause a failure
         state.solver.add(state.maps.forall(o1, lambda k, v: MapHas(o2, v, k)))
         self.assertSolver(state, state.maps.forall(o1, lambda k, v: v < X))
+
+    def test_forall_cross_o2first_weird(self):
+        state = empty_state()
+        o1 = claripy.BVS("O", 64)
+        o2 = claripy.BVS("O", 64)
+        state.maps[o1] = Map.new(state, KEY_SIZE, VALUE_SIZE, "test1", _length=10, _invariants=[lambda i: claripy.true])
+        state.maps[o2] = Map.new(state, VALUE_SIZE, KEY_SIZE, "test2", _length=10, _invariants=[lambda i: claripy.true])
+        state.solver.add(state.maps.forall(o2, lambda k, v: k < X))
+        state.solver.add(state.maps.forall(o2, lambda k, v: MapHas(o1, v + 1, k))) # this seemingly-pointless line could cause a failure
+        state.solver.add(state.maps.forall(o1, lambda k, v: MapHas(o2, v, k - 1)))
+        self.assertSolver(state, state.maps.forall(o1, lambda k, v: v < X))
+
+    def test_forall_cross_o2first_weird2(self):
+        state = empty_state()
+        o1 = claripy.BVS("O", 64)
+        o2 = claripy.BVS("O", 64)
+        state.maps[o1] = Map.new(state, KEY_SIZE, VALUE_SIZE, "test1", _length=10, _invariants=[lambda i: claripy.true])
+        state.maps[o2] = Map.new(state, VALUE_SIZE, KEY_SIZE, "test2", _length=10, _invariants=[lambda i: claripy.true])
+        state.solver.add(state.maps.forall(o2, lambda k, v: k < X))
+        state.solver.add(state.maps.forall(o2, lambda k, v: MapHas(o1, v, k + 1))) # this seemingly-pointless line could cause a failure
+        state.solver.add(state.maps.forall(o1, lambda k, v: MapHas(o2, v - 1, k)))
+        self.assertSolver(state, state.maps.forall(o1, lambda k, v: v - 1 < X))
 
     def test_forall_implies_but_not_there(self):
         state = empty_state()
