@@ -25,10 +25,10 @@ bool nf_init(device_t devices_count)
 		return false;
 	}
 
-	if (cht_height == 0 || cht_height >= MAX_CHT_HEIGHT) { // TODO what can we do about this?
+	if (cht_height == 0 || cht_height >= MAX_CHT_HEIGHT) {
 		return false;
 	}
-	if (backend_capacity == 0 || backend_capacity >= cht_height || backend_capacity * cht_height >= UINT32_MAX) { // TODO and this?
+	if (backend_capacity == 0 || backend_capacity >= cht_height || backend_capacity * cht_height >= UINT32_MAX) {
 		return false;
 	}
 
@@ -56,17 +56,18 @@ void nf_handle(struct net_packet *packet)
 
 	time_t now = os_clock_time_ns();
 
-	if (packet->device == wan_device) {
-		struct backend* backend;
-		if (!balancer_get_backend(balancer, &flow, now, &backend)) {
-			return;
-		}
-
-		net_packet_checksum_update(ipv4_header, ipv4_header->dst_addr, backend->ip, true);
-		ipv4_header->dst_addr = backend->ip;
-
-		net_transmit(packet, backend->device, 0);
+	if (packet->device != wan_device) {
+		balancer_process_heartbeat(balancer, &flow, packet->device, now);
+		return;
 	}
 
-	balancer_process_heartbeat(balancer, &flow, packet->device, now);
+	struct backend* backend;
+	if (!balancer_get_backend(balancer, &flow, now, &backend)) {
+		return;
+	}
+
+	net_packet_checksum_update(ipv4_header, ipv4_header->dst_addr, backend->ip, true);
+	ipv4_header->dst_addr = backend->ip;
+	net_transmit(packet, backend->device, 0);
+
 }

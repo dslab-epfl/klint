@@ -58,8 +58,10 @@ static inline struct balancer *balancer_alloc(size_t flow_capacity, time_t flow_
 static inline bool balancer_get_backend(struct balancer* balancer, struct flow* flow, time_t now, struct backend** out_backend)
 {
 	size_t flow_index;
+	size_t backend_index;
+
 	if (map_get(balancer->flow_to_flow_id, flow, &flow_index)) {
-		size_t backend_index = balancer->flow_id_to_backend_id[flow_index];
+		backend_index = balancer->flow_id_to_backend_id[flow_index];
 		if (index_pool_used(balancer->active_backends, now, backend_index)) {
 			index_pool_refresh(balancer->flow_chain, now, flow_index);
 			*out_backend = &(balancer->backends[backend_index]);
@@ -71,16 +73,14 @@ static inline bool balancer_get_backend(struct balancer* balancer, struct flow* 
 		}
 	}
 
-	size_t backend_index;
 	if (!cht_find_preferred_available_backend(balancer->cht, (void*)flow, sizeof(struct flow), balancer->active_backends, &backend_index, now)) {
 		return false;
 	}
 
-	size_t index;
 	bool was_used;
-	if (index_pool_borrow(balancer->flow_chain, now, &index, &was_used)) {
+	if (index_pool_borrow(balancer->flow_chain, now, &flow_index, &was_used)) {
 		if (was_used) {
-			map_remove(balancer->flow_to_flow_id, &(balancer->flow_heap[index]));
+			map_remove(balancer->flow_to_flow_id, &(balancer->flow_heap[flow_index]));
 		}
 		balancer->flow_heap[flow_index] = *flow;
 		balancer->flow_id_to_backend_id[flow_index] = backend_index;
@@ -93,21 +93,20 @@ static inline bool balancer_get_backend(struct balancer* balancer, struct flow* 
 
 static inline void balancer_process_heartbeat(struct balancer* balancer, struct flow* flow, device_t device, time_t now)
 {
-	size_t backend_index;
-	if (map_get(balancer->ip_to_backend_id, &flow->src_ip, &backend_index)) {
-		index_pool_refresh(balancer->active_backends, now, backend_index);
+	size_t index;
+	if (map_get(balancer->ip_to_backend_id, &flow->src_ip, &index)) {
+		index_pool_refresh(balancer->active_backends, now, index);
 	} else {
-		size_t index;
 		bool was_used;
 		if (index_pool_borrow(balancer->active_backends, now, &index, &was_used)) {
 			if (was_used) {
 				map_remove(balancer->ip_to_backend_id, &(balancer->backend_ips[index]));
 			}
-			struct backend *new_backend = &(balancer->backends[backend_index]);
+			struct backend *new_backend = &(balancer->backends[index]);
 			new_backend->ip = flow->src_ip;
 			new_backend->device = device;
-			balancer->backend_ips[backend_index] = flow->src_ip;
-			map_set(balancer->ip_to_backend_id, &(balancer->backend_ips[backend_index]), backend_index);
+			balancer->backend_ips[index] = flow->src_ip;
+			map_set(balancer->ip_to_backend_id, &(balancer->backend_ips[index]), index);
 		}
 		// Otherwise ignore this backend, we are full.
 	}
