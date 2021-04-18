@@ -368,10 +368,10 @@ class Map:
             _layer_item=item
         )
 
-    def relax(self, state, new_invariant_conjunctions, new_length):
+    def relax(self, state, new_invariant_conjunctions):
         result = Map(
             self.meta,
-            new_length,
+            claripy.BVS(self.meta.name + "_length", self._length.size()),
             [], # no invariants yet
             [] # no known items
         )
@@ -488,8 +488,9 @@ class GhostMapsPlugin(SimStatePlugin):
 
 class ResultType(Enum):
     LENGTH_LTE = 0
-    CROSS_VAL = 1
-    CROSS_KEY = 2
+    LENGTH_EQ = 1
+    CROSS_VAL = 2
+    CROSS_KEY = 3
 
     def is_cross_result(self):
         return self == ResultType.CROSS_VAL or self == ResultType.CROSS_KEY
@@ -673,6 +674,13 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
             except queue.Empty:
                 return
 
+            if o2 is None: # TODO this is a bit awkward
+                # only for length
+                if all(utils.definitely_true(st.solver, st.maps.length(o1) == ancestor_state.maps.length(o1)) for st in _orig_states):
+                    print("Inferred: Length of", o1, "has not changed")
+                    results.put((ResultType.LENGTH_EQ, [o1], lambda st, o1=o1: st.solver.add(st.maps.length(o1) == ancestor_state.maps.length(o1))))
+                continue
+
             # Optimization: Ignore the combination if neither map changed
             orig_states = [st for st in _orig_states if st.maps[o1].version() != 0 or st.maps[o2].version() != 0]
             if len(orig_states) == 0:
@@ -686,7 +694,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
 
             #print("Considering", o1, o2, "at", datetime.datetime.now())
 
-            # Step 2: Length relationships.
+            # Length relationships.
             # For each pair of maps (M1, M2),
             #   if length(M1) <= length(M2) across all states,
             #   then assume this holds in the merged state
@@ -694,7 +702,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                 #print("Inferred: Length of", o1, "is always <= that of", o2)
                 results.put((ResultType.LENGTH_LTE, [o1, o2], lambda st, o1=o1, o2=o2: st.solver.add(st.maps.length(o1) <= st.maps.length(o2))))
 
-            # Step 3: Map relationships.
+            # Map relationships.
             # For each pair of maps (M1, M2),
             #  if there exist functions FP, FK such that in all states, forall(M1, (K,V): FP(K,V) => get(M2, FK(K, V)) == (_, true)),
             #  then assume this is an invariant of M1 in the merged state.
@@ -779,9 +787,8 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                 to_cache.put([o1, o2, "p", []])
                 to_cache.put([o1, o2, "k", None])
 
-    # Optimization: Ignore maps that have not changed at all
-    objs = [o for o in objs if any(st.maps[o].version() != _ancestor_state.maps[o].version() for st in _states_to_merge)]
-
+    for o in objs:
+        remaining_work.put((o, None))
     for (o1, o2) in itertools.permutations(objs, 2):
         remaining_work.put((o1, o2))
 
@@ -837,6 +844,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                            or (r[1][1] is o2 and any(r2[1][1] is o1 and r2[1][0] is r[1][0] for r2 in cross_results))
                 )
                 for r in removed:
+                    # TODO remove this entire thing if it doesn't fire any more
                     print(f"Discarding redundant inference {r[0]} between {r[1]}")
 
     return cross_results + length_results
@@ -871,15 +879,6 @@ def maps_merge_one(states_to_merge, obj, ancestor_state, new_state):
             results.append(replacement[expr.size()-1:expr.size()-expr.args[0].size()] == 0)
         return results
 
-    # Length variation.
-    # If the length may have changed in any state from the one in the ancestor state,
-    # replace the length with a fresh symbol
-    # TODO should we just always do this?
-    map_length = ancestor_state.maps.length(obj)
-    if any(utils.can_be_true(st.solver, st.maps.length(obj) != map_length) for st in states_to_merge):
-        print("Length of map", obj, "was changed; making it symbolic")
-        map_length = claripy.BVS("map_length", map_length.size())
-
     # Oblivion algorithm: "forget" known items by integrating them into the unknown items invariant
     # For each conjunction in the unknown items invariant,
     # for each known item in any state,
@@ -900,7 +899,7 @@ def maps_merge_one(states_to_merge, obj, ancestor_state, new_state):
                     print("Item", item, "in map", obj, "does not comply with invariant conjunction", conj)
         invariant_conjs.append(conjunction)
 
-    new_state.maps[obj] = ancestor_state.maps[obj].relax(new_state, invariant_conjs, map_length)
+    new_state.maps[obj] = ancestor_state.maps[obj].relax(new_state, invariant_conjs)
 
     return changed
 
@@ -913,6 +912,9 @@ def infer_invariants(ancestor_state, states, previous_results=None):
     # note that we keep track of objs as their string representations to avoid comparing Claripy ASTs (which don't like ==)
     previous_results = copy.deepcopy(previous_results or [])
     ancestor_objs = [o for (o, _) in ancestor_state.maps.get_all()]
+
+    # Optimization: Ignore maps that have not changed at all
+    ancestor_objs = [o for o in ancestor_objs if any(st.maps[o].version() != ancestor_state.maps[o].version() for st in states)]
 
     across_results = maps_merge_across(states, ancestor_objs, ancestor_state)
     # To check if we have reached a superset of the previous results, remove all values we now have
