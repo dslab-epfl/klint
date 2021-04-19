@@ -60,7 +60,8 @@ class EmptyLibrary():
     def copy(self): return self
 
 
-# Keep only what we need in the engine, and handle hlt, in, and out
+# Keep only what we need in the engine, and handle in, out, rdtsc
+# Also, special-case hlt
 from angr.engines.failure import SimEngineFailure
 from angr.engines.hook import HooksMixin
 from angr.engines.vex import HeavyVEXMixin
@@ -87,6 +88,15 @@ class CustomEngine(SimEngineFailure, HooksMixin, HeavyVEXMixin):
         if func_name == 'amd64g_dirtyhelper_RDTSC': # no args
             return clock.get_current_cycles(self.state)
         raise angr.errors.UnsupportedDirtyError("Unexpected angr 'dirty' call")
+
+    def process_successors(self, successors, **kwargs):
+        state = self.state
+        jumpkind = state.history.parent.jumpkind if state.history and state.history.parent else None
+        if jumpkind == 'Ijk_SigTRAP': # we hit a 'hlt'
+            global trapped_states
+            trapped_states.append(state)
+            return None
+        super().process_successors(successors, **kwargs)
 
 # Handle RDMSR, specifically register 0xCE which contains the clock frequency
 from pyvex.lifting import register as pyvex_register
@@ -220,7 +230,9 @@ def create_calling_state(state, function_thing, function_args, externals):
         function = function_thing
     return state.project.factory.call_state(function.rebased_addr, *function_args, base_state=state)
 
-def run_state(state):
+def run_state(state, allow_trap=False):
+    global trapped_states # see our custom engine
+    trapped_states = []
     sm = state.project.factory.simulation_manager(state)
     sm.use_technique(merging_technique.MergingTechnique())
     sm.run()
@@ -230,4 +242,6 @@ def run_state(state):
     # We do not ever expect unsat states; this could mean e.g. a precondition was not met
     if len(sm.unsat) > 0:
         raise Exception("There are unsat states! e.g. " + ", ".join([str(c) for c in sm.unsat[0].solver.constraints]))
+    if len(trapped_states) > 0 and not allow_trap:
+        raise Exception("There are trapped states! e.g. " + str(trapped_states[0].regs.rip))
     return sm.deadended

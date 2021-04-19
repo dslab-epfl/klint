@@ -23,6 +23,9 @@ class Node:
     def __init__(self, kind, children):
         self.kind = kind
         self.children = children
+
+    def __repr__(self):
+        return f"{self.kind}: {self.children}"
     
     def getKind(self):
         return self.kind
@@ -54,7 +57,7 @@ class Node:
             if self.children[1].getKind() != AST.Value:
                 raise Exception("Illegal AST for this function")
             valid = self.children[1].getChild(0)(value)
-            return (state.solver.eval(valid) == True)
+            return state.solver.eval_one(valid)
         else:
             return False
     

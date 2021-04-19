@@ -69,6 +69,7 @@ static void tinynf_packet_handler(size_t index, uint8_t* packet, size_t length, 
 }
 
 
+// TODO net shouldn't be exposing a main(argc, argv), it should be OS handling this since metal doesn't need one and the args are unused...
 int main(int argc, char** argv)
 {
 	(void) argc;

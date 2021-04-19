@@ -219,14 +219,13 @@ def change_reg_field(state, device, name, index, registers, new):
     if reg_old.op == 'BVV' and new != 'X':
         val = 0
         if f_info['start'] > 0:
-            val = val | reg_old[f_info['start']-1:0]
+            before = state.solver.eval_one(reg_old[f_info['start']-1:0])
+            val = val | before
         val = val | (new << f_info['start'])
         if f_info['end'] < data['length'] - 1:
-            val = val | (reg_old[data['length']-1:f_info['end']+1] << f_info['end']+1)
-        if isinstance(val, claripy.ast.Base):
-            reg_new = val.zero_extend(data['length'] - val.size())
-        else:
-            reg_new = claripy.BVV(val, data['length'])
+            after = state.solver.eval_one(reg_old[data['length']-1:f_info['end']+1])
+            val = val | (after << f_info['end']+1)
+        reg_new = claripy.BVV(val, data['length'])
     else:
         if new == 'X':
             raise "oops"
@@ -257,13 +256,8 @@ def verify_write(state, device, fields, reg, index, reg_dict, _cache={}):
     for f_info in fields:
         (f, prev, new) = f_info
 
-        # avoid calling the solver for a case so simple; TODO this should be done in claripy...
-        new_zero = claripy.BVV(0, new.size())
-        if new.op == '__and__' and (new.args[0].structurally_match(new_zero) or new.args[1].structurally_match(new_zero)):
-            new = new_zero
-        new_one = claripy.BVV(-1, new.size())
-        if new.op == '__or__' and (new.args[0].structurally_match(new_one) or new.args[1].structurally_match(new_one)):
-            new = new_one
+        # TODO we get a bunch of BV1 with |1 or &0 that claripy should really take care of internally...
+        new = claripy.BVV(state.solver.eval_one(new), new.size())
 
         # Actions which preconditions fail - useful for debuging
         rejected = []
@@ -278,9 +272,9 @@ def verify_write(state, device, fields, reg, index, reg_dict, _cache={}):
             action_matches = False
             if reg_dict[reg]['fields'][f]['end'] != reg_dict[reg]['fields'][f]['start']:
                 action_matches = info['action'].isWriteFieldCorrect(state, f"{reg}.{f}", new)
-            elif (new.structurally_match(claripy.BVV(-1, new.size())) and info['action'].isFieldSetOrCleared(f"{reg}.{f}", ast_util.AST.Set)):
+            elif new.structurally_match(claripy.BVV(-1, new.size())) and info['action'].isFieldSetOrCleared(f"{reg}.{f}", ast_util.AST.Set):
                 action_matches = True
-            elif (new.structurally_match(claripy.BVV(0, new.size())) and info['action'].isFieldSetOrCleared(f"{reg}.{f}", ast_util.AST.Clear)):
+            elif new.structurally_match(claripy.BVV(0, new.size())) and info['action'].isFieldSetOrCleared(f"{reg}.{f}", ast_util.AST.Clear):
                 action_matches = True
 
             if not action_matches:
@@ -295,6 +289,7 @@ def verify_write(state, device, fields, reg, index, reg_dict, _cache={}):
                 rejected.append(action)
                 continue
             valid = True
+            print("Action: ", action)
 
             if action == 'Initiate Software Reset':
                 device.use_init[0] = True

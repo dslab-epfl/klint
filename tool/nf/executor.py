@@ -145,7 +145,7 @@ def execute_nf(binary_path):
     init_state = binary_executor.create_calling_state(blank_state, "_start", [], nf_init_externals)
     global inited_states
     inited_states = []
-    binary_executor.run_state(init_state) # this will fill inited_states
+    binary_executor.run_state(init_state, allow_trap=True) # this will fill inited_states; we allow traps only here since that's how init can fail
     assert len(inited_states) > 0
     result_states = []
     for state in inited_states:
