@@ -1,6 +1,9 @@
 import angr
 import claripy
 
+from binary import executor as binary_executor
+from nf import executor as nf_executor
+
 
 # uint64_t* descriptor_ring_alloc(size_t count);
 class descriptor_ring_alloc(angr.SimProcedure):
@@ -38,12 +41,7 @@ class foreach_index_forever(angr.SimProcedure):
 
         index = claripy.BVS("foreach_index", self.state.sizes.size_t)
         self.state.solver.add(index.ULT(length))
-        func_state = self.state.project.factory.call_state(func.args[0], *[index, st], base_state=self.state)
-        func_sm = self.state.project.factory.simulation_manager(func_state)
-        func_sm.use_technique(angr.exploration_techniques.DFS())
-        func_sm.run()
-        if len(func_sm.errored) > 0:
-            func_sm.errored[0].reraise()
-        if len(func_sm.unsat) > 0:
-            raise Exception("UNSAT!")
-        print("ok")
+
+        global inited_states
+        func_state = binary_executor.create_calling_state(self.state, func, [index, st], nf_executor.nf_handle_externals)
+        inited_states.append(func_state)

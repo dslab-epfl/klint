@@ -223,7 +223,10 @@ def change_reg_field(state, device, name, index, registers, new):
         val = val | (new << f_info['start'])
         if f_info['end'] < data['length'] - 1:
             val = val | (reg_old[data['length']-1:f_info['end']+1] << f_info['end']+1)
-        reg_new = claripy.BVV(val, data['length'])
+        if isinstance(val, claripy.ast.Base):
+            reg_new = val.zero_extend(data['length'] - val.size())
+        else:
+            reg_new = claripy.BVV(val, data['length'])
     else:
         if new == 'X':
             raise "oops"
@@ -258,7 +261,7 @@ def verify_write(state, device, fields, reg, index, reg_dict, _cache={}):
         new_zero = claripy.BVV(0, new.size())
         if new.op == '__and__' and (new.args[0].structurally_match(new_zero) or new.args[1].structurally_match(new_zero)):
             new = new_zero
-        new_one = claripy.BVV(1, new.size())
+        new_one = claripy.BVV(-1, new.size())
         if new.op == '__or__' and (new.args[0].structurally_match(new_one) or new.args[1].structurally_match(new_one)):
             new = new_one
 

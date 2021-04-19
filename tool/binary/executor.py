@@ -206,7 +206,7 @@ def create_blank_state(binary_path):
     state.solver._stored_solver = CustomSolver()
     return state
 
-def create_calling_state(state, function_name, function_args, externals):
+def create_calling_state(state, function_thing, function_args, externals):
     # Re-create a project, since we may need different externals than last time
     new_proj = _create_project(state.project.filename)
     # Add our externals
@@ -214,7 +214,10 @@ def create_calling_state(state, function_name, function_args, externals):
         if state.project.loader.find_symbol(name) is not None:
             state.project.hook_symbol(name, PathPlugin.wrap(proc()))
     # Create the state
-    function = state.project.loader.find_symbol(function_name)
+    if isinstance(function_thing, str):
+        function = state.project.loader.find_symbol(function_thing)
+    else:
+        function = function_thing
     return state.project.factory.call_state(function.rebased_addr, *function_args, base_state=state)
 
 def run_state(state):
@@ -222,6 +225,7 @@ def run_state(state):
     sm.use_technique(merging_technique.MergingTechnique())
     sm.run()
     if len(sm.errored) > 0:
+        print("Error, e.g. at", sm.errored[0].state.regs.rip)
         sm.errored[0].reraise()
     # We do not ever expect unsat states; this could mean e.g. a precondition was not met
     if len(sm.unsat) > 0:
