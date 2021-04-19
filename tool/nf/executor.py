@@ -21,8 +21,7 @@ from binary.externals.structs import map2
 from binary.externals.structs import index_pool
 from binary.externals.structs import cht
 from binary.externals.structs import lpm
-from binary.externals.verif import counters
-from binary.externals.verif import functions
+from binary.externals.verif import verif
 from . import spec_act
 from . import spec_reg
 
@@ -70,13 +69,17 @@ total_externals = {
     'os_memory_phys_to_virt': memory.os_memory_phys_to_virt,
     'os_memory_virt_to_phys': memory.os_memory_virt_to_phys,
     'os_pci_enumerate': pci.os_pci_enumerate,
-    'counter_create': counters.counter_create
+    'descriptor_ring_alloc': verif.descriptor_ring_alloc,
+    'foreach_index_forever': verif.foreach_index_forever
 }
 
 def nf_init(bin_path, devices_count):
     # subprocess.check_call(["make", "-f" "../Makefile.nf"], cwd=nf_folder)
     def state_modifier(state):
         cpu_freq_numerator = state.project.loader.find_symbol("cpu_freq_numerator")
+        if cpu_freq_numerator is None:
+            print("Warning: No cpu freq symbols detected, skipping...")
+            return
         cpu_freq_denominator = state.project.loader.find_symbol("cpu_freq_denominator")
         state.memory.store(cpu_freq_numerator.rebased_addr, binary_clock.frequency_num, endness=state.arch.memory_endness)
         state.memory.store(cpu_freq_denominator.rebased_addr, binary_clock.frequency_denom, endness=state.arch.memory_endness)

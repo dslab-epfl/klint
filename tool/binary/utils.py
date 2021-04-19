@@ -105,3 +105,115 @@ def structural_eq(a, b):
     if hasattr(a, '__iter__') and hasattr(b, '__iter__') and hasattr(a, '__len__') and hasattr(b, '__len__'):
         return len(a) == len(b) and all(structural_eq(ai, bi) for (ai, bi) in zip(a, b))
     return a == b
+
+
+# Requires a 'meta_type' such that there is metadata on the type from pointers to a class with 'count' and 'size'
+# Guarantees that:
+# - Result is of the form (base, index, offset)
+# - 'base': BV, is a symbolic pointer
+# - 'index': BV, is a symbolic index
+# - 'offset': int, is an offset in bits, concrete
+def base_index_offset(state, addr, meta_type, allow_failure=False):
+    if isinstance(addr, int):
+        if allow_failure:
+            return (None, None, None)
+        raise Exception("B_I_O was given an int")
+
+    def as_simple(val):
+        if val.op == "BVS": return val
+        if val.op == '__add__' and len(val.args) == 1: return as_simple(val.args[0])
+        if val.op == 'Extract': return val
+        return None
+
+    simple_addr = as_simple(addr)
+    if simple_addr is not None:
+        return (simple_addr, claripy.BVV(0, 64), 0) # Directly addressing a base, i.e., base[0]
+
+    if addr.op == '__add__':
+        base = [a for a in map(as_simple, addr.args) if a is not None]
+
+        if len(base) == 0:
+            # let's hope this can be solved by simplifying?
+            addr = state.solver.simplify(addr)
+            base = [a for a in map(as_simple, addr.args) if a is not None]
+
+        if len(base) == 1:
+            base = base[0]
+        else:
+            base = [b for b in base if any(b.structurally_match(k) for k in state.metadata.get_all(meta_type).keys())]
+            if len(base) == 1:
+                base = base[0]
+            else:
+                raise Exception("!= 1 candidate for base??? are you symbolically indexing a global variable or something?")
+        added = sum([a for a in addr.args if not a.structurally_match(base)])
+
+        meta = state.metadata.get_or_none(meta_type, base)
+        if meta is None:
+            if allow_failure:
+                return (None, None, None)
+            raise Exception("B_I_O has no info about: " + str(base))
+
+        offset = state.solver.eval_one(_modulo_simplify(added, meta.size), cast_to=int)
+        # Don't make the index be a weird '0 // ...' expr if we can avoid it, but don't call the solver for that
+        if (added == offset).is_true():
+            index = claripy.BVV(0, 64)
+        else:
+            index = (added - offset) // meta.size
+        return (base, index, offset * 8)
+
+    addr = state.solver.simplify(addr) # this handles the descriptor addresses, which are split between two NIC registers
+    if addr.op == "BVS":
+        return (addr, claripy.BVV(0, 64), 0)
+
+    if allow_failure:
+        return (None, None, None)
+    raise Exception("B_I_O doesn't know what to do with: " + str(addr) + " of type " + str(type(addr)) + " ; op is " + str(addr.op) + " ; args is " + str(addr.args) + " ; constrs are " + str(state.solver.constraints))
+
+
+# Optimization: the "_modulo_simplify" function allows base_index_offset to avoid calling the solver when computing the offset of a memory access
+
+# Returns a dictionary such that ast == sum(e.ast * m for (e, m) in result.items())
+def _as_mult_add(ast):
+    if ast.op == '__lshift__':
+        nested = _as_mult_add(ast.args[0])
+        return {e: m << ast.args[1] for (e, m) in nested.items()}
+    if ast.op == '__add__' or ast.op == '__sub__':
+        coeff = 1
+        result = {}
+        for arg in ast.args:
+            nested = _as_mult_add(arg)
+            for e, m in nested.items():
+                result.setdefault(e, 0)
+                result[e] += coeff * m
+            coeff = 1 if ast.op == '__add__' else -1
+        return result
+    if ast.op == '__mul__':
+        lone_sym = None
+        con = None
+        for arg in ast.args:
+            if arg.symbolic:
+                if lone_sym is not None:
+                    break
+                lone_sym = arg
+            else:
+                # Avoid introducing "1 * ..." terms
+                if con is None:
+                    con = arg
+                else:
+                    con *= arg
+        else:
+            if con is None:
+                return _as_mult_add(lone_sym)
+            else:
+                return {e: m * con for (e, m) in _as_mult_add(lone_sym).items()}
+    return {ast.cache_key: 1}
+
+# Returns a simplified form of a % b
+def _modulo_simplify(a, b):
+    result = 0
+    for (e, m) in _as_mult_add(a).items():
+        # note that is_true just performs basic checks, so if _as_mult_add decomposed it nicely, we'll skip the modulo entirely
+        # e.g. (x * 4) % 2 can be simplified to 0
+        if not (e.ast % b == claripy.BVV(0, a.size())).is_true() and not (m % b == claripy.BVV(0, a.size())).is_true():
+            result += e.ast * m
+    return result % b
