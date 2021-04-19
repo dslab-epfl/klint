@@ -500,8 +500,6 @@ def LOGEND(state):
 
 # state args have a leading _ to ensure that functions run concurrently don't accidentally touch them
 def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
-    print(f"Cross-merge of maps starting. State count: {len(_states_to_merge)}")
-
     # TODO: Most of this logic was written back when map invariants were represented as Python lambdas,
     #       making comparisons hard; now that they are ASTs instead, we could compare them as part of heuristics,
     #       which would probably make some heuristics more robust and also more widely applicable...

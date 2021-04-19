@@ -5,7 +5,7 @@ import subprocess
 import os
 
 import binary.clock as binary_clock
-import binary.executor as bin_exec
+import binary.executor as binary_executor
 import binary.utils as utils
 import binary.ghost_maps as ghost_maps
 from binary.externals.os import clock
@@ -73,79 +73,73 @@ total_externals = {
     'foreach_index_forever': verif.foreach_index_forever
 }
 
-def nf_init(bin_path, devices_count):
-    # subprocess.check_call(["make", "-f" "../Makefile.nf"], cwd=nf_folder)
-    def state_modifier(state):
-        cpu_freq_numerator = state.project.loader.find_symbol("cpu_freq_numerator")
-        if cpu_freq_numerator is None:
-            print("Warning: No cpu freq symbols detected, skipping...")
-            return
-        cpu_freq_denominator = state.project.loader.find_symbol("cpu_freq_denominator")
-        state.memory.store(cpu_freq_numerator.rebased_addr, binary_clock.frequency_num, endness=state.arch.memory_endness)
-        state.memory.store(cpu_freq_denominator.rebased_addr, binary_clock.frequency_denom, endness=state.arch.memory_endness)
-    # Something very fishy in here, why do we need to reverse this? angr's endianness handling keeps puzzling me
-    args = [devices_count.reversed]
-    sm = bin_exec.create_sim_manager(bin_path, init_externals, "nf_init", *args, state_modifier=state_modifier)
-    sm.active[0].solver.add(devices_count.UGT(0))
-    sm.run()
-    if len(sm.errored) > 0:
-        sm.errored[0].reraise()
-    return sm.deadended
 
-def nf_handle(bin_path, state, devices_count):
-    pkt = packet.alloc(state, devices_count)
-    args = [pkt]
-    sm = bin_exec.create_sim_manager(bin_path, handle_externals, "nf_handle", *args, base_state=state)
-    sm.run()
-    if len(sm.errored) > 0:
-        sm.errored[0].reraise()
-    if len(sm.unsat) > 0:
-        raise Exception("There are unsat states! e.g. " + ", ".join([str(c) for c in sm.unsat[0].solver.constraints]))
-    return sm.deadended
+# Currently we have:
+# nf_init(path, devices_count) -> states
+# nf_handle(path, base_state, devices_count) -> states
+# havoc_iter(path, base_state, devices_count, previous_results) -> (states, new_state, new_results, reached_fixpoint)
+# execute(path) -> final_states
 
-def havoc_iter(bin_path, state, devices_count, previous_results):
-    print("Running an iteration of handle, at", datetime.datetime.now(), "\n")
-    original_state = state.copy()
-    handled_states = list(nf_handle(bin_path, state, devices_count))
-    for s in handled_states:
-        print("State", id(s), "has", len(s.solver.constraints), "constraints")
-        s.path.print()
+# we need:
+# - create the "initial states" from a bin with nf_init -> result is state calling nf_handle
+# - create the "initial states" from a bin with main -> result is state calling foreach_function
+# - reach fixpoint given an "initial state"
 
-    print("Inferring invariants... at ", datetime.datetime.now())
-    (new_state, new_results, reached_fixpoint) = ghost_maps.infer_invariants(original_state, handled_states, previous_results)
-
-    print("")
-    return (handled_states, new_state, new_results, reached_fixpoint)
-
-
-def execute(bin_path):
-    devices_count = claripy.BVS('devices_count', 16)
-    results = []
-    for state in nf_init(bin_path, devices_count):
+# subprocess.check_call(["make", "-f" "../Makefile.nf"], cwd=nf_folder) TODO
+def get_libnf_init_states(binary_path, devices_count):
+    blank_state = binary_executor.create_blank_state(binary_path)
+    # If needed, hook cpu_freq symbols (TODO remove this when we rework time stuff!)
+    cpu_freq_numerator = blank_state.project.loader.find_symbol("cpu_freq_numerator")
+    if cpu_freq_numerator is None:
+        print("Warning: No cpu freq symbols detected, skipping...")
+    else:
+        cpu_freq_denominator = blank_state.project.loader.find_symbol("cpu_freq_denominator")
+        blank_state.memory.store(cpu_freq_numerator.rebased_addr, binary_clock.frequency_num, endness=blank_state.arch.memory_endness)
+        blank_state.memory.store(cpu_freq_denominator.rebased_addr, binary_clock.frequency_denom, endness=blank_state.arch.memory_endness)
+    # Create and run an init state
+    # TODO Something very fishy in here, why do we need to reverse the arg? angr's endianness handling keeps puzzling me
+    init_state = binary_executor.create_calling_state(blank_state, "nf_init", [devices_count.reversed], init_externals)
+    init_state.solver.add(devices_count.UGT(0))
+    result_states = binary_executor.run_state(init_state)
+    # Create handle states from all successful inits
+    inited_states = []
+    for state in result_states:
         # code to get the return value copied from angr's "Callable" implementation
         cc = angr.DEFAULT_CC[state.project.arch.name](state.project.arch)
         init_result = cc.get_return_val(state, stack_base=state.regs.sp - cc.STACKARG_SP_DIFF)
         state.solver.add(init_result != 0)
-        if not state.solver.satisfiable():
-            continue
-        reached_fixpoint = False
-        previous_results = None
-        while not reached_fixpoint:
-            (handled_states, state, previous_results, reached_fixpoint) = havoc_iter(bin_path, state, devices_count, previous_results)
-            if reached_fixpoint:
-                results += handled_states
-    print("NF symbex done! at", datetime.datetime.now())
-    return (results, devices_count)
+        if state.solver.satisfiable():
+            inited_states.append(binary_executor.create_calling_state(state, "nf_handle", [packet.alloc(state, devices_count)], handle_externals))
+    return inited_states
 
-import datetime
+def find_fixedpoint_states(state):
+    inference_results = None
+    while True:
+        print("Running an iteration of the main loop at", datetime.datetime.now())
+        result_states = binary_executor.run_state(state)
+        print("Inferring invariants on", len(result_states), "states at", datetime.datetime.now())
+        (state, inference_results, reached_fixpoint) = ghost_maps.infer_invariants(state, result_states, inference_results)
+        if reached_fixpoint:
+            return result_states
+
+def execute_libnf(binary_path):
+    print("libNF symbex starting at", datetime.datetime.now())
+    devices_count = claripy.BVS('devices_count', 16) # TODO avoid the hardcoded 16 here
+    init_states = get_libnf_init_states(binary_path, devices_count)
+    result_states = []
+    for state in init_states:
+        result_states += find_fixedpoint_states(state)
+    print("libNF symbex done at", datetime.datetime.now())
+    return (result_states, devices_count) # TODO devices_count should be in metadata somewhere, not explicitly returned
+
+
 def execute_full(bin_path):
-    xxx = datetime.datetime.now()
     spec_reg.validate_registers(spec_reg.registers)
     spec_reg.validate_registers(spec_reg.pci_regs)
     spec_act.validate_actions()
     sm = bin_exec.create_sim_manager(bin_path, total_externals, "_start")
     sm.run()
-    yyy = datetime.datetime.now()
-    zzz = yyy - xxx
     if len(sm.errored) > 0:
         sm.errored[0].reraise()
+    if len(sm.unsat) > 0:
+        raise Exception("There are unsat states! e.g. " + ", ".join([str(c) for c in sm.unsat[0].solver.constraints]))

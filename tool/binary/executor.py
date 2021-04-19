@@ -84,10 +84,8 @@ class CustomEngine(SimEngineFailure, HooksMixin, HeavyVEXMixin):
             data = args[1][size*8-1:0]
             self.state.pci.handle_out(port, data, size)
             return None
-
         if func_name == 'amd64g_dirtyhelper_RDTSC': # no args
             return clock.get_current_cycles(self.state)
-
         raise angr.errors.UnsupportedDirtyError("Unexpected angr 'dirty' call")
 
 # Handle RDMSR, specifically register 0xCE which contains the clock frequency
@@ -111,7 +109,6 @@ class Instruction_RDMSR(Instruction):
             return 0
 
         return self.ccall(Type.int_32, amd64g_rdmsr, [self.get("ecx", Type.int_32)])
-
 class AMD64Spotter(GymratLifter):
     instrs = [Instruction_RDMSR]
 pyvex_register(AMD64Spotter, 'AMD64')
@@ -178,47 +175,55 @@ class CustomMemory(
         return claripy.ite_cases([(g, v) for (v, g) in values[1:]], values[0][0])
 
 
-bin_exec_initialized = False
+EmptyLibrary().install()
+random.seed(10) # not sure if this is useful, but just in case...
+faulthandler.enable()
+# No explicit globals (we use metadata instead)
+SimState.register_default("globals", DummyPlugin)
+# No explicit heap (we use our memory's "allocate" instead)
+SimState.register_default("heap", DummyPlugin)
+# Our plugins (TODO: have a proper 'plugins' submodule, which imports them on init, and is imported by our own init, etc; use a plugin preset so we don't need the dummy!)
+SimState.register_default("casts", CastsPlugin)
+SimState.register_default("metadata", MetadataPlugin)
+SimState.register_default("maps", GhostMapsPlugin)
+SimState.register_default("path", PathPlugin)
+SimState.register_default("pci", PciPlugin)
+SimState.register_default("sizes", SizesPlugin)
+SimState.register_default("sym_memory", CustomMemory) # Has to be named that way for angr to use it as default
 
-def create_sim_manager(binary, ext_funcs, main_func_name, *main_func_args, base_state=None, state_modifier=None):
-    global bin_exec_initialized
-    if not bin_exec_initialized:
-        EmptyLibrary().install()
 
-        random.seed(10) # not sure if this is useful, but just in case...
+def _create_project(binary_path):
+    # Use the base SimOS, not any specific OS, we shouldn't depend on anything
+    return angr.Project(binary_path, auto_load_libs=False, use_sim_procedures=False, engine=CustomEngine, simos=SimOS)
 
-        faulthandler.enable()
 
-        # No explicit globals (we use metadata instead)
-        SimState.register_default("globals", DummyPlugin)
-        # No explicit heap (we use our memory's "allocate" instead)
-        SimState.register_default("heap", DummyPlugin)
-        # Our plugins (TODO: have a proper 'plugins' submodule, which imports them on init, and is imported by our own init, etc; use a plugin preset here so we don't need the dummy!)
-        SimState.register_default("casts", CastsPlugin)
-        SimState.register_default("metadata", MetadataPlugin)
-        SimState.register_default("maps", GhostMapsPlugin)
-        SimState.register_default("path", PathPlugin)
-        SimState.register_default("pci", PciPlugin)
-        SimState.register_default("sizes", SizesPlugin)
-        SimState.register_default("sym_memory", CustomMemory) # Has to be named that way for angr to use it as default
-
-        bin_exec_initialized = True
-
-    proj = angr.Project(binary, auto_load_libs=False, use_sim_procedures=False, engine=CustomEngine, simos=SimOS)
-    for (fname, fproc) in ext_funcs.items():
-        if proj.loader.find_symbol(fname) is not None:
-            proj.hook_symbol(fname, PathPlugin.wrap(fproc()))
-    # Not sure if this is needed but let's do it just in case, to make sure we don't change the base state
-    base_state = base_state.copy() if base_state is not None else None
-    main_func = proj.loader.find_symbol(main_func_name)
-    init_state = proj.factory.call_state(main_func.rebased_addr, *main_func_args, base_state=base_state)
+def create_blank_state(binary_path):
+    proj = _create_project(binary_path)
+    state = proj.factory.blank_state()
     # It seems there's no way around enabling these, since code can access uninitialized variables (common in the "return bool, take in a pointer to the result" pattern)
-    init_state.options.add(angr.sim_options.SYMBOL_FILL_UNCONSTRAINED_MEMORY)
-    init_state.options.add(angr.sim_options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS)
-    if base_state is None:
-        init_state.solver._stored_solver = CustomSolver()
-    if state_modifier is not None:
-        state_modifier(init_state)
-    sm = proj.factory.simulation_manager(init_state)
+    state.options.add(angr.sim_options.SYMBOL_FILL_UNCONSTRAINED_MEMORY)
+    state.options.add(angr.sim_options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS)
+    state.solver._stored_solver = CustomSolver()
+    return state
+
+def create_calling_state(state, function_name, function_args, externals):
+    # Re-create a project, since we may need different externals than last time
+    new_proj = _create_project(state.project.filename)
+    # Add our externals
+    for (name, proc) in externals.items():
+        if state.project.loader.find_symbol(name) is not None:
+            state.project.hook_symbol(name, PathPlugin.wrap(proc()))
+    # Create the state
+    function = state.project.loader.find_symbol(function_name)
+    return state.project.factory.call_state(function.rebased_addr, *function_args, base_state=state)
+
+def run_state(state):
+    sm = state.project.factory.simulation_manager(state)
     sm.use_technique(merging_technique.MergingTechnique())
-    return sm
+    sm.run()
+    if len(sm.errored) > 0:
+        sm.errored[0].reraise()
+    # We do not ever expect unsat states; this could mean e.g. a precondition was not met
+    if len(sm.unsat) > 0:
+        raise Exception("There are unsat states! e.g. " + ", ".join([str(c) for c in sm.unsat[0].solver.constraints]))
+    return sm.deadended

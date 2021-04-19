@@ -151,17 +151,6 @@ def fetch_reg(reg_dict, reg, index, data, use_init):
     update_reg(reg_dict, reg, index, data, reg_bv)
     return reg_bv
 
-def fetch_reg_field(name, index, data, use_init):
-    """
-    Fetches a particular field of the identified register
-    :param name: name of the form REG.FIELD
-    :param data: dictionary associated with REG
-    """
-    r, f = name.split('.', 1)
-    reg = fetch_reg(r, index, data, use_init)
-    field_data = data['fields'][f]
-    return reg[field_data['end']:field_data['start']]
-
 def update_reg(reg_dict, reg, index, data, expr):
     """
     Update register value in the state.
@@ -184,7 +173,7 @@ def find_fields_on_write(state, prev, new, reg, spec):
     for field, info in data['fields'].items():
         s = info['start']
         e = info['end']
-        if utils.can_be_true(state.solver, prev[e:s] != new[e:s]):
+        if not (prev[e:s] == new[e:s]).is_true(): #ideally, utils.can_be_false(state.solver, prev[e:s] == new[e:s]), but that's slow so let's be conservative
             p = prev[e:s]
             n = new[e:s]
             fields += [(field, p, n)]
@@ -230,12 +219,10 @@ def change_reg_field(state, device, name, index, registers, new):
     if reg_old.op == 'BVV' and new != 'X':
         val = 0
         if f_info['start'] > 0:
-            before = state.solver.eval(reg_old[f_info['start']-1:0])
-            val = val | before
+            val = val | reg_old[f_info['start']-1:0]
         val = val | (new << f_info['start'])
         if f_info['end'] < data['length'] - 1:
-            after = state.solver.eval(reg_old[data['length']-1:f_info['end']+1])
-            val = val | (after << f_info['end']+1)
+            val = val | (reg_old[data['length']-1:f_info['end']+1] << f_info['end']+1)
         reg_new = claripy.BVV(val, data['length'])
     else:
         if new == 'X':
@@ -266,7 +253,15 @@ def verify_write(state, device, fields, reg, index, reg_dict, _cache={}):
     counter = device.counter[0]
     for f_info in fields:
         (f, prev, new) = f_info
-        n = state.solver.eval(new)
+
+        # avoid calling the solver for a case so simple; TODO this should be done in claripy...
+        new_zero = claripy.BVV(0, new.size())
+        if new.op == '__and__' and (new.args[0].structurally_match(new_zero) or new.args[1].structurally_match(new_zero)):
+            new = new_zero
+        new_one = claripy.BVV(1, new.size())
+        if new.op == '__or__' and (new.args[0].structurally_match(new_one) or new.args[1].structurally_match(new_one)):
+            new = new_one
+
         # Actions which preconditions fail - useful for debuging
         rejected = []
         # The write to this field is invalid until a matching 
@@ -280,9 +275,9 @@ def verify_write(state, device, fields, reg, index, reg_dict, _cache={}):
             action_matches = False
             if reg_dict[reg]['fields'][f]['end'] != reg_dict[reg]['fields'][f]['start']:
                 action_matches = info['action'].isWriteFieldCorrect(state, f"{reg}.{f}", new)
-            elif (n == 1 and info['action'].isFieldSetOrCleared(f"{reg}.{f}", ast_util.AST.Set)):
+            elif (new.structurally_match(claripy.BVV(-1, new.size())) and info['action'].isFieldSetOrCleared(f"{reg}.{f}", ast_util.AST.Set)):
                 action_matches = True
-            elif (n == 0 and info['action'].isFieldSetOrCleared(f"{reg}.{f}", ast_util.AST.Clear)):
+            elif (new.structurally_match(claripy.BVV(0, new.size())) and info['action'].isFieldSetOrCleared(f"{reg}.{f}", ast_util.AST.Clear)):
                 action_matches = True
 
             if not action_matches:
@@ -292,12 +287,12 @@ def verify_write(state, device, fields, reg, index, reg_dict, _cache={}):
             precond_sat = True
             if info['precond'] != None:
                 con = info['precond'].generateConstraints(device, spec_reg.registers, spec_reg.pci_regs, index)
-                precond_sat = state.solver.eval(con)
+                precond_sat = utils.definitely_true(state.solver, con)
             if not precond_sat:
-                rejected += [action]
+                rejected.append(action)
                 continue
             valid = True
-            print("Action: ", action)
+
             if action == 'Initiate Software Reset':
                 device.use_init[0] = True
             device.latest_action[0] = action
