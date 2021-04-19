@@ -13,14 +13,20 @@ class descriptor_ring_alloc(angr.SimProcedure):
         ring_array = {}
         def ring_reader(state, base, index, offset, size):
             if size is None:
-                size = (state.sizes.uint64_t * 2) // 8
-            value = ring_array[index][size-1:offset]
+                size = (state.sizes.uint64_t * 2)
+            else:
+                size = size * 8
+            assert not index.symbolic
+            index = state.solver.eval(index)
+            return ring_array[index][size-1:offset]
 
         def ring_writer(state, base, index, offset, value):
-            existing_value = ring_array[index]
+            assert not index.symbolic
+            index = state.solver.eval(index)
+            existing_value = ring_array.get(index, claripy.BVV(0, state.sizes.uint64_t * 2))
             if offset != 0:
                 value = value.concat(existing_value[offset-1:0])
-            if value.size() != (state.sizes.uint64_t * 2) // 8:
+            if value.size() != state.sizes.uint64_t * 2:
                 value = existing_value[:value.size()].concat(value)
             ring_array[index] = value
 

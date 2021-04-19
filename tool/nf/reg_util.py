@@ -256,9 +256,6 @@ def verify_write(state, device, fields, reg, index, reg_dict, _cache={}):
     for f_info in fields:
         (f, prev, new) = f_info
 
-        # TODO we get a bunch of BV1 with |1 or &0 that claripy should really take care of internally...
-        new = claripy.BVV(state.solver.eval_one(new), new.size())
-
         # Actions which preconditions fail - useful for debuging
         rejected = []
         # The write to this field is invalid until a matching 
@@ -272,9 +269,9 @@ def verify_write(state, device, fields, reg, index, reg_dict, _cache={}):
             action_matches = False
             if reg_dict[reg]['fields'][f]['end'] != reg_dict[reg]['fields'][f]['start']:
                 action_matches = info['action'].isWriteFieldCorrect(state, f"{reg}.{f}", new)
-            elif new.structurally_match(claripy.BVV(-1, new.size())) and info['action'].isFieldSetOrCleared(f"{reg}.{f}", ast_util.AST.Set):
+            elif utils.definitely_true(state.solver, new == claripy.BVV(-1, new.size())) and info['action'].isFieldSetOrCleared(f"{reg}.{f}", ast_util.AST.Set):
                 action_matches = True
-            elif new.structurally_match(claripy.BVV(0, new.size())) and info['action'].isFieldSetOrCleared(f"{reg}.{f}", ast_util.AST.Clear):
+            elif utils.definitely_true(state.solver, new == 0) and info['action'].isFieldSetOrCleared(f"{reg}.{f}", ast_util.AST.Clear):
                 action_matches = True
 
             if not action_matches:

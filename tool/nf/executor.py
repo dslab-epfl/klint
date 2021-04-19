@@ -138,6 +138,7 @@ nf_init_externals.update(structs_alloc_externals)
 nf_handle_externals = structs_functions_externals
 
 def execute_nf(binary_path):
+    print("NF symbex starting at", datetime.datetime.now())
     spec_reg.validate_registers(spec_reg.registers)
     spec_reg.validate_registers(spec_reg.pci_regs)
     spec_act.validate_actions()
@@ -150,4 +151,5 @@ def execute_nf(binary_path):
     result_states = []
     for state in inited_states:
         result_states += find_fixedpoint_states(state)
+    print("NF symbex done at", datetime.datetime.now())
     return (result_states, claripy.BVV(2, 16)) # TODO ouch hardcoding, same remark as in execute_libnf
