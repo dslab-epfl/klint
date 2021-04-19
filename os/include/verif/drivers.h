@@ -1,6 +1,10 @@
 #pragma once
 
 #include <stddef.h>
+#include <stdint.h>
+
+
+uint64_t* descriptor_ring_alloc(size_t size);
 
 
 typedef void foreach_index_forever_function(size_t index, void* state);

@@ -1,6 +1,14 @@
-#include "verif/functions.h"
+#include "verif/drivers.h"
 
 #include <stdbool.h>
+
+#include "os/memory.h"
+
+
+uint64_t* descriptor_ring_alloc(size_t size)
+{
+	return os_memory_alloc(size, 2 * sizeof(uint64_t));
+}
 
 
 void foreach_index_forever(size_t length, foreach_index_forever_function* func, void* state)

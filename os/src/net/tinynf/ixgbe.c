@@ -8,8 +8,7 @@
 #include "os/clock.h"
 #include "os/log.h"
 #include "os/memory.h"
-#include "verif/counters.h"
-#include "verif/functions.h"
+#include "verif/drivers.h"
 
 // Don't include <assert.h> since that's not allowed in freestanding implementations
 #define static_assert _Static_assert
@@ -1003,7 +1002,7 @@ static void tn_agent_add_output(struct tn_agent* const agent, struct tn_device* 
 
 	// "The following steps should be done once per transmit queue:"
 	// "- Allocate a region of memory for the transmit descriptor list."
-	agent->rings[output_index] = os_memory_alloc(IXGBE_RING_SIZE, sizeof(struct tn_descriptor));
+	agent->rings[output_index] = (struct tn_descriptor*) descriptor_ring_alloc(IXGBE_RING_SIZE);
 	// Program all descriptors' buffer addresses now
 	uintptr_t buffer_phys_addr = os_memory_virt_to_phys(agent->buffer);
 	for (size_t n = 0; n < IXGBE_RING_SIZE; n++) {
@@ -1185,9 +1184,6 @@ void tn_agent_init(size_t input_index, size_t devices_count, struct tn_device* d
 	if (agent->outputs_count == 0) {
 		fatal("No outputs given");
 	}
-
-	agent->processed_delimiter = counter_create(IXGBE_RING_SIZE);
-	agent->flush_counter = counter_create(IXGBE_AGENT_FLUSH_PERIOD);
 
 	agent->buffer = os_memory_alloc(IXGBE_RING_SIZE, PACKET_BUFFER_SIZE);
 	agent->lengths = os_memory_alloc(agent->outputs_count, sizeof(size_t));
