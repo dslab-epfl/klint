@@ -143,7 +143,7 @@ def fetch_reg(reg_dict, reg, index, data, use_init):
             return d
     if use_init:
         reg_bv = __init_reg_val_con(data)
-        if reg_bv == None:
+        if reg_bv is None:
             # If a concrete value cannot be created, try symbolic
             reg_bv = __init_reg_val_symb(reg, data)
     else:

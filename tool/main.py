@@ -15,8 +15,8 @@ import verif.executor as verif_executor
 #Tests().test_forall_cross_o2first_weird()
 #sys.exit(0)
 
-#nf_executor.execute_full(os.path.join(Path(__file__).parent.absolute(), "..", "os", "bin"))
-#sys.exit(0)
+nf_executor.execute_full(os.path.join(Path(__file__).parent.absolute(), "..", "os", "bin"))
+sys.exit(0)
 
 nf_to_verify = "vigor-maglev"
 if len(sys.argv) >= 2:

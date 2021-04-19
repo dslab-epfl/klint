@@ -5,9 +5,9 @@
 #include "os/memory.h"
 
 
-uint64_t* descriptor_ring_alloc(size_t size)
+uint64_t* descriptor_ring_alloc(size_t count)
 {
-	return os_memory_alloc(size, 2 * sizeof(uint64_t));
+	return os_memory_alloc(count, 2 * sizeof(uint64_t));
 }
 
 

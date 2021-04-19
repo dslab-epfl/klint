@@ -36,7 +36,8 @@ class os_memory_phys_to_virt(angr.SimProcedure):
         addr = self.state.casts.ptr(addr)
         size = self.state.casts.size_t(size)
 
-        original_addr = addr.args[0].args[2].args[0]
+        assert len(addr.variables) == 1
+        original_addr = claripy.BVS(next(iter(addr.variables)), addr.size(), explicit_name=True)
         if utils.can_be_false(self.state.solver, addr == original_addr):
             raise Exception("Sorry, expected an addr as a BAR0 high-low pair")
 

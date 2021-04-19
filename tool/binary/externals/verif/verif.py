@@ -2,11 +2,26 @@ import angr
 import claripy
 
 
-# uint64_t* descriptor_ring_alloc(size_t size);
+# uint64_t* descriptor_ring_alloc(size_t count);
 class descriptor_ring_alloc(angr.SimProcedure):
-    def run(self, size):
-        size = self.state.casts.size_t(size)
-        ring = claripy.BVS("descriptor_ring", self.state.sizes.ptr)
+    def run(self, count):
+        count = self.state.casts.size_t(count)
+
+        ring_array = {}
+        def ring_reader(state, base, index, offset, size):
+            if size is None:
+                size = (state.sizes.uint64_t * 2) // 8
+            value = ring_array[index][size-1:offset]
+
+        def ring_writer(state, base, index, offset, value):
+            existing_value = ring_array[index]
+            if offset != 0:
+                value = value.concat(existing_value[offset-1:0])
+            if value.size() != (state.sizes.uint64_t * 2) // 8:
+                value = existing_value[:value.size()].concat(value)
+            ring_array[index] = value
+
+        return self.state.memory.create_special_object("descriptor_ring", count, (self.state.sizes.uint64_t * 2) // 8, ring_reader, ring_writer)
 
 
 # typedef void foreach_index_forever_function(size_t index, void* state);
@@ -29,4 +44,6 @@ class foreach_index_forever(angr.SimProcedure):
         func_sm.run()
         if len(func_sm.errored) > 0:
             func_sm.errored[0].reraise()
+        if len(func_sm.unsat) > 0:
+            raise Exception("UNSAT!")
         print("ok")

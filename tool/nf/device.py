@@ -18,13 +18,16 @@ def find_device(state, virt_addr):
             return dev
     raise Exception("Unknown device")
 
-def device_reader(state, base, offset):
+def device_reader(state, base, index, offset, size):
+    assert index.structurally_match(claripy.BVV(0, index.size()))
+    assert size is None or size == 4
     dev = find_device(state, base)
     reg, index = reg_util.find_reg_from_addr(state, offset // 8)
     reg_data = spec_reg.registers[reg]
     return reg_util.fetch_reg(dev.regs, reg, index, reg_data, dev.use_init[0])
 
-def device_writer(state, base, offset, value):
+def device_writer(state, base, index, offset, value):
+    assert index.structurally_match(claripy.BVV(0, index.size()))
     dev = find_device(state, base)
     reg, index = reg_util.find_reg_from_addr(state, offset // 8)
     reg_data = spec_reg.registers[reg]
@@ -78,16 +81,20 @@ def device_writer(state, base, offset, value):
 
 def spec_device_create_default(state, index):
     bar_size = 128 * 1024 # Intel 82599
-    device = SpecDevice(index, claripy.BVS("dev_phys_addr", state.sizes.ptr), claripy.BVS("dev_virt_addr", bitsizes.ptr), bar_size, {}, {}, [0], [False], [None], {})
-
-    # Phys addr handling
-    state.solver.add(device.phys_addr & 0b1111 == 0) # since the bottom 4 bits of the BAR are non-address stuff
-    phys_addr_low = (device.phys_addr & 0xFFFFFFFF) | 0b0100
-    phys_addr_high = device.phys_addr >> 32
-    reg_util.update_reg(device.pci_regs, 'BAR0', None, spec_reg.pci_regs['BAR0'], phys_addr_low)
-    reg_util.update_reg(device.pci_regs, 'BAR1', None, spec_reg.pci_regs['BAR1'], phys_addr_high)
 
     # Virt addr handling
-    state.memory.add_obj_handler(device.virt_addr, bar_size, device_reader, device_writer)
+    virt_addr = state.memory.create_special_object("dev_virt_addr", claripy.BVV(1, state.sizes.size_t), bar_size, device_reader, device_writer)
+
+    # Phys addr handling
+    phys_addr = claripy.BVS("dev_phys_addr", state.sizes.ptr)
+    state.solver.add(phys_addr & 0b1111 == 0) # since the bottom 4 bits of the BAR are non-address stuff
+
+    device = SpecDevice(index, phys_addr, virt_addr, bar_size, {}, {}, [0], [False], [None], {})
+
+    # Single 64-bit BAR as per data sheet
+    phys_addr_low = (phys_addr & 0xFFFFFFFF) | 0b0100
+    phys_addr_high = phys_addr >> 32
+    reg_util.update_reg(device.pci_regs, 'BAR0', None, spec_reg.pci_regs['BAR0'], phys_addr_low)
+    reg_util.update_reg(device.pci_regs, 'BAR1', None, spec_reg.pci_regs['BAR1'], phys_addr_high)
 
     return device

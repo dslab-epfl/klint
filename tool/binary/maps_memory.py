@@ -29,7 +29,7 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
             data = data.reversed
 
         if offset != 0:
-            data = data[data.size()-1:offset]
+            data = data[:offset]
 
         if data.size() != size * 8:
             data = data[(size*8)-1:0]
@@ -57,7 +57,7 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
             if offset != 0:
                 data = data.concat(current[offset-1:0])
             if data.size() != current.size():
-                data = current[current.size()-1:data.size()].concat(data)
+                data = current[:data.size()].concat(data)
 
         if endness is not None and endness != meta.endness:
             data = data.reversed

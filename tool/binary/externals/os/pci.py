@@ -2,25 +2,24 @@ import angr
 import claripy
 from collections import namedtuple
 
-from ... import utils
+from binary import utils
 from nf.device import *
 from nf import spec_reg
 from nf import reg_util
 
 PciDevices = namedtuple('PciDevices', ['ptr', 'count'])
 
-# TODO the uses of .reversed in this file are driving me nuts, really need to move to the latest memory model...
-
 def get_device(state, bus, device, function):
     meta = state.metadata.get_one(PciDevices)
     index = claripy.BVS("pci_index", state.sizes.size_t)
     state.solver.add(index.ULT(meta.count))
-    value = state.memory.load(meta.ptr + index * 8, 8).reversed # 8 == sizeof(os_pci_address)
-    value_bus = value[7:0] # this is kind of .reversed since it should be 63:56! same for the others
+    value = state.memory.load(meta.ptr + index * 8, 8, endness=state.arch.memory_endness) # 8 == sizeof(os_pci_address)
+    value_bus = value[7:0]
     value_device = value[15:8]
     value_function = value[23:16]
     state.solver.add(bus == value_bus, device.zero_extend(3) == value_device, function.zero_extend(5) == value_function)
-    index = state.solver.eval_one(index, cast_to=int) # technically not needed?
+    index = state.solver.eval_one(index, cast_to=int)
+    index = claripy.BVV(index, state.sizes.size_t)
     return state.metadata.get(SpecDevice, index, default_init=lambda: spec_device_create_default(state, index))
 
 def pci_read(state, address):
@@ -57,12 +56,12 @@ class os_pci_enumerate(angr.SimProcedure):
         if len(meta) == 0:
             self.state.solver.add(count.ULT(256 * 32 * 8)) # 256 buses, 32 devices, 8 functions
             meta = PciDevices(
-                self.state.memory.allocate(count, 8, name="pci_devices", constraint=lambda k, v: (v.reversed & 0x00_E0_F8_FFFFFFFFFF) == 0), # 8 == sizeof(os_pci_address); enforce constraints on BDF and padding
+                self.state.memory.allocate(count, 8, name="pci_devices", constraint=lambda k, v: (v & 0xFFFF_FFFF_FFF8_E000) == 0), # 8 == sizeof(os_pci_address); enforce constraints on BDF and padding
                 count
             )
             self.state.metadata.append(None, meta)
             # ouch! TODO we need to do better... see above if count were to be symbolic
-            self.state.solver.add(self.state.memory.load(meta.ptr + 0 * 8, 8) != self.state.memory.load(meta.ptr + 1 * 8, 8))
+            self.state.solver.add(self.state.memory.load(meta.ptr + 0 * 8, 8, endness=self.state.arch.memory_endness) != self.state.memory.load(meta.ptr + 1 * 8, 8, endness=self.state.arch.memory_endness))
         else:
             meta = next(iter(meta.values()))
 

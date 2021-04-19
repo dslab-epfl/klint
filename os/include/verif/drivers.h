@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 
-uint64_t* descriptor_ring_alloc(size_t size);
+uint64_t* descriptor_ring_alloc(size_t count);
 
 
 typedef void foreach_index_forever_function(size_t index, void* state);
