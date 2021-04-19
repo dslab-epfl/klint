@@ -137,6 +137,7 @@ nf_init_externals.update(structs_alloc_externals)
 
 nf_handle_externals = structs_functions_externals
 
+nf_inited_states = [] # "global" for use in externals/verif/verif.py
 def execute_nf(binary_path):
     print("NF symbex starting at", datetime.datetime.now())
     spec_reg.validate_registers(spec_reg.registers)
@@ -144,12 +145,13 @@ def execute_nf(binary_path):
     spec_act.validate_actions()
     blank_state = binary_executor.create_blank_state(binary_path)
     init_state = binary_executor.create_calling_state(blank_state, "_start", [], nf_init_externals)
-    global inited_states
-    inited_states = []
-    binary_executor.run_state(init_state, allow_trap=True) # this will fill inited_states; we allow traps only here since that's how init can fail
-    assert len(inited_states) > 0
+    global nf_inited_states
+    assert nf_inited_states is not None
+    nf_inited_states = []
+    binary_executor.run_state(init_state, allow_trap=True) # this will fill nf_inited_states; we allow traps only here since that's how init can fail
+    assert len(nf_inited_states) > 0
     result_states = []
-    for state in inited_states:
+    for state in nf_inited_states:
         result_states += find_fixedpoint_states(state)
     print("NF symbex done at", datetime.datetime.now())
     return (result_states, claripy.BVV(2, 16)) # TODO ouch hardcoding, same remark as in execute_libnf

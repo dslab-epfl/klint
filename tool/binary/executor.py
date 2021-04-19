@@ -225,10 +225,10 @@ def create_calling_state(state, function_thing, function_args, externals):
             state.project.hook_symbol(name, PathPlugin.wrap(proc()))
     # Create the state
     if isinstance(function_thing, str):
-        function = state.project.loader.find_symbol(function_thing)
+        function_addr = state.project.loader.find_symbol(function_thing).rebased_addr
     else:
-        function = function_thing
-    return state.project.factory.call_state(function.rebased_addr, *function_args, base_state=state)
+        function_addr = function_thing
+    return state.project.factory.call_state(function_addr, *function_args, base_state=state)
 
 def run_state(state, allow_trap=False):
     global trapped_states # see our custom engine

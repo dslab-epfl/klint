@@ -36,6 +36,8 @@ class descriptor_ring_alloc(angr.SimProcedure):
 # typedef void foreach_index_forever_function(size_t index, void* state);
 # _Noreturn void foreach_index_forever(size_t length, foreach_index_forever_function* func, void* state);
 class foreach_index_forever(angr.SimProcedure):
+    NO_RET = True # magic angr variable
+
     def run(self, length, func, st):
         length = self.state.casts.size_t(length)
         func = self.state.casts.ptr(func)
@@ -43,11 +45,12 @@ class foreach_index_forever(angr.SimProcedure):
 
         if func.op != 'BVV':
             raise Exception("Function pointer cannot be symbolic")
-        state.solver.add(length.UGT(0))
+        self.state.solver.add(length.UGT(0))
 
         index = claripy.BVS("foreach_index", self.state.sizes.size_t)
         self.state.solver.add(index.ULT(length))
 
-        global inited_states
         func_state = binary_executor.create_calling_state(self.state, func, [index, st], nf_executor.nf_handle_externals)
-        inited_states.append(func_state)
+        nf_executor.nf_inited_states.append(func_state)
+
+        self.exit(0)

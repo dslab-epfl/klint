@@ -78,8 +78,9 @@ def device_writer(state, base, index, offset, value):
 
         packet_length = packet_desc_meta[15:0]
 
-        metadata = state.metadata.get_one(packet.NetworkMetadata)
-        metadata.transmitted.append((packet_data, packet_length, dev.index, None))
+        if utils.can_be_true(state.solver, packet_length != 0):
+            metadata = state.metadata.get_one(packet.NetworkMetadata)
+            metadata.transmitted.append((packet_data, packet_length, dev.index, None))
 
 
 def spec_device_create_default(state, index):
