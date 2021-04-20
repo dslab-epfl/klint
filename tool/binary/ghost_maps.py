@@ -10,7 +10,8 @@ from enum import Enum
 
 import datetime
 
-from . import utils
+from binary import utils
+from binary import statistics
 
 # NOTE: All optimizations should be periodically re-evaluated, since adding new features may make them pointless or even harmful
 #       (e.g., making solver calls that are unnecessary due to some other change)
@@ -368,16 +369,13 @@ class Map:
             _layer_item=item
         )
 
-    def relax(self, state, new_invariant_conjunctions):
-        result = Map(
+    def relax(self):
+        return Map(
             self.meta,
             claripy.BVS(self.meta.name + "_length", self._length.size()),
             [], # no invariants yet
             [] # no known items
         )
-        for inv in new_invariant_conjunctions:
-            result.add_invariant_conjunction(state, inv)
-        return result
 
     def is_empty(self):
         l = self.length()
@@ -596,7 +594,7 @@ def maps_merge_across(_states, objs, _ancestor_maps, _ancestor_variables, _cache
                 return lambda k, v: sel1(k, v)
 
             if utils.definitely_true(state.solver, x1 == x2.reversed):
-                # Endianness reversion is a possible function
+                # Endianness reversion is a possible function (TODO should not be needed any more)
                 return lambda k, v: sel1(k, v).reversed
 
             fake = claripy.BVS("FAKE", x1.size(), explicit_name=True)
@@ -665,7 +663,7 @@ def maps_merge_across(_states, objs, _ancestor_maps, _ancestor_variables, _cache
                 # only for length
                 if all(utils.definitely_true(st.solver, st.maps.length(o1) == ancestor_maps.length(o1)) for st in _orig_states):
                     #print("Inferred: Length of", o1, "has not changed")
-                    results.put(("length ==", [o1], lambda st, o1=o1: st.solver.add(st.maps.length(o1) == ancestor_maps.length(o1))))
+                    results.put(("len-eq", [o1], lambda st, o1=o1: st.solver.add(st.maps.length(o1) == ancestor_maps.length(o1))))
                 continue
 
             # Optimization: Ignore the states in which neither map changed
@@ -693,7 +691,7 @@ def maps_merge_across(_states, objs, _ancestor_maps, _ancestor_variables, _cache
             #   then assume this holds in the merged state
             if all(utils.definitely_true(st.solver, st.maps.length(o1) <= st.maps.length(o2)) for st in orig_states):
                 #print("Inferred: Length of", o1, "is always <= that of", o2)
-                results.put(("length <=", [o1, o2], lambda st, o1=o1, o2=o2: st.solver.add(st.maps.length(o1) <= st.maps.length(o2))))
+                results.put(("len-le", [o1, o2], lambda st, o1=o1, o2=o2: st.solver.add(st.maps.length(o1) <= st.maps.length(o2))))
 
             # Map relationships.
             # For each pair of maps (M1, M2),
@@ -759,7 +757,7 @@ def maps_merge_across(_states, objs, _ancestor_maps, _ancestor_variables, _cache
                         to_cache.put([o1, o2, "v", fv])
                         log_text +=   f"Inferred: when {o1} contains (K,V), if {fp(log_k, log_v)} then {o2} contains {fk(log_k, log_v)}"
                         log_text += f"\n          in addition, the value is {fv(log_k, log_v)}"
-                        results.put(("cross-value", [o1, o2],
+                        results.put(("x-value", [o1, o2],
                                      lambda state, o1=o1, o2=o2, fp=fp, fk=fk, fv=fv: state.solver.add(state.maps.forall(o1, lambda k, v: Implies(fp(k, v), MapHas(o2, fk(k, v), value=fv(k, v)))))))
                 else:
                     to_cache.put([o1, o2, "v", None]) # do not cache fv since it didn't work
@@ -767,7 +765,7 @@ def maps_merge_across(_states, objs, _ancestor_maps, _ancestor_variables, _cache
                     # No point in trying a cross-key if o2 is an array, we already know what its keys are
                     if not o2_is_array and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk: Implies(fp(k, v), MapHas(o2, fk(k, v))), _exclude_get=True)) for st in states):
                         log_text += f"Inferred: when {o1} contains (K,V), if {fp(log_k, log_v)} then {o2} contains {fk(log_k, log_v)}"
-                        results.put(("cross-key", [o1, o2],
+                        results.put(("x-key", [o1, o2],
                                      lambda state, o1=o1, o2=o2, fp=fp, fk=fk: state.solver.add(state.maps.forall(o1, lambda k, v: Implies(fp(k, v), MapHas(o2, fk(k, v)))))))
                         to_cache.put([o1, o2, "p", [fp]]) # only put the working one, don't have us try a pointless one next time
                         to_cache.put([o1, o2, "k", fk])
@@ -860,8 +858,11 @@ def maps_merge_one(states_to_merge, obj, ancestor_maps, ancestor_variables, new_
                     print("Item", item, "in map", obj, "does not comply with invariant conjunction", conj)
         invariant_conjs.append(conjunction)
 
+    new_map = ancestor_maps[obj].relax()
     for new_state in new_states:
-        new_state.maps[obj] = ancestor_maps[obj].relax(new_state, invariant_conjs)
+        new_state.maps[obj] = new_map.__copy__()
+        for inv in invariant_conjs:
+            new_state.maps[obj].add_invariant_conjunction(new_state, inv)
 
     return changed
 
@@ -874,9 +875,24 @@ def infer_invariants(ancestor_states, states, previous_results=None):
     # note that we keep track of objs as their string representations to avoid comparing Claripy ASTs (which don't like ==)
     previous_results = copy.deepcopy(previous_results or [])
 
+    # TODO it's ugly we're accessing _maps here...
     ancestor_maps = ancestor_states[0].maps
     ancestor_objs = [o for (o, _) in ancestor_maps.get_all()]
-    if any(not utils.structural_eq(st.maps, ancestor_maps) for st in ancestor_states[1:]):
+    if any(not utils.structural_eq(st.maps._maps, ancestor_maps._maps) for st in ancestor_states[1:]):
+        print([s.maps._maps for s in ancestor_states])
+        print("")
+        print("---")
+        print("")
+        aaa = list(ancestor_states[0].maps._maps.items())
+        bbb = list(ancestor_states[1].maps._maps.items())
+        xyz = [i for i in range(len(aaa)) if not utils.structural_eq(aaa[i], bbb[i])]
+        for i in xyz:
+            print("??? diff", i)
+            print(aaa[i], bbb[i])
+            print(aaa[i][1]._known_items, bbb[i][1]._known_items, utils.structural_eq(aaa[i][1]._known_items, bbb[i][1]._known_items))
+            print(aaa[i][1]._invariants, bbb[i][1]._invariants, utils.structural_eq(aaa[i][1]._invariants, bbb[i][1]._invariants))
+            print(aaa[i][1]._asdict(), bbb[i][1]._asdict())
+            print("")
         raise Exception("Inference requires all ancestor states to have the same maps (for now...)")
 
     ancestor_variables = set()
@@ -918,6 +934,9 @@ def infer_invariants(ancestor_states, states, previous_results=None):
         for (_, _, func) in across_results:
             for new_state in new_states:
                 func(new_state)
+
+    for id in set([id for (id, _, _) in across_results]):
+        statistics.set_value(id, len([i for (i, _, _) in across_results if i == id]))
 
     new_results = [(id, list(map(str, objs))) for (id, objs, _) in across_results]
     return (new_states, new_results, reached_fixpoint)

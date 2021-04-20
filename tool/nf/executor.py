@@ -4,6 +4,7 @@ import datetime
 import subprocess
 import os
 
+from binary import statistics
 import binary.clock as binary_clock
 import binary.executor as binary_executor
 import binary.utils as utils
@@ -55,11 +56,15 @@ def find_fixedpoint_states(states):
     inference_results = None
     while True:
         print("Running an iteration of the main loop at", datetime.datetime.now())
+        statistics.work_start("symbex")
         result_states = []
         for state in states:
             result_states += binary_executor.run_state(state)
+        statistics.work_end()
         print("Inferring invariants on", len(result_states), "states at", datetime.datetime.now())
+        statistics.work_start("infer")
         (states, inference_results, reached_fixpoint) = ghost_maps.infer_invariants(states, result_states, inference_results)
+        statistics.work_end()
         if reached_fixpoint:
             return result_states
 
@@ -114,8 +119,10 @@ def get_libnf_inited_states(binary_path, devices_count):
 
 def execute_libnf(binary_path):
     print("libNF symbex starting at", datetime.datetime.now())
+    statistics.work_start("symbex")
     devices_count = claripy.BVS('devices_count', 16) # TODO avoid the hardcoded 16 here
     inited_states = get_libnf_inited_states(binary_path, devices_count)
+    statistics.work_end()
     result_states = find_fixedpoint_states(inited_states)
     print("libNF symbex done at", datetime.datetime.now())
     return (result_states, devices_count) # TODO devices_count should be in metadata somewhere, not explicitly returned

@@ -269,9 +269,9 @@ def verify_write(state, device, fields, reg, index, reg_dict, _cache={}):
             action_matches = False
             if reg_dict[reg]['fields'][f]['end'] != reg_dict[reg]['fields'][f]['start']:
                 action_matches = info['action'].isWriteFieldCorrect(state, f"{reg}.{f}", new)
-            elif utils.definitely_true(state.solver, new == claripy.BVV(-1, new.size())) and info['action'].isFieldSetOrCleared(f"{reg}.{f}", ast_util.AST.Set):
+            elif info['action'].isFieldSetOrCleared(f"{reg}.{f}", ast_util.AST.Set) and utils.definitely_true(state.solver, new == claripy.BVV(-1, new.size())):
                 action_matches = True
-            elif utils.definitely_true(state.solver, new == 0) and info['action'].isFieldSetOrCleared(f"{reg}.{f}", ast_util.AST.Clear):
+            elif info['action'].isFieldSetOrCleared(f"{reg}.{f}", ast_util.AST.Clear) and utils.definitely_true(state.solver, new == 0):
                 action_matches = True
 
             if not action_matches:

@@ -18,27 +18,35 @@ def find_device(state, virt_addr):
             return dev
     raise Exception("Unknown device")
 
+def get_device(state, index):
+    devs = [d for d in state.metadata.get_all(SpecDevice).values() if d.index.structurally_match(index)]
+    assert len(devs) == 1
+    return devs[0]
 
-def receive_packet_on_device(state, index):
-    devs = [d for d in state.metadata.get_all(SpecDevice) if d.index.structurally_match(index)]
-    assert len(devs) == 0
-    dev = devs[0]
-
-    # TODO should check RDT here (>0)
+def get_rdba_0(dev):
     reg_index = 0
     rdbal = dev.regs["RDBAL"][reg_index].zero_extend(32)
     rdbah = dev.regs["RDBAH"][reg_index].zero_extend(32)
-    rdba = (rdbah << 32) | rdbal
+    return (rdbah << 32) | rdbal
+
+def receive_packet_on_device(state, index):
+    dev = get_device(state, index)
+    # TODO should check RDT here (>0)
+    rdba = get_rdba_0(dev)
     # TODO virt2phys handling
-    buffer_length = dev.regs["SRRCTL"][reg_index][4:0].zero_extend(state.sizes.size_t - 5) * 1024
+    # TODO use buffer_length = dev.regs["SRRCTL"][reg_index][4:0].zero_extend(state.sizes.size_t - 5) * 1024
     packet_addr = state.memory.load(rdba, 8, endness=state.arch.memory_endness)
+    state.memory.store(packet_addr, dev.packet_data, endness=state.arch.memory_endness)
+
     packet_desc_meta = dev.packet_length.zero_extend(64 - dev.packet_length.size()) | (0b11 << 32) # DD and EOP, plus length
+    state.memory.store(rdba + 8, packet_desc_meta, endness=state.arch.memory_endness)
     # TODO should update RDH here (+1)
 
+def set_network_metadata(state, index):
+    dev = get_device(state, index)
+    rdba = get_rdba_0(dev)
+    packet_addr = state.memory.load(rdba, 8, endness=state.arch.memory_endness)
     state.metadata.append(packet_addr, packet.NetworkMetadata(dev.packet_data, packet_addr, dev.index, dev.packet_length, []))
-
-    state.memory.store(packet_addr, dev.packet_data, endness=state.arch.memory_endness)
-    state.memory.store(rdba + 8, packet_desc_meta, endness=state.arch.memory_endness)
 
 
 def device_reader(state, base, index, offset, size):
@@ -82,8 +90,8 @@ def device_writer(state, base, index, offset, value):
             raise Exception("May not have EOP or DD flags")
 
         packet_length = packet_desc_meta[15:0]
-
         if utils.can_be_true(state.solver, packet_length != 0):
+            print("TDT len is not zero!")
             metadata = state.metadata.get_one(packet.NetworkMetadata)
             metadata.transmitted.append((packet_data, packet_length, dev.index, None))
 
@@ -100,7 +108,7 @@ def spec_device_create_default(state, index):
 
     packet_length = claripy.BVS("packet_len", state.sizes.size_t) # TODO how to enforce packet_length here?
     state.solver.add(packet_length.UGE(packet.PACKET_MIN), packet_length.ULE(packet.PACKET_MTU))
-    packet_data = state.memory.allocate(1, packet.PACKET_MTU, name="packet_data")
+    packet_data = claripy.BVS("packet_data", packet.PACKET_MTU * 8)
 
     device = SpecDevice(index, phys_addr, virt_addr, bar_size, {}, {}, [0], [False], [None], {}, packet_length, packet_data)
 

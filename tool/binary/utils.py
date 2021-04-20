@@ -35,6 +35,7 @@ def get_if_constant(solver, expr, **kwargs):
         return sols[0]
     return None
 
+# TODO optimize this somehow to not require len(items)*2 solver calls?
 def get_exact_match(solver, item, candidates, assumption=claripy.true, selector=lambda i: i):
     # at one point this exact pattern, even after calling solver.simplify, caused the solver to hang...
     # but simplifying this way (which is correct; (0#4 .. x) * 0x10 / 0x10 == (0#4 .. x)) made it go through
@@ -60,7 +61,7 @@ def get_exact_match(solver, item, candidates, assumption=claripy.true, selector=
 
     return None
 
-
+# TODO move to a subclass of SimProcedure?
 def fork_guarded(proc, state, guard, case_true, case_false):
     guard_value = get_if_constant(state.solver, guard)
     if guard_value is not None:
@@ -77,7 +78,6 @@ def fork_guarded(proc, state, guard, case_true, case_false):
 
     state.solver.add(guard)
     return case_true(state)
-
 def fork_guarded_has(proc, state, ghost_map, key, case_has, case_not):
     (value, present) = state.maps.get(ghost_map, key)
     def case_true(state):

@@ -78,10 +78,13 @@ class foreach_index_forever(angr.SimProcedure):
         # But:
         concrete_length = utils.get_if_constant(self.state.solver, length)
         assert length is not None
+        # HACK: receive on all devices in the current state so the maps are synced between the inited states
+        for packet_idx in range(concrete_length):
+            nf_device.receive_packet_on_device(self.state, claripy.BVV(packet_idx, self.state.sizes.size_t))
         for idx in range(concrete_length):
             index = claripy.BVV(idx, self.state.sizes.size_t)
             func_state = binary_executor.create_calling_state(self.state, func, [index, st], nf_executor.nf_handle_externals)
-            nf_device.receive_packet_on_device(func_state, index)
+            nf_device.set_network_metadata(func_state, index)
             nf_executor.nf_inited_states.append(func_state)
 
         self.exit(0)

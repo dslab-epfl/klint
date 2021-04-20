@@ -7,6 +7,7 @@ import itertools
 import os
 from pathlib import Path
 
+from binary import statistics
 from binary import clock
 from binary.sizes import SizesPlugin
 from binary.executor import CustomSolver
@@ -63,9 +64,11 @@ def verify(all_data, spec):
     }
     
     print("Verifying NF... at", datetime.datetime.now())
+    statistics.work_start("verif")
     state_data = [(
         _VerifState(data.constraints, data.maps, data.path), # path is useful for debugging
         [data] # args
     ) for data in all_data]
     (choices, results) = symbex.symbex(full_spec_text, "_spec_wrapper", globals, state_data)
+    statistics.work_end()
     print("NF verified! at", datetime.datetime.now(), choices, results)
