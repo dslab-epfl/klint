@@ -18,6 +18,8 @@ from .plugin_dummy import DummyPlugin
 from .sizes import SizesPlugin
 
 
+# TODO this kind of stuff should be in an "angr++" module, separate from the "klint" stuff
+
 DEBUG = False
 
 claripy.set_debug(DEBUG)

@@ -1,8 +1,3 @@
-Backend = {
-    'ip': 32,
-    'device': Device,
-}
-
 Flow = {
     'src_ip': 32,
     'dst_ip': 32,
@@ -17,9 +12,10 @@ def spec(packet, config, transmitted_packet):
         return
 
     flows = ExpiringSet(Flow, config["flow expiration time"], config["flow capacity"])
-    backends = ExpiringSet(Backend, config["backend expiration time"], config["backend capacity"])
+    backends = Map(Device, Time)
+    flows_to_backends = Map("size_t", Device)
 
-    if packet.device == config["wan device"]:
+    if packet.device == config.devices_count - 1:
         flow = {
             'src_ip': packet.ipv4.src,
             'dst_ip': packet.ipv4.dst,
@@ -28,22 +24,13 @@ def spec(packet, config, transmitted_packet):
             'protocol': packet.ipv4.protocol
         }
 
-        if flow not in flows:
-            assert flows.old.full
-            assert transmitted_packet is None
-            return
-
-        backend_index = flows.get_index(flow)
-        backend = backends.get_by_index(backend_index)
-        assert transmitted_packet.ipv4.dst == backend.ip
-        assert transmitted_packet.device == backend.device
-        #assert transmitted_packet.data == packet.data TODO handle checksum, same as NAT
+        if transmitted_packet is None:
+            assert backends.forall(lambda k, v: (k < 0) | (k >= config.devices_count - 1))
+        else:
+            if flow not in flows:
+                assert flows.old.full
+            # TODO assert device; but we need the CHT info for that... uninterpreted functions maybe?
+            assert transmitted_packet.data == packet.data
     else:
-        # process heartbeat
-        backend = {
-            'ip': packet.ipv4.src,
-            'device': packet.device
-        }
-        if backend not in backends:
-           assert backends.old.full
-        assert transmitted_packet is None
+        assert packet.device in backends
+        assert backends[packet.device] == time()

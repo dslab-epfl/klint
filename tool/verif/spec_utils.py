@@ -10,7 +10,7 @@ class ExpiringSet:
         self.capacity = capacity
         self._elems_to_indices = _elems_to_indices or Map(elem_type, "size_t")
         self._indices_to_elems = _indices_to_elems or Map("size_t", elem_type)
-        self._indices_to_times = _indices_to_times or Map("size_t", "uint64_t")
+        self._indices_to_times = _indices_to_times or Map("size_t", Time)
 
     @property
     def old(self):

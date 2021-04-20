@@ -78,17 +78,18 @@ class Map:
                 if ("fracs_" not in m.meta.name) & ("packet_" not in m.meta.name) & \
                    (m.meta.key_size >= key_size) & (m.meta.value_size >= value_size)
             ]
-            # TODO: Prioritize maps with symbolic lengths
             if key_size == 104 and value_type == "size_t":
                 possible_candidates = [(o,m) for (o,m) in possible_candidates if "map_values" in m.meta.name]
-            elif key_type == "size_t" and value_type == "uint64_t":
-                possible_candidates = [(o,m) for (o,m) in possible_candidates if "pool_items" in m.meta.name]
-            possible_candidates = [(o,m) for (o,m) in possible_candidates if "allocated_addr_14" not in str(o)]
-            #print("cands:", possible_candidates, "for", key_type,value_type)
+            elif key_type == "size_t" and value_type == Time:
+                possible_candidates = [(o,m) for (o,m) in possible_candidates if "pool_items" in m.meta.name and "_9" not in m.meta.name]
+            elif key_type == "uint16_t":
+                possible_candidates = [(o, m) for (o,m) in possible_candidates if "pool_items_9" in m.meta.name]
+            possible_candidates = [(o,m) for (o,m) in possible_candidates if m.version() < 5]
             if len(possible_candidates) == 0:
                 raise Exception("No such map: " + str(key_type) + " -> " + str(value_type))
             # Prioritize exact matches
             possible_candidates.sort(key=lambda c: (c[1].meta.key_size - key_size) + (c[1].meta.value_size - value_size))
+            print("cands:", possible_candidates, "for", key_type,value_type)
             candidates = [o for (o, m) in possible_candidates]
             obj = __choose__(candidates)
             #print("Trying", obj, "for", key_type,"->",value_type)

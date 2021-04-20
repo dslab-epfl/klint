@@ -58,7 +58,8 @@ def verify(all_data, spec):
 
     globals = {
         # TODO move this somewhere... maybe just use "device_t" since we have time_t and such?
-        "Device": "uint16_t"
+        "Device": "uint16_t",
+        "Time": "uint64_t"
     }
     
     print("Verifying NF... at", datetime.datetime.now())
