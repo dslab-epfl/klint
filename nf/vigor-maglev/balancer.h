@@ -66,11 +66,11 @@ static inline bool balancer_get_backend(struct balancer* balancer, struct flow* 
 			index_pool_refresh(balancer->flow_times, time, flow_index);
 			*out_backend = &(balancer->backends[backend_index]);
 			return true;
-		} else {
-			map_remove(balancer->flow_indices, &(balancer->flows[flow_index]));
-			index_pool_return(balancer->flow_times, flow_index);
-			return balancer_get_backend(balancer, flow, time, out_backend);
 		}
+
+		map_remove(balancer->flow_indices, &(balancer->flows[flow_index]));
+		index_pool_return(balancer->flow_times, flow_index);
+		return balancer_get_backend(balancer, flow, time, out_backend);
 	}
 
 	if (!cht_find_preferred_available_backend(balancer->cht, (void*) flow, sizeof(struct flow), balancer->active_backends, &backend_index, time)) {
@@ -91,21 +91,21 @@ static inline bool balancer_get_backend(struct balancer* balancer, struct flow* 
 	return true;
 }
 
-static inline void balancer_process_heartbeat(struct balancer* balancer, struct flow* flow, device_t device, time_t time)
+static inline void balancer_process_heartbeat(struct balancer* balancer, uint32_t src_ip, device_t device, time_t time)
 {
 	size_t index;
 	bool was_used;
-	if (map_get(balancer->ips_to_backend_indices, &(flow->src_ip), &index)) {
+	if (map_get(balancer->ips_to_backend_indices, &src_ip, &index)) {
 		index_pool_refresh(balancer->active_backends, time, index);
 	} else if (index_pool_borrow(balancer->active_backends, time, &index, &was_used)) {
 		if (was_used) {
 			map_remove(balancer->ips_to_backend_indices, &(balancer->backend_ips[index]));
 		}
 
-		balancer->backend_ips[index] = flow->src_ip;
+		balancer->backend_ips[index] = src_ip;
 		map_set(balancer->ips_to_backend_indices, &(balancer->backend_ips[index]), index);
 
-		balancer->backends[index].ip = flow->src_ip;
+		balancer->backends[index].ip = src_ip;
 		balancer->backends[index].device = device;
 	}
 	// Otherwise ignore this backend, we are full.

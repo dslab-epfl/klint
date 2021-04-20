@@ -46,6 +46,13 @@ void nf_handle(struct net_packet *packet)
 		return;
 	}
 
+	time_t time = os_clock_time_ns();
+
+	if (packet->device != wan_device) {
+		balancer_process_heartbeat(balancer, ipv4_header->src_addr, packet->device, time);
+		return;
+	}
+
 	struct flow flow = {
 		.src_ip = ipv4_header->src_addr,
 		.dst_ip = ipv4_header->dst_addr,
@@ -54,15 +61,8 @@ void nf_handle(struct net_packet *packet)
 		.protocol = ipv4_header->next_proto_id
 	};
 
-	time_t now = os_clock_time_ns();
-
-	if (packet->device != wan_device) {
-		balancer_process_heartbeat(balancer, &flow, packet->device, now);
-		return;
-	}
-
 	struct backend* backend;
-	if (!balancer_get_backend(balancer, &flow, now, &backend)) {
+	if (!balancer_get_backend(balancer, &flow, time, &backend)) {
 		return;
 	}
 
