@@ -55,30 +55,30 @@ static inline struct balancer* balancer_alloc(size_t flow_capacity, time_t flow_
 	return balancer;
 }
 
-static inline bool balancer_get_backend(struct balancer* balancer, struct flow* flow, time_t now, struct backend** out_backend)
+static inline bool balancer_get_backend(struct balancer* balancer, struct flow* flow, time_t time, struct backend** out_backend)
 {
 	size_t flow_index;
 	size_t backend_index;
 
 	if (map_get(balancer->flow_indices, flow, &flow_index)) {
 		backend_index = balancer->flow_indices_to_backend_indices[flow_index];
-		if (index_pool_used(balancer->active_backends, now, backend_index)) {
-			index_pool_refresh(balancer->flow_times, now, flow_index);
+		if (index_pool_used(balancer->active_backends, time, backend_index)) {
+			index_pool_refresh(balancer->flow_times, time, flow_index);
 			*out_backend = &(balancer->backends[backend_index]);
 			return true;
 		} else {
 			map_remove(balancer->flow_indices, &(balancer->flows[flow_index]));
 			index_pool_return(balancer->flow_times, flow_index);
-			return balancer_get_backend(balancer, flow, now, out_backend);
+			return balancer_get_backend(balancer, flow, time, out_backend);
 		}
 	}
 
-	if (!cht_find_preferred_available_backend(balancer->cht, (void*) flow, sizeof(struct flow), balancer->active_backends, &backend_index, now)) {
+	if (!cht_find_preferred_available_backend(balancer->cht, (void*) flow, sizeof(struct flow), balancer->active_backends, &backend_index, time)) {
 		return false;
 	}
 
 	bool was_used;
-	if (index_pool_borrow(balancer->flow_times, now, &flow_index, &was_used)) {
+	if (index_pool_borrow(balancer->flow_times, time, &flow_index, &was_used)) {
 		if (was_used) {
 			map_remove(balancer->flow_indices, &(balancer->flows[flow_index]));
 		}
@@ -91,22 +91,22 @@ static inline bool balancer_get_backend(struct balancer* balancer, struct flow* 
 	return true;
 }
 
-static inline void balancer_process_heartbeat(struct balancer* balancer, struct flow* flow, device_t device, time_t now)
+static inline void balancer_process_heartbeat(struct balancer* balancer, struct flow* flow, device_t device, time_t time)
 {
 	size_t index;
-	if (map_get(balancer->ips_to_backend_indices, &flow->src_ip, &index)) {
-		index_pool_refresh(balancer->active_backends, now, index);
-	} else {
-		bool was_used;
-		if (index_pool_borrow(balancer->active_backends, now, &index, &was_used)) {
-			if (was_used) {
-				map_remove(balancer->ips_to_backend_indices, &(balancer->backend_ips[index]));
-			}
-			balancer->backends[index].ip = flow->src_ip;
-			balancer->backends[index].device = device;
-			balancer->backend_ips[index] = flow->src_ip;
-			map_set(balancer->ips_to_backend_indices, &(balancer->backend_ips[index]), index);
+	bool was_used;
+	if (map_get(balancer->ips_to_backend_indices, &(flow->src_ip), &index)) {
+		index_pool_refresh(balancer->active_backends, time, index);
+	} else if (index_pool_borrow(balancer->active_backends, time, &index, &was_used)) {
+		if (was_used) {
+			map_remove(balancer->ips_to_backend_indices, &(balancer->backend_ips[index]));
 		}
-		// Otherwise ignore this backend, we are full.
+
+		balancer->backend_ips[index] = flow->src_ip;
+		map_set(balancer->ips_to_backend_indices, &(balancer->backend_ips[index]), index);
+
+		balancer->backends[index].ip = flow->src_ip;
+		balancer->backends[index].device = device;
 	}
+	// Otherwise ignore this backend, we are full.
 }
