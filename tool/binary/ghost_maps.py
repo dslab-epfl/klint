@@ -498,19 +498,16 @@ def LOG(state, text):
 def LOGEND(state):
     LOG_levels[id(state)] = LOG_levels[id(state)] - 1
 
-# state args have a leading _ to ensure that functions run concurrently don't accidentally touch them
-def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
+# state args have a leading _ to ensure that functions run concurrently don't accidentally touch them (TODO just move the functions out!)
+def maps_merge_across(_states, objs, _ancestor_maps, _ancestor_variables, _cache={}):
     # TODO: Most of this logic was written back when map invariants were represented as Python lambdas,
     #       making comparisons hard; now that they are ASTs instead, we could compare them as part of heuristics,
     #       which would probably make some heuristics more robust and also more widely applicable...
     # TODO at least we should have a more systematic approach to optimizations that remove objs/states,
     #      and to what is and isn't parallelizable
 
-    _states = _states_to_merge + [_ancestor_state]
-
     get_key = lambda k, v: k
     get_value = lambda k, v: v
-    ancestor_variables = _ancestor_state.solver.variables(claripy.And(*_ancestor_state.solver.constraints))
 
     def init_cache(objs):
         for (o1, o2) in itertools.permutations(objs, 2):
@@ -619,7 +616,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
             # if x1 is "(x..0) + n" where n is known from the ancestor and x2 contains "x"
             if x1.op == "__add__" and \
               len(x1.args) == 2 and \
-              state.solver.variables(x1.args[1]).issubset(ancestor_variables) and \
+              state.solver.variables(x1.args[1]).issubset(_ancestor_variables) and \
               x1.args[0].op == "Concat" and \
               len(x1.args[0].args) == 2 and \
               x1.args[0].args[1].structurally_match(claripy.BVV(0, x1.args[0].args[1].size())):
@@ -657,7 +654,7 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
     to_cache = queue.Queue() # set_cached(...) will be called with all elements in there
 
     # Invariant inference algorithm: if some property P holds in all states to merge and the ancestor state, optimistically assume it is part of the invariant
-    def thread_main(ancestor_state, _orig_states):
+    def thread_main(ancestor_maps, _orig_states):
         while True:
             try:
                 (o1, o2) = remaining_work.get(block=False)
@@ -666,9 +663,9 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
 
             if o2 is None: # TODO this is a bit awkward
                 # only for length
-                if all(utils.definitely_true(st.solver, st.maps.length(o1) == ancestor_state.maps.length(o1)) for st in _orig_states):
+                if all(utils.definitely_true(st.solver, st.maps.length(o1) == ancestor_maps.length(o1)) for st in _orig_states):
                     #print("Inferred: Length of", o1, "has not changed")
-                    results.put(("length ==", [o1], lambda st, o1=o1: st.solver.add(st.maps.length(o1) == ancestor_state.maps.length(o1))))
+                    results.put(("length ==", [o1], lambda st, o1=o1: st.solver.add(st.maps.length(o1) == ancestor_maps.length(o1))))
                 continue
 
             # Optimization: Ignore the states in which neither map changed
@@ -683,9 +680,9 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                 continue
 
             # Optimization: Ignore o1 as fractions, that's rather useless, and ignore o1/o2 as array and its fractions
-            if ancestor_state.memory.is_fractions(o1):
+            if orig_states[0].memory.is_fractions(o1):
                 continue
-            if ancestor_state.memory.get_fractions(o1) is o2:
+            if orig_states[0].memory.get_fractions(o1) is o2:
                 continue
 
             #print("Considering", o1, o2, "at", datetime.datetime.now())
@@ -750,8 +747,8 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
                 fv = find_f(states, o1, o2, get_key, get_value, fv_finders) \
                   or find_f(states, o1, o2, get_value, get_value, fv_finders)
 
-            log_k = claripy.BVS("K", ancestor_state.maps.key_size(o1), explicit_name=True)
-            log_v = claripy.BVS("V", ancestor_state.maps.value_size(o1), explicit_name=True)
+            log_k = claripy.BVS("K", states[0].maps.key_size(o1), explicit_name=True)
+            log_v = claripy.BVS("V", states[0].maps.value_size(o1), explicit_name=True)
             #print("For", o1, o2, "found p,k,v:", [fp(log_k, log_v) for fp in fps], fk(log_k, log_v), fv(log_k, log_v) if fv is not None else "<none>", "at", datetime.datetime.now())
             for fp in fps:
                 log_text = ""
@@ -791,12 +788,12 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
     # Multithreading disabled because:
     # - with threads, one needs to disable GC to avoid weird angr/Z3 issues (see angr issue #938), and it's not really faster
     # - with processes, we'd need to rearchitect this entire method to only pass pickle-able objects, i.e., never lambdas...
-    thread_main(_ancestor_state.copy(), [s.copy() for s in _states])
+    thread_main(copy.deepcopy(_ancestor_maps), [s.copy() for s in _states])
     """threads = []
     import gc
     gc.disable()
     for n in range(os.cpu_count()): # os.sched_getaffinity(0) would be better (get the CPUs we might be restricted to) but is not available on Win and OSX
-        t = threading.Thread(group=None, target=thread_main, name=None, args=[_ancestor_state.copy(), [s.copy() for s in _states]], kwargs=None, daemon=False)
+        t = threading.Thread(group=None, target=thread_main, name=None, args=[copy.deepcopy(_ancestor_maps), [s.copy() for s in _states]], kwargs=None, daemon=False)
         t.start()
         threads.append(t)
     for thread in threads:
@@ -814,15 +811,14 @@ def maps_merge_across(_states_to_merge, objs, _ancestor_state, _cache={}):
 
     return results_list
 
-def maps_merge_one(states_to_merge, obj, ancestor_state, new_state):
+def maps_merge_one(states_to_merge, obj, ancestor_maps, ancestor_variables, new_states):
     # Optimization: Drop states in which the map has not changed at all
-    states_to_merge = [st for st in states_to_merge if st.maps[obj].version() != ancestor_state.maps[obj].version()]
+    states_to_merge = [st for st in states_to_merge if st.maps[obj].version() != ancestor_maps[obj].version()]
     if len(states_to_merge) == 0:
         return False
 
     print("Merging map", obj)
     # helper function to find constraints that hold on an expression in a state
-    ancestor_variables = ancestor_state.solver.variables(claripy.And(*ancestor_state.solver.constraints))
     def find_constraints(state, expr, replacement):
         # If the expression is constant or constrained to be, return that
         const = utils.get_if_constant(state.solver, expr)
@@ -852,7 +848,7 @@ def maps_merge_one(states_to_merge, obj, ancestor_state, new_state):
     # except this is done on the latest map versions... i.e. we take invs designed for v0 and apply them to vNow; not sure how to best phrase this
     changed = False
     invariant_conjs = []
-    for conjunction in ancestor_state.maps[obj].invariant_conjunctions():
+    for conjunction in ancestor_maps[obj].invariant_conjunctions():
         for state in states_to_merge:
             for item in state.maps[obj].known_items(_exclude_get=True):
                 conj = conjunction.with_latest_map_versions(state)(state, item)
@@ -864,24 +860,33 @@ def maps_merge_one(states_to_merge, obj, ancestor_state, new_state):
                     print("Item", item, "in map", obj, "does not comply with invariant conjunction", conj)
         invariant_conjs.append(conjunction)
 
-    new_state.maps[obj] = ancestor_state.maps[obj].relax(new_state, invariant_conjs)
+    for new_state in new_states:
+        new_state.maps[obj] = ancestor_maps[obj].relax(new_state, invariant_conjs)
 
     return changed
 
 
-# Returns (new_state, new_results, reached_fixpoint), where
-# new_state is the new state to use instead of the ancestor,
+# Returns (new_states, new_results, reached_fixpoint), where
+# new_states is the new states to use instead of the ancestors,
 # new_results is the results to pass as previous_results next time,
 # reached_fixpoint is self-explanatory
-def infer_invariants(ancestor_state, states, previous_results=None):
+def infer_invariants(ancestor_states, states, previous_results=None):
     # note that we keep track of objs as their string representations to avoid comparing Claripy ASTs (which don't like ==)
     previous_results = copy.deepcopy(previous_results or [])
-    ancestor_objs = [o for (o, _) in ancestor_state.maps.get_all()]
+
+    ancestor_maps = ancestor_states[0].maps
+    ancestor_objs = [o for (o, _) in ancestor_maps.get_all()]
+    if any(not utils.structural_eq(st.maps, ancestor_maps) for st in ancestor_states[1:]):
+        raise Exception("Inference requires all ancestor states to have the same maps (for now...)")
+
+    ancestor_variables = set()
+    for st in ancestor_states:
+        ancestor_variables.intersection_update(st.solver.variables(claripy.And(*st.solver.constraints)))
 
     # Optimization: Ignore maps that have not changed at all
-    ancestor_objs = [o for o in ancestor_objs if any(st.maps[o].version() != ancestor_state.maps[o].version() for st in states)]
+    ancestor_objs = [o for o in ancestor_objs if any(st.maps[o].version() != ancestor_maps[o].version() for st in states)]
 
-    across_results = maps_merge_across(states, ancestor_objs, ancestor_state)
+    across_results = maps_merge_across(states, ancestor_objs, ancestor_maps, ancestor_variables)
     # To check if we have reached a superset of the previous results, remove all values we now have
     for (id, objs, _) in across_results:
         try:
@@ -889,12 +894,12 @@ def infer_invariants(ancestor_state, states, previous_results=None):
         except ValueError:
             pass # was not in previous_results, that's OK
 
-    new_state = ancestor_state.copy()
+    new_states = [s.copy() for s in ancestor_states]
 
     # Merge individual values, keeping track of whether any of them changed
     any_individual_changed = False
     for obj in ancestor_objs:
-        has_changed = maps_merge_one(states, obj, ancestor_state, new_state)
+        has_changed = maps_merge_one(states, obj, ancestor_maps, ancestor_variables, new_states)
         any_individual_changed = any_individual_changed or has_changed
 
     # Fixpoint if all merges resulted in the old result and the across_results are a superset
@@ -908,10 +913,11 @@ def infer_invariants(ancestor_state, states, previous_results=None):
 
     if reached_fixpoint:
         # No point in spending time setting up invariants on the new state if we won't use it
-        new_state = None
+        new_states = None
     else:
         for (_, _, func) in across_results:
-            func(new_state)
+            for new_state in new_states:
+                func(new_state)
 
     new_results = [(id, list(map(str, objs))) for (id, objs, _) in across_results]
-    return (new_state, new_results, reached_fixpoint)
+    return (new_states, new_results, reached_fixpoint)

@@ -15,8 +15,8 @@ import verif.executor as verif_executor
 #Tests().test_forall_cross_o2first_weird()
 #sys.exit(0)
 
-full_stack = True
-nf_to_verify = "nop"
+full_stack = False
+nf_to_verify = "vigor-firewall"
 use_cached_results = False
 
 

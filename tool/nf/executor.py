@@ -51,13 +51,15 @@ structs_functions_externals = {
 }
 
 
-def find_fixedpoint_states(state):
+def find_fixedpoint_states(states):
     inference_results = None
     while True:
         print("Running an iteration of the main loop at", datetime.datetime.now())
-        result_states = binary_executor.run_state(state)
+        result_states = []
+        for state in states:
+            result_states += binary_executor.run_state(state)
         print("Inferring invariants on", len(result_states), "states at", datetime.datetime.now())
-        (state, inference_results, reached_fixpoint) = ghost_maps.infer_invariants(state, result_states, inference_results)
+        (states, inference_results, reached_fixpoint) = ghost_maps.infer_invariants(states, result_states, inference_results)
         if reached_fixpoint:
             return result_states
 
@@ -114,9 +116,7 @@ def execute_libnf(binary_path):
     print("libNF symbex starting at", datetime.datetime.now())
     devices_count = claripy.BVS('devices_count', 16) # TODO avoid the hardcoded 16 here
     inited_states = get_libnf_inited_states(binary_path, devices_count)
-    result_states = []
-    for state in inited_states:
-        result_states += find_fixedpoint_states(state)
+    result_states = find_fixedpoint_states(inited_states)
     print("libNF symbex done at", datetime.datetime.now())
     return (result_states, devices_count) # TODO devices_count should be in metadata somewhere, not explicitly returned
 
@@ -151,8 +151,6 @@ def execute_nf(binary_path):
     nf_inited_states = []
     binary_executor.run_state(init_state, allow_trap=True) # this will fill nf_inited_states; we allow traps only here since that's how init can fail
     assert len(nf_inited_states) > 0
-    result_states = []
-    for state in nf_inited_states:
-        result_states += find_fixedpoint_states(state)
+    result_states = find_fixedpoint_states(nf_inited_states)
     print("NF symbex done at", datetime.datetime.now())
     return (result_states, claripy.BVV(2, 16)) # TODO ouch hardcoding, same remark as in execute_libnf
