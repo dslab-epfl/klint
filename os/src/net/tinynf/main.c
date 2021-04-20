@@ -4,6 +4,7 @@
 #include "os/log.h"
 #include "os/memory.h"
 #include "os/pci.h"
+#include "verif/drivers.h"
 
 #include "network.h"
 
@@ -70,6 +71,7 @@ static void tinynf_packet_handler(size_t index, uint8_t* packet, size_t length, 
 
 
 // TODO net shouldn't be exposing a main(argc, argv), it should be OS handling this since metal doesn't need one and the args are unused...
+// TODO move back the devices and agents alloc into ixgbe? they're here because I moved them while experimenting but it's weird (and remove the verif include)
 int main(int argc, char** argv)
 {
 	(void) argc;
@@ -98,7 +100,7 @@ int main(int argc, char** argv)
 		device_macs[n] = (struct net_ether_addr) { .bytes = { device_mac >> 0, device_mac >> 8, device_mac >> 16, device_mac >> 24, device_mac >> 32, device_mac >> 40 } };
 	}
 
-	struct tn_agent* agents = os_memory_alloc(devices_count, sizeof(struct tn_agent));
+	struct tn_agent* agents = agents_alloc(devices_count, sizeof(struct tn_agent));
 	for (size_t n = 0; n < devices_count; n++) {
 		tn_agent_init(n, devices_count, devices, &(agents[n]));
 	}

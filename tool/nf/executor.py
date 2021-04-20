@@ -131,6 +131,7 @@ nf_init_externals = {
     'os_memory_virt_to_phys': memory.os_memory_virt_to_phys,
     'os_pci_enumerate': pci.os_pci_enumerate,
     'descriptor_ring_alloc': verif.descriptor_ring_alloc,
+    'agents_alloc': verif.agents_alloc,
     'foreach_index_forever': verif.foreach_index_forever
 }
 nf_init_externals.update(structs_alloc_externals)
