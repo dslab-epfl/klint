@@ -6,29 +6,30 @@
 
 #include "balancer.h"
 
+// Note: We assume the packets to route always arrive on the last device
 
 static struct balancer *balancer;
-static device_t wan_device;
+static device_t devices_count;
 
-
-bool nf_init(device_t devices_count)
+bool nf_init(device_t _devices_count)
 {
-	if (devices_count < 2) {
+	if (_devices_count < 2) {
 		return false;
 	}
+	devices_count = _devices_count;
+	size_t backend_capacity = devices_count - 1;
 
-
-	size_t flow_capacity, backend_capacity, cht_height;
+	size_t flow_capacity, cht_height;
 	time_t flow_expiration_time, backend_expiration_time;
-	if (!os_config_get_device("wan device", devices_count, &wan_device) || !os_config_get_size("flow capacity", &flow_capacity) || !os_config_get_size("cht height", &cht_height) ||
-	    !os_config_get_size("backend capacity", &backend_capacity) || !os_config_get_time("backend expiration time", &backend_expiration_time) || !os_config_get_time("flow expiration time", &flow_expiration_time)) {
+	if (!os_config_get_size("flow capacity", &flow_capacity) || !os_config_get_size("cht height", &cht_height) ||
+	    !os_config_get_time("backend expiration time", &backend_expiration_time) || !os_config_get_time("flow expiration time", &flow_expiration_time)) {
 		return false;
 	}
 
 	if (cht_height == 0 || cht_height >= MAX_CHT_HEIGHT) {
 		return false;
 	}
-	if (backend_capacity == 0 || backend_capacity >= cht_height || backend_capacity * cht_height >= UINT32_MAX) {
+	if (backend_capacity >= cht_height || backend_capacity * cht_height >= UINT32_MAX) {
 		return false;
 	}
 
@@ -48,8 +49,8 @@ void nf_handle(struct net_packet *packet)
 
 	time_t time = os_clock_time_ns();
 
-	if (packet->device != wan_device) {
-		balancer_process_heartbeat(balancer, ipv4_header->src_addr, packet->device, time);
+	if (packet->device < devices_count - 1) {
+		balancer_process_heartbeat(balancer, packet->device, time);
 		return;
 	}
 
@@ -60,14 +61,8 @@ void nf_handle(struct net_packet *packet)
 		.dst_port = tcpudp_header->dst_port,
 		.protocol = ipv4_header->next_proto_id
 	};
-
-	struct backend* backend;
-	if (!balancer_get_backend(balancer, &flow, time, &backend)) {
-		return;
+	size_t backend;
+	if (balancer_get_backend(balancer, &flow, time, &backend)) {
+		net_transmit(packet, backend, 0);
 	}
-
-	net_packet_checksum_update(ipv4_header, ipv4_header->dst_addr, backend->ip, true);
-	ipv4_header->dst_addr = backend->ip;
-	net_transmit(packet, backend->device, 0);
-
 }

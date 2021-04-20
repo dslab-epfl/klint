@@ -4,6 +4,7 @@ import claripy
 from binary import utils
 from binary import executor as binary_executor
 from nf import executor as nf_executor
+from nf import device as nf_device
 
 
 def _custom_memory(memory_count, memory_size): # size in bits
@@ -14,14 +15,12 @@ def _custom_memory(memory_count, memory_size): # size in bits
         else:
             size = size * 8
         index = utils.get_if_constant(state.solver, index)
-        print("idx", index, memory_count)
         assert index is not None
         assert index < memory_count
-        return memory.setdefault(index, claripy.BVV(0, memory_size))[size-1:offset]
+        return memory.setdefault(index, claripy.BVV(0, memory_size))[offset+size-1:offset]
 
     def writer(state, base, index, offset, value):
         index = utils.get_if_constant(state.solver, index)
-        print("idx", index, memory_count)
         assert index is not None
         assert index < memory_count
         existing_value = memory.setdefault(index, claripy.BVV(0, memory_size))
@@ -82,6 +81,7 @@ class foreach_index_forever(angr.SimProcedure):
         for idx in range(concrete_length):
             index = claripy.BVV(idx, self.state.sizes.size_t)
             func_state = binary_executor.create_calling_state(self.state, func, [index, st], nf_executor.nf_handle_externals)
+            nf_device.receive_packet_on_device(func_state, index)
             nf_executor.nf_inited_states.append(func_state)
 
         self.exit(0)

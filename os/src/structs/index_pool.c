@@ -2,10 +2,6 @@
 
 #include "os/memory.h"
 
-// Note that 'ghostmap_get(items, index) != none' is not necessary in this implementation for refresh and return.
-// But it should help in other implementations, e.g. using separate linked lists for free/occupied.
-// So we leave it there, because the usefulness of removing the requirement is limited.
-
 // The odd use of fixpoints for seemingly-simple things such as nth_eq is required for forall_ to work properly;
 // in general, only expressions that are direct arguments to calls can be "trigger" terms for forall_ expansion,
 // see VeriFast's examples/fm2012/problem1-alternative.c
@@ -246,8 +242,7 @@ bool index_pool_borrow(struct index_pool* pool, time_t time, size_t* out_index, 
 void index_pool_refresh(struct index_pool* pool, time_t time, size_t index)
 /*@ requires poolp(pool, ?size, ?exp_time, ?items) &*&
              time != TIME_MAX &*&
-             index < size &*&
-             ghostmap_get(items, index) != none; @*/
+             index < size; @*/
 /*@ ensures poolp(pool, size, exp_time, ghostmap_set(items, index, time)); @*/
 /*@ terminates; @*/
 {
@@ -290,8 +285,7 @@ bool index_pool_used(struct index_pool* pool, time_t time, size_t index)
 
 void index_pool_return(struct index_pool* pool, size_t index)
 /*@ requires poolp(pool, ?size, ?exp_time, ?items) &*&
-             index < size &*&
-             ghostmap_get(items, index) != none; @*/
+             index < size; @*/
 /*@ ensures poolp(pool, size, exp_time, ghostmap_remove(items, index)); @*/
 /*@ terminates; @*/
 {

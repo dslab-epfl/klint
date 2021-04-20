@@ -98,8 +98,7 @@ class index_pool_borrow(angr.SimProcedure):
 # void index_pool_refresh(struct index_pool* pool, time_t time, size_t index);
 # requires poolp(pool, ?size, ?exp_time, ?items) &*&
 #          time != TIME_MAX &*&
-#          index < size &*&
-#          ghostmap_get(items, index) != none;
+#          index < size;
 # ensures poolp(pool, size, exp_time, ghostmap_set(items, index, time));
 class index_pool_refresh(angr.SimProcedure):
     def run(self, pool, time, index):
@@ -113,8 +112,7 @@ class index_pool_refresh(angr.SimProcedure):
         poolp = self.state.metadata.get(Pool, pool)
         self.state.solver.add(
             time != 0xFF_FF_FF_FF_FF_FF_FF_FF,
-            index < poolp.size,
-            self.state.maps.get(poolp.items, index)[1]
+            index < poolp.size
         )
 
         # Postconditions
@@ -155,8 +153,7 @@ class index_pool_used(angr.SimProcedure):
 
 # void index_pool_return(struct index_pool* pool, size_t index);
 # requires poolp(pool, ?size, ?exp_time, ?items) &*&
-#          index < size &*&
-#          ghostmap_get(items, index) != none;
+#          index < size;
 # ensures poolp(pool, size, exp_time, ghostmap_remove(items, index));
 class index_pool_return(angr.SimProcedure):
     def run(self, pool, index):
@@ -168,8 +165,7 @@ class index_pool_return(angr.SimProcedure):
         # Preconditions
         poolp = self.state.metadata.get(Pool, pool)
         self.state.solver.add(
-            index < poolp.size,
-            self.state.maps.get(poolp.items, index)[1]
+            index < poolp.size
         )
 
         # Postconditions

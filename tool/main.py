@@ -1,11 +1,9 @@
 #!/usr/bin/env python
 
-# Standard/External libraries
 import os
 from pathlib import Path
 import sys
 
-# Us
 import nf.executor as nf_executor
 import verif.persistence as verif_persist
 import verif.executor as verif_executor
@@ -15,8 +13,8 @@ import verif.executor as verif_executor
 #Tests().test_forall_cross_o2first_weird()
 #sys.exit(0)
 
-full_stack = True
-nf_to_verify = "nop"
+full_stack = False
+nf_to_verify = "vigor-maglev"
 use_cached_results = False
 
 

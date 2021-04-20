@@ -671,12 +671,12 @@ def maps_merge_across(_states, objs, _ancestor_maps, _ancestor_variables, _cache
             # Optimization: Ignore the states in which neither map changed
             orig_states = [st for st in _orig_states if st.maps[o1].version() != 0 or st.maps[o2].version() != 0]
             if len(orig_states) == 0:
-                print("Ignored all states for maps", o1, o2)
+                #print("Ignored all states for maps", o1, o2)
                 continue
 
             # Optimization: Ignore the combination entirely if there are no states in which both maps changed
             if not any(st.maps[o1].version() != 0 and st.maps[o2].version() != 0 for st in orig_states):
-                print("No states in which both changed for", o1, o2)
+                #print("No states in which both changed for", o1, o2)
                 continue
 
             # Optimization: Ignore o1 as fractions, that's rather useless, and ignore o1/o2 as array and its fractions

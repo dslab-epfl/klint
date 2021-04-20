@@ -10,13 +10,36 @@ from . import reg_util
 from binary.externals.net import packet # ouch
 
 # counter, use_init, latest_action are single-element lists so we can change them
-SpecDevice = namedtuple('SpecDevice', ['index', 'phys_addr', 'virt_addr', 'bar_size', 'pci_regs', 'regs', 'counter', 'use_init', 'latest_action', 'actions'])
+SpecDevice = namedtuple('SpecDevice', ['index', 'phys_addr', 'virt_addr', 'bar_size', 'pci_regs', 'regs', 'counter', 'use_init', 'latest_action', 'actions', 'packet_length', 'packet_data'])
 
 def find_device(state, virt_addr):
     for dev in state.metadata.get_all(SpecDevice).values():
         if dev.virt_addr.structurally_match(virt_addr):
             return dev
     raise Exception("Unknown device")
+
+
+def receive_packet_on_device(state, index):
+    devs = [d for d in state.metadata.get_all(SpecDevice) if d.index.structurally_match(index)]
+    assert len(devs) == 0
+    dev = devs[0]
+
+    # TODO should check RDT here (>0)
+    reg_index = 0
+    rdbal = dev.regs["RDBAL"][reg_index].zero_extend(32)
+    rdbah = dev.regs["RDBAH"][reg_index].zero_extend(32)
+    rdba = (rdbah << 32) | rdbal
+    # TODO virt2phys handling
+    buffer_length = dev.regs["SRRCTL"][reg_index][4:0].zero_extend(state.sizes.size_t - 5) * 1024
+    packet_addr = state.memory.load(rdba, 8, endness=state.arch.memory_endness)
+    packet_desc_meta = dev.packet_length.zero_extend(64 - dev.packet_length.size()) | (0b11 << 32) # DD and EOP, plus length
+    # TODO should update RDH here (+1)
+
+    state.metadata.append(packet_addr, packet.NetworkMetadata(dev.packet_data, packet_addr, dev.index, dev.packet_length, []))
+
+    state.memory.store(packet_addr, dev.packet_data, endness=state.arch.memory_endness)
+    state.memory.store(rdba + 8, packet_desc_meta, endness=state.arch.memory_endness)
+
 
 def device_reader(state, base, index, offset, size):
     assert index.structurally_match(claripy.BVV(0, index.size()))
@@ -44,24 +67,6 @@ def device_writer(state, base, index, offset, value):
         if post != None:
             post.applyAST(state, dev, index)
         dev.latest_action[0] = None
-
-    # Special action for RDT, let's receive a packet
-    if reg == "RDT":
-        rdbal = dev.regs["RDBAL"][index].zero_extend(32)
-        rdbah = dev.regs["RDBAH"][index].zero_extend(32)
-        rdba = (rdbah << 32) | rdbal
-        # TODO virt2phys handling
-        buffer_length = dev.regs["SRRCTL"][index][4:0].zero_extend(state.sizes.size_t - 5) * 1024
-        packet_length = claripy.BVS("packet_len", state.sizes.size_t) # TODO how to enforce packet_length here?
-        packet_addr = state.memory.load(rdba, 8, endness=state.arch.memory_endness)
-        packet_data = state.memory.allocate(1, packet.PACKET_MTU, name="packet_data")
-        packet_desc_meta = packet_length.zero_extend(64 - packet_length.size()) | (0b11 << 32) # DD and EOP, plus length
-
-        state.solver.add(packet_length.UGE(packet.PACKET_MIN), packet_length.ULE(packet.PACKET_MTU))
-        state.metadata.append(packet_addr, packet.NetworkMetadata(packet_data, packet_addr, dev.index, packet_length, []))
-
-        state.memory.store(packet_addr, packet_data, endness=state.arch.memory_endness)
-        state.memory.store(rdba + 8, packet_desc_meta, endness=state.arch.memory_endness)
 
     # Special action for TDT, we're sending a packet
     if reg == "TDT":
@@ -93,7 +98,11 @@ def spec_device_create_default(state, index):
     phys_addr = claripy.BVS("dev_phys_addr", state.sizes.ptr)
     state.solver.add(phys_addr & 0b1111 == 0) # since the bottom 4 bits of the BAR are non-address stuff
 
-    device = SpecDevice(index, phys_addr, virt_addr, bar_size, {}, {}, [0], [False], [None], {})
+    packet_length = claripy.BVS("packet_len", state.sizes.size_t) # TODO how to enforce packet_length here?
+    state.solver.add(packet_length.UGE(packet.PACKET_MIN), packet_length.ULE(packet.PACKET_MTU))
+    packet_data = state.memory.allocate(1, packet.PACKET_MTU, name="packet_data")
+
+    device = SpecDevice(index, phys_addr, virt_addr, bar_size, {}, {}, [0], [False], [None], {}, packet_length, packet_data)
 
     # Single 64-bit BAR as per data sheet
     phys_addr_low = (phys_addr & 0xFFFFFFFF) | 0b0100
