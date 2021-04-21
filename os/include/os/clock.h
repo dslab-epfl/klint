@@ -14,7 +14,7 @@ extern uint64_t cpu_freq_denominator;
 // Can be safely assumed to never return TIME_MAX, allowing containers that store a time to optimize storage; anyway, reaching the end of time would be problematic
 static inline time_t os_clock_time_ns(void)
 {
-	return tsc_get() * cpu_freq_denominator / cpu_freq_numerator;
+	return tsc_get() / cpu_freq_numerator * cpu_freq_denominator;
 }
 
 

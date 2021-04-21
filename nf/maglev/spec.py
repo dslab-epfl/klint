@@ -33,4 +33,4 @@ def spec(packet, config, transmitted_packet):
             assert transmitted_packet.data == packet.data
     else:
         assert packet.device in backends
-        assert backends[packet.device] == time()
+        assert backends[packet.device] == packet.time

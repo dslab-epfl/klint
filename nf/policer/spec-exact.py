@@ -18,7 +18,7 @@ def spec(packet, config, devices_count):
         if index is None:
             if packet.length <= config["burst"] and addresses.try_add(packet.ipv4.dst):
                 buckets[index].size = burst - packet.length
-                buckets[index].time = time()
+                buckets[index].time = packet.time
             else:
                 return
         else:
@@ -30,7 +30,7 @@ def spec(packet, config, devices_count):
             else:
                 buckets[index].size = burst;
 
-            buckets[index].time = time()
+            buckets[index].time = packet.time
 
             if buckets[index].size <= packet.length:
                 return

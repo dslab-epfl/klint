@@ -124,12 +124,6 @@ class Map:
         return self._map.length()
 
 
-# === Time ===
-
-# Set in spec_wrapper
-time = lambda: None
-
-
 # === Config ===
 
 class _SpecConfig:
@@ -201,8 +195,9 @@ class _SpecPacket:
         'dst': 16
     }
 
-    def __init__(self, data, length, devices):
+    def __init__(self, data, length, time, devices):
         self.length = length
+        self.time = time
         self._devices = devices
         self.ether = type_wrap(data, _SpecPacket._ETHER_HEADER)
         self._rest = data[:type_size(_SpecPacket._ETHER_HEADER)]
@@ -248,9 +243,6 @@ def _spec_wrapper(data):
     global __symbex__
     print("PATH", __symbex__.state._value.path._segments)
 
-    global time
-    time = lambda: data.times[0] # TODO fix the whole time thing! (make it a spec arg; or packet prop)
-
     received_packet = _SpecPacket(data.network.received, data.network.received_length, _SpecSingleDevice(data.network.received_device))
     
     transmitted_packet = None
@@ -262,7 +254,7 @@ def _spec_wrapper(data):
             transmitted_device = _SpecFloodedDevice(data.network.received_device, data.devices_count)
         else:
             transmitted_device = _SpecSingleDevice(tx_dev_int)
-        transmitted_packet = _SpecPacket(data.network.transmitted[0][0], data.network.transmitted[0][1], transmitted_device)
+        transmitted_packet = _SpecPacket(data.network.transmitted[0][0], data.network.transmitted[0][1], data.time, transmitted_device)
 
     config = _SpecConfig(data.config, data.devices_count)
 

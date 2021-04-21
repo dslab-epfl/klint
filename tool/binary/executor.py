@@ -88,7 +88,8 @@ class CustomEngine(SimEngineFailure, HooksMixin, HeavyVEXMixin):
             self.state.pci.handle_out(port, data, size)
             return None
         if func_name == 'amd64g_dirtyhelper_RDTSC': # no args
-            return clock.get_current_cycles(self.state)
+            (_, cycles) = clock.get_time_and_cycles(self.state)
+            return cycles
         raise angr.errors.UnsupportedDirtyError("Unexpected angr 'dirty' call")
 
     def process_successors(self, successors, **kwargs):

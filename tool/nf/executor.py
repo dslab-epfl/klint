@@ -90,14 +90,6 @@ libnf_handle_externals.update(structs_functions_externals)
 # subprocess.check_call(["make", "-f" "../Makefile.nf"], cwd=nf_folder) TODO also for full-stack
 def get_libnf_inited_states(binary_path, devices_count):
     blank_state = binary_executor.create_blank_state(binary_path)
-    # If needed, hook cpu_freq symbols (TODO remove this when we rework time stuff!)
-    cpu_freq_numerator = blank_state.project.loader.find_symbol("cpu_freq_numerator")
-    if cpu_freq_numerator is None:
-        print("Warning: No cpu freq symbols detected, skipping...")
-    else:
-        cpu_freq_denominator = blank_state.project.loader.find_symbol("cpu_freq_denominator")
-        blank_state.memory.store(cpu_freq_numerator.rebased_addr, binary_clock.frequency_num, endness=blank_state.arch.memory_endness)
-        blank_state.memory.store(cpu_freq_denominator.rebased_addr, binary_clock.frequency_denom, endness=blank_state.arch.memory_endness)
     # Create and run an init state
     # TODO Something very fishy in here, why do we need to reverse the arg? angr's endianness handling keeps puzzling me
     init_state = binary_executor.create_calling_state(blank_state, "nf_init", [devices_count.reversed], libnf_init_externals)

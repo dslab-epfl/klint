@@ -3,7 +3,8 @@ import archinfo
 import claripy
 from collections import namedtuple
 
-from ... import utils
+from binary import clock
+from binary import utils
 
 PACKET_MIN = 64 # the NIC will pad it if shorter
 PACKET_MTU = 1514 # 1500 (Ethernet spec) + 2xMAC + EtherType
@@ -13,7 +14,7 @@ NetworkMetadata = namedtuple('NetworkMetadata', ['received', 'received_addr', 'r
 # For the packet layout, see the C header (not reproducing here to avoid getting out of sync with changes)
 # TODO use angr.types instead and just parse it...
 def packet_size(state):
-    return state.sizes.ptr + state.sizes.size_t + state.sizes.uint16_t
+    return state.sizes.ptr + state.sizes.size_t + state.sizes.uint64_t + state.sizes.uint16_t
 
 def get_data_addr(state, packet_addr):
     return state.memory.load(packet_addr, packet_size(state) // 8, endness=state.arch.memory_endness)[state.sizes.ptr-1:0]
@@ -22,7 +23,7 @@ def get_length(state, packet_addr):
     return state.memory.load(packet_addr, packet_size(state) // 8, endness=state.arch.memory_endness)[state.sizes.size_t-1+state.sizes.ptr:state.sizes.ptr]
 
 def get_device(state, packet_addr):
-    return state.memory.load(packet_addr, packet_size(state) // 8, endness=state.arch.memory_endness)[state.sizes.uint16_t-1+state.sizes.size_t+state.sizes.ptr:state.sizes.size_t+state.sizes.ptr]
+    return state.memory.load(packet_addr, packet_size(state) // 8, endness=state.arch.memory_endness)[state.sizes.uint16_t-1+state.sizes.uint64_t+state.sizes.size_t+state.sizes.ptr:state.sizes.uint64_t+state.sizes.size_t+state.sizes.ptr]
 
 def get_data(state, packet_addr):
     return state.memory.load(get_data_addr(state, packet_addr), PACKET_MTU, endness=state.arch.memory_endness)
@@ -36,7 +37,8 @@ def alloc(state, devices_count):
     data_addr = state.memory.allocate(1, 2 * PACKET_MTU, name="packet_data") # TODO: allocate with packet_length size instead; find another way to deal with BPF
     packet_device = claripy.BVS("packet_device", state.sizes.uint16_t)
     state.solver.add(packet_device.ULT(devices_count))
-    packet_data = packet_device.concat(packet_length).concat(data_addr) # + PACKET_MTU) TODO TODO TODO TODO!!!!!!
+    (packet_time, _) = clock.get_time_and_cycles(state)
+    packet_data = packet_device.concat(packet_time).concat(packet_length).concat(data_addr) # + PACKET_MTU) TODO TODO TODO TODO!!!!!!
     state.memory.store(packet_addr, packet_data, endness=state.arch.memory_endness)
     state.metadata.append(None, NetworkMetadata(get_data(state, packet_addr), data_addr, packet_device, packet_length, []))
     return packet_addr
