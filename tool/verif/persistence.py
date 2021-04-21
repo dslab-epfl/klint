@@ -5,7 +5,7 @@ from binary import clock
 from binary.externals.os import config as os_config
 from binary.externals.net import packet as net_packet
 
-StateData = namedtuple('StateData', ['arch', 'maps', 'constraints', 'path', 'times', 'network', 'config', 'devices_count'])
+StateData = namedtuple('StateData', ['arch', 'maps', 'constraints', 'path', 'time', 'network', 'config', 'devices_count'])
 
 def dump_data(state_pairs, devices_count, path): # TODO why do we have to move the devices_count around like that? :/
     data = [StateData(
