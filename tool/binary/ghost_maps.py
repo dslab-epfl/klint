@@ -279,24 +279,10 @@ class Map:
         self.add_invariant_conjunction(state, pred.with_expr(lambda e, i: Implies(result, e)))
         return result
 
-    # Havocs the map contents, mutating the map, with the given optional max_length (otherwise uses the current one)
-    # Do not use unless you know what you're doing; this is intended for init only, to mimic an external program configuring a map
-    # TODO I have no idea if this still works, it's old code, commenting out for now
-    """def havoc(self, state, max_length, is_array):
-        if max_length is not None:
-            self._length = claripy.BVS("havoced_length", max_length.size())
-            state.solver.add(self._length.ULE(max_length))
-        if is_array:
-            self._invariants = [MapInvariant.new(state, self.meta, lambda i, length=self._length: (i.key < length) == i.present)]
-        else:
-            self._invariants = [MapInvariant.new(state, self.meta, lambda i: claripy.true)]
-        self._known_items = []
-        self.ever_havoced = True"""
-
     # === Private API, also used by invariant inference ===
     # TODO sort out what's actually private and not; verif also uses stuff...
 
-    def __init__(self, meta, length, invariants, known_items, _previous=None, _unknown_item=None, _layer_item=None, ever_havoced=False):
+    def __init__(self, meta, length, invariants, known_items, _previous=None, _unknown_item=None, _layer_item=None):
         # "length" is symbolic, and may be larger than len(items) if there are items that are not exactly known
         # "invariants" is a list of conjunctions that represents unknown items: each is a lambda that takes (state, item) and returns a Boolean expression
         # "items" contains exactly known items, which do not have to obey the invariants
@@ -313,7 +299,6 @@ class Map:
             )
         self._unknown_item = _unknown_item
         self._layer_item = _layer_item
-        self.ever_havoced = ever_havoced
 
     def version(self):
         if self._previous is None: return 0
@@ -396,7 +381,7 @@ class Map:
         return self.__deepcopy__({})
 
     def __deepcopy__(self, memo):
-        result = Map(self.meta, self._length, copy.deepcopy(self._invariants, memo), copy.deepcopy(self._known_items, memo), copy.deepcopy(self._previous, memo), self._unknown_item, self._layer_item, self.ever_havoced)
+        result = Map(self.meta, self._length, copy.deepcopy(self._invariants, memo), copy.deepcopy(self._known_items, memo), copy.deepcopy(self._previous, memo), self._unknown_item, self._layer_item)
         memo[id(self)] = result
         return result
 
@@ -404,15 +389,15 @@ class Map:
         return f"[Map {self.meta.name} v{self.version()}]"
 
     def _asdict(self): # pretend we are a namedtuple so functions that expect one will work (e.g. utils.structural_eq)
-        return {'meta': self.meta, '_length': self._length, '_invariants': self._invariants, '_known_items': self._known_items, '_previous': self._previous, '_unknown_item': self._unknown_item, '_layer_item': self._layer_item, 'ever_havoced': self.ever_havoced}
+        return {'meta': self.meta, '_length': self._length, '_invariants': self._invariants, '_known_items': self._known_items, '_previous': self._previous, '_unknown_item': self._unknown_item, '_layer_item': self._layer_item}
 
 
 class GhostMapsPlugin(SimStatePlugin):
     # === Public API ===
 
-    def new(self, key_size, value_size, name):
+    def new(self, key_size, value_size, name, _length=None, _invariants=None): # TODO new_havoced instead of _length/_invariants?
         obj = claripy.BVS(name, self.state.sizes.ptr)
-        self[obj] = Map.new(self.state, key_size, value_size, name)
+        self[obj] = Map.new(self.state, key_size, value_size, name, _length=_length, _invariants=_invariants)
         return obj
 
     def new_array(self, key_size, value_size, length, name):
@@ -450,11 +435,6 @@ class GhostMapsPlugin(SimStatePlugin):
         result = map.forall(self.state, pred, _exclude_get=_exclude_get)
         #LOGEND(self.state)
         return result
-
-    # === Havocing, to mimic BPF userspace ===
-
-    def havoc(self, obj, max_length, is_array):
-        self[obj].havoc(self.state, max_length, is_array)
 
     # === Import and Export ===
 
@@ -895,8 +875,8 @@ def infer_invariants(ancestor_states, states, previous_results=None):
             print("")
         raise Exception("Inference requires all ancestor states to have the same maps (for now...)")
 
-    ancestor_variables = set()
-    for st in ancestor_states:
+    ancestor_variables = set(ancestor_states[0].solver.variables(claripy.And(*ancestor_states[0].solver.constraints)))
+    for st in ancestor_states[1:]:
         ancestor_variables.intersection_update(st.solver.variables(claripy.And(*st.solver.constraints)))
 
     # Optimization: Ignore maps that have not changed at all
@@ -936,7 +916,8 @@ def infer_invariants(ancestor_states, states, previous_results=None):
                 func(new_state)
 
     for id in set([id for (id, _, _) in across_results]):
-        statistics.set_value(id, len([i for (i, _, _) in across_results if i == id]))
+        # add a '~' to make sure it's at the end of the list
+        statistics.set_value("~" + id, len([i for (i, _, _) in across_results if i == id]))
 
     new_results = [(id, list(map(str, objs))) for (id, objs, _) in across_results]
     return (new_states, new_results, reached_fixpoint)

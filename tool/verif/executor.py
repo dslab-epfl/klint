@@ -33,6 +33,9 @@ class _VerifState:
         self._global_condition = None # for the solver
         self.arch = ArchAMD64() # TODO use original arch!
 
+        # Allow the spec to create a BVS without importing claripy explicitly
+        self.BVS = claripy.BVS
+
         self.sizes = SizesPlugin()
         self.sizes.set_state(self)
 
@@ -63,7 +66,7 @@ def verify(all_data, spec):
         "Time": "uint64_t"
     }
     
-    print("Verifying NF... at", datetime.datetime.now())
+    print("Verifying NF's", len(all_data), "states at", datetime.datetime.now())
     statistics.work_start("verif")
     state_data = [(
         _VerifState(data.constraints, data.maps, data.path), # path is useful for debugging
@@ -71,4 +74,4 @@ def verify(all_data, spec):
     ) for data in all_data]
     (choices, results) = symbex.symbex(full_spec_text, "_spec_wrapper", globals, state_data)
     statistics.work_end()
-    print("NF verified! at", datetime.datetime.now(), choices, results)
+    print("NF verified! at", datetime.datetime.now()) #, choices, results)

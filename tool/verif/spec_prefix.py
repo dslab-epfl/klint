@@ -57,8 +57,8 @@ def type_unwrap(value, type):
 
 def exists(type, func):
     global __symbex__
-    value = __symbex__.state.solver.BVS("exists_value", type_size(type))
-    results = __symbex__.state.solver.eval_upto(func(value), 2)
+    value = __symbex__.state.BVS("exists_value", type_size(type))
+    results = __symbex__.state.solver.eval_upto(func(type_wrap(value, type)), 2)
     return results == [True]
 
 
@@ -78,18 +78,17 @@ class Map:
                 if ("fracs_" not in m.meta.name) & ("packet_" not in m.meta.name) & \
                    (m.meta.key_size >= key_size) & (m.meta.value_size >= value_size)
             ]
-            if key_size == 104 and value_type == "size_t":
-                possible_candidates = [(o,m) for (o,m) in possible_candidates if "map_values" in m.meta.name]
-            elif key_type == "size_t" and value_type == Time:
-                possible_candidates = [(o,m) for (o,m) in possible_candidates if "pool_items" in m.meta.name and "_9" not in m.meta.name]
-            elif key_type == "uint16_t":
-                possible_candidates = [(o, m) for (o,m) in possible_candidates if "pool_items_9" in m.meta.name]
-            possible_candidates = [(o,m) for (o,m) in possible_candidates if m.version() < 5]
+            # TODO only use smaller-than-size map if forall the unused part is 0
+            # Eliminate previously chosen maps
+            possible_candidates = [
+                (o, m) for (o, m) in possible_candidates
+                if all(not choices[0].structurally_match(o) for choices in __symbex__.choices[:__symbex__.choice_index])
+            ]
             if len(possible_candidates) == 0:
                 raise Exception("No such map: " + str(key_type) + " -> " + str(value_type))
             # Prioritize exact matches
             possible_candidates.sort(key=lambda c: (c[1].meta.key_size - key_size) + (c[1].meta.value_size - value_size))
-            print("cands:", possible_candidates, "for", key_type,value_type)
+            print(key_type,"->",value_type,"     has cands:", [m for (o,m) in possible_candidates])
             candidates = [o for (o, m) in possible_candidates]
             obj = __choose__(candidates)
             #print("Trying", obj, "for", key_type,"->",value_type)
@@ -250,7 +249,7 @@ def _spec_wrapper(data):
     print("PATH", __symbex__.state._value.path._segments)
 
     global time
-    time = lambda: data.times[0] # TODO fix the whole time thing! (make it a spec arg!)
+    time = lambda: data.times[0] # TODO fix the whole time thing! (make it a spec arg; or packet prop)
 
     received_packet = _SpecPacket(data.network.received, data.network.received_length, _SpecSingleDevice(data.network.received_device))
     

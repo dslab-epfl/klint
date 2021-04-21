@@ -22,7 +22,7 @@ def spec(packet, config, transmitted_packet):
          # (3): The IP version number must be 4
          packet.ipv4.version != 4 or
          # (4): The IP header length must be >= 20 bytes
-         packet.ipv4.ihl*4 < 20 or
+         packet.ipv4.ihl < 5 or
          # (5): The IP total length field must be large enough for the header
          packet.ipv4.total_length < packet.ipv4.ihl*4):
         assert transmitted_packet is None
@@ -42,6 +42,7 @@ def spec(packet, config, transmitted_packet):
 
 
     # === §5.2.4.3 Next Hop Address === #
+    return
     if transmitted_packet is None:
         assert table.forall(lambda k, v: ~matches(k, packet.ipv4.dst))
     else:

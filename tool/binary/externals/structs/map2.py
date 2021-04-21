@@ -132,11 +132,3 @@ class OsMap2Remove(angr.SimProcedure):
 
         # Postconditions
         self.state.maps.remove(mapp.items, key)
-
-# No contract, not exposed publicly, only for symbex harnesses
-class OsMap2Havoc(angr.SimProcedure):
-    def run(self, map):
-        map = self.state.casts.ptr(map)
-        print("!!! os_map2_havoc", map)
-        mapp = self.state.metadata.get(Map, map)
-        self.state.maps.havoc(mapp.items, mapp.capacity, False)

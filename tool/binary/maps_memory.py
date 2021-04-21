@@ -131,9 +131,3 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
         return meta.fractions
     def is_fractions(self, obj):
         return MapsMemoryMixin.FRACS_NAME in str(obj)
-
-    # TODO this should not exist
-    def havoc(self, addr):
-        (base, index, offset) = utils.base_index_offset(self.state, addr, MapsMemoryMixin.Metadata)
-        self.state.maps.havoc(base, None, True)
-        # don't havoc fractions, the notion of fractions doesn't really make sense with userspace BPF anyway, which this is for

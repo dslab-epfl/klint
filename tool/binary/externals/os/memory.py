@@ -55,11 +55,3 @@ class os_memory_virt_to_phys(angr.SimProcedure):
     def run(self, addr):
         addr = self.state.casts.ptr(addr)
         return addr # TODO proper handling
-
-
-# No contract, not exposed publicly, only for symbex harnesses
-class os_memory_havoc(angr.SimProcedure):
-    def run(self, ptr):
-        ptr = self.state.casts.ptr(ptr)
-        print("!!! os_memory_havoc", ptr)
-        self.state.memory.havoc(ptr)

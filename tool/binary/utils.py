@@ -122,7 +122,6 @@ def base_index_offset(state, addr, meta_type, allow_failure=False):
     def as_simple(val):
         if val.op == "BVS": return val
         if val.op == '__add__' and len(val.args) == 1: return as_simple(val.args[0])
-        if val.op == 'Extract': return val
         return None
 
     simple_addr = as_simple(addr)
@@ -144,7 +143,13 @@ def base_index_offset(state, addr, meta_type, allow_failure=False):
             if len(base) == 1:
                 base = base[0]
             else:
-                raise Exception("!= 1 candidate for base??? are you symbolically indexing a global variable or something?")
+                # TODO this check should come earlier and the result should be reused... it's more like "filter out stuff that's definitely not a pointer"
+                base = [b for b in addr.args if state.metadata.get_or_none(meta_type, b) is not None]
+                if len(base) != 1:
+                    if allow_failure:
+                        return (None, None, None)
+                    raise Exception("!= 1 candidate for base??? are you symbolically indexing a global variable or something?")
+                base = base[0]
         added = sum([a for a in addr.args if not a.structurally_match(base)])
 
         meta = state.metadata.get_or_none(meta_type, base)

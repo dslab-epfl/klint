@@ -10,6 +10,6 @@ def spec(packet, config, transmitted_packet):
         return
 
     # New flows cannot begin with an overly large packet since they'd already exceed their budget
-    table = Map(typeof(packet.ipv4.dst), ...)
-    if ~table.has(packet.ipv4.dst) & (packet.length > config["burst"]):
-        assert transmitted_packet is None
+    #table = Map(32, ...)
+    #if (packet.ipv4.dst not in table) & (packet.length > config["burst"]):
+    #    assert transmitted_packet is None

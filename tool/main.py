@@ -10,12 +10,8 @@ import verif.persistence as verif_persist
 import verif.executor as verif_executor
 
 
-#from tests.test import Tests
-#Tests().test_forall_cross_o2first_weird()
-#sys.exit(0)
-
-full_stack = True
-nf_to_verify = "nop"
+full_stack = False
+nf_to_verify = "vigor-bridge"
 use_cached_results = False
 
 
@@ -41,4 +37,7 @@ else:
 spec = (Path(nf_root_folder) / "spec.py").read_text() # TODO spec needs to be an arg
 verif_executor.verify(verif_persist.load_data(cached_data_path), spec)
 
-(Path(__file__).parent / "symbex.stats").write_text("\n".join(statistics.to_tsv())) # TODO print them out as well? nicely
+stats = statistics.to_tsv()
+for line in stats:
+    print(line)
+(Path(__file__).parent / "symbex.stats").write_text("\n".join(stats))

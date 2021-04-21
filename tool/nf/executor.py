@@ -14,7 +14,6 @@ from binary.externals.os import config
 from binary.externals.os import log
 from binary.externals.os import memory
 from binary.externals.os import pci
-from binary.externals.compat import memcpy
 from binary.externals.net import packet
 from binary.externals.net import tx
 from binary.externals.structs import map
@@ -52,31 +51,31 @@ structs_functions_externals = {
 }
 
 
-def find_fixedpoint_states(states):
+def find_fixedpoint_states(states_data):
     inference_results = None
     while True:
         print("Running an iteration of the main loop at", datetime.datetime.now())
         statistics.work_start("symbex")
         result_states = []
-        for state in states:
-            result_states += binary_executor.run_state(state)
+        for (state, state_fun) in states_data:
+            starting_state = state_fun(state.copy())
+            result_states += binary_executor.run_state(starting_state)
         statistics.work_end()
         print("Inferring invariants on", len(result_states), "states at", datetime.datetime.now())
+        states = [s for (s, _) in states_data]
         statistics.work_start("infer")
         (states, inference_results, reached_fixpoint) = ghost_maps.infer_invariants(states, result_states, inference_results)
         statistics.work_end()
         if reached_fixpoint:
             return result_states
+        states_data = [(new_s, fun) for (new_s, (old_s, fun)) in zip(states, states_data)]
 
 
 # === libNF ===
 
 libnf_init_externals = {
     'os_config_try_get': config.os_config_try_get,
-    'os_memory_alloc': memory.os_memory_alloc,
-    # unfortunately needed to mimic BPF userspace
-    'os_map2_havoc': map2.OsMap2Havoc,
-    'os_memory_havoc': memory.os_memory_havoc
+    'os_memory_alloc': memory.os_memory_alloc
 }
 libnf_init_externals.update(structs_alloc_externals)
 
@@ -84,9 +83,7 @@ libnf_handle_externals = {
     'os_debug': log.os_debug,
     'net_transmit': tx.net_transmit,
     'net_flood': tx.net_flood,
-    'net_flood_except': tx.net_flood_except,
-    # whyyy
-    'memcpy': memcpy.Memcpy
+    'net_flood_except': tx.net_flood_except
 }
 libnf_handle_externals.update(structs_functions_externals)
 
@@ -114,7 +111,8 @@ def get_libnf_inited_states(binary_path, devices_count):
         init_result = cc.get_return_val(state, stack_base=state.regs.sp - cc.STACKARG_SP_DIFF)
         state.solver.add(init_result != 0)
         if state.solver.satisfiable():
-            inited_states.append(binary_executor.create_calling_state(state, "nf_handle", [packet.alloc(state, devices_count)], libnf_handle_externals))
+            state_creator = lambda st: binary_executor.create_calling_state(st, "nf_handle", [packet.alloc(st, devices_count)], libnf_handle_externals)
+            inited_states.append((state, state_creator))
     return inited_states
 
 def execute_libnf(binary_path):

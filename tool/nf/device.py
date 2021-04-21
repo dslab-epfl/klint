@@ -42,10 +42,6 @@ def receive_packet_on_device(state, index):
     state.memory.store(rdba + 8, packet_desc_meta, endness=state.arch.memory_endness)
     # TODO should update RDH here (+1)
 
-def set_network_metadata(state, index):
-    dev = get_device(state, index)
-    rdba = get_rdba_0(dev)
-    packet_addr = state.memory.load(rdba, 8, endness=state.arch.memory_endness)
     state.metadata.append(packet_addr, packet.NetworkMetadata(dev.packet_data, packet_addr, dev.index, dev.packet_length, []))
 
 

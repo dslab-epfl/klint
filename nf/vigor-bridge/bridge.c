@@ -39,10 +39,10 @@ bool nf_init(device_t devices_count)
 
 void nf_handle(struct net_packet* packet)
 {
-	if (stp_handle(stp_state, packet)) {
+/*	if (stp_handle(stp_state, packet)) {
 		return;
 	}
-
+*/
 	struct net_ether_header* ether_header;
 	if (!net_get_ether_header(packet, &ether_header)) {
 		return;

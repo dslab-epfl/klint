@@ -63,10 +63,15 @@ class agents_alloc(angr.SimProcedure):
 class foreach_index_forever(angr.SimProcedure):
     NO_RET = True # magic angr variable
 
-    def run(self, length, func, st):
+    @staticmethod
+    def state_creator(st, index, func, func_st):
+        nf_device.receive_packet_on_device(st, claripy.BVV(index, st.sizes.size_t))
+        return binary_executor.create_calling_state(st, func, [index, func_st], nf_executor.nf_handle_externals)
+
+    def run(self, length, func, func_st):
         length = self.state.casts.size_t(length)
         func = self.state.casts.ptr(func)
-        st = self.state.casts.ptr(st)
+        func_st = self.state.casts.ptr(func_st)
 
         if func.op != 'BVV':
             raise Exception("Function pointer cannot be symbolic")
@@ -78,13 +83,9 @@ class foreach_index_forever(angr.SimProcedure):
         # But:
         concrete_length = utils.get_if_constant(self.state.solver, length)
         assert length is not None
-        # HACK: receive on all devices in the current state so the maps are synced between the inited states
-        for packet_idx in range(concrete_length):
-            nf_device.receive_packet_on_device(self.state, claripy.BVV(packet_idx, self.state.sizes.size_t))
         for idx in range(concrete_length):
             index = claripy.BVV(idx, self.state.sizes.size_t)
-            func_state = binary_executor.create_calling_state(self.state, func, [index, st], nf_executor.nf_handle_externals)
-            nf_device.set_network_metadata(func_state, index)
-            nf_executor.nf_inited_states.append(func_state)
+            state_creator = lambda st, index=index: foreach_index_forever.state_creator(st, index, func, func_st) 
+            nf_executor.nf_inited_states.append((self.state, state_creator))
 
         self.exit(0)
