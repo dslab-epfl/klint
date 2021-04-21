@@ -25,7 +25,7 @@ def merge_states(states):
             if any(o != our_plugin for o in other_plugins):
                 return None
             continue
-
+        # TODO what could we pass as ancestor here?
         if not our_plugin.merge(other_plugins, merge_conditions):
             # Memory returns false if nothing was merged, but that just means the memory was untouched
             if plugin in ('memory'):

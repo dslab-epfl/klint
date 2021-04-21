@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "os/clock.h"
+#include "os/time.h"
 #include "os/memory.h"
 #include "structs/index_pool.h"
 #include "structs/map.h"

@@ -214,6 +214,7 @@ def _as_mult_add(ast):
     return {ast.cache_key: 1}
 
 # Returns a simplified form of a % b
+# TODO check how much time this really saves
 def _modulo_simplify(a, b):
     result = 0
     for (e, m) in _as_mult_add(a).items():

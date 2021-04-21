@@ -1,8 +1,8 @@
 #include "net/skeleton.h"
 
-#include "os/clock.h"
 #include "os/config.h"
 #include "os/log.h"
+#include "os/time.h"
 
 #include "flow_table.h"
 
@@ -41,11 +41,9 @@ void nf_handle(struct net_packet* packet)
 		return;
 	}
 
-	time_t time = os_clock_time_ns();
-
 	if (packet->device == wan_device) {
 		struct flow internal_flow;
-		if (flow_table_get_external(table, time, tcpudp_header->dst_port, &internal_flow)) {
+		if (flow_table_get_external(table, packet->time, tcpudp_header->dst_port, &internal_flow)) {
 			if ((internal_flow.dst_ip != ipv4_header->src_addr) || (internal_flow.dst_port != tcpudp_header->src_port) || (internal_flow.protocol != ipv4_header->next_proto_id)) {
 				os_debug("Spoofing attempt");
 				return;
@@ -69,7 +67,7 @@ void nf_handle(struct net_packet* packet)
 		};
 
 		uint16_t external_port;
-		if (!flow_table_get_internal(table, time, &flow, &external_port)) {
+		if (!flow_table_get_internal(table, packet->time, &flow, &external_port)) {
 			os_debug("No space for the flow");
 			return;
 		}

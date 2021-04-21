@@ -1,5 +1,6 @@
 #include "net/skeleton.h"
 
+#include "os/clock.h"
 #include "os/init.h"
 #include "os/log.h"
 #include "os/memory.h"
@@ -63,8 +64,9 @@ static void tinynf_packet_handler(size_t index, uint8_t* packet, size_t length, 
 	current_output_lengths = output_lengths;
 	struct net_packet pkt = {
 		.data = packet,
+		.length = length,
+		.time = os_clock_time_ns(),
 		.device = (device_t) index,
-		.length = length
 	};
 	nf_handle(&pkt);
 }

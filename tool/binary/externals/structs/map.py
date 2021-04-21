@@ -116,6 +116,7 @@ class map_remove(angr.SimProcedure):
         key = self.state.memory.load(key_ptr, mapp.key_size, endness=self.state.arch.memory_endness)
         frac = self.state.memory.take(None, key_ptr)
         self.state.solver.add(
+            # TODO frac != 0.0 here?
             self.state.maps.get(mapp.values, key)[1],
             self.state.maps.get(mapp.addrs, key)[1],
             self.state.maps.get(mapp.addrs, key)[0] == key_ptr

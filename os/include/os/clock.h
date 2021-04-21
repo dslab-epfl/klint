@@ -3,12 +3,8 @@
 #include <stdint.h>
 
 #include "arch/tsc.h"
+#include "os/time.h"
 
-
-typedef uint64_t time_t;
-
-#define TIME_MAX UINT64_MAX
-#define TIME_MIN 0
 
 // Fetched at startup by the OS, to make the time call as fast as possible, it's on the critical path
 extern uint64_t cpu_freq_numerator;

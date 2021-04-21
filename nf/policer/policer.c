@@ -1,8 +1,8 @@
 #include "net/skeleton.h"
 
 #include "os/config.h"
-#include "os/clock.h"
 #include "os/memory.h"
+#include "os/time.h"
 #include "structs/index_pool.h"
 #include "structs/map.h"
 
@@ -53,11 +53,10 @@ void nf_handle(struct net_packet* packet)
 	}
 
 	if (packet->device == wan_device) {
-		time_t time = os_clock_time_ns();
 		size_t index;
 		if (map_get(map, &(ipv4_header->dst_addr), &index)) {
-			index_pool_refresh(pool, time, index);
-			time_t time_diff = time - buckets[index].time;
+			index_pool_refresh(pool, packet->time, index);
+			time_t time_diff = packet->time - buckets[index].time;
 			if (time_diff < burst / rate) {
 				buckets[index].size += time_diff * rate;
 				if (buckets[index].size > burst) {
@@ -66,7 +65,7 @@ void nf_handle(struct net_packet* packet)
 			} else {
 				buckets[index].size = burst;
 			}
-			buckets[index].time = time;
+			buckets[index].time = packet->time;
 
 			if (buckets[index].size > packet->length) {
 				buckets[index].size -= packet->length;
@@ -81,7 +80,7 @@ void nf_handle(struct net_packet* packet)
 			}
 
 			bool was_used;
-			if (index_pool_borrow(pool, time, &index, &was_used)) {
+			if (index_pool_borrow(pool, packet->time, &index, &was_used)) {
 				if (was_used) {
 					map_remove(map, &(addresses[index]));
 				}
@@ -89,7 +88,7 @@ void nf_handle(struct net_packet* packet)
 				addresses[index] = ipv4_header->dst_addr;
 				map_set(map, &(addresses[index]), index);
 				buckets[index].size = burst - packet->length;
-				buckets[index].time = time;
+				buckets[index].time = packet->time;
 			} else {
 				// No more space
 				return;

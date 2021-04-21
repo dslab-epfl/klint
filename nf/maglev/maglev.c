@@ -1,8 +1,8 @@
 #include "net/skeleton.h"
 
-#include "os/clock.h"
 #include "os/config.h"
 #include "os/log.h"
+#include "os/time.h"
 
 #include "balancer.h"
 
@@ -47,10 +47,8 @@ void nf_handle(struct net_packet *packet)
 		return;
 	}
 
-	time_t time = os_clock_time_ns();
-
 	if (packet->device < devices_count - 1) {
-		balancer_process_heartbeat(balancer, packet->device, time);
+		balancer_process_heartbeat(balancer, packet->device, packet->time);
 		return;
 	}
 
@@ -62,7 +60,7 @@ void nf_handle(struct net_packet *packet)
 		.protocol = ipv4_header->next_proto_id
 	};
 	size_t backend;
-	if (balancer_get_backend(balancer, &flow, time, &backend)) {
+	if (balancer_get_backend(balancer, &flow, packet->time, &backend)) {
 		net_transmit(packet, backend, 0);
 	}
 }

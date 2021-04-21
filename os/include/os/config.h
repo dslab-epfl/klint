@@ -4,7 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "os/clock.h"
+#include "os/time.h"
 
 
 // Attempts to get a parameter with the given name, or returns false

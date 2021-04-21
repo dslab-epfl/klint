@@ -10,8 +10,13 @@
 
 int XDP_MAIN_FUNC(struct xdp_md* ctx);
 
+// see compat/uapi/linux/bpf.h
+uint64_t compat_bpf_time;
+
 void nf_handle(struct net_packet* packet)
 {
+	compat_bpf_time = packet->time;
+
 #ifdef XDP_SKELETON_RESTRICT
 	struct net_ether_header* ether_header;
 	struct net_ipv4_header* ipv4_header;

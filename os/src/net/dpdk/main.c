@@ -11,6 +11,7 @@
 #include <rte_mempool.h>
 
 #include "net/skeleton.h"
+#include "os/clock.h"
 #include "os/error.h"
 #include "os/init.h"
 
@@ -142,6 +143,7 @@ int main(int argc, char** argv)
 				struct net_packet packet = {
 					.data = (uint8_t*) bufs[n]->buf_addr + bufs[n]->data_off,
 					.length = bufs[n]->data_len,
+					.time = os_clock_time_ns(),
 					.device = bufs[n]->port,
 					.os_tag = bufs[n]
 				};

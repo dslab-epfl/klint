@@ -1,8 +1,8 @@
 #include "net/skeleton.h"
 
 #include "os/config.h"
-#include "os/clock.h"
 #include "os/memory.h"
+#include "os/time.h"
 #include "structs/index_pool.h"
 #include "structs/map.h"
 
@@ -48,15 +48,13 @@ void nf_handle(struct net_packet* packet)
 		return;
 	}
 
-	time_t time = os_clock_time_ns();
-
 	size_t index;
 	if (map_get(map, &(ether_header->src_addr), &index)) {
 		// TODO this is obviously wrong, need to check if they match
-		index_pool_refresh(allocator, time, index);
+		index_pool_refresh(allocator, packet->time, index);
 	} else {
 		bool was_used;
-		if (index_pool_borrow(allocator, time, &index, &was_used)) {
+		if (index_pool_borrow(allocator, packet->time, &index, &was_used)) {
 			if (was_used) {
 				map_remove(map, &(addresses[index]));
 			}

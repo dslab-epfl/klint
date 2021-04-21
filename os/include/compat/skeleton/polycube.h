@@ -6,12 +6,15 @@
 
 // See compat/polycube.h
 bool pcn_pkt_controller_flood = false;
+// See compat/uapi/linux/bpf.h
+uint64_t compat_bpf_time;
 
 // Polycube NFs implement this, it returns one of the RX_* values above and may call pcn_pkt_redirect or pcn_pkt_controller
 int handle_rx(struct xdp_md* ctx, struct pkt_metadata* md);
 
 void nf_handle(struct net_packet* packet)
 {
+	compat_bpf_time = packet->time;
 	struct xdp_md ctx = {
 		.data = (uintptr_t) packet->data,
 		.data_end = (uintptr_t) packet->data + packet->length

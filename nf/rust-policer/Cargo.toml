@@ -1,5 +1,5 @@
 [package]
-name = "rs-vigor-policer"
+name = "rust-policer"
 version = "1.0.0"
 
 [lib]

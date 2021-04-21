@@ -3,7 +3,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-#include "os/clock.h"
+#include "os/time.h"
 
 //@ #include "proof/ghost_map.gh"
 

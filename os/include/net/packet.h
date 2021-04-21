@@ -4,6 +4,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "os/time.h"
+
 
 #define IP_PROTOCOL_TCP 6
 #define IP_PROTOCOL_UDP 17
@@ -14,6 +16,7 @@ typedef uint16_t device_t;
 struct net_packet {
 	uint8_t* data;
 	size_t length;
+	time_t time;
 	device_t device;
 	uint8_t _padding[6];
 	void* os_tag; // NFs must not touch this

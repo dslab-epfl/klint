@@ -1,8 +1,8 @@
 #include "net/skeleton.h"
 
-#include "os/clock.h"
 #include "os/config.h"
 #include "os/log.h"
+#include "os/time.h"
 
 #include "flow_table.h"
 
@@ -38,8 +38,6 @@ void nf_handle(struct net_packet* packet)
 		return;
 	}
 
-	time_t time = os_clock_time_ns();
-
 	if (packet->device == wan_device) {
 		struct flow flow = { // inverted!
 			.src_ip = ipv4_header->dst_addr,
@@ -48,7 +46,7 @@ void nf_handle(struct net_packet* packet)
 			.dst_port = tcpudp_header->src_port,
 			.protocol = ipv4_header->next_proto_id
 		};
-		if (!flow_table_has_external(table, time, &flow)) {
+		if (!flow_table_has_external(table, packet->time, &flow)) {
 			os_debug("Unknown flow");
 			return;
 		}
@@ -61,7 +59,7 @@ void nf_handle(struct net_packet* packet)
 			.protocol = ipv4_header->next_proto_id,
 		};
 
-		flow_table_learn_internal(table, time, &flow);
+		flow_table_learn_internal(table, packet->time, &flow);
 	}
 
 	net_transmit(packet, 1 - packet->device, 0);

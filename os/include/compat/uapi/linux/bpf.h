@@ -7,7 +7,6 @@
 #include "compat/string.h"
 
 #include "arch/halt.h"
-#include "os/clock.h"
 #include "os/log.h"
 #include "os/memory.h"
 #include "structs/map2.h"
@@ -117,8 +116,9 @@ static inline long bpf_xdp_adjust_tail(struct xdp_md* xdp_md, int delta)
 // single threaded
 #define bpf_get_smp_processor_id() 0
 
-#define bpf_ktime_get_ns os_clock_time_ns
-#define bpf_ktime_get_boot_ns os_clock_time_ns
+extern uint64_t compat_bpf_time; // defined in the bpf main
+#define bpf_ktime_get_ns() compat_bpf_time
+#define bpf_ktime_get_boot_ns bpf_ktime_get_ns
 
 enum bpf_map_type {
 	BPF_MAP_TYPE_HASH,
