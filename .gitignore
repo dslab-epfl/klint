@@ -3,8 +3,9 @@
 *.obj
 *.so
 
-# Cached symbolic execution result
+# Cached symbolic execution stuff
 symbex.result
+symbex.stats
 
 # Python environment path file 
 .env
