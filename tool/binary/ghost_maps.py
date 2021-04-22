@@ -236,7 +236,7 @@ class Map:
             # Add K = K' => (V = V' and P = P') to the path constraint for each existing known item (K', V', P') in the map,
             *[Implies(key == i.key, (value == i.value) & (present == i.present)) for i in known_items + [self._unknown_item]],
             # Add UK => invariant(M)(K', V', P') to the path constraint [conditioned]
-            Implies(unknown, claripy.And(*[inv(state, MapItem(key, value, present), condition=condition) for inv in self.invariant_conjunctions()])),
+            *[Implies(unknown, inv(state, MapItem(key, value, present), condition=condition)) for inv in self.invariant_conjunctions()],
             # Add L <= length(M)
             known_length_lte_total
         )
@@ -859,6 +859,9 @@ def maps_merge_one(states_to_merge, obj, ancestor_maps, ancestor_variables, new_
     return (changed, map_funcs)
 
 
+# TODO TODO TODO rewrite this so we only do cross-inference for _new_ pairs (i.e., those that were outright ignored before)
+# and the one-inference is used to tell if past invariants still hold (they're right there! we're already doing it!)
+
 # Returns (new_states, new_results, reached_fixpoint), where
 # new_states is the new states to use instead of the ancestors,
 # new_results is the results to pass as previous_results next time,
@@ -926,9 +929,9 @@ def infer_invariants(ancestor_states, states, previous_results=None):
         new_states = None
     else:
         for new_state in new_states:
-            for (_, _, func) in across_results:
-                func(new_state)
             for func in one_funcs:
+                func(new_state)
+            for (_, _, func) in across_results:
                 func(new_state)
 
     for id in set([id for (id, _, _) in across_results]):
