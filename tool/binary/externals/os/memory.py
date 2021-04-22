@@ -20,7 +20,9 @@ class os_memory_alloc(angr.SimProcedure):
             raise Exception("size cannot be symbolic")
 
         # Preconditions
-        self.state.solver.add((count == 1) | (count * size <= (2 ** self.state.sizes.size_t - 1)))
+        assert utils.definitely_true(self.state.solver,
+            (count == 1) | (count * size <= (2 ** self.state.sizes.size_t - 1))
+        )
 
         # Postconditions
         result = self.state.memory.allocate(count, size, name="allocated", default=claripy.BVV(0, self.state.solver.eval_one(size, cast_to=int) * 8))

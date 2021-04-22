@@ -18,7 +18,7 @@ angr.SimState.register_default("sizes", SizesPlugin)
 
 # Can't find another way to create an empty state...
 def empty_state():
-    proj = angr.Project(os.path.dirname(os.path.realpath(__file__)) + "/empty_binary")
+    proj = angr.Project(os.path.dirname(os.path.realpath(__file__)) + "/empty_binary", simos=angr.simos.SimOS)
     state = proj.factory.blank_state()
     state.solver._stored_solver = CustomSolver()
     state.maps = GhostMapsPlugin()
@@ -339,6 +339,26 @@ class Tests(unittest.TestCase):
         (v2, p2) = state.maps.get(o2, K)
         state.solver.add(p2)
         self.assertSolverUnknown(state, v2 == X)
+
+    def test_forall_x(self):
+        state = empty_state()
+        o1 = claripy.BVS("O", 64)
+        o2 = claripy.BVS("O", 64)
+        o3 = claripy.BVS("O", 64)
+        o4 = claripy.BVS("O", 64)
+        state.maps[o1] = Map.new(state, KEY_SIZE, VALUE_SIZE, "test1", _length=10, _invariants=[lambda i: claripy.true])
+        state.maps[o2] = Map.new(state, KEY_SIZE, VALUE_SIZE, "test2", _length=10, _invariants=[lambda i: claripy.true])
+        state.maps[o3] = Map.new(state, KEY_SIZE, VALUE_SIZE, "test3", _length=10, _invariants=[lambda i: claripy.true])
+        state.maps[o4] = Map.new(state, VALUE_SIZE, KEY_SIZE, "test4", _length=10, _invariants=[lambda i: claripy.true])
+        state.maps[o1].add_invariant_conjunction(state, lambda i: ~i.present | MapHas(o2, i.key))
+        state.maps[o1].add_invariant_conjunction(state, lambda i: ~i.present | MapHas(o3, i.key, value=V))
+        state.maps[o2].add_invariant_conjunction(state, lambda i: ~i.present | ((MapGet(o3, i.key, VALUE_SIZE) != V) | MapHas(o4, i.value)))
+        (v, p) = state.maps.get(o1, K)
+        (v2, p2) = state.maps.get(o2, K)
+        (v3, p3) = state.maps.get(o3, K)
+        self.assertSolver(state, ~p | p2)
+        self.assertSolver(state, ~p | p3)
+
 
 if __name__ == '__main__':
     unittest.main()

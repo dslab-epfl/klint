@@ -22,7 +22,9 @@ class map_alloc(angr.SimProcedure):
             raise Exception("key_size cannot be symbolic")
 
         # Preconditions
-        self.state.solver.add((capacity * 64).ULE(2 ** self.state.sizes.size_t - 1))
+        assert utils.definitely_true(self.state.solver,
+            ((capacity * 64).ULE(2 ** self.state.sizes.size_t - 1))
+        )
 
         # Postconditions
         result = claripy.BVS("map", self.state.sizes.ptr)
@@ -85,11 +87,11 @@ class map_set(angr.SimProcedure):
         mapp = self.state.metadata.get(Map, map)
         key = self.state.memory.load(key_ptr, mapp.key_size, endness=self.state.arch.memory_endness)
         self.state.memory.take(25, key_ptr)
-        self.state.solver.add(
+        assert utils.definitely_true(self.state.solver, claripy.And(
             self.state.maps.length(mapp.values) < mapp.capacity,
             claripy.Not(self.state.maps.get(mapp.values, key)[1]),
             claripy.Not(self.state.maps.get(mapp.addrs, key)[1])
-        )
+        ))
         print("!!! map_set key", key)
 
         # Postconditions
@@ -115,12 +117,12 @@ class map_remove(angr.SimProcedure):
         mapp = self.state.metadata.get(Map, map)
         key = self.state.memory.load(key_ptr, mapp.key_size, endness=self.state.arch.memory_endness)
         frac = self.state.memory.take(None, key_ptr)
-        self.state.solver.add(
-            # TODO frac != 0.0 here?
+        assert utils.definitely_true(self.state.solver, claripy.And(
+            frac != 0,
             self.state.maps.get(mapp.values, key)[1],
             self.state.maps.get(mapp.addrs, key)[1],
             self.state.maps.get(mapp.addrs, key)[0] == key_ptr
-        )
+        ))
         print("!!! map_remove key", key)
 
         # Postconditions

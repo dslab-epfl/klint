@@ -9,6 +9,10 @@ import nf.executor as nf_executor
 import verif.persistence as verif_persist
 import verif.executor as verif_executor
 
+#from tests import test
+#test.Tests().test_forall_x()
+#sys.exit(0)
+
 
 full_stack = False
 nf_to_verify = "bridge"
@@ -33,6 +37,11 @@ else:
     if not use_cached_results:
         states, devices_count = nf_executor.execute_libnf(os.path.join(nf_root_folder, "libnf.so"))
         verif_persist.dump_data(states, devices_count, cached_data_path)
+
+# print them now just in case verif fails somehow
+stats = statistics.to_tsv()
+for line in stats:
+    print(line)
 
 spec = (Path(nf_root_folder) / "spec.py").read_text() # TODO spec needs to be an arg
 verif_executor.verify(verif_persist.load_data(cached_data_path), spec)

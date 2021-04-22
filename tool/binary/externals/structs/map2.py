@@ -29,13 +29,13 @@ class OsMap2Alloc(angr.SimProcedure):
             raise Exception("key_size cannot be symbolic")
 
         # Preconditions
-        self.state.solver.add(
+        assert utils.definitely_true(self.state.solver, claripy.And(
             key_size.UGT(0),
             (key_size * capacity * 2).ULE(2 ** self.state.sizes.size_t - 1),
             value_size.UGT(0),
             (value_size * capacity * 2).ULE(2 ** self.state.sizes.size_t - 1),
             (capacity * self.state.sizes.size_t * 2).ULE(2 ** self.state.sizes.size_t - 1)
-        )
+        ))
 
         # Postconditions
         result = claripy.BVS("os_map2", self.state.sizes.ptr)
@@ -99,7 +99,9 @@ class OsMap2Set(angr.SimProcedure):
         mapp = self.state.metadata.get(Map, map)
         key = self.state.memory.load(key_ptr, mapp.key_size, endness=self.state.arch.memory_endness)
         value = self.state.memory.load(value_ptr, mapp.value_size, endness=self.state.arch.memory_endness)
-        self.state.solver.add(claripy.Not(self.state.maps.get(mapp.items, key)[1]))
+        assert utils.definitely_true(self.state.solver,
+            claripy.Not(self.state.maps.get(mapp.items, key)[1])
+        )
         print("!!! os_map2_set key and value", key, value)
 
         # Postconditions
@@ -127,7 +129,9 @@ class OsMap2Remove(angr.SimProcedure):
         # Preconditions
         mapp = self.state.metadata.get(Map, map)
         key = self.state.memory.load(key_ptr, mapp.key_size, endness=self.state.arch.memory_endness)
-        self.state.solver.add(self.state.maps.get(mapp.items, key)[1])
+        assert utils.definitely_true(self.state.solver,
+            self.state.maps.get(mapp.items, key)[1]
+        )
         print("!!! os_map2_remove key", key)
 
         # Postconditions

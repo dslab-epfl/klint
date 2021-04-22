@@ -18,7 +18,9 @@ class index_pool_alloc(angr.SimProcedure):
         expiration_time = self.state.casts.uint64_t(expiration_time)
 
         # Preconditions
-        self.state.solver.add((size * self.state.sizes.uint64_t).ULE(2 ** self.state.sizes.size_t - 1))
+        assert utils.definitely_true(self.state.solver, 
+            ((size * self.state.sizes.uint64_t).ULE(2 ** self.state.sizes.size_t - 1))
+        )
 
         # Postconditions
         result = claripy.BVS("index_pool", self.state.sizes.ptr)
@@ -54,7 +56,9 @@ class index_pool_borrow(angr.SimProcedure):
 
         # Preconditions
         poolp = self.state.metadata.get(Pool, pool)
-        self.state.solver.add(time != 0xFF_FF_FF_FF_FF_FF_FF_FF)
+        assert utils.definitely_true(self.state.solver,
+            time != 0xFF_FF_FF_FF_FF_FF_FF_FF
+        )
         self.state.memory.load(out_index, self.state.sizes.size_t // 8)
         self.state.memory.load(out_used, self.state.sizes.bool // 8)
 
@@ -110,10 +114,10 @@ class index_pool_refresh(angr.SimProcedure):
 
         # Preconditions
         poolp = self.state.metadata.get(Pool, pool)
-        self.state.solver.add(
+        assert utils.definitely_true(self.state.solver, claripy.And(
             time != 0xFF_FF_FF_FF_FF_FF_FF_FF,
             index < poolp.size
-        )
+        ))
 
         # Postconditions
         self.state.maps.set(poolp.items, index, time)
@@ -164,7 +168,7 @@ class index_pool_return(angr.SimProcedure):
 
         # Preconditions
         poolp = self.state.metadata.get(Pool, pool)
-        self.state.solver.add(
+        assert utils.definitely_true(self.state.solver,
             index < poolp.size
         )
 

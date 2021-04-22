@@ -288,10 +288,10 @@ class Map:
         known_items_result = claripy.And(*[pred(state, i) for i in known_items])
 
         # Optimization: No need to go further if we already have an invariant known to imply the predicate
-        for inv in self.invariant_conjunctions():
-            if inv.quick_implies(state, pred):
-                LOGEND(state)
-                return known_items_result
+        #for inv in self.invariant_conjunctions():
+        #    if inv.quick_implies(state, pred):
+        #        LOGEND(state)
+        #        return known_items_result
 
         unknown_is_not_known = claripy.And(*[self._unknown_item.key != i.key for i in known_items])
         unknown_items_result = Implies(self.known_length() < self.length(), Implies(unknown_is_not_known, pred(state, self._unknown_item)))
@@ -574,10 +574,6 @@ def maps_merge_across(_states, objs, _ancestor_maps, _ancestor_variables, _cache
                 # Identity is a possible function
                 return lambda k, v: sel1(k, v)
 
-            if utils.definitely_true(state.solver, x1 == x2.reversed):
-                # Endianness reversion is a possible function (TODO should not be needed any more)
-                return lambda k, v: sel1(k, v).reversed
-
             fake = claripy.BVS("FAKE", x1.size(), explicit_name=True)
             if not x2.replace(x1, fake).structurally_match(x2):
                 # Replacement is a possible function
@@ -642,9 +638,16 @@ def maps_merge_across(_states, objs, _ancestor_maps, _ancestor_variables, _cache
 
             if o2 is None: # TODO this is a bit awkward
                 # only for length
-                if all(utils.definitely_true(st.solver, st.maps.length(o1) == ancestor_maps.length(o1)) for st in _orig_states):
+                """if all(utils.definitely_true(st.solver, st.maps.length(o1) == ancestor_maps.length(o1)) for st in _orig_states):
                     #print("Inferred: Length of", o1, "has not changed")
+                    results.put(("len-eq", [o1], lambda st, o1=o1: st.solver.add(st.maps.length(o1) == ancestor_maps.length(o1))))"""
+                for st in _orig_states:
+                    #print("                                    Checking len-eq for", o1, "in", id(st), "->", st.maps.length(o1) == ancestor_maps.length(o1))
+                    if not utils.definitely_true(st.solver, st.maps.length(o1) == ancestor_maps.length(o1)):
+                        break
+                else:
                     results.put(("len-eq", [o1], lambda st, o1=o1: st.solver.add(st.maps.length(o1) == ancestor_maps.length(o1))))
+                #print("---")
                 continue
 
             # Optimization: Ignore the states in which neither map changed
@@ -670,9 +673,16 @@ def maps_merge_across(_states, objs, _ancestor_maps, _ancestor_variables, _cache
             # For each pair of maps (M1, M2),
             #   if length(M1) <= length(M2) across all states,
             #   then assume this holds in the merged state
-            if all(utils.definitely_true(st.solver, st.maps.length(o1) <= st.maps.length(o2)) for st in orig_states):
+            """if all(utils.definitely_true(st.solver, st.maps.length(o1) <= st.maps.length(o2)) for st in orig_states):
                 #print("Inferred: Length of", o1, "is always <= that of", o2)
+                results.put(("len-le", [o1, o2], lambda st, o1=o1, o2=o2: st.solver.add(st.maps.length(o1) <= st.maps.length(o2))))"""
+            for st in orig_states:
+                #print("                                    Checking len-le for", o1, o2, "in", id(st), "->", st.maps.length(o1) <= st.maps.length(o2))
+                if not utils.definitely_true(st.solver, st.maps.length(o1) <= st.maps.length(o2)):
+                    break
+            else:
                 results.put(("len-le", [o1, o2], lambda st, o1=o1, o2=o2: st.solver.add(st.maps.length(o1) <= st.maps.length(o2))))
+            #print("---")
 
             # Map relationships.
             # For each pair of maps (M1, M2),
@@ -739,15 +749,14 @@ def maps_merge_across(_states, objs, _ancestor_maps, _ancestor_variables, _cache
                         log_text +=   f"Inferred: when {o1} contains (K,V), if {fp(log_k, log_v)} then {o2} contains {fk(log_k, log_v)}"
                         log_text += f"\n          in addition, the value is {fv(log_k, log_v)}"
                         results.put(("x-value", [o1, o2],
-                                     lambda state, o1=o1, o2=o2, fp=fp, fk=fk, fv=fv: state.maps[o1].add_invariant_conjunction(state, lambda i: Implies(i.present, Implies(fp(i.key, i.value), MapHas(o2, fk(i.key, i.value), value=fv(i.key, i.value)))))))
+                                     lambda state, o1=o1, o2=o2, fp=fp, fk=fk, fv=fv: state.solver.add(state.maps.forall(o1, lambda k, v: Implies(fp(k, v), MapHas(o2, fk(k, v), value=fv(k, v)))))))
                 else:
                     to_cache.put([o1, o2, "v", None]) # do not cache fv since it didn't work
 
-                    # No point in trying a cross-key if o2 is an array, we already know what its keys are
-                    if not o2_is_array and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk: Implies(fp(k, v), MapHas(o2, fk(k, v))), _exclude_get=True)) for st in states):
+                    if all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk: Implies(fp(k, v), MapHas(o2, fk(k, v))), _exclude_get=True)) for st in states):
                         log_text += f"Inferred: when {o1} contains (K,V), if {fp(log_k, log_v)} then {o2} contains {fk(log_k, log_v)}"
                         results.put(("x-key", [o1, o2],
-                                     lambda state, o1=o1, o2=o2, fp=fp, fk=fk: state.maps[o1].add_invariant_conjunction(state, lambda i: Implies(i.present, Implies(fp(i.key, i.value), MapHas(o2, fk(i.key, i.value)))))))
+                                     lambda state, o1=o1, o2=o2, fp=fp, fk=fk: state.solver.add(state.maps.forall(o1, lambda k, v: Implies(fp(k, v), MapHas(o2, fk(k, v)))))))
                         to_cache.put([o1, o2, "p", [fp]]) # only put the working one, don't have us try a pointless one next time
                         to_cache.put([o1, o2, "k", fk])
 
@@ -836,16 +845,18 @@ def maps_merge_one(states_to_merge, obj, ancestor_maps, ancestor_variables, new_
                     conjunction = conjunction.with_expr(
                         lambda e, i, oldi=item, state=state: e | claripy.And(*find_constraints(state, oldi.key, i.key), *find_constraints(state, oldi.value, i.value))
                     )
-                    print("Item", item, "in map", obj, "does not comply with invariant conjunction", conj)
+                    print("Item", item, "in map", obj, "does not comply with invariant conjunction", conj, "; it is now", conjunction)
         invariant_conjs.append(conjunction)
 
+    map_funcs = []
     new_map = ancestor_maps[obj].relax()
     for new_state in new_states:
         new_state.maps[obj] = new_map.__copy__()
-        for inv in invariant_conjs:
-            new_state.maps[obj].add_invariant_conjunction(new_state, inv)
+        map_funcs.append(lambda st: [st.maps[obj].add_invariant_conjunction(st, inv) for inv in invariant_conjs])
+        #for inv in invariant_conjs:
+        #    new_state.maps[obj].add_invariant_conjunction(new_state, inv)
 
-    return changed
+    return (changed, map_funcs)
 
 
 # Returns (new_states, new_results, reached_fixpoint), where
@@ -895,9 +906,11 @@ def infer_invariants(ancestor_states, states, previous_results=None):
 
     # Merge individual values, keeping track of whether any of them changed
     any_individual_changed = False
+    one_funcs = []
     for obj in ancestor_objs:
-        has_changed = maps_merge_one(states, obj, ancestor_maps, ancestor_variables, new_states)
+        (has_changed, funcs) = maps_merge_one(states, obj, ancestor_maps, ancestor_variables, new_states)
         any_individual_changed = any_individual_changed or has_changed
+        one_funcs += funcs
 
     # Fixpoint if all merges resulted in the old result and the across_results are a superset
     reached_fixpoint = not any_individual_changed and len(previous_results) == 0
@@ -912,8 +925,10 @@ def infer_invariants(ancestor_states, states, previous_results=None):
         # No point in spending time setting up invariants on the new state if we won't use it
         new_states = None
     else:
-        for (_, _, func) in across_results:
-            for new_state in new_states:
+        for new_state in new_states:
+            for (_, _, func) in across_results:
+                func(new_state)
+            for func in one_funcs:
                 func(new_state)
 
     for id in set([id for (id, _, _) in across_results]):

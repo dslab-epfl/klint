@@ -163,7 +163,7 @@ def base_index_offset(state, addr, meta_type, allow_failure=False):
         if (added == offset).is_true():
             index = claripy.BVV(0, 64)
         else:
-            index = (added - offset) // meta.size
+            index = _div_simplify(state.solver, (added - offset), meta.size)
         return (base, index, offset * 8)
 
     addr = state.solver.simplify(addr) # this handles the descriptor addresses, which are split between two NIC registers
@@ -223,3 +223,11 @@ def _modulo_simplify(a, b):
         if not (e.ast % b == claripy.BVV(0, a.size())).is_true() and not (m % b == claripy.BVV(0, a.size())).is_true():
             result += e.ast * m
     return result % b
+
+def _div_simplify(solver, a, b):
+    decomposed = _as_mult_add(a)
+    if len(decomposed) == 1:
+        (e, m) = next(iter(decomposed.items()))
+        if definitely_true(solver, e.ast == (a // b)):
+            return e.ast
+    return a // b
