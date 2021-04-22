@@ -20,6 +20,20 @@ from binary import statistics
 
         # TODO: I wonder if it makes sense to refactor as "map" and "map layer" since the layer can only have stuff on known items?
 
+
+# Quick and dirty logging...
+LOG_levels = {}
+def LOG(state, text):
+    if id(state) in LOG_levels:
+        level = LOG_levels[id(state)]
+    else:
+        level = 1
+    LOG_levels[id(state)] = level + 1
+    #print(level, "  " * level, text)
+def LOGEND(state):
+    LOG_levels[id(state)] = LOG_levels[id(state)] - 1
+
+
 # Helper function to make expressions clearer
 def Implies(a, b):
     return ~a | b
@@ -182,15 +196,19 @@ class Map:
                 to_call = to_call._previous
                 version = version + 1
             return to_call.get(state, key, conditioned_value=conditioned_value, condition=condition)
+        
+        LOG(state, "GET " + self.meta.name + f" version: {version} " + (" key: " + str(key)) + ((" value: " + str(conditioned_value)) if conditioned_value is not None else "") + (" cond: " + str(condition)))
 
         # Optimization: If the map is empty, the answer is always false
         if self.is_empty():
+            LOGEND(state)
             return (claripy.BVS(self.meta.name + "_bad_value", self.meta.value_size), claripy.false)
 
         # If the map contains an item (K', V', P') such that K' = K, then return (V', P') [assuming the condition]
         known_items = self.known_items()
         matching_item = utils.get_exact_match(state.solver, key, known_items + [self._unknown_item], assumption=condition, selector=lambda i: i.key)
         if matching_item is not None:
+            LOGEND(state)
             return (matching_item.value, matching_item.present)
 
         # Let V be a fresh symbolic value [using the hint]
@@ -224,6 +242,7 @@ class Map:
         )
 
         # Return (V, P)
+        LOGEND(state)
         return (value, present)
 
     def set(self, state, key, value):
@@ -259,6 +278,8 @@ class Map:
         if not isinstance(pred, MapInvariant):
             pred = MapInvariant.new(state, self.meta, (lambda i, old_pred=pred: Implies(i.present, old_pred(i.key, i.value))))
 
+        LOG(state, "forall " + self.meta.name + "  " + str(pred))
+
         # Optimization: If the map is empty, the answer is always true
         if self.is_empty():
             return claripy.true
@@ -269,6 +290,7 @@ class Map:
         # Optimization: No need to go further if we already have an invariant known to imply the predicate
         for inv in self.invariant_conjunctions():
             if inv.quick_implies(state, pred):
+                LOGEND(state)
                 return known_items_result
 
         unknown_is_not_known = claripy.And(*[self._unknown_item.key != i.key for i in known_items])
@@ -277,6 +299,7 @@ class Map:
         result = claripy.BoolS(self.meta.name + "_forall")
         state.solver.add(result == claripy.And(known_items_result, unknown_items_result))
         self.add_invariant_conjunction(state, pred.with_expr(lambda e, i: Implies(result, e)))
+        LOGEND(state)
         return result
 
     # === Private API, also used by invariant inference ===
@@ -415,13 +438,7 @@ class GhostMapsPlugin(SimStatePlugin):
         return self[obj].meta.value_size
 
     def get(self, obj, key, conditioned_value=None, condition=claripy.true, version=None):
-        map = self[obj]
-        #LOG(self.state, "GET " + str(obj) + f" version: {version} " + (" key: " + str(key)) + ((" value: " + str(value)) if value is not None else "") + \
-        #    (" cond: " + str(condition))  + \
-        #                " (" + str(len(list(map.known_items()))) + " items, " + str(len(self.state.solver.constraints)) + " constraints)")
-        result = map.get(self.state, key, conditioned_value=conditioned_value, condition=condition, version=version)
-        #LOGEND(self.state)
-        return result
+        return self[obj].get(self.state, key, conditioned_value=conditioned_value, condition=condition, version=version)
 
     def set(self, obj, key, value):
         self[obj] = self[obj].set(self.state, key, value)
@@ -430,11 +447,7 @@ class GhostMapsPlugin(SimStatePlugin):
         self[obj] = self[obj].remove(self.state, key)
 
     def forall(self, obj, pred, _exclude_get=False):
-        map = self[obj]
-        #LOG(self.state, "forall " + str(obj) + " ( " + str(len(self.state.solver.constraints)) + " constraints)")
-        result = map.forall(self.state, pred, _exclude_get=_exclude_get)
-        #LOGEND(self.state)
-        return result
+        return self[obj].forall(self.state, pred, _exclude_get=_exclude_get)
 
     # === Import and Export ===
 
@@ -463,18 +476,6 @@ class GhostMapsPlugin(SimStatePlugin):
         # Very basic merging for now: only if they all match
         return all(utils.structural_eq(o._maps, self._maps) for o in others)
 
-
-# Quick and dirty logging...
-LOG_levels = {}
-def LOG(state, text):
-    if id(state) in LOG_levels:
-        level = LOG_levels[id(state)]
-    else:
-        level = 1
-    LOG_levels[id(state)] = level + 1
-    #print(level, "  " * level, text)
-def LOGEND(state):
-    LOG_levels[id(state)] = LOG_levels[id(state)] - 1
 
 # state args have a leading _ to ensure that functions run concurrently don't accidentally touch them (TODO just move the functions out!)
 def maps_merge_across(_states, objs, _ancestor_maps, _ancestor_variables, _cache={}):
@@ -738,7 +739,7 @@ def maps_merge_across(_states, objs, _ancestor_maps, _ancestor_variables, _cache
                         log_text +=   f"Inferred: when {o1} contains (K,V), if {fp(log_k, log_v)} then {o2} contains {fk(log_k, log_v)}"
                         log_text += f"\n          in addition, the value is {fv(log_k, log_v)}"
                         results.put(("x-value", [o1, o2],
-                                     lambda state, o1=o1, o2=o2, fp=fp, fk=fk, fv=fv: state.solver.add(state.maps.forall(o1, lambda k, v: Implies(fp(k, v), MapHas(o2, fk(k, v), value=fv(k, v)))))))
+                                     lambda state, o1=o1, o2=o2, fp=fp, fk=fk, fv=fv: state.maps[o1].add_invariant_conjunction(state, lambda i: Implies(i.present, Implies(fp(i.key, i.value), MapHas(o2, fk(i.key, i.value), value=fv(i.key, i.value)))))))
                 else:
                     to_cache.put([o1, o2, "v", None]) # do not cache fv since it didn't work
 
@@ -746,7 +747,7 @@ def maps_merge_across(_states, objs, _ancestor_maps, _ancestor_variables, _cache
                     if not o2_is_array and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk: Implies(fp(k, v), MapHas(o2, fk(k, v))), _exclude_get=True)) for st in states):
                         log_text += f"Inferred: when {o1} contains (K,V), if {fp(log_k, log_v)} then {o2} contains {fk(log_k, log_v)}"
                         results.put(("x-key", [o1, o2],
-                                     lambda state, o1=o1, o2=o2, fp=fp, fk=fk: state.solver.add(state.maps.forall(o1, lambda k, v: Implies(fp(k, v), MapHas(o2, fk(k, v)))))))
+                                     lambda state, o1=o1, o2=o2, fp=fp, fk=fk: state.maps[o1].add_invariant_conjunction(state, lambda i: Implies(i.present, Implies(fp(i.key, i.value), MapHas(o2, fk(i.key, i.value)))))))
                         to_cache.put([o1, o2, "p", [fp]]) # only put the working one, don't have us try a pointless one next time
                         to_cache.put([o1, o2, "k", fk])
 

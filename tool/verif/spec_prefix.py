@@ -243,7 +243,7 @@ def _spec_wrapper(data):
     global __symbex__
     print("PATH", __symbex__.state._value.path._segments)
 
-    received_packet = _SpecPacket(data.network.received, data.network.received_length, _SpecSingleDevice(data.network.received_device))
+    received_packet = _SpecPacket(data.network.received, data.network.received_length, data.time, _SpecSingleDevice(data.network.received_device))
     
     transmitted_packet = None
     if len(data.network.transmitted) != 0:
@@ -254,7 +254,7 @@ def _spec_wrapper(data):
             transmitted_device = _SpecFloodedDevice(data.network.received_device, data.devices_count)
         else:
             transmitted_device = _SpecSingleDevice(tx_dev_int)
-        transmitted_packet = _SpecPacket(data.network.transmitted[0][0], data.network.transmitted[0][1], data.time, transmitted_device)
+        transmitted_packet = _SpecPacket(data.network.transmitted[0][0], data.network.transmitted[0][1], None, transmitted_device)
 
     config = _SpecConfig(data.config, data.devices_count)
 

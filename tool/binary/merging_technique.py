@@ -23,6 +23,7 @@ def merge_states(states):
         # Callstack merely logs an error if there's an issue and never returns anything...
         if plugin == 'callstack':
             if any(o != our_plugin for o in other_plugins):
+                #print("Merge failed because of callstack?!?")
                 return None
             continue
         # TODO what could we pass as ancestor here?
@@ -30,9 +31,10 @@ def merge_states(states):
             # Memory returns false if nothing was merged, but that just means the memory was untouched
             if plugin in ('memory'):
                 continue
+            #print("Merge failed because of", plugin)
             return None
 
-    merged.solver.add(merged.solver.Or(*merge_conditions))
+    merged.solver.add(claripy.Or(*merge_conditions))
     return merged
 
 # Explores the state with the earliest instruction pointer first;
@@ -83,11 +85,13 @@ class MergingTechnique(angr.exploration_techniques.ExplorationTechnique):
         if len(lowest) == 1:
             new_state = lowest[0]
         else:
+            #print("Trying to merge", len(lowest), "states")
             merged = merge_states(lowest)
             if merged is None:
                 new_state = lowest[0]
                 simgr.stashes[self.nomerge_stash].extend(lowest[1:])
             else:
+                #print("Success!")
                 new_state = merged
         simgr.stashes[stash].append(new_state)
         return simgr

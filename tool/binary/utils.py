@@ -1,5 +1,6 @@
 import angr
 import claripy
+import math
 
 def read_str(state, ptr):
     result = ""
@@ -35,7 +36,6 @@ def get_if_constant(solver, expr, **kwargs):
         return sols[0]
     return None
 
-# TODO optimize this somehow to not require len(items)*2 solver calls?
 def get_exact_match(solver, item, candidates, assumption=claripy.true, selector=lambda i: i):
     # at one point this exact pattern, even after calling solver.simplify, caused the solver to hang...
     # but simplifying this way (which is correct; (0#4 .. x) * 0x10 / 0x10 == (0#4 .. x)) made it go through
