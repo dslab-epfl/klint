@@ -11,7 +11,7 @@ def spec(packet, config, transmitted_packet):
         assert transmitted_packet is None
         return
 
-    flows = ExpiringSet(Flow, config["flow expiration time"], config["flow capacity"])
+    flows = ExpiringSet(Flow, config["flow expiration time"], config["flow capacity"], packet.time)
     backends = Map(Device, Time)
     flows_to_backends = Map("size_t", Device)
 

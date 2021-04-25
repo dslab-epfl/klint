@@ -11,7 +11,7 @@ def spec(packet, config, transmitted_packet):
         assert transmitted_packet is None
         return
 
-    flows = ExpiringSet(Flow, config["expiration time"], config["max flows"])
+    flows = ExpiringSet(Flow, config["expiration time"], config["max flows"], packet.time)
 
     if packet.device == config["wan device"]:
         flow = {

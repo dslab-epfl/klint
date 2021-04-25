@@ -69,29 +69,31 @@ class Map:
         global __symbex__
 
         if _map is None:
+            # Start with all candidates
+            candidates = __symbex__.state.maps
+            # Exclude the fractions and packets, which the spec writer is not even aware of
+            candidates = filter(lambda c: "fracs_" not in c[1].meta.name and "packet_" not in c[1].meta.name, candidates)
+            # Exclude those we have used already
+            candidates = filter(lambda c: all(not choices[0].structurally_match(c[0]) for choices in __symbex__.choices[:__symbex__.choice_index]), candidates)
+            # Sort by key and value size differences, ensuring the candidates are at least as big as needed
             key_size = type_size(key_type)
-            value_size = 0 if value_type is ... else type_size(value_type)
-
-            possible_candidates = [
-                (o, m) for (o, m) in __symbex__.state.maps
-                # Ignore maps that the user did not declare, i.e., fractions ones & the packet itself
-                if ("fracs_" not in m.meta.name) & ("packet_" not in m.meta.name) & \
-                   (m.meta.key_size >= key_size) & (m.meta.value_size >= value_size)
-            ]
-            # TODO only use smaller-than-size map if forall the unused part is 0
-            # Eliminate previously chosen maps
-            possible_candidates = [
-                (o, m) for (o, m) in possible_candidates
-                if all(not choices[0].structurally_match(o) for choices in __symbex__.choices[:__symbex__.choice_index])
-            ]
-            if len(possible_candidates) == 0:
+            candidates = filter(lambda c: c[1].meta.key_size >= key_size, candidates)
+            if value_type is ...:
+                candidates = sorted(candidates, key=lambda c: (c[1].meta.key_size - key_size))
+            else:
+                value_size = type_size(value_type)
+                candidates = filter(lambda c: c[1].meta.value_size >= value_size, candidates)
+                candidates = sorted(candidates, key=lambda c: (c[1].meta.key_size - key_size) + (c[1].meta.value_size - value_size))
+            # This should never happen
+            if len(candidates) == 0:
                 raise Exception("No such map: " + str(key_type) + " -> " + str(value_type))
-            # Prioritize exact matches
-            possible_candidates.sort(key=lambda c: (c[1].meta.key_size - key_size) + (c[1].meta.value_size - value_size))
-            print(key_type,"->",value_type,"     has cands:", [m for (o,m) in possible_candidates])
-            candidates = [o for (o, m) in possible_candidates]
+            # Debug:
+            #print(key_type, "->", value_type)
+            #for (o, m) in candidates:
+            #    print("  ", m, m.meta.key_size, m.meta.value_size)
+            # Now get the object; if we called choose on the map instead, it'd remain the same map across states, which would be bad
+            candidates = map(lambda c: c[0], candidates)
             obj = __choose__(candidates)
-            #print("Trying", obj, "for", key_type,"->",value_type)
             _map = next(m for (o, m) in __symbex__.state.maps if o.structurally_match(obj))
 
         self._map = _map
@@ -241,7 +243,7 @@ def ipv4_checksum(header):
 
 def _spec_wrapper(data):
     global __symbex__
-    print("PATH", __symbex__.state._value.path._segments)
+    #print("PATH", __symbex__.state._value.path._segments)
 
     received_packet = _SpecPacket(data.network.received, data.network.received_length, data.time, _SpecSingleDevice(data.network.received_device))
     

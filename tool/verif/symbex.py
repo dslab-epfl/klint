@@ -30,7 +30,7 @@ class _SymbexData:
 def symbex_builtin_choose(choices):
     global __symbex__
     if __symbex__.choice_index == len(__symbex__.choices):
-        __symbex__.choices.append(choices)
+        __symbex__.choices.append(list(choices))
     result = __symbex__.choices[__symbex__.choice_index][0]
     __symbex__.choice_index = __symbex__.choice_index + 1
     return result

@@ -9,14 +9,10 @@ import nf.executor as nf_executor
 import verif.persistence as verif_persist
 import verif.executor as verif_executor
 
-#from tests import test
-#test.Tests().test_forall_x()
-#sys.exit(0)
-
 
 full_stack = False
-nf_to_verify = "bridge"
-use_cached_results = False
+nf_to_verify = "maglev"
+use_cached_results = True
 
 
 if len(sys.argv) >= 2:
