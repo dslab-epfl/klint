@@ -58,8 +58,7 @@ def type_unwrap(value, type):
 def exists(type, func):
     global __symbex__
     value = __symbex__.state.BVS("exists_value", type_size(type))
-    results = __symbex__.state.solver.eval_upto(func(type_wrap(value, type)), 2)
-    return results == [True]
+    return __symbex__.state.solver.satisfiable(extra_constraints=[func(type_wrap(value, type))])
 
 
 # === Maps ===
