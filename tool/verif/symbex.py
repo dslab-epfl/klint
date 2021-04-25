@@ -28,9 +28,16 @@ class _SymbexData:
 
 
 def symbex_builtin_choose(choices):
+    assert isinstance(choices, list)
     global __symbex__
     if __symbex__.choice_index == len(__symbex__.choices):
-        __symbex__.choices.append(list(choices))
+        __symbex__.choices.append(choices)
+    else:
+        assert [a is b for (a,b) in zip(choices, __symbex__.choices[__symbex__.choice_index])], "choices must be the same across all paths"
+    # Exclude those we have used already
+    while any(cs[0] is __symbex__.choices[__symbex__.choice_index][0] for cs in __symbex__.choices[:__symbex__.choice_index]):
+        print("Dismissing dupe", __symbex__.choices[__symbex__.choice_index][0])
+        __symbex__.choices[__symbex__.choice_index].pop(0)
     result = __symbex__.choices[__symbex__.choice_index][0]
     __symbex__.choice_index = __symbex__.choice_index + 1
     return result
@@ -47,6 +54,8 @@ class ValueProxy:
     def unwrap(value):
         if callable(value):
             return lambda *args, **kwargs: ValueProxy.unwrap(value(*[ValueProxy.wrap(arg) for arg in args], **{k: ValueProxy.wrap(v) for (k, v) in kwargs.items()}))
+        if isinstance(value, list):
+            return [ValueProxy.unwrap(i) for i in value]
         if not isinstance(value, ValueProxy):
             return value
         return value._value
@@ -217,9 +226,10 @@ def _symbex_one(state, func, branches, choices):
     __symbex__.choice_index = 0
     __symbex__.state = ValueProxy.wrap(state.copy())
     func()
-    return __symbex__.branches[:__symbex__.branch_index], __symbex__.choices[:__symbex__.choice_index]
+    return __symbex__.branches, __symbex__.choices
 
 def _symbex(state_data):
+    failures = 0
     choices = []
     while True:
         try:
@@ -242,7 +252,10 @@ def _symbex(state_data):
             # If we reached the end of the loop, we're all done!
             return ([cs[0] for cs in choices], results)
         except:
+            # Debug:
             #print("A choice didn't work. Trying with a different one.")
+            #failures = failures + 1
+            #if failures == 4: raise
             # Prune choice sets that were fully explored
             while len(choices) > 0 and len(choices[-1]) == 1: choices.pop()
             # If all choices were explored, we failed
@@ -254,7 +267,7 @@ def symbex(program, func_name, globs, state_data):
     global __symbex__
     __symbex__ = _SymbexData()
     globs['__symbex__'] = __symbex__
-    globs['__choose__'] = symbex_builtin_choose
+    globs['__choose__'] = ValueProxy.wrap(symbex_builtin_choose)
     # locals have to be the same as globals, otherwise Python encapsulates the program in a class and then one can't use classes inside it...
     exec(program, globs, globs)
 

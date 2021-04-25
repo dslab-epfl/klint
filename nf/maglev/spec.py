@@ -25,6 +25,7 @@ def spec(packet, config, transmitted_packet):
         }
 
         if transmitted_packet is None:
+            print("XYZSZZSSSZSZSSS", backends._map)
             assert backends.forall(lambda k, v: (k < 0) | (k >= config.devices_count - 1))
         else:
             if flow not in flows:

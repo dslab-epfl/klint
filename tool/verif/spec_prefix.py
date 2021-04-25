@@ -73,8 +73,6 @@ class Map:
             candidates = __symbex__.state.maps
             # Exclude the fractions and packets, which the spec writer is not even aware of
             candidates = filter(lambda c: "fracs_" not in c[1].meta.name and "packet_" not in c[1].meta.name, candidates)
-            # Exclude those we have used already
-            candidates = filter(lambda c: all(not choices[0].structurally_match(c[0]) for choices in __symbex__.choices[:__symbex__.choice_index]), candidates)
             # Sort by key and value size differences, ensuring the candidates are at least as big as needed
             key_size = type_size(key_type)
             candidates = filter(lambda c: c[1].meta.key_size >= key_size, candidates)
@@ -84,17 +82,14 @@ class Map:
                 value_size = type_size(value_type)
                 candidates = filter(lambda c: c[1].meta.value_size >= value_size, candidates)
                 candidates = sorted(candidates, key=lambda c: (c[1].meta.key_size - key_size) + (c[1].meta.value_size - value_size))
-            # This should never happen
-            if len(candidates) == 0:
-                raise Exception("No such map: " + str(key_type) + " -> " + str(value_type))
-            # Debug:
-            #print(key_type, "->", value_type)
-            #for (o, m) in candidates:
-            #    print("  ", m, m.meta.key_size, m.meta.value_size)
             # Now get the object; if we called choose on the map instead, it'd remain the same map across states, which would be bad
-            candidates = map(lambda c: c[0], candidates)
-            obj = __choose__(candidates)
+            obj = __choose__(list(map(lambda c: c[0], candidates)))
             _map = next(m for (o, m) in __symbex__.state.maps if o.structurally_match(obj))
+            # Debug:
+            print(key_type, "->", value_type)
+            for (o, m) in candidates:
+                print("  ", m, m.meta.key_size, m.meta.value_size)
+            print(" ->", _map)
 
         self._map = _map
         self._key_type = key_type
@@ -252,8 +247,8 @@ def ipv4_checksum(header):
 # === Spec wrapper ===
 
 def _spec_wrapper(data):
-    #global __symbex__
-    #print("PATH", __symbex__.state._value.path._segments)
+    global __symbex__
+    print("PATH", __symbex__.state._value.path._segments)
 
     received_packet = _SpecPacket(data.network.received, data.network.received_length, data.time, _SpecSingleDevice(data.network.received_device))
     
