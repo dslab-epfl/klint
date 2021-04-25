@@ -242,6 +242,7 @@ def _symbex(state_data):
             # If we reached the end of the loop, we're all done!
             return ([cs[0] for cs in choices], results)
         except:
+            #print("A choice didn't work. Trying with a different one.")
             # Prune choice sets that were fully explored
             while len(choices) > 0 and len(choices[-1]) == 1: choices.pop()
             # If all choices were explored, we failed

@@ -39,5 +39,6 @@ def spec(packet, config, transmitted_packet):
         if flow not in flows:
             assert flows.old.full
 
+    assert transmitted_packet is not None
     assert transmitted_packet.data == packet.data
     assert transmitted_packet.device == 1 - packet.device

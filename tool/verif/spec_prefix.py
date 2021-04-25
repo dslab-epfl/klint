@@ -220,7 +220,7 @@ class _SpecPacket:
     def ipv4(self):
         if self._ipv4 is None:
             if self.ether.type == 0x0008: # TODO handle endness in spec
-                self._ipv4 = type_wrap(self._data[:type_size(_SpecPacket._ETHER_HEADER)], _SpecPacket._IPV4_HEADER)
+                self._ipv4 = type_wrap(self._data, _SpecPacket._IPV4_HEADER)
                 self._data = self._data[:type_size(_SpecPacket._IPV4_HEADER)]
         return self._ipv4
 
@@ -228,7 +228,7 @@ class _SpecPacket:
     def tcpudp(self):
         if self._tcpudp is None:
             if self.ipv4 is not None and ((self.ipv4.protocol == 6) | (self.ipv4.protocol == 17)):
-                self._tcpudp = type_wrap(self._data[:type_size(_SpecPacket._ETHER_HEADER)+type_size(_SpecPacket._IPV4_HEADER)], _SpecPacket._TCPUDP_HEADER)
+                self._tcpudp = type_wrap(self._data, _SpecPacket._TCPUDP_HEADER)
                 self._data = self._data[:type_size(_SpecPacket._TCPUDP_HEADER)]
         return self._tcpudp
 
@@ -252,7 +252,7 @@ def ipv4_checksum(header):
 # === Spec wrapper ===
 
 def _spec_wrapper(data):
-    global __symbex__
+    #global __symbex__
     #print("PATH", __symbex__.state._value.path._segments)
 
     received_packet = _SpecPacket(data.network.received, data.network.received_length, data.time, _SpecSingleDevice(data.network.received_device))
@@ -264,7 +264,7 @@ def _spec_wrapper(data):
         if data.network.transmitted[0][2] is None:
             transmitted_device = _SpecFloodedDevice(data.network.received_device, data.devices_count)
         else:
-            transmitted_device = _SpecSingleDevice(tx_dev_int)
+            transmitted_device = _SpecSingleDevice(data.network.transmitted[0][2])
         transmitted_packet = _SpecPacket(data.network.transmitted[0][0], data.network.transmitted[0][1], None, transmitted_device)
 
     config = _SpecConfig(data.config, data.devices_count)

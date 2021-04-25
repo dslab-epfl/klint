@@ -117,29 +117,6 @@ class MapInvariant:
     def __repr__(self):
         return str(self.expr)
 
-    def quick_implies(self, state, other): # if False, just means couldn't be determined quickly
-        to_check = [(self.expr, other.expr)]
-        # HACK: If it's of the shape "forall_XYZ => ...", which is often the case due to how the invariants are built in forall, recognize that
-        if self.expr.op == 'Or' and self.expr.args[0].op == 'Not' and self.expr.args[0].args[0].op == 'BoolS' and "forall" in self.expr.args[0].args[0].args[0] and \
-           utils.get_if_constant(state.solver, self.expr.args[0]) == False:
-            to_check = [(claripy.Or(*self.expr.args[1:]), other.expr)]
-        while len(to_check) > 0:
-            (l, r) = to_check.pop()
-            if l.op != r.op: return False
-            if len(l.args) != len(r.args): return False
-            for (i, (la, ra)) in enumerate(zip(l.args, r.args)):
-                if l.op == "MapHas" and i == 2 and ra is None:
-                    # OK, MapHas with value implies MapHas without
-                    continue
-                if isinstance(la, claripy.ast.Base) and isinstance(ra, claripy.ast.Base):
-                    to_check.append((la, ra))
-                    continue
-                if isinstance(la, claripy.ast.Base) or isinstance(ra, claripy.ast.Base):
-                    return False
-                if la != ra:
-                    return False
-        return True
-
     def with_expr(self, expr_factory):
         return MapInvariant(expr_factory(self.expr, MapItem(self.key, self.value, self.present)), self.key, self.value, self.present)
 
@@ -286,12 +263,6 @@ class Map:
 
         known_items = self.known_items(_exclude_get=_exclude_get)
         known_items_result = claripy.And(*[pred(state, i) for i in known_items])
-
-        # Optimization: No need to go further if we already have an invariant known to imply the predicate
-        #for inv in self.invariant_conjunctions():
-        #    if inv.quick_implies(state, pred):
-        #        LOGEND(state)
-        #        return known_items_result
 
         unknown_is_not_known = claripy.And(*[self._unknown_item.key != i.key for i in known_items])
         unknown_items_result = Implies(self.known_length() < self.length(), Implies(unknown_is_not_known, pred(state, self._unknown_item)))
