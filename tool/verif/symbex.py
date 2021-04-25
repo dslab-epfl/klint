@@ -52,7 +52,7 @@ class ValueProxy:
         return value._value
 
     def __init__(self, value):
-        assert value is not None and value is not NotImplemented and not isinstance(value, ValueProxy), "value should make sense"
+        assert value is not NotImplemented and not isinstance(value, ValueProxy), "value should make sense"
         self._value = value
 
     def __getattr__(self, name):

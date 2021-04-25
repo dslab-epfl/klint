@@ -201,16 +201,10 @@ class _SpecPacket:
         self.length = length
         self.time = time
         self._devices = devices
-        self.ether = type_wrap(data, _SpecPacket._ETHER_HEADER)
-        self._rest = data[:type_size(_SpecPacket._ETHER_HEADER)]
-        self.ipv4 = None
-        self.tcpudp = None
-        if self.ether.type == 0x0008: # TODO handle endness in spec
-            self.ipv4 = type_wrap(data[:type_size(_SpecPacket._ETHER_HEADER)], _SpecPacket._IPV4_HEADER)
-            self._rest = self._rest[:type_size(_SpecPacket._IPV4_HEADER)]
-            if (self.ipv4.protocol == 6) | (self.ipv4.protocol == 17):
-                self.tcpudp = type_wrap(data[:type_size(_SpecPacket._ETHER_HEADER)+type_size(_SpecPacket._IPV4_HEADER)], _SpecPacket._TCPUDP_HEADER)
-                self._rest = self._rest[:type_size(_SpecPacket._TCPUDP_HEADER)]
+        self.ether = type_wrap(data, _SpecPacket._ETHER_HEADER) # always set for now, we only support Ethernet packets
+        self._data = data[:type_size(_SpecPacket._ETHER_HEADER)]
+        self._ipv4 = None
+        self._tcpudp = None
 
     @property
     def device(self):
@@ -223,13 +217,29 @@ class _SpecPacket:
         return self._devices
 
     @property
+    def ipv4(self):
+        if self._ipv4 is None:
+            if self.ether.type == 0x0008: # TODO handle endness in spec
+                self._ipv4 = type_wrap(self._data[:type_size(_SpecPacket._ETHER_HEADER)], _SpecPacket._IPV4_HEADER)
+                self._data = self._data[:type_size(_SpecPacket._IPV4_HEADER)]
+        return self._ipv4
+
+    @property
+    def tcpudp(self):
+        if self._tcpudp is None:
+            if self.ipv4 is not None and ((self.ipv4.protocol == 6) | (self.ipv4.protocol == 17)):
+                self._tcpudp = type_wrap(self._data[:type_size(_SpecPacket._ETHER_HEADER)+type_size(_SpecPacket._IPV4_HEADER)], _SpecPacket._TCPUDP_HEADER)
+                self._data = self._data[:type_size(_SpecPacket._TCPUDP_HEADER)]
+        return self._tcpudp
+
+    @property
     def data(self):
         full = type_unwrap(self.ether, type_size(_SpecPacket._ETHER_HEADER))
-        if self.ipv4 is not None:
+        if self._ipv4 is not None:
             full = type_unwrap(self.ipv4, type_size(_SpecPacket._IPV4_HEADER)).concat(full)
-            if self.tcpudp is not None:
+            if self._tcpudp is not None:
                 full = type_unwrap(self.tcpudp, type_size(_SpecPacket._TCPUDP_HEADER)).concat(full)
-        full = self._rest.concat(full)
+        full = self._data.concat(full)
         return full
 
 
@@ -251,8 +261,7 @@ def _spec_wrapper(data):
     if len(data.network.transmitted) != 0:
         if len(data.network.transmitted) > 1:
             raise Exception("TODO support multiple transmitted packets")
-        tx_dev_int = data.network.transmitted[0][2]
-        if tx_dev_int is None:
+        if data.network.transmitted[0][2] is None:
             transmitted_device = _SpecFloodedDevice(data.network.received_device, data.devices_count)
         else:
             transmitted_device = _SpecSingleDevice(tx_dev_int)
