@@ -11,7 +11,7 @@ import verif.executor as verif_executor
 
 
 full_stack = False
-nf_to_verify = "maglev"
+nf_to_verify = "router"
 use_cached_results = True
 
 

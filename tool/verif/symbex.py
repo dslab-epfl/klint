@@ -128,9 +128,9 @@ class ValueProxy:
         assert isinstance(self._value, claripy.ast.Bool), "can't turn a ValueProxy over a non-bool AST into a bool"
 
         global __symbex__
+        # note that '___symbex__.state' here is a ValueProxy!
 
         path_condition = [f if b else ~f for (f, b) in __symbex__.branches[:__symbex__.branch_index]]
-        # note that 'state' here is a ValueProxy!
         outcomes = ValueProxy.unwrap(__symbex__.state).solver.eval_upto(self._value, 3, extra_constraints=path_condition) # ask for 3 just in case something goes wrong; we want 1 or 2
 
         if len(outcomes) == 1:
@@ -143,6 +143,9 @@ class ValueProxy:
             __symbex__.branches.append((self._value, True))
         result = __symbex__.branches[__symbex__.branch_index][1]
         __symbex__.branch_index = __symbex__.branch_index + 1
+
+        ValueProxy.unwrap(__symbex__.state).solver.add(self._value if result else ~self._value)
+
         return result
 
     
@@ -210,6 +213,11 @@ class ValueProxy:
         return self._op(other, "__mul__")
     def __rmul__(self, other):
         return self._op(other, "__rmul__")
+
+    def __floordiv__(self, other):
+        return self._op(other, "__floordiv__")
+    def __rfloordiv__(self, other):
+        return self._op(other, "__rfloordiv__")
     
     def __rshift__(self, other):
         return self._op(other, "LShR")
