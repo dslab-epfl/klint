@@ -5,7 +5,8 @@ from collections import namedtuple
 from binary import utils
 
 
-# TODO: Only query the fractions map if 'take' has been called at least once for it; but this means the metadata may not be the same before and after init, how to handle that?
+# TODO: Only query the fractions map if 'take' has been called at least once for it;
+#       but this means there may be maps created during the main loop body, how to handle that?
 
 # All sizes are in bytes, and all offsets are in bits
 # We store maps data in the state's memory endianness rather than in self.endness, this makes for fewer flips / more readable constraints
@@ -22,7 +23,7 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
 
         meta = self.state.metadata.get(MapsMemoryMixin.Metadata, base)
         fraction, present = self.state.maps.get(meta.fractions, index)
-        self.state.solver.add(present & (fraction != 0))
+        assert utils.definitely_true(self.state.solver, present & (fraction != 0))
         data, _ = self.state.maps.get(base, index)
 
         if endness is not None and endness != meta.endness:
@@ -48,7 +49,7 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
 
         meta = self.state.metadata.get(MapsMemoryMixin.Metadata, base)
         fraction, present = self.state.maps.get(meta.fractions, index)
-        self.state.solver.add(present & (fraction == 100))
+        assert utils.definitely_true(self.state.solver, present & (fraction == 100))
 
         if data.size() != self.state.maps.value_size(base):
             current, _ = self.state.maps.get(base, index)
