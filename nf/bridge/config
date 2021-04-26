@@ -1,3 +1,4 @@
 { "bid", 0 },
 { "expiration time", 4000ull * 1000ull * 1000ull },
-{ "capacity", 131072 }
+{ "capacity", 131072 },
+{ "stp update time", 5000ull * 1000ull * 1000ull }

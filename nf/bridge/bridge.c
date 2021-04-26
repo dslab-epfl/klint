@@ -25,11 +25,13 @@ bool nf_init(device_t devices_count)
 	uint64_t self_bid;
 	time_t expiration_time;
 	size_t capacity;
-	if (!os_config_get_u64("bid", &self_bid) || !os_config_get_time("expiration time", &expiration_time) || !os_config_get_size("capacity", &capacity)) {
+	time_t stp_update_time;
+	if (!os_config_get_u64("bid", &self_bid) || !os_config_get_time("expiration time", &expiration_time) ||
+	    !os_config_get_size("capacity", &capacity) || !os_config_get_time("stp update time", &stp_update_time)) {
 		return false;
 	}
 
-	stp_state = stp_init(devices_count, self_bid);
+	stp_state = stp_init(devices_count, self_bid, stp_update_time);
 	addresses = os_memory_alloc(capacity, sizeof(struct net_ether_addr));
 	devices = os_memory_alloc(capacity, sizeof(device_t));
 	map = map_alloc(sizeof(struct net_ether_addr), capacity);
