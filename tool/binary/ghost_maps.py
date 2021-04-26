@@ -609,33 +609,20 @@ def maps_merge_across(_states, objs, _ancestor_maps, _ancestor_variables, _cache
 
             if o2 is None: # TODO this is a bit awkward
                 # only for length
-                """if all(utils.definitely_true(st.solver, st.maps.length(o1) == ancestor_maps.length(o1)) for st in _orig_states):
+                if all(utils.definitely_true(st.solver, st.maps.length(o1) == ancestor_maps.length(o1)) for st in _orig_states):
                     #print("Inferred: Length of", o1, "has not changed")
-                    results.put(("len-eq", [o1], lambda st, o1=o1: st.solver.add(st.maps.length(o1) == ancestor_maps.length(o1))))"""
-                for st in _orig_states:
-                    #print("                                    Checking len-eq for", o1, "in", id(st), "->", st.maps.length(o1) == ancestor_maps.length(o1))
-                    if not utils.definitely_true(st.solver, st.maps.length(o1) == ancestor_maps.length(o1)):
-                        break
-                else:
                     results.put(("len-eq", [o1], lambda st, o1=o1: st.solver.add(st.maps.length(o1) == ancestor_maps.length(o1))))
-                #print("---")
-                continue
-
-            # Optimization: Ignore the states in which neither map changed
-            orig_states = [st for st in _orig_states if st.maps[o1].version() != 0 or st.maps[o2].version() != 0]
-            if len(orig_states) == 0:
-                #print("Ignored all states for maps", o1, o2)
-                continue
-
-            # Optimization: Ignore the combination entirely if there are no states in which both maps changed
-            if not any(st.maps[o1].version() != 0 and st.maps[o2].version() != 0 for st in orig_states):
-                #print("No states in which both changed for", o1, o2)
                 continue
 
             # Optimization: Ignore o1 as fractions, that's rather useless, and ignore o1/o2 as array and its fractions
-            if orig_states[0].memory.is_fractions(o1):
+            if _orig_states[0].memory.is_fractions(o1):
                 continue
-            if orig_states[0].memory.get_fractions(o1) is o2:
+            if _orig_states[0].memory.get_fractions(o1) is o2:
+                continue
+
+            # Optimization: Ignore the combination entirely if there are no states in which both maps changed
+            if not any(st.maps[o1].version() != 0 and st.maps[o2].version() != 0 for st in _orig_states):
+                #print("No states in which both changed for", o1, o2)
                 continue
 
             #print("Considering", o1, o2, "at", datetime.datetime.now())
@@ -644,16 +631,21 @@ def maps_merge_across(_states, objs, _ancestor_maps, _ancestor_variables, _cache
             # For each pair of maps (M1, M2),
             #   if length(M1) <= length(M2) across all states,
             #   then assume this holds in the merged state
-            """if all(utils.definitely_true(st.solver, st.maps.length(o1) <= st.maps.length(o2)) for st in orig_states):
+            # Only do that if the map doesn't always have length 1, though, otherwise we catch "cell"-like maps that e.g. hold a state structure
+            # TODO: It feels like in general we could do a better job to find length-related constraints...
+            #       e.g. find equality across maps, and find == and <= constraints in path constraints, and drop this one
+            if any(utils.can_be_false(st.solver, st.maps.length(o1) == 1) for st in _orig_states) and \
+               any(utils.can_be_false(st.solver, st.maps.length(o2) == 1) for st in _orig_states) and \
+               all(utils.definitely_true(st.solver, st.maps.length(o1) <= st.maps.length(o2)) for st in _orig_states):
                 #print("Inferred: Length of", o1, "is always <= that of", o2)
-                results.put(("len-le", [o1, o2], lambda st, o1=o1, o2=o2: st.solver.add(st.maps.length(o1) <= st.maps.length(o2))))"""
-            for st in orig_states:
-                #print("                                    Checking len-le for", o1, o2, "in", id(st), "->", st.maps.length(o1) <= st.maps.length(o2))
-                if not utils.definitely_true(st.solver, st.maps.length(o1) <= st.maps.length(o2)):
-                    break
-            else:
                 results.put(("len-le", [o1, o2], lambda st, o1=o1, o2=o2: st.solver.add(st.maps.length(o1) <= st.maps.length(o2))))
-            #print("---")
+
+            # Optimization: Ignore the states in which neither map changed
+            # (do this after len-le because otherwise we might only get the states in which length==1 for a map)
+            orig_states = [st for st in _orig_states if st.maps[o1].version() != 0 or st.maps[o2].version() != 0]
+            if len(orig_states) == 0:
+                #print("Ignored all states for maps", o1, o2)
+                continue
 
             # Map relationships.
             # For each pair of maps (M1, M2),
@@ -745,7 +737,7 @@ def maps_merge_across(_states, objs, _ancestor_maps, _ancestor_variables, _cache
         remaining_work.put((o1, o2))
 
     # Multithreading disabled because:
-    # - with threads, one needs to disable GC to avoid weird angr/Z3 issues (see angr issue #938), and it's not really faster
+    # - with threads, one needs to disable GC to avoid weird angr/Z3 issues (see angr issue #938), and it quickly OOMs unless there's tons of RAM
     # - with processes, we'd need to rearchitect this entire method to only pass pickle-able objects, i.e., never lambdas...
     thread_main(copy.deepcopy(_ancestor_maps), [s.copy() for s in _states])
     """threads = []
@@ -845,20 +837,6 @@ def infer_invariants(ancestor_states, states, previous_results=None):
     ancestor_maps = ancestor_states[0].maps
     ancestor_objs = [o for (o, _) in ancestor_maps.get_all()]
     if any(not utils.structural_eq(st.maps._maps, ancestor_maps._maps) for st in ancestor_states[1:]):
-        print([s.maps._maps for s in ancestor_states])
-        print("")
-        print("---")
-        print("")
-        aaa = list(ancestor_states[0].maps._maps.items())
-        bbb = list(ancestor_states[1].maps._maps.items())
-        xyz = [i for i in range(len(aaa)) if not utils.structural_eq(aaa[i], bbb[i])]
-        for i in xyz:
-            print("??? diff", i)
-            print(aaa[i], bbb[i])
-            print(aaa[i][1]._known_items, bbb[i][1]._known_items, utils.structural_eq(aaa[i][1]._known_items, bbb[i][1]._known_items))
-            print(aaa[i][1]._invariants, bbb[i][1]._invariants, utils.structural_eq(aaa[i][1]._invariants, bbb[i][1]._invariants))
-            print(aaa[i][1]._asdict(), bbb[i][1]._asdict())
-            print("")
         raise Exception("Inference requires all ancestor states to have the same maps (for now...)")
 
     ancestor_variables = set(ancestor_states[0].solver.variables(claripy.And(*ancestor_states[0].solver.constraints)))

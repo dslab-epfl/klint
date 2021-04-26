@@ -39,12 +39,12 @@ bool nf_init(device_t devices_count)
 
 void nf_handle(struct net_packet* packet)
 {
-/*	if (stp_handle(stp_state, packet)) {
-		return;
-	}
-*/
 	struct net_ether_header* ether_header;
 	if (!net_get_ether_header(packet, &ether_header)) {
+		return;
+	}
+
+	if (stp_handle(stp_state, ether_header, packet)) {
 		return;
 	}
 
@@ -69,6 +69,6 @@ void nf_handle(struct net_packet* packet)
 			net_transmit(packet, devices[index], 0);
 		}
 	} else {
-		net_flood_except(packet, stp_blocked_devices(stp_state), 0);
+		net_flood_except(packet, stp_blocked_devices(), 0);
 	}
 }

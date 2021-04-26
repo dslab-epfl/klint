@@ -5,6 +5,8 @@ from collections import namedtuple
 
 from . import packet
 
+TransmissionMetadata = namedtuple("TransmissionMetadata", ["data", "length", "flags", "is_flood", "device", "excluded_devices"])
+
 # TODO enforce model where it's the "right" buffer we're sending and enforce the NF doesn't touch it afterwards
 
 # void net_transmit(struct net_packet* packet, device_t device, enum net_transmit_flags flags);
@@ -19,7 +21,7 @@ class net_transmit(angr.SimProcedure):
         length = packet.get_length(self.state, pkt)
 
         metadata = self.state.metadata.get_one(packet.NetworkMetadata)
-        metadata.transmitted.append((data, length, device, flags))
+        metadata.transmitted.append(TransmissionMetadata(data, length, flags, False, device, None))
 
         #self.state.memory.take(None, data_addr) # - packet.PACKET_MTU)
 
@@ -32,9 +34,10 @@ class net_flood(angr.SimProcedure):
         data_addr = packet.get_data_addr(self.state, pkt)
         data = packet.get_data(self.state, pkt)
         length = packet.get_length(self.state, pkt)
+        device = packet.get_device(self.state, pkt)
 
         metadata = self.state.metadata.get_one(packet.NetworkMetadata)
-        metadata.transmitted.append((data, length, None, flags))
+        metadata.transmitted.append(TransmissionMetadata(data, length, flags, True, device, None))
 
         #self.state.memory.take(None, data_addr) # - packet.PACKET_MTU)
 
@@ -48,8 +51,9 @@ class net_flood_except(angr.SimProcedure):
         data_addr = packet.get_data_addr(self.state, pkt)
         data = packet.get_data(self.state, pkt)
         length = packet.get_length(self.state, pkt)
+        device = packet.get_device(self.state, pkt)
 
         metadata = self.state.metadata.get_one(packet.NetworkMetadata)
-        metadata.transmitted.append((data, length, None, flags)) # TODO: output devices
+        metadata.transmitted.append(TransmissionMetadata(data, length, flags, True, device, disabled_devices))
 
         #self.state.memory.take(None, data_addr) # - packet.PACKET_MTU)

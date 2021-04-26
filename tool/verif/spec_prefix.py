@@ -1,6 +1,6 @@
 # This file is prefixed to all specifications.
 # It contains core verification-related concepts, including the "_spec_wrapper" that is called by the verification engine.
-# It "talks" to the outside world via the global __symbex__ variable.
+# It communicates with the outside world via the global __symbex__ variable.
 
 
 # === Typing ===
@@ -255,11 +255,11 @@ def _spec_wrapper(data):
     if len(data.network.transmitted) != 0:
         if len(data.network.transmitted) > 1:
             raise Exception("TODO support multiple transmitted packets")
-        if data.network.transmitted[0][2] is None:
-            transmitted_device = _SpecFloodedDevice(data.network.received_device, data.devices_count)
+        if data.network.transmitted[0].is_flood:
+            transmitted_device = _SpecFloodedDevice(data.network.transmitted[0].device, data.devices_count)
         else:
-            transmitted_device = _SpecSingleDevice(data.network.transmitted[0][2])
-        transmitted_packet = _SpecPacket(data.network.transmitted[0][0], data.network.transmitted[0][1], None, transmitted_device)
+            transmitted_device = _SpecSingleDevice(data.network.transmitted[0].device)
+        transmitted_packet = _SpecPacket(data.network.transmitted[0].data, data.network.transmitted[0].length, None, transmitted_device)
 
     config = _SpecConfig(data.config, data.devices_count)
 
