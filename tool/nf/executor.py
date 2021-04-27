@@ -17,7 +17,6 @@ from binary.externals.os import pci
 from binary.externals.net import packet
 from binary.externals.net import tx
 from binary.externals.structs import map
-from binary.externals.structs import map2
 from binary.externals.structs import index_pool
 from binary.externals.structs import cht
 from binary.externals.structs import lpm
@@ -29,7 +28,6 @@ from . import spec_reg
 
 structs_alloc_externals = {
     'map_alloc': map.map_alloc,
-    'os_map2_alloc': map2.OsMap2Alloc,
     'index_pool_alloc': index_pool.index_pool_alloc,
     'cht_alloc': cht.ChtAlloc,
     'lpm_alloc': lpm.LpmAlloc,
@@ -39,9 +37,6 @@ structs_functions_externals = {
     'map_get': map.map_get,
     'map_set': map.map_set,
     'map_remove': map.map_remove,
-    'os_map2_get': map2.OsMap2Get,
-    'os_map2_set': map2.OsMap2Set,
-    'os_map2_remove': map2.OsMap2Remove,
     'index_pool_borrow': index_pool.index_pool_borrow,
     'index_pool_return': index_pool.index_pool_return,
     'index_pool_refresh': index_pool.index_pool_refresh,

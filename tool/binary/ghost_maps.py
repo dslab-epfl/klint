@@ -631,11 +631,11 @@ def maps_merge_across(_states, objs, _ancestor_maps, _ancestor_variables, _cache
             # For each pair of maps (M1, M2),
             #   if length(M1) <= length(M2) across all states,
             #   then assume this holds in the merged state
-            # Only do that if the map doesn't always have length 1, though, otherwise we catch "cell"-like maps that e.g. hold a state structure
+            # Only do that if the map didn't start with length 1, though, otherwise we catch "cell"-like maps that e.g. hold a state structure
             # TODO: It feels like in general we could do a better job to find length-related constraints...
             #       e.g. find equality across maps, and find == and <= constraints in path constraints, and drop this one
-            if any(utils.can_be_false(st.solver, st.maps.length(o1) == 1) for st in _orig_states) and \
-               any(utils.can_be_false(st.solver, st.maps.length(o2) == 1) for st in _orig_states) and \
+            if any(utils.can_be_false(st.solver, st.maps[o1].oldest_version().length() == 1) for st in _orig_states) and \
+               any(utils.can_be_false(st.solver, st.maps[o2].oldest_version().length() == 1) for st in _orig_states) and \
                all(utils.definitely_true(st.solver, st.maps.length(o1) <= st.maps.length(o2)) for st in _orig_states):
                 #print("Inferred: Length of", o1, "is always <= that of", o2)
                 results.put(("len-le", [o1, o2], lambda st, o1=o1, o2=o2: st.solver.add(st.maps.length(o1) <= st.maps.length(o2))))

@@ -12,10 +12,10 @@ bool nf_init(device_t devices_count)
 {
 	(void) devices_count;
 
-	bpf_map_init(&targets_map, true);
-	bpf_map_init(&macs_map, true);
-	bpf_map_init(&targets_count, true);
-	bpf_map_init(&cpu_rr_idx, true);
+	bpf_map_init(&targets_map);
+	bpf_map_init(&macs_map);
+	bpf_map_init(&targets_count);
+	bpf_map_init(&cpu_rr_idx);
 
 	return true;
 }

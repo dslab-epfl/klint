@@ -4,12 +4,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "compat/string.h"
-
 #include "arch/halt.h"
 #include "os/log.h"
 #include "os/memory.h"
-#include "structs/map2.h"
+#include "structs/map.h"
+#include "structs/index_pool.h"
 
 // just so we have it somewhere
 #define ETHERNET_MTU_ 1514
@@ -141,8 +140,10 @@ struct bpf_map_def {
 	uint32_t type;
 	uint32_t map_flags;
 	// The following are not in the original definition; but we use the fact that C initializers don't need to be complete so we can store stuff in the struct itself
-	struct os_map2* _map; // for _HASH
-	uint8_t* _values; // for _ARRAY; also as a workaround for _HASH since we cannot gain ownership of values within the map; works as long as code uses one lookup at a time
+	struct map* _map;
+	struct index_pool* _indices;
+	uint8_t* _keys;
+	uint8_t* _values;
 };
 
 // no need for typed stuff; but declare a struct because this macro is used with a ; at the end and that's illegal on its own
@@ -166,8 +167,9 @@ static inline void* bpf_map_lookup_elem(struct bpf_map_def* map, void* key)
 	// "Perform a lookup in map for an entry associated to key. Return Map value associated to key, or NULL if no entry was found."
 	switch (map->type) {
 		case BPF_MAP_TYPE_HASH: {
-			if (os_map2_get(map->_map, key, map->_values)) {
-				return map->_values;
+			size_t index;
+			if (map_get(map->_map, key, &index)) {
+				return map->_values + (index * map->value_size);
 			}
 			return NULL;
 		}
@@ -196,16 +198,25 @@ static inline long bpf_map_update_elem(struct bpf_map_def* map, void* key, void*
 
 	switch (map->type) {
 		case BPF_MAP_TYPE_HASH: {
-			if (os_map2_get(map->_map, key, map->_values)) {
-				os_map2_remove(map->_map, key);
+			size_t index;
+			if (!map_get(map->_map, key, &index)) {
+				bool was_used;
+				if (!index_pool_borrow(map->_indices, 0, &index, &was_used)) {
+					return -1;
+				}
+				if (was_used) {
+					map_remove(map->_map, map->_keys + (index * map->key_size)); // this should never happen
+				}
+				os_memory_copy(key, map->_keys + (index * map->key_size), map->key_size);
+				map_set(map->_map, map->_keys + (index * map->key_size), index);
 			}
-			// equivalent to set ? 0 : -1, but lower number of paths in case the expression is ignored
-			return 1 - os_map2_set(map->_map, key, value);
+			os_memory_copy(value, map->_values + (index * map->value_size), map->value_size);
+			return 0;
 		}
 		case BPF_MAP_TYPE_ARRAY: {
 			uint32_t index = *((uint32_t*) key);
 			if (index < map->max_entries) {
-				memcpy(map->_values + (index * map->value_size), value, map->value_size);
+				os_memory_copy(value, map->_values + (index * map->value_size), map->value_size);
 				return 0;
 			}
 			return -1;
@@ -221,8 +232,12 @@ static inline long bpf_map_delete_elem(struct bpf_map_def* map, void* key)
 	// since this is verified code we don't need to assert that the key is already there
 	switch (map->type) {
 		case BPF_MAP_TYPE_HASH: {
-			os_map2_remove(map->_map, key);
-			return 0;
+			size_t index;
+			if (map_get(map->_map, key, &index)) {
+				map_remove(map->_map, map->_keys + (index * map->key_size));
+				index_pool_return(map->_indices, index);
+			}
+			return -1;
 		}
 		case BPF_MAP_TYPE_ARRAY: {
 			// does not make sense
@@ -235,12 +250,8 @@ static inline long bpf_map_delete_elem(struct bpf_map_def* map, void* key)
 
 // Not in the Linux definition, necessary for a standard native program
 // (we could lazily init in the lookup/update/delete functions but that would slow down processing)
-static inline void bpf_map_init(struct bpf_map_def* map, bool havoc)
+static inline void bpf_map_init(struct bpf_map_def* map)
 {
-	// Those have no prototypes elsewhere since they are only needed for havocing
-	void os_map2_havoc(struct os_map2* map);
-	void os_memory_havoc(void* ptr);
-
 	// Single-threaded so no need to specially handle PERCPU
 	if (map->type == BPF_MAP_TYPE_PERCPU_ARRAY) {
 		map->type = BPF_MAP_TYPE_ARRAY;
@@ -252,21 +263,16 @@ static inline void bpf_map_init(struct bpf_map_def* map, bool havoc)
 
 	switch (map->type) {
 		case BPF_MAP_TYPE_HASH:
-			map->_map = os_map2_alloc(map->key_size, map->value_size, map->max_entries);
+			map->_map = map_alloc(map->key_size, map->max_entries);
+			map->_indices = index_pool_alloc(map->max_entries, TIME_MAX); // never expire anything
+			map->_keys = os_memory_alloc(map->max_entries, map->key_size);
 			map->_values = os_memory_alloc(map->max_entries, map->value_size);
-			if (havoc) {
-				os_map2_havoc(map->_map);
-				os_memory_havoc(map->_values);
-			}
 			break;
 		case BPF_MAP_TYPE_ARRAY:
 			if (map->key_size != sizeof(uint32_t)) {
 				return; // we expect all maps to have 32-bit indexes
 			}
 			map->_values = os_memory_alloc(map->max_entries, map->value_size);
-			if (havoc) {
-				os_memory_havoc(map->_values);
-			}
 			break;
 
 		case BPF_MAP_TYPE_ARRAY_OF_MAPS:

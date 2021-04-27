@@ -11,8 +11,8 @@ bool nf_init(device_t devices_count)
 {
 	(void) devices_count;
 
-	bpf_map_init(&tx_port, false);
-	bpf_map_init(&flow_ctx_table, false);
+	bpf_map_init(&tx_port);
+	bpf_map_init(&flow_ctx_table);
 
 	return true;
 }
