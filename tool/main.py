@@ -12,7 +12,7 @@ import verif.executor as verif_executor
 
 full_stack = False
 nf_to_verify = "bridge"
-use_cached_results = False
+use_cached_results = True
 
 
 if len(sys.argv) >= 2:

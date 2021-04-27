@@ -28,8 +28,8 @@ def merge_states(states):
             continue
         # TODO what could we pass as ancestor here?
         if not our_plugin.merge(other_plugins, merge_conditions):
-            # Memory returns false if nothing was merged, but that just means the memory was untouched
-            if plugin in ('memory'):
+            # Memory (of which register is a kind) returns false if nothing was merged, but that just means the memory was untouched
+            if plugin in ('memory', 'registers'):
                 continue
             #print("Merge failed because of", plugin)
             return None

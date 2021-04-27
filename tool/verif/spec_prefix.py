@@ -55,6 +55,9 @@ def type_unwrap(value, type):
 
 # === Spec 'built-in' functions ===
 
+def typeof(value):
+    return value.size()
+
 def exists(type, func):
     global __symbex__
     value = __symbex__.state.BVS("exists_value", type_size(type))
@@ -118,6 +121,43 @@ class Map:
     @property
     def length(self):
         return self._map.length()
+
+
+# Special case for a single-element map, commonly used to store state
+class Cell:
+    def __init__(self, value_type):
+        global __symbex__
+        # Start with all candidates
+        candidates = __symbex__.state.maps
+        # Exclude maps with key size != ptr
+        candidates = filter(lambda c: c[1].meta.key_size == __symbex__.state.sizes.ptr, candidates)
+        # Exclude the fractions and packets, which the spec writer is not even aware of
+        candidates = filter(lambda c: "fracs_" not in c[1].meta.name and "packet_" not in c[1].meta.name, candidates)
+        # Exclude maps with length != 1
+        candidates = filter(lambda c: not __symbex__.state.solver.satisfiable(extra_constraints=[c[1].length() != 1]), candidates)
+        # Sort by value size difference, ensuring the candidates are at least as big as needed
+        value_size = type_size(value_type)
+        candidates = filter(lambda c: c[1].meta.value_size >= value_size, candidates)
+        candidates = sorted(candidates, key=lambda c: (c[1].meta.value_size - value_size))
+        # Now get the object; if we called choose on the map instead, it'd remain the same map across states, which would be bad
+        obj = __choose__(list(map(lambda c: c[0], candidates)))
+        self._map = next(m for (o, m) in __symbex__.state.maps if o.structurally_match(obj))
+        self.value_type = value_type
+        # Debug:
+        print("cell", value_type)
+        for (o, m) in candidates:
+            print("  ", m, m.meta.value_size)
+        print(" ->", self._map)
+
+    @property
+    def value(self):
+        global __symbex__
+        return type_wrap(self._map.get(__symbex__.state, __symbex__.state.BVV(0, __symbex__.state.sizes.ptr))[0], self.value_type)
+
+    @property
+    def old_value(self):
+        global __symbex__
+        return type_wrap(self._map.oldest_version().get(__symbex__.state, __symbex__.state.BVV(0, __symbex__.state.sizes.ptr))[0], self.value_type)
 
 
 # === Config ===

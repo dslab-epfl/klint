@@ -51,20 +51,22 @@ void nf_handle(struct net_packet* packet)
 	}
 
 	size_t index;
-	bool was_used;
-	if (map_get(map, &(ether_header->src_addr), &index)) {
-		index_pool_refresh(allocator, packet->time, index);
-		devices[index] = packet->device; // in case the device changed
-	} else if (index_pool_borrow(allocator, packet->time, &index, &was_used)) {
-		if (was_used) {
-			map_remove(map, &(addresses[index]));
-		}
+	if ((ether_header->src_addr.bytes[0] & 1) == 0) { // IEEE 802.1D 7.8 says don't add group addrs to the map (those with least significant bit of first octet set)
+		bool was_used;
+		if (map_get(map, &(ether_header->src_addr), &index)) {
+			index_pool_refresh(allocator, packet->time, index);
+			devices[index] = packet->device; // in case the device changed
+		} else if (index_pool_borrow(allocator, packet->time, &index, &was_used)) {
+			if (was_used) {
+				map_remove(map, &(addresses[index]));
+			}
 
-		addresses[index] = ether_header->src_addr;
-		map_set(map, &(addresses[index]), index);
+			addresses[index] = ether_header->src_addr;
+			map_set(map, &(addresses[index]), index);
 
-		devices[index] = packet->device;
-	} // It's OK if we can't get nor add, we can forward the packet anyway
+			devices[index] = packet->device;
+		} // It's OK if we can't get nor add, we can forward the packet anyway
+	}
 
 	if (map_get(map, &(ether_header->dst_addr), &index)) {
 		if (devices[index] != packet->device) {

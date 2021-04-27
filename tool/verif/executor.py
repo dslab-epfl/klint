@@ -33,8 +33,9 @@ class _VerifState:
         self._global_condition = None # for the solver
         self.arch = ArchAMD64() # TODO use original arch!
 
-        # Allow the spec to create a BVS without importing claripy explicitly
+        # Allow the spec to create a BV without importing claripy explicitly
         self.BVS = claripy.BVS
+        self.BVV = claripy.BVV
 
         self.sizes = SizesPlugin()
         self.sizes.set_state(self)
