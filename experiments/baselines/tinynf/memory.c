@@ -64,28 +64,25 @@ bool tn_mem_allocate(const size_t size, void** out_addr)
 		page_used_len = 0;
 	}
 
-	// Cannot overflow, guaranteed by the contract
-	const size_t full_size = size * count;
-
 	// Weird but valid; return a likely-invalid address for debugging convenience
-	if (full_size == 0) {
+	if (size == 0) {
 		*out_addr = page_addr + HUGEPAGE_SIZE;
 		return true;
 	}
 
 	// Align as required by the contract
-	const size_t align_diff = (size_t) (page_addr + page_used_len) % full_size;
+	const size_t align_diff = (size_t) (page_addr + page_used_len) % size;
 	if (align_diff != 0) {
-		page_used_len = page_used_len + (full_size - align_diff);
+		page_used_len = page_used_len + (size - align_diff);
 	}
 
-	if (HUGEPAGE_SIZE - page_used_len < full_size) {
+	if (HUGEPAGE_SIZE - page_used_len < size) {
 		TN_DEBUG("Not enough space left to allocate");
 		return false;
 	}
 
 	*out_addr = page_addr + page_used_len;
-	page_used_len = page_used_len + full_size;
+	page_used_len = page_used_len + size;
 	return true;
 }
 

@@ -1,0 +1,30 @@
+# Inspired by TinyNF's experiments/perf-endtoend/bench-all.sh
+
+# Proper optimizations
+TN_DEBUG := 0
+TN_CFLAGS := -flto -s -DASSUME_ONE_WAY
+
+# Config
+EXPIRATION_TIME := 4000000
+POLICER_BURST := 1000000000000
+POLICER_RATE := 1000000000000
+ifeq (lb,$(NF))
+WAN_DEVICE := 0
+endif
+ifeq (bridge,$(NF))
+CAPACITY := 131072
+endif
+
+# TinyNF expects TN_NF, not NF
+TN_NF := $(NF)
+
+# TinyNF expects TN_ARGS, not NF_ARGS
+TN_ARGS := $(NF_ARGS)
+
+MY_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+
+# Replace the original memory with ours, to use the same kind of hugepages
+_ := $(shell cp $(MY_DIR)/memory.c $(MY_DIR)/tinynf/code/env/linux-x86/memory.c)
+
+# Use the original makefile
+include $(MY_DIR)/tinynf/experiments/baselines/vigor/Makefile.benchmarking

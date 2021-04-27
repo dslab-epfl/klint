@@ -25,3 +25,4 @@
 [submodule "experiments/baselines/tinynf/tinynf"]
 	path = experiments/baselines/tinynf/tinynf
 	url = https://github.com/dslab-epfl/tinynf
+	ignore = dirty
