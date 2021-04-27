@@ -32,3 +32,9 @@ for net in tinynf dpdk; do
     done
   done
 done
+
+# NOTE:
+# NF_EXT=.o CC=musl-gcc NF=bridge OS=linux NET=tinynf ./bench.sh .. --acceptableloss=0.001 --latencyload=1000 standard-single 2
+# NF=bridge ./bench.sh ../experiments/baselines/tinynf/ --acceptableloss=0.001 --latencyload=1000 standard-single 2
+# for single dir
+# don't forget -r for maglev!
