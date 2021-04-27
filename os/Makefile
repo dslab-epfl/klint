@@ -55,12 +55,19 @@ SPLIT_SRCS := $(STRUCTS_SRCS) $(VERIF_SRCS) $(OS_SRCS)
 SPLIT_OBJ := split.obj
 NF_OBJ := nf.obj
 
+ifdef NF_FULL_LTO
+# For experiments only, unverifiable
+NO_LTO_FLAG :=
+else
+# The overall compile must not use LTO, so that we can be sure all symbols declared in SPLIT_OBJ are still there (e.g. not inlined) and thus can be modeled
+NO_LTO_FLAG := -fno-lto
+endif
+
 ifndef NO_DEFAULT_TARGETS
 default: clean $(OUTPUT)
 
-# This compile must not use LTO, so that we can be sure all symbols declared in SPLIT_OBJ are still there (e.g. not inlined) and thus can be modeled
 $(OUTPUT): $(NF_OBJ) $(SPLIT_OBJ) $(NF_DYNAMIC)
-	@$(CC) $(CFLAGS) -fno-lto -o $@ $^
+	@$(CC) $(CFLAGS) $(NO_LTO_FLAG) -o $@ $^
 
 # Strip the NF object, to mimic realistic conditions in which the NF is compiled along with networking code by a developer and given to an operator, without any symbols
 $(NF_OBJ): $(subst .c,.o,$(NET_SRCS)) $(NF_STATIC)
