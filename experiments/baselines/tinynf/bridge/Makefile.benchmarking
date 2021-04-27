@@ -1,0 +1,7 @@
+TN_NF := bridge
+TN_DEBUG := 3
+TN_CFLAGS := -flto -s -DASSUME_ONE_WAY
+EXPIRATION_TIME := 4000000
+CAPACITY := 131072
+
+include $(abspath $(dir $(lastword $(MAKEFILE_LIST))))/../tinynf/experiments/baselines/vigor/Makefile.benchmarking

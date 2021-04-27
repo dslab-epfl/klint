@@ -22,3 +22,6 @@
 	path = experiments/baselines/dpdk/dpdk
 	url = https://github.com/dpdk/dpdk
 	ignore = dirty
+[submodule "experiments/baselines/tinynf/tinynf"]
+	path = experiments/baselines/tinynf/tinynf
+	url = https://github.com/dslab-epfl/tinynf
