@@ -43,7 +43,7 @@ STRUCTS_SRCS := $(shell echo $(THIS_DIR)/src/structs/*.c)
 # Verif
 VERIF_SRCS := $(shell echo $(THIS_DIR)/src/verif/*.c)
 
-# OS (the makefile defines OS_SRCS)
+# OS (the makefile defines OS_SRCS, plus there are the common ones)
 include $(THIS_DIR)/src/os/$(OS)/Makefile
 OS_SRCS += $(shell echo $(THIS_DIR)/src/os/*.c)
 

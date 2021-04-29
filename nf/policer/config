@@ -1,4 +1,4 @@
-{ "wan device", 1 },
+{ "wan device", 0 },
 { "max flows", 65536 },
-{ "rate", 1000ull * 1000ull * 1000ull * 1000ull },
-{ "burst", 1000ull * 1000ull * 1000ull * 1000ull }
+{ "rate", 1000ull * 1000ull * 1000ull * 1000ull * 1000ull },
+{ "burst", 1000ull * 1000ull * 1000ull * 1000ull * 1000ull }

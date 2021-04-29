@@ -4,8 +4,6 @@
 #include <rte_debug.h>
 #include <rte_malloc.h>
 
-#include "os/error.h"
-
 
 void* os_memory_alloc(const size_t count, const size_t size)
 {

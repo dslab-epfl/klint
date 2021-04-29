@@ -4,6 +4,17 @@ endif
 
 THIS_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 
+# Config
+EXPIRATION_TIME := 4000000
+POLICER_BURST := 1000000000000
+POLICER_RATE := 1000000000000
+ifeq (viglb,$(NF))
+WAN_DEVICE := 1
+endif
+ifeq (vigbridge,$(NF))
+CAPACITY := 131072
+endif
+
 # Run the setup script, in case it hasn't been run yet
 _IGNORED := $(shell cd $(THIS_DIR); ./setup.sh 2>/dev/null)
 

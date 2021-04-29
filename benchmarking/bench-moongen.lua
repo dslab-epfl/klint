@@ -41,7 +41,7 @@ function configure(parser)
   parser:option("-a --acceptableloss", "Acceptable loss for the throughput test, defaults to 0.003 or .3%"):default(0.003):convert(tonumber)
   parser:option("-f --flows", "Number of flows to use, defaults to 60,000"):default(60000):convert(tonumber)
   parser:flag("-x --xchange", "Exchange order of devices, in case you messed up your wiring")
-  parser:flag("-r --reverseheatup", "Add heatup in reverse, for Maglev-like load balancers; only for standard-single")
+  parser:flag("-m --maglev", "Handle Maglev: add heatup in reverse, so it gets heartbeats, and reverse order of devices; only for standard-single")
 end
 
 -- Helper function to summarize latencies: min, max, median, stdev, 99th
@@ -270,7 +270,7 @@ end
 -- Measure max throughput with less than 0.1% loss,
 -- and latency at lower rates up to max throughput minus 100Mbps
 function measureStandard(queuePairs, extraPair, args)
-  if args.reverseheatup then
+  if args.maglev then
     heatUp(queuePairs[99], args.layer, args.flows, true) -- 99 is a hack, see master function
   end
   heatUp(queuePairs[1], args.layer, args.flows, false)
@@ -422,9 +422,11 @@ function master(args)
 
   local port0 = 0
   local port1 = 1
+  if args.maglev then
+    port0, port1 = port1, port0
+  end
   if args.xchange then
-    port0 = 1
-    port1 = 0
+    port0, port1 = port1, port0
   end
 
   -- Thus we need 1 TX + 1 RX queue in each device for throughput, and 1 TX in device 0 / 1 RX in device 1 for latency
@@ -455,7 +457,7 @@ function master(args)
     os.exit(1)
   end
 
-  if args.reverseheatup and args.type ~= "standard-single" then
+  if args.maglev and args.type ~= "standard-single" then
     print("Reverse heatup is only for standard-single")
     os.exit(1)
   end

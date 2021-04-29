@@ -1,3 +1,7 @@
+ifndef NF_DYNAMIC
+$(error Sorry, DPDK net only supports dynamic linking for now)
+endif
+
 # TODO make DPDK if not made
 
 # This makefile takes over everything because DPDK
@@ -31,7 +35,7 @@ default: all
 include $(RTE_SDK)/mk/rte.vars.mk
 
 # Use existing sources, plus our main
-SRCS-y += $(SRCS) $(STRUCTS_SRCS) $(VERIF_SRCS) $(OS_SRCS)
+SRCS-y += $(SRCS) $(STRUCTS_SRCS) $(VERIF_SRCS) $(OS_SRCS) $(NF_DYNAMIC)
 SRCS-y += $(NET_DIR)/main.c
 
 # Keep the same binary name

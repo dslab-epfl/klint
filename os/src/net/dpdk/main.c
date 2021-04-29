@@ -12,7 +12,6 @@
 
 #include "net/skeleton.h"
 #include "os/clock.h"
-#include "os/error.h"
 #include "os/init.h"
 
 
@@ -71,23 +70,41 @@ static void device_init(device_t device, struct rte_mempool* mbuf_pool)
 }
 
 
+static void handle_flags(struct net_packet* packet, device_t device, enum net_transmit_flags flags)
+{
+	struct net_ether_header* ether_header = (struct net_ether_header*) packet->data;
+	if ((flags & UPDATE_ETHER_ADDRS) != 0) {
+		ether_header->src_addr = *((struct net_ether_addr*) &(device_addrs[device]));
+		ether_header->dst_addr = *((struct net_ether_addr*) &(endpoint_addrs[device]));
+//		memcpy(&(ether_header->src_addr), &(device_addrs[device]), sizeof(struct rte_ether_addr));
+//		memcpy(&(ether_header->dst_addr), &(endpoint_addrs[device]), sizeof(struct rte_ether_addr));
+	}
+}
+
 // TODO make sure we never get multiple net_transmit calls for the same mbuf? or handle it? idk
 void net_transmit(struct net_packet* packet, device_t device, enum net_transmit_flags flags)
 {
-	struct net_ether_header* ether_header = (struct net_ether_header*) packet->data;
-	if (flags & UPDATE_ETHER_ADDRS) {
-		memcpy(&(ether_header->src_addr), &(device_addrs[device]), sizeof(struct rte_ether_addr));
-		memcpy(&(ether_header->dst_addr), &(endpoint_addrs[device]), sizeof(struct rte_ether_addr));
-	}
-
+	handle_flags(packet, device, flags);
 	bufs_to_tx[device][bufs_to_tx_count[device]] = (struct rte_mbuf*) packet->os_tag;
 	bufs_to_tx_count[device] = bufs_to_tx_count[device] + 1;
 }
 
-void net_flood(struct net_packet* packet)
+void net_flood(struct net_packet* packet, enum net_transmit_flags flags)
 {
 	for (device_t device = 0; device < devices_count; device++) {
 		if (packet->device != device) {
+			handle_flags(packet, device, flags);
+			bufs_to_tx[device][bufs_to_tx_count[device]] = (struct rte_mbuf*) packet->os_tag;
+			bufs_to_tx_count[device] = bufs_to_tx_count[device] + 1;
+		}
+	}
+}
+
+void net_flood_except(struct net_packet* packet, bool* disabled_devices, enum net_transmit_flags flags)
+{
+	for (device_t device = 0; device < devices_count; device++) {
+		if (packet->device != device && !disabled_devices[device]) {
+			handle_flags(packet, device, flags);
 			bufs_to_tx[device][bufs_to_tx_count[device]] = (struct rte_mbuf*) packet->os_tag;
 			bufs_to_tx_count[device] = bufs_to_tx_count[device] + 1;
 		}
