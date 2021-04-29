@@ -11,12 +11,12 @@ cd "$exp_dir/../benchmarking"
 bench_bridge()
 {
   echo '[!!!] Benchmarking Bridge: '"$2"
-  while ! ./bench.sh $1 standard 2 ; do
+  while ! NF="$NF" OS="$OS" NET="$NET" NF_EXT="$NF_EXT" CC="$CC" BATCH_SIZE="$BATCH_SIZE" ./bench.sh $1 standard 2 ; do
     sleep 5
   done
   mv 'results' "$exp_dir/results/bridge-$2"
 }
-NF=bridge bench_bridge "$exp_dir/baselines/fastclick" 'click'
+NF=bridge BATCH_SIZE=32 bench_bridge "$exp_dir/baselines/fastclick" 'click'
 NF=bridge OS=dpdk NET=dpdk BATCH_SIZE=32 bench_bridge '..' 'dpdk'
 NF=bridge NF_EXT=.o CC=musl-gcc OS=linux NET=tinynf bench_bridge '..' 'ours'
 NF=vigbridge bench_bridge "$exp_dir/baselines/vigor" 'vigor-dpdk'
