@@ -27,33 +27,19 @@ def get_pyplot_ax_fig(title=None, figsize=None):
 
   return (plt, ax, fig)
 
-def get_color_label_marker(nf, explicit_one_core=False):
-  suffix = ', 1 core' if explicit_one_core else ''
-  if 'vigor' in nf:
-    return ('#4472C4', 'Vigor', '^')
-  if 'click' in nf or 'Click' in nf:
-    #if 'batched' in nf:
-    #  return ('#203864', 'Ixy, batched' + suffix, 'X')
-    return ('#4472C4', 'Click' + suffix, 'x')
-  if 'ixy' in nf:
-    if 'batched' in nf:
-      return ('#203864', 'Ixy, batched' + suffix, 'X')
-    return ('#4472C4', 'Ixy' + suffix, 'x')
-  if 'dpdkcustom' in nf:
-    return ('#682E0A', 'Custom DPDK', 'x')
-  if 'dpdk' in nf or 'DPDK' in nf:
-    if 'batched' in nf:
-      if 'parallel' in nf:
-        return ('#682E0A', 'DPDK, batched, 2 cores', 'X')
-      return ('#843C0C', 'DPDK, batched' + suffix, '^')
-    if 'parallel' in nf:
-      return ('#D16D2B', 'DPDK, 2 cores', 'x')
-    return ('#ED7D31', 'DPDK' + suffix, 'v')
-  if 'parallel' in nf:
-    return ('#60913D', 'TinyNF, 2 cores', 'P')   # P == filled plus
-  return ('#70AD47', 'TinyNF' + suffix, '+')
+def get_color_label_marker(nf):
+  if 'vigor-dpdk' in nf:
+    return ('#4472C4', 'Vigor on DPDK (verified source)', 'x')
+  if 'vigor-tinynf' in nf:
+    return ('#28477E', 'Vigor on TinyNF (verified source)', 'X')
+  if 'click' in nf:
+    return ('#ED7D31', 'Click (unverified)', '^')
+  if 'dpdk' in nf:
+    return ('#7D31ED', 'Ours on DPDK (unverified)', 'v')
+  return ('#70AD47', 'Ours on TinyNF (verified binary)', 'P') # P == filled plus
 
 def save_plot(plt, name):
   plot_dir = THIS_DIR + '/plots/'
   os.makedirs(plot_dir, exist_ok=True)
-  plt.savefig(plot_dir + name + '.svg', bbox_inches='tight', pad_inches=0.025)
+  plt.savefig(plot_dir + name + '.pdf', bbox_inches='tight', pad_inches=0.025)
+  print("Done! Plot saved to plots/" + name + ".pdf")

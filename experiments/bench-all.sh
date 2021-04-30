@@ -8,19 +8,18 @@ mkdir "$exp_dir/results"
 cd "$exp_dir/../benchmarking"
 
 # Bridge comparison
-bench_bridge()
-{
-  echo '[!!!] Benchmarking Bridge: '"$2"
-  while ! NF="$NF" OS="$OS" NET="$NET" NF_EXT="$NF_EXT" CC="$CC" BATCH_SIZE="$BATCH_SIZE" ./bench.sh $1 standard 2 ; do
-    sleep 5
-  done
-  mv 'results' "$exp_dir/results/bridge-$2"
-}
-NF=bridge BATCH_SIZE=32 bench_bridge "$exp_dir/baselines/fastclick" 'click'
-NF=bridge OS=dpdk NET=dpdk BATCH_SIZE=32 bench_bridge '..' 'dpdk'
-NF=bridge NF_EXT=.o CC=musl-gcc OS=linux NET=tinynf bench_bridge '..' 'ours'
-NF=vigbridge bench_bridge "$exp_dir/baselines/vigor" 'vigor-dpdk'
-NF=bridge bench_bridge "$exp_dir/baselines/tinynf" 'vigor-tinynf'
+bridge_args='standard 2'
+echo '[!!!] Benchmarking bridges'
+while ! NF=bridge BATCH_SIZE=32 ./bench.sh "$exp_dir/baselines/fastclick" $bridge_args ; do sleep 5; done
+mv 'results' "$exp_dir/results/bridge-click"
+while ! NF=bridge OS=dpdk NET=dpdk BATCH_SIZE=32 ./bench.sh '..' $bridge_args ; do sleep 5; done
+mv 'results' "$exp_dir/results/bridge-dpdk"
+while ! NF=bridge NF_EXT=.o CC=musl-gcc OS=linux NET=tinynf ./bench.sh '..' $bridge_args ; do sleep 5; done
+mv 'results' "$exp_dir/results/bridge-ours"
+while ! NF=vigbridge ./bench.sh "$exp_dir/baselines/vigor" $bridge_args ; do sleep 5; done
+mv 'results' "$exp_dir/results/bridge-vigor-dpdk"
+while ! NF=bridge ./bench.sh "$exp_dir/baselines/tinynf" $bridge_args ; do sleep 5; done
+mv 'results' "$exp_dir/results/bridge-vigor-tinynf"
 
 # Comparison of our NFs vs Vigor-TinyNF ones
 singledir_args='--acceptableloss=0.001 --latencyload=1000 standard-single'
