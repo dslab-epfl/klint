@@ -17,5 +17,13 @@ bool nf_init(device_t devices_count)
 	bpf_map_init(&targets_count);
 	bpf_map_init(&cpu_rr_idx);
 
+	// CRAB assumes this
+	if (devices_count == 0) {
+		return false;
+	}
+	uint32_t k = 0;
+	uint32_t v = devices_count;
+	bpf_map_update_elem(&targets_count, &k, &v, 0);
+
 	return true;
 }

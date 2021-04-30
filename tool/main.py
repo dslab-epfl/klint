@@ -11,8 +11,8 @@ import verif.executor as verif_executor
 
 
 full_stack = False
-nf_to_verify = "bridge"
-use_cached_results = True
+nf_to_verify = "firewall"
+use_cached_results = False
 
 
 if len(sys.argv) >= 2:
@@ -39,10 +39,14 @@ stats = statistics.to_tsv()
 for line in stats:
     print(line)
 
-spec = (Path(nf_root_folder) / "spec.py").read_text() # TODO spec needs to be an arg
-verif_executor.verify(verif_persist.load_data(cached_data_path), spec)
+spec_path = Path(nf_root_folder) / "spec.py" # TODO spec needs to be an arg
+if spec_path.exists():
+    spec = spec_path.read_text()
+    verif_executor.verify(verif_persist.load_data(cached_data_path), spec)
+    stats = statistics.to_tsv()
+    for line in stats:
+        print(line)
+else:
+    print("No specification. Not verifying.")
 
-stats = statistics.to_tsv()
-for line in stats:
-    print(line)
 (Path(__file__).parent / "symbex.stats").write_text("\n".join(stats))

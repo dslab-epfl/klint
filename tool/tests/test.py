@@ -119,6 +119,12 @@ class Tests(unittest.TestCase):
         result = map.get(state, K)
         self.assertSolver(state, ~result[1] | (K == 42))
 
+    def test_forall_lone_specific_key_2(self):
+        state = empty_state()
+        map = Map.new(state, KEY_SIZE, VALUE_SIZE, "test")
+        map2 = map.set(state, K, V)
+        self.assertSolver(state, map2.forall(state, lambda k, v: v == V))
+
     def test_forall_2(self):
         state = empty_state()
         map = Map.new_array(state, KEY_SIZE, VALUE_SIZE, 10, "test")

@@ -85,33 +85,6 @@ static inline long bpf_xdp_adjust_head(struct xdp_md* xdp_md, int delta)
 	return 0;
 }
 
-static inline long bpf_xdp_adjust_tail(struct xdp_md* xdp_md, int delta)
-{
-	if (xdp_md->_adjust_used) {
-		os_debug("adjust already used");
-		halt();
-	}
-	xdp_md->_adjust_used = true;
-
-	ptrdiff_t old_length = xdp_md->data_end - xdp_md->data;
-	if (delta <= 0) {
-		if (-delta <= old_length) {
-			xdp_md->data_end += delta;
-		} else {
-			// can't adjust tail earlier than head
-			return -1;
-		}
-	} else {
-		if (old_length + delta <= ETHERNET_MTU_) {
-			xdp_md->data_end += delta;
-		} else {
-			// can't make a packet that big
-			return -1;
-		}
-	}
-	return 0;
-}
-
 // single threaded
 #define bpf_get_smp_processor_id() 0
 

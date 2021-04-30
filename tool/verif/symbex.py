@@ -89,6 +89,7 @@ class ValueProxy:
         self_value = self._value
 
         # Claripy bug #214: Bool doesn't support rand/ror
+        # TODO fixed by fe614e61564636bb118c8514b8b08e525aa670bb, update
         if op == '__ror__':
             op = '__or__'
         if op == '__rand__':

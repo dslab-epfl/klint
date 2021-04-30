@@ -34,11 +34,11 @@ def alloc(state, devices_count):
     packet_length = claripy.BVS("packet_length", state.sizes.size_t)
     state.solver.add(packet_length.UGE(PACKET_MIN), packet_length.ULE(PACKET_MTU))
     # Allocate 2*MTU so that BPF's adjust_head can adjust negatively
-    data_addr = state.memory.allocate(1, 2 * PACKET_MTU, name="packet_data") # TODO: allocate with packet_length size instead; find another way to deal with BPF
+    data_addr = state.memory.allocate(1, 2 * PACKET_MTU, name="packet_data") # TODO: allocate with packet_length size instead; find another way to deal with BPF's adjust_head
     packet_device = claripy.BVS("packet_device", state.sizes.uint16_t)
     state.solver.add(packet_device.ULT(devices_count))
     (packet_time, _) = clock.get_time_and_cycles(state)
-    packet_data = packet_device.concat(packet_time).concat(packet_length).concat(data_addr) # + PACKET_MTU) TODO TODO TODO TODO!!!!!!
+    packet_data = packet_device.concat(packet_time).concat(packet_length).concat(data_addr + PACKET_MTU)
     state.memory.store(packet_addr, packet_data, endness=state.arch.memory_endness)
     state.metadata.append(None, NetworkMetadata(get_data(state, packet_addr), data_addr, packet_device, packet_length, []))
     return packet_addr

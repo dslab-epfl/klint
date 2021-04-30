@@ -266,6 +266,8 @@ class Map:
 
         unknown_is_not_known = claripy.And(*[self._unknown_item.key != i.key for i in known_items])
         unknown_items_result = Implies(self.known_length() < self.length(), Implies(unknown_is_not_known, pred(state, self._unknown_item)))
+        # TODO try with just (since we don't really need the weird length=1 case)
+        #unknown_items_result = Implies(unknown_is_not_known, pred(state, self._unknown_item))
 
         result = claripy.BoolS(self.meta.name + "_forall")
         state.solver.add(result == claripy.And(known_items_result, unknown_items_result))
@@ -882,10 +884,7 @@ def infer_invariants(ancestor_states, states, previous_results=None):
                 func(new_state)
             for (_, _, func) in across_results:
                 func(new_state)
-
-    for id in set([id for (id, _, _) in across_results]):
-        # add a '~' to make sure it's at the end of the list
-        statistics.set_value("~" + id, len([i for (i, _, _) in across_results if i == id]))
+        statistics.set_value("#invs", sum(len(m._invariants) for (_, m) in new_states[0].maps.get_all()))
 
     new_results = [(id, list(map(str, objs))) for (id, objs, _) in across_results]
     return (new_states, new_results, reached_fixpoint)

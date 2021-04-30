@@ -74,6 +74,7 @@ def device_writer(state, base, index, offset, value):
 
     # Special action for TDT, we're sending a packet
     if reg == "TDT":
+        print("REG IS TDT!", index, value)
         tdbal = dev.regs["TDBAL"][index].zero_extend(32)
         tdbah = dev.regs["TDBAH"][index].zero_extend(32)
         tdba = (tdbah << 32) | tdbal

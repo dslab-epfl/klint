@@ -8,7 +8,6 @@ from nf import device as nf_device
 
 
 def _custom_memory(memory_count, memory_size): # size in bits
-    memory = {}
     def reader(state, base, index, offset, size):
         if size is None:
             size = memory_size
@@ -17,18 +16,28 @@ def _custom_memory(memory_count, memory_size): # size in bits
         index = utils.get_if_constant(state.solver, index)
         assert index is not None
         assert index < memory_count
-        return memory.setdefault(index, claripy.BVV(0, memory_size))[offset+size-1:offset]
+
+        memory = state.metadata.get(type({}), base, default_init=lambda: {})
+
+        xxx = memory.setdefault(index, claripy.BVV(0, memory_size))[offset+size-1:offset]
+        print("Custom mem R", base, index, offset, "->", xxx)
+        return xxx
 
     def writer(state, base, index, offset, value):
         index = utils.get_if_constant(state.solver, index)
         assert index is not None
         assert index < memory_count
+        
+        print("Custom mem W", base, index, offset, "<-", value)
+        memory = state.metadata.get(type({}), base, default_init=lambda: {})
+
         existing_value = memory.setdefault(index, claripy.BVV(0, memory_size))
         if offset != 0:
             value = value.concat(existing_value[offset-1:0])
         if value.size() != memory_size:
             value = existing_value[:value.size()].concat(value)
         memory[index] = value
+
     return (reader, writer)
 
 
@@ -65,8 +74,10 @@ class foreach_index_forever(angr.SimProcedure):
 
     @staticmethod
     def state_creator(st, index, func, func_st):
-        nf_device.receive_packet_on_device(st, claripy.BVV(index, st.sizes.size_t))
-        return binary_executor.create_calling_state(st, func, [index, func_st], nf_executor.nf_handle_externals)
+        nf_device.receive_packet_on_device(st, index)
+        print("CREATING STATE!!!", func, [index, func_st])
+        res = binary_executor.create_calling_state(st, func, [index, func_st], nf_executor.nf_handle_externals)
+        return res
 
     def run(self, length, func, func_st):
         length = self.state.casts.size_t(length)
@@ -85,7 +96,7 @@ class foreach_index_forever(angr.SimProcedure):
         assert length is not None
         for idx in range(concrete_length):
             index = claripy.BVV(idx, self.state.sizes.size_t)
-            state_creator = lambda st, index=index: foreach_index_forever.state_creator(st, index, func, func_st) 
-            nf_executor.nf_inited_states.append((self.state, state_creator))
+            creator = lambda st, index=index: foreach_index_forever.state_creator(st, index, func, func_st) 
+            nf_executor.nf_inited_states.append((self.state, creator))
 
         self.exit(0)
