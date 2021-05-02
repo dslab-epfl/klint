@@ -8,6 +8,7 @@ from . import spec_act
 from . import spec_reg
 from . import reg_util
 from binary.externals.net import packet # ouch
+from binary.externals.net import tx # ouch, bis
 
 # counter, use_init, latest_action are single-element lists so we can change them
 SpecDevice = namedtuple('SpecDevice', ['index', 'phys_addr', 'virt_addr', 'bar_size', 'pci_regs', 'regs', 'counter', 'use_init', 'latest_action', 'actions', 'packet_length', 'packet_data'])
@@ -90,7 +91,7 @@ def device_writer(state, base, index, offset, value):
         if utils.can_be_true(state.solver, packet_length != 0):
             print("TDT len is not zero!")
             metadata = state.metadata.get_one(packet.NetworkMetadata)
-            metadata.transmitted.append((packet_data, packet_length, dev.index, None))
+            metadata.transmitted.append(tx.TransmissionMetadata(packet_data, packet_length, 0, False, dev.index, None))
 
 
 def spec_device_create_default(state, index):

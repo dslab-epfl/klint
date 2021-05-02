@@ -19,16 +19,13 @@ def _custom_memory(memory_count, memory_size): # size in bits
 
         memory = state.metadata.get(type({}), base, default_init=lambda: {})
 
-        xxx = memory.setdefault(index, claripy.BVV(0, memory_size))[offset+size-1:offset]
-        print("Custom mem R", base, index, offset, "->", xxx)
-        return xxx
+        return memory.setdefault(index, claripy.BVV(0, memory_size))[offset+size-1:offset]
 
     def writer(state, base, index, offset, value):
         index = utils.get_if_constant(state.solver, index)
         assert index is not None
         assert index < memory_count
-        
-        print("Custom mem W", base, index, offset, "<-", value)
+
         memory = state.metadata.get(type({}), base, default_init=lambda: {})
 
         existing_value = memory.setdefault(index, claripy.BVV(0, memory_size))
@@ -75,9 +72,7 @@ class foreach_index_forever(angr.SimProcedure):
     @staticmethod
     def state_creator(st, index, func, func_st):
         nf_device.receive_packet_on_device(st, index)
-        print("CREATING STATE!!!", func, [index, func_st])
-        res = binary_executor.create_calling_state(st, func, [index, func_st], nf_executor.nf_handle_externals)
-        return res
+        return binary_executor.create_calling_state(st, func, [index, func_st], nf_executor.nf_handle_externals)
 
     def run(self, length, func, func_st):
         length = self.state.casts.size_t(length)

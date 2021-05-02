@@ -3,6 +3,7 @@ import random
 import angr
 from angr.sim_state import SimState
 from angr.simos import SimOS
+from angr.state_plugins import SimStateHistory
 import claripy
 
 from . import clock
@@ -209,7 +210,7 @@ def _create_project(binary_path):
     # Use the base SimOS, not any specific OS, we shouldn't depend on anything
     return angr.Project(binary_path, auto_load_libs=False, use_sim_procedures=False, engine=CustomEngine, simos=SimOS)
 
-
+# TODO make sure for all states we use the 'symbolic' option set, but try removing COW_STATES (copying states to execute them), it seems not useful to us
 def create_blank_state(binary_path):
     proj = _create_project(binary_path)
     state = proj.factory.blank_state()
@@ -220,6 +221,8 @@ def create_blank_state(binary_path):
     return state
 
 def create_calling_state(state, function_thing, function_args, externals):
+    # Discard previous history, otherwise it might interact with the new execution in weird ways
+    state.register_plugin('history', SimStateHistory())
     # Re-create a project, since we may need different externals than last time
     new_proj = _create_project(state.project.filename)
     # Add our externals
