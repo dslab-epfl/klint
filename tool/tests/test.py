@@ -193,6 +193,7 @@ class Tests(unittest.TestCase):
         ge_y = map.forall(state, lambda k, v: v >= Y)
         self.assertSolver(state, ~(ge_y & (Y >= X)) | ge_x)
 
+    # TODO why can't we prove this?
     def test_forall_implies_not(self):
         state = empty_state()
         map = Map.new_array(state, KEY_SIZE, VALUE_SIZE, 10, "test")
