@@ -10,7 +10,7 @@ import verif.persistence as verif_persist
 import verif.executor as verif_executor
 
 
-full_stack = False
+full_stack = True
 nf_to_verify = "firewall"
 use_cached_results = False
 

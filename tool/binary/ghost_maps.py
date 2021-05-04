@@ -157,7 +157,7 @@ class Map:
             for inv in _invariants:
                 result.add_invariant_conjunction(state, inv)
         return result
-    
+
     @staticmethod
     def new_array(state, key_size, value_size, length, name):
         return Map.new(state, key_size, value_size, name, _invariants=[lambda i: (i.key < length) == i.present], _length=length)
@@ -173,7 +173,7 @@ class Map:
                 to_call = to_call._previous
                 version = version + 1
             return to_call.get(state, key, conditioned_value=conditioned_value, condition=condition)
-        
+
         LOG(state, "GET " + self.meta.name + f" version: {version} " + (" key: " + str(key)) + ((" value: " + str(conditioned_value)) if conditioned_value is not None else "") + (" cond: " + str(condition)))
 
         # Optimization: If the map is empty, the answer is always false
@@ -622,6 +622,10 @@ def maps_merge_across(_states, objs, _ancestor_maps, _ancestor_variables, _cache
             if _orig_states[0].memory.get_fractions(o1) is o2:
                 continue
 
+            # Optimization: Ignore maps with a value size over a kilobyte, they're likely "buffer"-like, too big to seriously use as part of program logic
+            if _orig_states[0].maps.value_size(o1) > 1024 * 8 or _orig_states[0].maps.value_size(o2) > 1024 * 8:
+                continue
+
             # Optimization: Ignore the combination entirely if there are no states in which both maps changed
             if not any(st.maps[o1].version() != 0 and st.maps[o2].version() != 0 for st in _orig_states):
                 #print("No states in which both changed for", o1, o2)
@@ -836,10 +840,9 @@ def infer_invariants(ancestor_states, states, previous_results=None):
     previous_results = copy.deepcopy(previous_results or [])
 
     # TODO it's ugly we're accessing _maps here...
+    # also we should ensure all maps are equal modulo renaming, which is difficult
     ancestor_maps = ancestor_states[0].maps
     ancestor_objs = [o for (o, _) in ancestor_maps.get_all()]
-    if any(not utils.structural_eq(st.maps._maps, ancestor_maps._maps) for st in ancestor_states[1:]):
-        raise Exception("Inference requires all ancestor states to have the same maps (for now...)")
 
     ancestor_variables = set(ancestor_states[0].solver.variables(claripy.And(*ancestor_states[0].solver.constraints)))
     for st in ancestor_states[1:]:

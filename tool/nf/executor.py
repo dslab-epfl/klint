@@ -89,7 +89,9 @@ def get_libnf_inited_states(binary_path, devices_count):
     # TODO Something very fishy in here, why do we need to reverse the arg? angr's endianness handling keeps puzzling me
     init_state = binary_executor.create_calling_state(blank_state, "nf_init", [devices_count.reversed], libnf_init_externals)
     init_state.solver.add(devices_count.UGT(0))
+    statistics.work_start("symbex")
     result_states = binary_executor.run_state(init_state)
+    statistics.work_end()
     # Create handle states from all successful inits
     inited_states = []
     for state in result_states:
@@ -141,7 +143,9 @@ def execute_nf(binary_path):
     global nf_inited_states
     assert nf_inited_states is not None
     nf_inited_states = []
+    statistics.work_start("symbex")
     binary_executor.run_state(init_state, allow_trap=True) # this will fill nf_inited_states; we allow traps only here since that's how init can fail
+    statistics.work_end()
     assert len(nf_inited_states) > 0
     result_states = find_fixedpoint_states(nf_inited_states)
     print("NF symbex done at", datetime.datetime.now())

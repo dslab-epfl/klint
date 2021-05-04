@@ -49,7 +49,14 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
 
         meta = self.state.metadata.get(MapsMemoryMixin.Metadata, base)
         fraction, present = self.state.maps.get(meta.fractions, index)
-        assert utils.definitely_true(self.state.solver, present & (fraction == 100))
+        #assert utils.definitely_true(self.state.solver, present & (fraction == 100))
+        if not utils.definitely_true(self.state.solver, present & (fraction == 100)):
+            print("base, index, offset, fraction, present", base, index, offset, fraction, present)
+            print("index", self.state.solver.eval_upto(index, 10))
+            print("offset", self.state.solver.eval_upto(offset, 10))
+            print("fraction", self.state.solver.eval_upto(fraction, 10))
+            print("present", self.state.solver.eval_upto(present, 10))
+            assert False
 
         if data.size() != self.state.maps.value_size(base):
             current, _ = self.state.maps.get(base, index)

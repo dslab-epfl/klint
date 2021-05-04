@@ -75,7 +75,6 @@ def device_writer(state, base, index, offset, value):
 
     # Special action for TDT, we're sending a packet
     if reg == "TDT":
-        print("REG IS TDT!", index, value)
         tdbal = dev.regs["TDBAL"][index].zero_extend(32)
         tdbah = dev.regs["TDBAH"][index].zero_extend(32)
         tdba = (tdbah << 32) | tdbal
@@ -89,7 +88,6 @@ def device_writer(state, base, index, offset, value):
 
         packet_length = packet_desc_meta[15:0]
         if utils.can_be_true(state.solver, packet_length != 0):
-            print("TDT len is not zero!")
             metadata = state.metadata.get_one(packet.NetworkMetadata)
             metadata.transmitted.append(tx.TransmissionMetadata(packet_data, packet_length, 0, False, dev.index, None))
 
