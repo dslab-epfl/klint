@@ -1,23 +1,22 @@
 use std::os::raw::c_char;
 use std::os::raw::c_int;
 
-pub const NET_ETHER_ADDR_SIZE: usize = 6;
-
 pub type TimeT = u64;
 
 #[repr(C)]
 pub struct NetPacket {
     pub data: *mut u8,
+    pub length: u64,
+    pub time: TimeT,
     pub device: u16,
-    pub length: u16,
-    pub _padding: u32,
+    pub _padding: [u8; 6],
     pub os_tag: u64
 }
 
 #[repr(C)]
 pub struct NetEtherHeader {
-    pub src_addr: [u8; NET_ETHER_ADDR_SIZE],
-    pub dst_addr: [u8; NET_ETHER_ADDR_SIZE],
+    pub src_addr: [u8; 6],
+    pub dst_addr: [u8; 6],
     pub ether_type: u16,
 }
 
@@ -35,12 +34,6 @@ pub struct NetIPv4Header {
     pub dst_addr: u32,
 }
 
-//#[repr(C)]
-//pub struct NetTcpUdpHeader {
-//    pub src_port: u16,
-//    pub dst_port: u16,
-//}
-
 #[inline]
 pub unsafe fn net_get_ether_header(packet: *mut NetPacket, out_ether_header: *mut *mut NetEtherHeader) -> bool {
     *out_ether_header = (*packet).data as *mut NetEtherHeader;
@@ -54,36 +47,31 @@ pub unsafe fn net_get_ipv4_header(ether_header: *mut NetEtherHeader, out_ipv4_he
 }
 
 #[repr(C)]
-pub struct OsMap {
+pub struct Map {
     _private: [u8; 0],
 }
 #[repr(C)]
-pub struct OsPool {
+pub struct IndexPool {
     _private: [u8; 0],
 }
 
 extern "C" {
-    // OS API
-    pub fn os_config_get_u16(name: *const c_char) -> u16;
-    pub fn os_config_get_u64(name: *const c_char) -> u64;
+    pub fn os_config_try_get(name: *const c_char, out_value: *mut u64) -> bool;
+
     pub fn os_memory_alloc(count: usize, size: usize) -> *mut u8;
-    pub fn os_clock_time_ns() -> TimeT;
+
     pub fn net_transmit(
         packet: *mut NetPacket,
         device: u16,
         flags: c_int
     );
 
-    // Map API
-    pub fn os_map_alloc(key_size: usize, capacity: usize) -> *mut OsMap;
-    pub fn os_map_get(map: *mut OsMap, key_ptr: *mut u8, out_value: *mut *mut u8) -> bool;
-    pub fn os_map_set(map: *mut OsMap, key_ptr: *mut u8, value: *mut u8);
-    pub fn os_map_remove(map: *mut OsMap, key_ptr: *mut u8);
+    pub fn map_alloc(key_size: usize, capacity: usize) -> *mut Map;
+    pub fn map_get(map: *mut Map, key_ptr: *mut u8, out_value: *mut *mut u8) -> bool;
+    pub fn map_set(map: *mut Map, key_ptr: *mut u8, value: *mut u8);
+    pub fn map_remove(map: *mut Map, key_ptr: *mut u8);
 
-    // Pool API
-    pub fn os_pool_alloc(size: usize, exp_time: TimeT) -> *mut OsPool;
-    pub fn os_pool_borrow(pool: *mut OsPool, time: TimeT, out_index: *mut usize, was_used: *mut bool) -> bool;
-    // pub fn os_pool_return(pool: *mut OsPool, index: usize);
-    pub fn os_pool_refresh(pool: *mut OsPool, time: TimeT, index: usize);
-    // pub fn os_pool_contains(pool: *mut OsPool, time: TimeT, index: usize) -> bool;
+    pub fn index_pool_alloc(size: usize, exp_time: TimeT) -> *mut IndexPool;
+    pub fn index_pool_borrow(pool: *mut IndexPool, time: TimeT, out_index: *mut usize, was_used: *mut bool) -> bool;
+    pub fn index_pool_refresh(pool: *mut IndexPool, time: TimeT, index: usize);
 }

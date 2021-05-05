@@ -22,8 +22,8 @@ static mut BURST: u64 = 0;
 static mut MAX_FLOWS: u64 = 0;
 static mut ADDRESSES: *mut u32 = null_mut();
 static mut BUCKETS: *mut PolicerBucket = null_mut();
-static mut MAP: *mut OsMap = null_mut();
-static mut POOL: *mut OsPool = null_mut();
+static mut MAP: *mut Map = null_mut();
+static mut POOL: *mut IndexPool = null_mut();
 
 #[no_mangle]
 pub unsafe extern "C" fn nf_init(devices_count: u16) -> bool {
@@ -31,21 +31,43 @@ pub unsafe extern "C" fn nf_init(devices_count: u16) -> bool {
         return false;
     }
     WAN_DEVICE = {
-        let device = os_config_get_u16(cstr!("wan device"));
-        if device >= devices_count {
+        let mut device: u64 = 0;
+        if !os_config_try_get(cstr!("wan device"), &mut device) {
             return false;
         }
-        device
+        if device >= devices_count.into() {
+            return false;
+        }
+        device as u16
     };
 
-    RATE = os_config_get_u64(cstr!("rate"));
-    if RATE == 0 { return false; }
+    RATE = {
+        let mut rate: u64 = 0;
+        if !os_config_try_get(cstr!("rate"), &mut rate) {
+            return false;
+        }
+        if rate == 0 {
+            return false;
+        }
+        rate
+    };
 
-    BURST = os_config_get_u64(cstr!("burst"));
-    if BURST == 0 { return false; }
+    BURST = {
+        let mut burst: u64 = 0;
+        if !os_config_try_get(cstr!("burst"), &mut burst) {
+            return false;
+        }
+        if burst == 0 {
+            return false;
+        }
+        burst
+    };
 
     MAX_FLOWS = {
-        let max_flows = os_config_get_u64(cstr!("max flows"));
+        let mut max_flows: u64 = 0;
+        if !os_config_try_get(cstr!("max flows"), &mut max_flows) {
+            return false;
+        }
         if max_flows == 0 || max_flows > (usize::MAX / 2 + 1) as u64 {
             return false;
         }
@@ -53,8 +75,8 @@ pub unsafe extern "C" fn nf_init(devices_count: u16) -> bool {
     };
     ADDRESSES = os_memory_alloc(MAX_FLOWS as usize, size_of::<u32>() as usize) as *mut u32;
     BUCKETS = os_memory_alloc(MAX_FLOWS as usize, size_of::<PolicerBucket>() as usize) as *mut PolicerBucket;
-    MAP = os_map_alloc(size_of::<u32>(), MAX_FLOWS as usize);
-    POOL = os_pool_alloc(MAX_FLOWS as usize, 1000000000 * BURST / RATE);
+    MAP = map_alloc(size_of::<u32>(), MAX_FLOWS as usize);
+    POOL = index_pool_alloc(MAX_FLOWS as usize, 1000000000 * BURST / RATE);
 
     true
 }
@@ -71,15 +93,14 @@ pub unsafe extern "C" fn nf_handle(packet: *mut NetPacket) {
     }
 
     if (*packet).device == WAN_DEVICE {
-        let time = os_clock_time_ns();
-        let mut index: usize = 0;
-        if os_map_get(
+      let mut index: usize = 0;
+      if map_get(
             MAP,
             (&mut (*ipv4_header).dst_addr as *mut u32) as *mut u8,
             (&mut index as *mut usize) as *mut *mut u8,
         ) {
-            os_pool_refresh(POOL, time, index);
-            let time_diff = (time - (*BUCKETS.offset(index as isize)).time) as u64;
+            index_pool_refresh(POOL, (*packet).time, index);
+            let time_diff = ((*packet).time - (*BUCKETS.offset(index as isize)).time) as u64;
             if time_diff < BURST / RATE {
                 (*BUCKETS.offset(index as isize)).size += time_diff * RATE;
                 if (*BUCKETS.offset(index as isize)).size > BURST {
@@ -88,7 +109,7 @@ pub unsafe extern "C" fn nf_handle(packet: *mut NetPacket) {
             } else {
                 (*BUCKETS.offset(index as isize)).size = BURST;
             }
-            (*BUCKETS.offset(index as isize)).time = time;
+            (*BUCKETS.offset(index as isize)).time = (*packet).time;
 
             if (*BUCKETS.offset(index as isize)).size > (*packet).length as u64 {
                 (*BUCKETS.offset(index as isize)).size -= (*packet).length as u64;
@@ -103,19 +124,19 @@ pub unsafe extern "C" fn nf_handle(packet: *mut NetPacket) {
             }
 
             let mut was_used: bool = false;
-            if os_pool_borrow(POOL, time, &mut index as *mut usize, &mut was_used as *mut bool) {
+            if index_pool_borrow(POOL, (*packet).time, &mut index as *mut usize, &mut was_used as *mut bool) {
                 if was_used {
-                  os_map_remove(MAP, ADDRESSES.offset(index as isize) as *mut u8);
+                  map_remove(MAP, ADDRESSES.offset(index as isize) as *mut u8);
                 }
 
                 *ADDRESSES.offset(index as isize) = (*ipv4_header).dst_addr;
-                os_map_set(
+                map_set(
                     MAP,
                     ADDRESSES.offset(index as isize) as *mut u8,
                     index as *mut u8,
                 );
                 (*BUCKETS.offset(index as isize)).size = BURST - (*packet).length as u64;
-                (*BUCKETS.offset(index as isize)).time = time;
+                (*BUCKETS.offset(index as isize)).time = (*packet).time;
             } else {
                 // No more space
                 return;
