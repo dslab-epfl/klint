@@ -68,13 +68,13 @@ pub unsafe extern "C" fn nf_init(devices_count: u16) -> bool {
         if !os_config_try_get(cstr!("max flows"), &mut max_flows) {
             return false;
         }
-        if max_flows == 0 || max_flows > (usize::MAX / 2 + 1) as u64 {
+        if max_flows == 0 || max_flows > (usize::MAX / 64) as u64 {
             return false;
         }
         max_flows
     };
-    ADDRESSES = os_memory_alloc(MAX_FLOWS as usize, size_of::<u32>() as usize) as *mut u32;
     BUCKETS = os_memory_alloc(MAX_FLOWS as usize, size_of::<PolicerBucket>() as usize) as *mut PolicerBucket;
+    ADDRESSES = os_memory_alloc(MAX_FLOWS as usize, size_of::<u32>() as usize) as *mut u32;
     MAP = map_alloc(size_of::<u32>(), MAX_FLOWS as usize);
     POOL = index_pool_alloc(MAX_FLOWS as usize, 1000000000 * BURST / RATE);
 

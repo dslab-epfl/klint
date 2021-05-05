@@ -43,12 +43,13 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
             # Note that further mixins expect addr to be concrete
             super().store(self.state.solver.eval(addr), data, size=size, endness=endness, **kwargs)
             return
-        assert size * 8 == data.size(), "Why would you not put a custom size???"
+        assert size * 8 == data.size(), "Why would you put a custom size???"
 
         (base, index, offset) = utils.base_index_offset(self.state, addr, MapsMemoryMixin.Metadata)
 
         meta = self.state.metadata.get(MapsMemoryMixin.Metadata, base)
         fraction, present = self.state.maps.get(meta.fractions, index)
+        # TODO remove the prints here
         #assert utils.definitely_true(self.state.solver, present & (fraction == 100))
         if not utils.definitely_true(self.state.solver, present & (fraction == 100)):
             print("base, index, offset, fraction, present", base, index, offset, fraction, present)
