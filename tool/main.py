@@ -10,9 +10,9 @@ import verif.persistence as verif_persist
 import verif.executor as verif_executor
 
 
-full_stack = True
+full_stack = False
 nf_to_verify = "firewall"
-use_cached_results = False
+use_cached_results = True
 
 
 if len(sys.argv) >= 2:

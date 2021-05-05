@@ -1,8 +1,8 @@
 Flow = {
-    'src_ip': 32, 
-    'dst_ip': 32, 
-    'src_port': 16, 
-    'dst_port': 16, 
+    'src_ip': 32,
+    'dst_ip': 32,
+    'src_port': 16,
+    'dst_port': 16,
     'protocol': 8
 }
 
@@ -13,7 +13,7 @@ def spec(packet, config, transmitted_packet):
 
     flows = ExpiringSet(Flow, config["expiration time"], config["max flows"], packet.time)
 
-    if packet.device == config["wan device"]:
+    if packet.device == config["external device"]:
         flow = {
             'src_ip': packet.ipv4.dst,
             'dst_ip': packet.ipv4.src,

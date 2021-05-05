@@ -106,10 +106,8 @@ def get_libnf_inited_states(binary_path, devices_count):
 
 def execute_libnf(binary_path):
     print("libNF symbex starting at", datetime.datetime.now())
-    statistics.work_start("symbex")
     devices_count = claripy.BVS('devices_count', 16) # TODO avoid the hardcoded 16 here
     inited_states = get_libnf_inited_states(binary_path, devices_count)
-    statistics.work_end()
     result_states = find_fixedpoint_states(inited_states)
     print("libNF symbex done at", datetime.datetime.now())
     return (result_states, devices_count) # TODO devices_count should be in metadata somewhere, not explicitly returned

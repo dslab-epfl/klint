@@ -56,6 +56,8 @@ def type_unwrap(value, type):
 # === Spec 'built-in' functions ===
 
 def typeof(value):
+    if isinstance(value, dict):
+        return sum(typeof(v) for v in value.values())
     return value.size()
 
 def exists(type, func):

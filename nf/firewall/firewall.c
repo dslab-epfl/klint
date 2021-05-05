@@ -7,7 +7,7 @@
 #include "flow_table.h"
 
 
-static device_t wan_device;
+static device_t external_device;
 static struct flow_table* table;
 
 
@@ -19,7 +19,7 @@ bool nf_init(device_t devices_count)
 
 	time_t expiration_time;
 	size_t max_flows;
-	if (!os_config_get_device("wan device", devices_count, &wan_device) || !os_config_get_time("expiration time", &expiration_time) || !os_config_get_size("max flows", &max_flows)) {
+	if (!os_config_get_device("external device", devices_count, &external_device) || !os_config_get_time("expiration time", &expiration_time) || !os_config_get_size("max flows", &max_flows)) {
 		return false;
 	}
 
@@ -38,7 +38,7 @@ void nf_handle(struct net_packet* packet)
 		return;
 	}
 
-	if (packet->device == wan_device) {
+	if (packet->device == external_device) {
 		struct flow flow = { // inverted!
 			.src_ip = ipv4_header->dst_addr,
 			.dst_ip = ipv4_header->src_addr,
