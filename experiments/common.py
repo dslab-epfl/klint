@@ -14,6 +14,9 @@ def get_pyplot_ax_fig(title=None, figsize=None):
   import matplotlib as mpl
   mpl.use('Agg') # avoid the need for an X server
 
+  font = {'size': 11}
+  mpl.rc('font', **font)
+
   import matplotlib.pyplot as plt
   fig = plt.figure(figsize=figsize)
   # put the title inside the plot to save space

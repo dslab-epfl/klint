@@ -74,7 +74,7 @@ for nf, val in numbers.items():
   ax.plot(all_x, all_y, color=color, alpha=0.4, linestyle='solid')
   ax.fill_between(all_x, y_5, all_y, color=color, alpha=0.15)
   ax.fill_between(all_x, all_y, y_95, color=color, alpha=0.15)
-  ax.scatter(all_x, all_y, color=color, label=label, marker=marker)
+  ax.scatter(all_x, all_y, color=color, label=label, marker=marker, s=60)
 
 plt.xlabel('Throughput (Gb/s)')
 plt.ylabel(perc_str + ' latency (\u03BCs)')
