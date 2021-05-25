@@ -1227,7 +1227,7 @@ static size_t tn_agent_receive(struct tn_agent* agent)
 	}
 
 	// "Length Field (16-bit offset 0, 2nd line): The length indicated in this field covers the data written to a receive buffer."
-	return le_to_cpu64(receive_metadata) & 0xFFFFu;
+	return receive_metadata & 0xFFFFu;
 }
 
 // -------------------
