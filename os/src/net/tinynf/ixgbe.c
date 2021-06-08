@@ -1201,111 +1201,6 @@ void tn_agent_init(size_t input_index, size_t devices_count, struct tn_device* d
 	tn_agent_set_input(agent, &(devices[input_index]));
 }
 
-// ----------------
-// Packet reception
-// ----------------
-
-static size_t tn_agent_receive(struct tn_agent* agent)
-{
-	// INTERPRETATION-MISSING: The data sheet does not specify the endianness of receive descriptor metadata fields.
-	// Since Section 1.5.3 Byte Ordering states "Registers not transferred on the wire are defined in little endian notation.", we will assume they are little-endian.
-
-	uint64_t receive_metadata = le_to_cpu64(agent->rings[0][agent->processed_delimiter].metadata);
-	// Section 7.1.5 Legacy Receive Descriptor Format:
-	// "Status Field (8-bit offset 32, 2nd line)": Bit 0 = DD, "Descriptor Done."
-	if ((receive_metadata & BITL(32)) == 0) {
-		// No packet; flush if we need to.
-		// This is technically a part of transmission, but we must eventually flush after processing a packet even if no more packets are received
-		if (agent->flush_counter != 0) {
-			for (size_t n = 0; n < agent->outputs_count; n++) {
-				reg_write_raw(agent->transmit_tail_addrs[n], (uint32_t) agent->processed_delimiter);
-			}
-			agent->flush_counter = 0;
-		}
-
-		return 0;
-	}
-
-	// "Length Field (16-bit offset 0, 2nd line): The length indicated in this field covers the data written to a receive buffer."
-	return receive_metadata & 0xFFFFu;
-}
-
-// -------------------
-// Packet transmission
-// -------------------
-
-static void tn_agent_transmit(struct tn_agent* agent)
-{
-	// INTERPRETATION-MISSING: The data sheet does not specify the endianness of transmit descriptor metadata fields, nor of the written-back head pointer.
-	// Since Section 1.5.3 Byte Ordering states "Registers not transferred on the wire are defined in little endian notation.", we will assume they are little-endian.
-
-	// Section 7.2.3.2.2 Legacy Transmit Descriptor Format:
-	// "Buffer Address (64)", 1st line
-	// 2nd line:
-		// "Length", bits 0-15: "Length (TDESC.LENGTH) specifies the length in bytes to be fetched from the buffer address provided"
-			// "Note: Descriptors with zero length (null descriptors) transfer no data."
-		// "CSO", bits 16-23: "A Checksum Offset (TDESC.CSO) field indicates where, relative to the start of the packet, to insert a TCP checksum if this mode is enabled"
-			// All zero
-		// "CMD", bits 24-31:
-			// "RSV (bit 7) - Reserved"
-			// "VLE (bit 6) - VLAN Packet Enable"
-			// "DEXT (bit 5) - Descriptor extension (zero for legacy mode)"
-			// "RSV (bit 4) - Reserved"
-			// "RS (bit 3) - Report Status - RS signals hardware to report the DMA completion status indication [...]"
-			// "IC (bit 2) - Insert Checksum - Hardware inserts a checksum at the offset indicated by the CSO field if the Insert Checksum bit (IC) is set."
-			// "IFCS (bit 1) - Insert FCS":
-			//	"There are several cases in which software must set IFCS as follows: Transmitting a short packet while padding is enabled by the HLREG0.TXPADEN bit. [...]"
-			//      By assumption TXPAD we need this bit set.
-			// "EOP (bit 0) - End of Packet"
-		// "STA", bits 32-35: "DD (bit 0) - Descriptor Done. The other bits in the STA field are reserved."
-			// All zero
-		// "Rsvd", bits 36-39: "Reserved."
-			// All zero
-		// "CSS", bits 40-47: "A Checksum Start (TDESC.CSS) field indicates where to begin computing the checksum."
-			// All zero
-		// "VLAN", bits 48-63: "The VLAN field is used to provide the 802.1q/802.1ac tagging information."
-			// All zero
-	// INTERPRETATION-INCORRECT: Despite being marked as "reserved", the buffer address does not get clobbered by write-back, so no need to set it again.
-	// This means all we have to do is set the length in the first 16 bits, then bits 0,1 of CMD, and bit 3 of CMD if we want write-back.
-	// Importantly, since bit 32 will stay at 0, and we share the receive ring and the first transmit ring, it will clear the Descriptor Done flag of the receive descriptor.
-	// Not setting the RS bit every time is a huge perf win in throughput (a few Gb/s) with no apparent impact on latency.
-	uint64_t rs_bit = (uint64_t) ((agent->processed_delimiter & (IXGBE_AGENT_RECYCLE_PERIOD - 1)) == (IXGBE_AGENT_RECYCLE_PERIOD - 1)) << (24+3);
-	for (size_t n = 0; n < agent->outputs_count; n++) {
-		agent->rings[n][agent->processed_delimiter].metadata = cpu_to_le64((uint64_t) agent->lengths[n] | rs_bit | BITL(24+1) | BITL(24));
-		agent->lengths[n] = 0;
-	}
-
-	// Increment the processed delimiter, modulo the ring size
-	agent->processed_delimiter = (agent->processed_delimiter + 1u) & (IXGBE_RING_SIZE - 1);
-
-	// Flush if we need to; not doing so every time is a huge performance win
-	agent->flush_counter = agent->flush_counter + 1;
-	if (agent->flush_counter == IXGBE_AGENT_FLUSH_PERIOD) {
-		for (size_t n = 0; n < agent->outputs_count; n++) {
-			reg_write_raw(agent->transmit_tail_addrs[n], (uint32_t) agent->processed_delimiter);
-		}
-		agent->flush_counter = 0;
-	}
-
-	// Recycle transmitted descriptors back to receiving
-	// This should happen as rarely as asking the NIC for transmit head updates, thus we reuse rs_bit
-	if (rs_bit != 0) {
-		// There is an implicit race condition with the hardware: a transmit head could be updated just after we've read it
-		// but before we write to the receive tail. This is fine; it just means our "earliest transmit head" is not as high as it could be.
-		uint32_t earliest_transmit_head = (uint32_t) agent->processed_delimiter;
-		uint64_t min_diff = (uint64_t) -1;
-		for (size_t n = 0; n < agent->outputs_count; n++) {
-			uint32_t head = le_to_cpu32(agent->transmit_heads[n * TRANSMIT_HEAD_MULTIPLIER]);
-			uint64_t diff = head - agent->processed_delimiter;
-			if (diff <= min_diff) {
-				earliest_transmit_head = head;
-				min_diff = diff;
-			}
-		}
-		reg_write_raw(agent->receive_tail_addr, (earliest_transmit_head - 1) & (IXGBE_RING_SIZE - 1));
-	}
-}
-
 // --------------
 // High-level API
 // --------------
@@ -1319,15 +1214,87 @@ struct tn_run_state
 static void tn_run_peragent(size_t index, void* state_)
 {
 	struct tn_run_state* state = (struct tn_run_state*) state_;
-	do {
-		size_t length = tn_agent_receive(&(state->agents[index]));
-		if (length != 0) {
-			// This cannot overflow because the packet is by definition in an allocated block of memory
-			uint8_t* packet = state->agents[index].buffer + (PACKET_BUFFER_SIZE * state->agents[index].processed_delimiter);
-			state->handler(index, packet, length, state->agents[index].lengths);
-			tn_agent_transmit(&(state->agents[index]));
+	struct tn_agent* agent = &(state->agents[index]);
+	size_t flush_counter;
+	for (flush_counter = 0; flush_counter < IXGBE_AGENT_FLUSH_PERIOD; flush_counter++) {
+		// INTERPRETATION-MISSING: The data sheet does not specify the endianness of receive descriptor metadata fields.
+		// Since Section 1.5.3 Byte Ordering states "Registers not transferred on the wire are defined in little endian notation.", we will assume they are little-endian.
+
+		uint64_t receive_metadata = le_to_cpu64(agent->rings[0][agent->processed_delimiter].metadata);
+		// Section 7.1.5 Legacy Receive Descriptor Format:
+		// "Status Field (8-bit offset 32, 2nd line)": Bit 0 = DD, "Descriptor Done."
+		if ((receive_metadata & BITL(32)) == 0) {
+			break;
 		}
-	} while (state->agents[index].flush_counter != 0);
+
+		// "Length Field (16-bit offset 0, 2nd line): The length indicated in this field covers the data written to a receive buffer."
+		uint16_t length = (uint16_t) (receive_metadata & 0xFFFFu);
+		// This cannot overflow because the packet is by definition in an allocated block of memory
+		uint8_t* packet = agent->buffer + (PACKET_BUFFER_SIZE * agent->processed_delimiter);
+		state->handler(index, packet, length, agent->lengths);
+
+		// Section 7.2.3.2.2 Legacy Transmit Descriptor Format:
+		// "Buffer Address (64)", 1st line
+		// 2nd line:
+			// "Length", bits 0-15: "Length (TDESC.LENGTH) specifies the length in bytes to be fetched from the buffer address provided"
+				// "Note: Descriptors with zero length (null descriptors) transfer no data."
+			// "CSO", bits 16-23: "A Checksum Offset (TDESC.CSO) field indicates where, relative to the start of the packet, to insert a TCP checksum if this mode is enabled"
+				// All zero
+			// "CMD", bits 24-31:
+				// "RSV (bit 7) - Reserved"
+				// "VLE (bit 6) - VLAN Packet Enable"
+				// "DEXT (bit 5) - Descriptor extension (zero for legacy mode)"
+				// "RSV (bit 4) - Reserved"
+				// "RS (bit 3) - Report Status - RS signals hardware to report the DMA completion status indication [...]"
+				// "IC (bit 2) - Insert Checksum - Hardware inserts a checksum at the offset indicated by the CSO field if the Insert Checksum bit (IC) is set."
+				// "IFCS (bit 1) - Insert FCS":
+				//	"There are several cases in which software must set IFCS as follows: Transmitting a short packet while padding is enabled by the HLREG0.TXPADEN bit. [...]"
+				//      By assumption TXPAD we need this bit set.
+				// "EOP (bit 0) - End of Packet"
+			// "STA", bits 32-35: "DD (bit 0) - Descriptor Done. The other bits in the STA field are reserved."
+				// All zero
+			// "Rsvd", bits 36-39: "Reserved."
+				// All zero
+			// "CSS", bits 40-47: "A Checksum Start (TDESC.CSS) field indicates where to begin computing the checksum."
+				// All zero
+			// "VLAN", bits 48-63: "The VLAN field is used to provide the 802.1q/802.1ac tagging information."
+				// All zero
+		// INTERPRETATION-INCORRECT: Despite being marked as "reserved", the buffer address does not get clobbered by write-back, so no need to set it again.
+		// This means all we have to do is set the length in the first 16 bits, then bits 0,1 of CMD, and bit 3 of CMD if we want write-back.
+		// Importantly, since bit 32 will stay at 0, and we share the receive ring and the first transmit ring, it will clear the Descriptor Done flag of the receive descriptor.
+		// Not setting the RS bit every time is a huge perf win in throughput (a few Gb/s) with no apparent impact on latency.
+		uint64_t rs_bit = (uint64_t) ((agent->processed_delimiter & (IXGBE_AGENT_RECYCLE_PERIOD - 1)) == (IXGBE_AGENT_RECYCLE_PERIOD - 1)) << (24+3);
+		for (size_t n = 0; n < agent->outputs_count; n++) {
+			agent->rings[n][agent->processed_delimiter].metadata = cpu_to_le64((uint64_t) agent->lengths[n] | rs_bit | BITL(24+1) | BITL(24));
+			agent->lengths[n] = 0;
+		}
+
+		// Increment the processed delimiter, modulo the ring size
+		agent->processed_delimiter = (agent->processed_delimiter + 1u) & (IXGBE_RING_SIZE - 1);
+
+		// Recycle transmitted descriptors back to receiving
+		// This should happen as rarely as asking the NIC for transmit head updates, thus we reuse rs_bit
+		if (rs_bit != 0) {
+			// There is an implicit race condition with the hardware: a transmit head could be updated just after we've read it
+			// but before we write to the receive tail. This is fine; it just means our "earliest transmit head" is not as high as it could be.
+			uint32_t earliest_transmit_head = (uint32_t) agent->processed_delimiter;
+			uint64_t min_diff = (uint64_t) -1;
+			for (size_t n = 0; n < agent->outputs_count; n++) {
+				uint32_t head = le_to_cpu32(agent->transmit_heads[n * TRANSMIT_HEAD_MULTIPLIER]);
+				uint64_t diff = head - agent->processed_delimiter;
+				if (diff <= min_diff) {
+					earliest_transmit_head = head;
+					min_diff = diff;
+				}
+			}
+			reg_write_raw(agent->receive_tail_addr, (earliest_transmit_head - 1) & (IXGBE_RING_SIZE - 1));
+		}
+	}
+	if (flush_counter != 0) {
+		for (size_t n = 0; n < agent->outputs_count; n++) {
+			reg_write_raw(agent->transmit_tail_addrs[n], (uint32_t) agent->processed_delimiter);
+		}
+	}
 }
 
 void tn_run(size_t agents_count, struct tn_agent* agents, tn_packet_handler* handler)
