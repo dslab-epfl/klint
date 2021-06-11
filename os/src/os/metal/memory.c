@@ -1,5 +1,6 @@
 #include "os/memory.h"
 
+#include "arch/cache.h"
 #include "arch/halt.h"
 #include "os/log.h"
 
@@ -47,13 +48,17 @@ void* os_memory_alloc(size_t count, size_t size)
 //@ terminates;
 {
 	//@ mul_nonnegative(count, size);
-	const size_t full_size = size * count;
+	size_t full_size = size * count;
 
 	// Handle zero specially, since we use modulo full_size to align
 	if (full_size == 0) {
 		// Return a zero address for debugging convenience
 		return (void*) 0;
 	}
+
+	// Align to the cache line size, can make a huge difference sometimes
+	// TODO verify this
+	full_size = full_size + (CACHE_LINE_SIZE - (full_size % CACHE_LINE_SIZE));
 
 	//@ produce_memory_assumptions();
 	//@ open globals_invariant();

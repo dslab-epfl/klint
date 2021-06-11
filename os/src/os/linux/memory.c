@@ -11,6 +11,7 @@
 #include <unistd.h>
 #include <sys/mman.h>
 
+#include "arch/cache.h"
 #include "os/log.h"
 
 
@@ -76,12 +77,15 @@ void* os_memory_alloc(const size_t count, const size_t size)
 	}
 
 	// Cannot overflow, guaranteed by the contract
-	const size_t full_size = size * count;
+	size_t full_size = size * count;
 
 	// Weird but valid; return a likely-invalid address for debugging convenience
 	if (full_size == 0) {
 		return page_addr + HUGEPAGE_SIZE;
 	}
+
+	// Align to the cache line size, can make a huge difference sometimes
+	full_size = full_size + (CACHE_LINE_SIZE - (full_size % CACHE_LINE_SIZE));
 
 	// Align as required by the contract
 	const size_t align_diff = (size_t) (page_addr + page_used_len) % full_size;
