@@ -4,22 +4,22 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#include "arch/cache.h"
+
 //@ #include <list.gh>
 
 // A larger hash type than this is generally not useful for data structure purposes
 typedef unsigned hash_t;
 
 
-// Allocates a pinned, zero-initialized, contiguous memory block of the given length (size * count), aligned to the length.
+// Allocates a pinned, zero-initialized, contiguous memory block of the given length (size * count), aligned to the length rounded up to the cache line size.
 // "Pinned" here means "the virtual-to-physical mapping will never change", not just that it will always be in memory.
 // This allows the allocated memory's physical address to be given to a device for DMA.
 // For simplicity, never fails; if there is not enough memory available, crashes the program.
-// The contract looks a bit odd to explicitly allow for the 'alloc(1, sizeof(...))' pattern; TODO fix VeriFast to have sizeof(...) <= SIZE_MAX since sizeof is a size_t
-// TODO don't zero and add a helper for when zeroing is needed? check the perf impact
 void* os_memory_alloc(size_t count, size_t size);
 //@ requires count * size <= SIZE_MAX;
 /*@ ensures chars(result, count * size, ?cs) &*& true == all_eq(cs, 0) &*& result + count * size <= (char*) UINTPTR_MAX &*&
-            count * size == 0 ? true : (size_t) result % (count * size) == 0; @*/
+            (size_t) result % ((count * size) + CACHE_LINE_SIZE - ((count * size) % CACHE_LINE_SIZE)) == 0; @*/
 //@ terminates;
 
 // Maps the region of physical address memory defined by (address, size) into virtual memory.
