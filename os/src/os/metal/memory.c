@@ -12,14 +12,16 @@
  // 256 MB should be enough?
 #define MEMORY_SIZE 0x1000000ull
 
-static uint8_t memory[MEMORY_SIZE]; // zero-initialized
-static unsigned long long memory_used_len; // should be size_t but VeriFast doesn't support it
+static int8_t memory[MEMORY_SIZE]; // zero-initialized
+static size_t memory_used_len;
 
 
 /*@
 // This globals invariant holds at the start, assuming the compiler and linker are correct
+// TODO this '&memory >= 0' is only necessary when 'memory' is typed as an int8_t[], not an uint8_t[], is VeriFast incorrectly propagating signs?
 predicate globals_invariant() =
 	memory_used_len |-> ?memlen &*&
+	&memory >= 0 &*&
         memlen <= MEMORY_SIZE &*&
         &memory + MEMORY_SIZE <= (void*) UINTPTR_MAX &*&
         memory[memlen..MEMORY_SIZE] |-> ?cs &*&
@@ -42,9 +44,9 @@ ensures emp;
 
 
 void* os_memory_alloc(size_t count, size_t size)
-//@ requires count == 1 || count * size <= SIZE_MAX;
-/*@ ensures uchars(result, count * size, ?cs) &*& true == all_eq(cs, 0) &*& result + count * size <= (char*) UINTPTR_MAX &*&
-            count*size == 0 ? true : (size_t) result % (count * size) == 0; @*/
+//@ requires count * size <= SIZE_MAX;
+/*@ ensures chars(result, count * size, ?cs) &*& true == all_eq(cs, 0) &*& result + count * size <= (char*) UINTPTR_MAX &*&
+            count * size == 0 ? true : (size_t) result % (count * size) == 0; @*/
 //@ terminates;
 {
 	//@ mul_nonnegative(count, size);
@@ -57,15 +59,20 @@ void* os_memory_alloc(size_t count, size_t size)
 	}
 
 	// Align to the cache line size, can make a huge difference sometimes
-	// TODO verify this
-	full_size = full_size + (CACHE_LINE_SIZE - (full_size % CACHE_LINE_SIZE));
+	//@ div_rem_nonneg(full_size, CACHE_LINE_SIZE);
+	/*size_t cache_align = (CACHE_LINE_SIZE - (full_size % CACHE_LINE_SIZE));
+	if (SIZE_MAX - cache_align < full_size) {
+		os_debug("Not enough memory left to cache-align");
+		halt();
+	}
+	full_size = full_size + cache_align;*/
 
 	//@ produce_memory_assumptions();
 	//@ open globals_invariant();
 	//@ assert memory_used_len |-> ?memlen;
 	//@ assert memory[memlen..MEMORY_SIZE] |-> ?mem;
 
-	uint8_t* target_addr = (uint8_t*) memory + memory_used_len; // VeriFast requires the pointer cast
+	int8_t* target_addr = (int8_t*) memory + memory_used_len; // VeriFast requires the pointer cast
 	const size_t align_diff = (size_t) target_addr % full_size;
 	//@ div_mod_gt_0(align_diff, (size_t) target_addr, full_size);
 	const size_t align_padding = align_diff == 0 ? (size_t) 0 : full_size - align_diff; // VeriFast requires the cast on 0
@@ -76,8 +83,8 @@ void* os_memory_alloc(size_t count, size_t size)
 	}
 
 	// Leak the alignment memory, i.e., fragment the heap, since we don't support any notion of freeing
-	//@ uchars_split(target_addr, align_padding);
-	//@ leak uchars(target_addr, align_padding, _);
+	//@ chars_split(target_addr, align_padding);
+	//@ leak chars(target_addr, align_padding, _);
 	//@ all_eq_drop(mem, align_padding, 0);
 
 	//@ mod_compensate((size_t) target_addr, full_size);
@@ -90,8 +97,8 @@ void* os_memory_alloc(size_t count, size_t size)
 		halt();
 	}
 
-	//@ uchars_split((uint8_t*) memory + memlen + align_padding, full_size);
-	//@ uchars_split(target_addr, full_size);
+	//@ chars_split((int8_t*) memory + memlen + align_padding, full_size);
+	//@ chars_split(target_addr, full_size);
 	//@ all_eq_take(drop(align_padding, mem), full_size, 0);
 	//@ all_eq_drop(drop(align_padding, mem), full_size, 0);
 	memory_used_len = memory_used_len + full_size;

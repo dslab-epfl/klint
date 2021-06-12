@@ -10,6 +10,9 @@
 void os_debug(const char* message);
 #else
 static inline void os_debug(const char* message)
+//@ requires emp;
+//@ ensures emp;
+//@ terminates;
 {
 	(void) message;
 	// Nothing. Ensure the message can be removed from the final binary.

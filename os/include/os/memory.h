@@ -17,7 +17,7 @@ typedef unsigned hash_t;
 // The contract looks a bit odd to explicitly allow for the 'alloc(1, sizeof(...))' pattern; TODO fix VeriFast to have sizeof(...) <= SIZE_MAX since sizeof is a size_t
 // TODO don't zero and add a helper for when zeroing is needed? check the perf impact
 void* os_memory_alloc(size_t count, size_t size);
-//@ requires count == 1 || count * size <= SIZE_MAX;
+//@ requires count * size <= SIZE_MAX;
 /*@ ensures chars(result, count * size, ?cs) &*& true == all_eq(cs, 0) &*& result + count * size <= (char*) UINTPTR_MAX &*&
             count * size == 0 ? true : (size_t) result % (count * size) == 0; @*/
 //@ terminates;
