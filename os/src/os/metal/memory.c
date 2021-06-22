@@ -44,38 +44,31 @@ ensures emp;
 void* os_memory_alloc(size_t count, size_t size)
 //@ requires count * size <= SIZE_MAX;
 /*@ ensures chars(result, count * size, ?cs) &*& true == all_eq(cs, 0) &*& result + count * size <= (char*) UINTPTR_MAX &*&
-            (size_t) result % ((count * size) + CACHE_LINE_SIZE - ((count * size) % CACHE_LINE_SIZE)) == 0; @*/
+            (size_t) result % (size + CACHE_LINE_SIZE - (size % CACHE_LINE_SIZE)) == 0; @*/
 //@ terminates;
 {
 	//@ mul_nonnegative(count, size);
-	size_t mul_size = size * count;
-
-	// Handle zero specially, since we use modulo full_size to align
-	if (mul_size == 0) {
-		// Return a zero address for debugging convenience
-		//@ div_rem_nonneg(count * size, 64);
-		return (void*) 0;
-	}
-
-	// Align to the cache line size (this can make a huge positive performance difference sometimes)
-	//@ div_rem_nonneg(mul_size, CACHE_LINE_SIZE);
-	const size_t cache_padding = (CACHE_LINE_SIZE - (mul_size % CACHE_LINE_SIZE));
-	if (SIZE_MAX - cache_padding < mul_size) {
-		os_debug("Not enough memory left to cache-align");
-		halt();
-	}
-	const size_t full_size = mul_size + cache_padding;
+	const size_t full_size = size * count;
 
 	//@ produce_memory_assumptions();
 	//@ open globals_invariant();
 	//@ assert memory_used_len |-> ?memlen;
 	//@ assert memory[memlen..MEMORY_SIZE] |-> ?mem;
-	const int8_t* target_addr = (int8_t*) memory + memory_used_len; // VeriFast requires the pointer cast
+	int8_t* target_addr = (int8_t*) memory + memory_used_len; // VeriFast requires the pointer cast
 
-	const size_t align_diff = (size_t) target_addr % full_size;
-	//@ div_rem_nonneg((size_t)target_addr, full_size);
-	const size_t align_padding = align_diff == 0 ? (size_t) 0 : full_size - align_diff; // VeriFast requires the cast on 0
+	// Aligning to the cache line size can make a huge positive performance difference sometimes, well worth the hassle
+	// (e.g. one time TinyNF accidentally regressed by 40% throughput because of misalignment...)
+	if (SIZE_MAX - CACHE_LINE_SIZE < size) {
+	    os_debug("Object is too big to be alignable");
+	    halt();
+	}
 
+	//@ div_rem_nonneg(size, CACHE_LINE_SIZE);
+	const size_t align_div = size + CACHE_LINE_SIZE - (size % CACHE_LINE_SIZE);
+	const size_t align_diff = (size_t) target_addr % align_div;
+
+	//@ div_rem_nonneg((size_t) target_addr, align_div);
+	const size_t align_padding = align_diff == 0 ? (size_t) 0 : align_div - align_diff; // VeriFast requires the cast on 0
 	if (align_padding > MEMORY_SIZE - memory_used_len) {
 		os_debug("Not enough memory left to align");
 		halt();
@@ -85,8 +78,8 @@ void* os_memory_alloc(size_t count, size_t size)
 	//@ leak chars(target_addr, align_padding, _);
 	//@ all_eq_drop(mem, align_padding, 0);
 
-	//@ mod_compensate((size_t) target_addr, full_size);
-	const int8_t* aligned_addr = target_addr + align_padding;
+	//@ mod_compensate((size_t) target_addr, align_div);
+	int8_t* aligned_addr = target_addr + align_padding;
 
 	memory_used_len = memory_used_len + align_padding;
 	if (full_size > MEMORY_SIZE - memory_used_len) {
@@ -100,10 +93,6 @@ void* os_memory_alloc(size_t count, size_t size)
 	//@ all_eq_drop(drop(align_padding, mem), full_size, 0);
 	memory_used_len = memory_used_len + full_size;
 
-	//@ assert chars(aligned_addr, full_size, ?result_chars);
-	//@ chars_split(aligned_addr, mul_size);
-	//@ leak chars(aligned_addr + mul_size, cache_padding, _);
-	//@ all_eq_take(result_chars, mul_size, 0);
 	return aligned_addr;
 	//@ close globals_invariant();
 	//@ consume_memory_assumptions();

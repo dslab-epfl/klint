@@ -76,31 +76,33 @@ void* os_memory_alloc(const size_t count, const size_t size)
 		page_used_len = 0;
 	}
 
-	// Cannot overflow, guaranteed by the contract
-	size_t full_size = size * count;
+	const size_t full_size = size * count;
+	uint8_t* const target_addr = page_addr + page_used_len;
 
-	// Weird but valid; return a likely-invalid address for debugging convenience
-	if (full_size == 0) {
-		return page_addr + HUGEPAGE_SIZE;
-	}
-
-	// Align to the cache line size, can make a huge difference sometimes
-	full_size = full_size + (CACHE_LINE_SIZE - (full_size % CACHE_LINE_SIZE));
-
-	// Align as required by the contract
-	const size_t align_diff = (size_t) (page_addr + page_used_len) % full_size;
-	if (align_diff != 0) {
-		page_used_len = page_used_len + (full_size - align_diff);
-	}
-
-	if (HUGEPAGE_SIZE - page_used_len < full_size) {
-		os_debug("Not enough space left to allocate");
+	if (SIZE_MAX - CACHE_LINE_SIZE < size) {
+		os_debug("Object is too big to be alignable");
 		abort();
 	}
 
-	void* result = page_addr + page_used_len;
+	const size_t align_div = size + CACHE_LINE_SIZE - (size % CACHE_LINE_SIZE);
+	const size_t align_diff = (size_t) target_addr % align_div;
+
+	const size_t align_padding = align_diff == 0 ? 0 : align_div - align_diff;
+	if (align_padding > HUGEPAGE_SIZE - page_used_len) {
+		os_debug("Not enough memory left to align");
+		abort();
+	}
+
+	uint8_t* const aligned_addr = target_addr + align_padding;
+	page_used_len = page_used_len + align_padding;
+	if (full_size > HUGEPAGE_SIZE - page_used_len) {
+		os_debug("Not enough memory left to allocate");
+		abort();
+	}
+
 	page_used_len = page_used_len + full_size;
-	return result;
+
+	return aligned_addr;
 }
 
 void* os_memory_phys_to_virt(const uintptr_t addr, const size_t size)
