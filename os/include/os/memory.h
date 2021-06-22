@@ -8,6 +8,9 @@
 
 //@ #include <list.gh>
 
+// Amount of memory available to the program, in bytes (256 MB)
+#define OS_MEMORY_SIZE (256ull * 1024ull * 1024ull)
+
 // A larger hash type than this is generally not useful for data structure purposes
 typedef unsigned hash_t;
 

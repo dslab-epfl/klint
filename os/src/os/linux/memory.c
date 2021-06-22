@@ -1,8 +1,3 @@
-// The only way to have pinned pages on Linux is to use huge pages: https://www.kernel.org/doc/Documentation/vm/hugetlbpage.txt
-// Note that Linux's `mlock` system call is not sufficient to pin; it only guarantees the pages will not be swapped out, not that the physical address won't change.
-// While Linux doesn't actually guarantee that huge pages are pinned, in practice its implementation pins them.
-// We use a single 1 GB page to serve everything; it should be enough...
-
 #include "os/memory.h"
 
 #include <fcntl.h>
@@ -11,23 +6,7 @@
 #include <unistd.h>
 #include <sys/mman.h>
 
-#include "arch/cache.h"
 #include "os/log.h"
-
-
-// 1 GB hugepages
-#define HUGEPAGE_SIZE_POWER (10 + 10 + 10)
-#define HUGEPAGE_SIZE (1u << HUGEPAGE_SIZE_POWER)
-
-// The version of musl shipped on Ubuntu 18.04 doesn't define this
-#ifndef MAP_HUGE_SHIFT
-#define MAP_HUGE_SHIFT 26
-#endif
-
-
-static bool page_allocated;
-static uint8_t* page_addr;
-static size_t page_used_len;
 
 
 static size_t os_memory_pagesize(void)
@@ -47,62 +26,6 @@ static size_t os_memory_pagesize(void)
 		abort();
 	}
 	return page_size_long;
-}
-
-void* os_memory_alloc(const size_t count, const size_t size)
-{
-	if (!page_allocated) {
-		page_addr = mmap(
-			// No specific address
-			NULL,
-			// Size of the mapping
-			HUGEPAGE_SIZE,
-			// R/W page
-			PROT_READ | PROT_WRITE,
-			// Hugepage, not backed by a file (and thus zero-initialized); note that without MAP_SHARED the call fails
-			// MAP_POPULATE means the page table will be populated already (without the need for a page fault later),
-			// which is required if the calling code tries to get the physical address of the page without accessing it first.
-			MAP_HUGETLB | (HUGEPAGE_SIZE_POWER << MAP_HUGE_SHIFT) | MAP_ANONYMOUS | MAP_SHARED | MAP_POPULATE,
-			// Required on MAP_ANONYMOUS
-			-1,
-			// Required on MAP_ANONYMOUS
-			0
-		);
-		if (page_addr == MAP_FAILED) {
-			os_debug("Allocate mmap failed");
-			abort();
-		}
-		page_allocated = true;
-		page_used_len = 0;
-	}
-
-	const size_t full_size = size * count;
-	uint8_t* const target_addr = page_addr + page_used_len;
-
-	if (SIZE_MAX - CACHE_LINE_SIZE < size) {
-		os_debug("Object is too big to be alignable");
-		abort();
-	}
-
-	const size_t align_div = size + CACHE_LINE_SIZE - (size % CACHE_LINE_SIZE);
-	const size_t align_diff = (size_t) target_addr % align_div;
-
-	const size_t align_padding = align_diff == 0 ? 0 : align_div - align_diff;
-	if (align_padding > HUGEPAGE_SIZE - page_used_len) {
-		os_debug("Not enough memory left to align");
-		abort();
-	}
-
-	uint8_t* const aligned_addr = target_addr + align_padding;
-	page_used_len = page_used_len + align_padding;
-	if (full_size > HUGEPAGE_SIZE - page_used_len) {
-		os_debug("Not enough memory left to allocate");
-		abort();
-	}
-
-	page_used_len = page_used_len + full_size;
-
-	return aligned_addr;
 }
 
 void* os_memory_phys_to_virt(const uintptr_t addr, const size_t size)

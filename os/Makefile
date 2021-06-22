@@ -43,9 +43,9 @@ STRUCTS_SRCS := $(shell echo $(THIS_DIR)/src/structs/*.c)
 # Verif
 VERIF_SRCS := $(shell echo $(THIS_DIR)/src/verif/*.c)
 
-# OS (the makefile defines OS_SRCS, plus there are the common ones)
+# OS (the makefile adds to OS_SRCS)
+OS_SRCS := $(shell echo $(THIS_DIR)/src/os/*.c)
 include $(THIS_DIR)/src/os/$(OS)/Makefile
-OS_SRCS += $(shell echo $(THIS_DIR)/src/os/*.c)
 
 # Network (the makefile defines NET_SRCS)
 include $(THIS_DIR)/src/net/$(NET)/Makefile
