@@ -32,7 +32,7 @@ struct map_item {
 	hash_t key_hash;
 	bool busy;
 	uint8_t _padding[3];
-};
+} __attribute__((packed));
 
 /*@
   inductive map_item = map_item(void*, size_t, size_t, hash_t, bool);
@@ -532,7 +532,6 @@ struct map* map_alloc(size_t key_size, size_t capacity)
   //@ div_2_plus_2(SIZE_MAX);
   //@ div_even(capacity, 32);
   size_t real_capacity = get_real_capacity(capacity);
-  //@ assume(sizeof(struct map_item) == 32); // TODO: Add __attribute__((packed)) support to VeriFast (+ new C2x [[attribute]] syntax?)
   m->items = (struct map_item*) os_memory_alloc(real_capacity, sizeof(struct map_item));
   m->capacity = real_capacity;
   m->key_size = key_size;
