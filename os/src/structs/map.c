@@ -31,7 +31,9 @@ struct map_item {
 	size_t chain;
 	hash_t key_hash;
 	bool busy;
-	uint8_t _padding[3];
+	uint8_t _padding0;
+	uint8_t _padding1;
+	uint8_t _padding2;
 } __attribute__((packed));
 
 /*@
@@ -49,7 +51,9 @@ struct map_item {
     ptr->chain |-> ?chain &*&
     ptr->key_hash |-> ?key_hash &*&
     ptr->busy |-> ?busy &*&
-    ptr->_padding |-> ?_padding &*&
+    ptr->_padding0 |-> ?_padding0 &*&
+    ptr->_padding1 |-> ?_padding1 &*&
+    ptr->_padding2 |-> ?_padding2 &*&
     item == map_item(key_addr, value, chain, key_hash, busy);
 
   predicate map_itemsp(struct map_item* ptr, size_t count; list<map_item> items) =
@@ -81,7 +85,26 @@ struct map_item {
             ch == 0 &*&
             bu == false;
   {
-    assume(false);
+    struct map_item* mip = (struct map_item*) ptr;
+    chars_split(ptr, sizeof(void*));
+    chars_to_pointer((void*) &(mip->key_addr));
+    chars_split(ptr + sizeof(void*), sizeof(size_t));
+    chars_to_integer_((void*) &(mip->value), sizeof(size_t), false);
+    chars_split(ptr + sizeof(void*) + sizeof(size_t), sizeof(size_t));
+    chars_to_integer_((void*) &(mip->chain), sizeof(size_t), false);
+    assume(mip->chain == 0); // VeriFast's chars-to-integers loses track of the value, but we have all chars == 0 as a precondition
+    chars_split(ptr + sizeof(void*) + sizeof(size_t) + sizeof(size_t), sizeof(hash_t));
+    chars_to_integer_((void*) &(mip->key_hash), sizeof(hash_t), false);
+    chars_split(ptr + sizeof(void*) + sizeof(size_t) + sizeof(size_t) + sizeof(hash_t), sizeof(bool));
+    chars_to_boolean((void*) &(mip->busy));
+    assume(mip->busy == false); // VeriFast's chars-to-boolean loses track of the value, but we have all chars == 0 as a precondition
+    chars_split(ptr + sizeof(void*) + sizeof(size_t) + sizeof(size_t) + sizeof(hash_t) + sizeof(bool), 1);
+    chars_to_integer_((void*) &(mip->_padding0), 1, false);
+    chars_split(ptr + sizeof(void*) + sizeof(size_t) + sizeof(size_t) + sizeof(hash_t) + sizeof(bool) + 1, 1);
+    chars_to_integer_((void*) &(mip->_padding1), 1, false);
+    chars_split(ptr + sizeof(void*) + sizeof(size_t) + sizeof(size_t) + sizeof(hash_t) + sizeof(bool) + 2, 1);
+    chars_to_integer_((void*) &(mip->_padding2), 1, false);
+    close map_itemp(mip, _);
   }
 
   lemma void all_eq_append<t>(list<t> xs1, list<t> xs2, t x)
