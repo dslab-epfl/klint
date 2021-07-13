@@ -72,7 +72,7 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
             data = data.reversed
 
         self.state.maps.set(base, index, data)
- 
+
 
     # New method!
     def allocate(self, count, size, default=None, name=None, constraint=None):

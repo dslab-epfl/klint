@@ -36,6 +36,7 @@ class map_alloc(angr.SimProcedure):
 
 # bool map_get(struct map* map, void* key_ptr, size_t* out_value);
 # requires mapp(map, ?key_size, ?capacity, ?values, ?addrs) &*&
+#          key_ptr != NULL &*&
 #          [?frac]chars(key_ptr, key_size, ?key) &*&
 #          *out_value |-> _;
 # ensures mapp(map, key_size, capacity, values, addrs) &*&
@@ -54,6 +55,7 @@ class map_get(angr.SimProcedure):
 
         # Preconditions
         mapp = self.state.metadata.get(Map, map)
+        assert utils.definitely_true(self.state.solver, key_ptr != 0)
         key = self.state.memory.load(key_ptr, mapp.key_size, endness=self.state.arch.memory_endness)
         self.state.memory.load(out_value, self.state.sizes.ptr // 8)
         print("!!! map_get key", key)
@@ -70,6 +72,7 @@ class map_get(angr.SimProcedure):
 
 # void map_set(struct map* map, void* key_ptr, size_t value);
 # requires mapp(map, ?key_size, ?capacity, ?values, ?addrs) &*&
+#          key_ptr != NULL &*&
 #          [0.25]chars(key_ptr, key_size, ?key) &*&
 #          length(values) < capacity &*&
 #          ghostmap_get(values, key) == none &*&
@@ -85,6 +88,7 @@ class map_set(angr.SimProcedure):
 
         # Preconditions
         mapp = self.state.metadata.get(Map, map)
+        assert utils.definitely_true(self.state.solver, key_ptr != 0)
         key = self.state.memory.load(key_ptr, mapp.key_size, endness=self.state.arch.memory_endness)
         self.state.memory.take(25, key_ptr)
         assert utils.definitely_true(self.state.solver, claripy.And(
@@ -100,6 +104,7 @@ class map_set(angr.SimProcedure):
 
 # void map_remove(struct map* map, void* key_ptr);
 # requires mapp(map, ?key_size, ?capacity, ?values, ?addrs) &*&
+#          key_ptr != NULL &*&
 #          [?frac]chars(key_ptr, key_size, ?key) &*&
 #          frac != 0.0 &*&
 #          ghostmap_get(values, key) != none &*&
@@ -115,6 +120,7 @@ class map_remove(angr.SimProcedure):
 
         # Preconditions
         mapp = self.state.metadata.get(Map, map)
+        assert utils.definitely_true(self.state.solver, key_ptr != 0)
         key = self.state.memory.load(key_ptr, mapp.key_size, endness=self.state.arch.memory_endness)
         frac = self.state.memory.take(None, key_ptr)
         assert utils.definitely_true(self.state.solver, claripy.And(

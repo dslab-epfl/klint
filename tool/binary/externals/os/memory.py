@@ -8,7 +8,7 @@ import nf.device as nf_device
 # void* os_memory_alloc(size_t count, size_t size);
 # requires count == 1 || count * size <= SIZE_MAX;
 # ensures uchars(result, count * size, ?cs) &*& true == all_eq(cs, 0) &*& result + count * size <= (char*) UINTPTR_MAX &*&
-#         count * size == 0 ? true : (size_t) result % (count * size) == 0;
+#         result != NULL &*& (size_t) result % (size + CACHE_LINE_SIZE - (size % CACHE_LINE_SIZE)) == 0;
 class os_memory_alloc(angr.SimProcedure):
     def run(self, count, size):
         # Casts
@@ -25,10 +25,12 @@ class os_memory_alloc(angr.SimProcedure):
         )
 
         # Postconditions
+        # Non-null is already done in memory.allocate
         result = self.state.memory.allocate(count, size, name="allocated", default=claripy.BVV(0, self.state.solver.eval_one(size, cast_to=int) * 8))
-        # Optimization: Avoid use of a modulo
+
+        # Optimization: Avoid use of a symbolic modulo
         multiplier = claripy.BVS("memory_mult", self.state.sizes.ptr)
-        self.state.solver.add(result == multiplier * (count * size))
+        self.state.solver.add(result == multiplier * (size + 64 - (size % 64)))
         print("!!! os_memory_alloc", count, size, "->", result)
         return result
 

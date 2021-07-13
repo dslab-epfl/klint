@@ -19,6 +19,7 @@ struct map* map_alloc(size_t key_size, size_t capacity);
 
 bool map_get(struct map* map, void* key_ptr, size_t* out_value);
 /*@ requires mapp(map, ?key_size, ?capacity, ?values, ?addrs) &*&
+             key_ptr != NULL &*&
              [?frac]chars(key_ptr, key_size, ?key) &*&
              *out_value |-> _; @*/
 /*@ ensures mapp(map, key_size, capacity, values, addrs) &*&
@@ -31,6 +32,7 @@ bool map_get(struct map* map, void* key_ptr, size_t* out_value);
 
 void map_set(struct map* map, void* key_ptr, size_t value);
 /*@ requires mapp(map, ?key_size, ?capacity, ?values, ?addrs) &*&
+             key_ptr != NULL &*&
              [0.25]chars(key_ptr, key_size, ?key) &*&
              length(values) < capacity &*&
              ghostmap_get(values, key) == none &*&
@@ -40,6 +42,7 @@ void map_set(struct map* map, void* key_ptr, size_t value);
 
 void map_remove(struct map* map, void* key_ptr);
 /*@ requires mapp(map, ?key_size, ?capacity, ?values, ?addrs) &*&
+             key_ptr != NULL &*&
              [?frac]chars(key_ptr, key_size, ?key) &*&
              frac != 0.0 &*&
              ghostmap_get(values, key) != none &*&
