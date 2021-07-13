@@ -10,7 +10,9 @@
 // Also, again for perf, the "busy bits" scheme was replaced with a "is key_addr NULL or not" scheme.
 // VeriFast also improved in the meantime, meaning some workarounds in the original proof design
 // may not be necessary any more, while some new workarounds are needed to e.g. support target-independent mode.
-// The resulting code is neat, but to say the current proof is not pretty would be an understatement.
+// The resulting code is decent, but to say the current proof is not pretty would be an understatement.
+// - The main thing to improve in code would be to hoist the 'and (len - 1)' computation on the index out of loops
+// --> Perhaps this could even help verification, similar to how the index_pool works
 // Some thoughts on how to improve if this is ever rewritten:
 // - Isolate stuff more. The proof currently takes forever because it has to look at tens of thousands of lines of proof.
 // - See if any solver (e.g. Z3 or CVC4) is friendly to the mod-pow2 optimization, instead of manually proving bit tricks.
