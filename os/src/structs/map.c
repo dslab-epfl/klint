@@ -349,6 +349,11 @@ static size_t loop(hash_t start, size_t i, size_t capacity)
             result == loop_fp(loop_fp(start, capacity) + i, capacity); @*/
 //@ terminates;
 {
+  // Here we'd like to eliminate the first AND.
+  // However, this would require proving to VeriFast that (start + i) cannot overflow,
+  // which is false on some architectures (e.g. 'int' can be 4 bytes and 'size_t' 2 bytes, in theory)
+  // So let's just hope the compiler does it for us...
+
   //@ nat m = is_pow2_some(capacity, N63);
   //@ mod_bitand_equiv(start, capacity, m);
   //@ div_mod_gt_0(start % capacity, start, capacity);
