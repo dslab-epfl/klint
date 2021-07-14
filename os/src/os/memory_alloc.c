@@ -7,7 +7,7 @@
 //@ #include "proof/modulo.gh"
 
 
-extern int8_t* memory;
+extern int8_t* memory; // VeriFast behaves oddly if this is an uint8_t*...
 extern size_t memory_used_len;
 
 /*@
@@ -51,7 +51,7 @@ void* os_memory_alloc(size_t count, size_t size)
 	//@ assert memory |-> ?mem;
 	//@ assert memory_used_len |-> ?memlen;
 	//@ assert mem[memlen..OS_MEMORY_SIZE] |-> ?mem_bytes;
-	int8_t* target_addr = (int8_t*) memory + memory_used_len; // VeriFast requires the pointer cast
+	int8_t* target_addr = memory + memory_used_len;
 
 	// Aligning to the cache line size can make a huge positive performance difference sometimes, well worth the hassle
 	// (e.g. one time TinyNF accidentally regressed by 40% throughput because of misalignment...)
@@ -72,7 +72,7 @@ void* os_memory_alloc(size_t count, size_t size)
 	}
 
 	// Leak the alignment memory, i.e., fragment the heap, since we don't support any notion of freeing
-	//@ leak chars(target_addr, align_padding, _);
+	//@ leak chars((int8_t*)target_addr, align_padding, _);
 	//@ all_eq_drop(mem_bytes, align_padding, 0);
 
 	//@ mod_compensate((size_t) target_addr, align_div);

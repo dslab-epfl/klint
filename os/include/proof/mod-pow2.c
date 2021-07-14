@@ -168,18 +168,18 @@
     
     {
         int m_int = int_of_nat(m);
-        list<bool> k_bits = snd(bits_of_int(k, N32));
-        list<bool> capacity_bits = snd(bits_of_int(capacity - 1, N32));
-        list<bool> k_and_capacity_bits = snd(bits_of_int(k & (capacity - 1), N32));
+        list<bool> k_bits = snd(bits_of_int(k, N64));
+        list<bool> capacity_bits = snd(bits_of_int(capacity - 1, N64));
+        list<bool> k_and_capacity_bits = snd(bits_of_int(k & (capacity - 1), N64));
 
         // k & (capacity - 1)
-        bits_of_int_pow2_mask(N32, m);
+        bits_of_int_pow2_mask(N64, m);
 
-        bitand_limits(k, capacity - 1, N32);
-        bits_of_int_remainder(k & (capacity - 1), N32);
-        bits_of_int_remainder(k, N32);
-        bits_of_int_remainder(capacity - 1, N32);
-        bits_of_int_apply_mask(k, k_bits, capacity - 1, capacity_bits, m_int, N32);
+        bitand_limits(k, capacity - 1, N64);
+        bits_of_int_remainder(k & (capacity - 1), N64);
+        bits_of_int_remainder(k, N64);
+        bits_of_int_remainder(capacity - 1, N64);
+        bits_of_int_apply_mask(k, k_bits, capacity - 1, capacity_bits, m_int, N64);
         assert (take(m_int, k_and_capacity_bits) == take(m_int, k_bits));
         assert (true == forall(drop(m_int, k_and_capacity_bits), (eq)(false)));
         
@@ -187,7 +187,7 @@
         list<bool> r_bits = gen_r_bits(k_bits, m_int);
         gen_r_bits_works(k_bits, m_int);
         
-        bits_of_int_split(k, N32, m_int, k_bits, k_and_capacity_bits, r_bits);
+        bits_of_int_split(k, N64, m_int, k_bits, k_and_capacity_bits, r_bits);
         assert (k == int_of_bits(0, k_and_capacity_bits) + int_of_bits(0, r_bits));
         
         int_of_bits_lt(k_and_capacity_bits, m);
@@ -198,7 +198,7 @@
         mod_bijection(int_of_bits(0, k_and_capacity_bits), capacity);
 
         // Proof of equality
-        int_of_bits_of_int(k & (capacity - 1), N32);
+        int_of_bits_of_int(k & (capacity - 1), N64);
         loop_fp_pop(k, capacity);
 
         assert (k % capacity) == loop_fp(k, capacity);
@@ -473,43 +473,43 @@
       ensures  is_pow2(x, N63) != none;
     {
 
-        list<bool> x_bits = snd(bits_of_int(x, N32));
-        list<bool> x_minus_one_bits = snd(bits_of_int(x - 1, N32));
-        length_bits_of_int(x, N32);
-        length_bits_of_int(x - 1, N32);
-        bits_of_int_remainder(x, N32);
-        bits_of_int_remainder(x - 1, N32);
-        int_of_bits_of_int(x, N32);
+        list<bool> x_bits = snd(bits_of_int(x, N64));
+        list<bool> x_minus_one_bits = snd(bits_of_int(x - 1, N64));
+        length_bits_of_int(x, N64);
+        length_bits_of_int(x - 1, N64);
+        bits_of_int_remainder(x, N64);
+        bits_of_int_remainder(x - 1, N64);
+        int_of_bits_of_int(x, N64);
         assert(x == int_of_bits(0, x_bits));
 
         // Proof that x has at least one bit set to true
-        bits_of_int_nonzero(x, N32);
+        bits_of_int_nonzero(x, N64);
         assert(0 < count_bits(x_bits));
 
         int m = index_of(true, x_bits);
         count_nonzero_to_mem(true, x_bits);
-        assert(0 <= m && m < int_of_nat(N32)); 
+        assert(0 <= m && m < int_of_nat(N64));
         assert (nth(m, x_bits) == true);
 
         if (1 < count_bits(x_bits)) { // Impossible case
             index_of_up_bound(true, x_bits);
-            assert (m < int_of_nat(N32) - 1);
+            assert (m < int_of_nat(N64) - 1);
 
             nat m_nat = nat_of_int(m);
-            x_minus_one_drop(x, m_nat, N32, x_bits, x_minus_one_bits);
+            x_minus_one_drop(x, m_nat, N64, x_bits, x_minus_one_bits);
             assert (drop(m+1, x_bits) == drop(m+1, x_minus_one_bits));
-            
+
             count_drop_index_of(true, x_bits);
             assert (0 < count_bits(drop(m, x_bits)));
 
-            bits_of_int_and_def(x, x_bits, x - 1, x_minus_one_bits, N32);
+            bits_of_int_and_def(x, x_bits, x - 1, x_minus_one_bits, N64);
             assert (x & (x - 1) == int_of_bits(0, bits_of_int_and(x_bits, x_minus_one_bits)));
 
             bits_of_int_and_count_nonzero(x_bits, x_minus_one_bits, m+1);
             assert (0 < count_bits(bits_of_int_and(x_bits, x_minus_one_bits)));
 
-            bitand_limits(x, x - 1, N32);
-            bits_of_int_remainder(x & (x - 1), N32);
+            bitand_limits(x, x - 1, N64);
+            bits_of_int_remainder(x & (x - 1), N64);
             int_of_bits_count_nonzero(bits_of_int_and(x_bits, x_minus_one_bits));
 
             assert (false);
@@ -520,7 +520,7 @@
             int_of_bits_pow2(x_bits, nat_of_int(m));
             assert(int_of_bits(0, x_bits) == pow_nat(2, nat_of_int(m)));
 
-            some_is_pow2(x, nat_of_int(m), N31);
+            some_is_pow2(x, nat_of_int(m), N63);
         }
     }
 
