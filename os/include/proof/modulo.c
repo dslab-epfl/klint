@@ -442,4 +442,26 @@
         div_rem_nonneg(a * b, b);
     }
 
+lemma void mod_compensate(int a, int m)
+requires a >= 0 &*& m > 0;
+ensures (a + (m - (a % m))) % m == 0;
+{
+	int r = a % m;
+	if (r == 0) {
+		mod_rotate(a, m);
+	} else {
+		div_rem_nonneg(a, m);
+		assert a == (a / m) * m + a % m;
+		assert a == (a / m) * m + r;
+		assert a + (m - (a % m)) == a + m - r;
+		assert a + m - r == (a / m) * m + r + m - r;
+		assert a + m - r == (a / m) * m + m;
+		assert (a + m - r) % m == ((a / m) * m + m) % m;
+		mul_mono(0, a / m, m);
+		mod_rotate((a / m) * m, m);
+		assert (a + m - r) % m == ((a / m) * m) % m;
+		mod_rotate_mul(a/m, m);
+	}
+}
+
 @*/
