@@ -81,19 +81,15 @@ struct map_item {
     requires chars(ptr, sizeof(struct map_item), ?cs) &*&
              true == all_eq(cs, 0);
     ensures map_itemp((struct map_item*) ptr, ?i) &*&
-            i == map_item(?ka, ?va, ?ch, ?ha) &*&
-            ch == 0 &*&
-            ka == NULL;
+            i == map_item(?ka, ?va, ?ch, ?ha);
   {
     struct map_item* mip = (struct map_item*) ptr;
     chars_split(ptr, sizeof(void*));
     chars_to_pointer((void*) &(mip->key_addr));
-    assume(mip->key_addr == NULL); // VeriFast's chars-to-integers loses track of the value, but we have all chars == 0 as a precondition
     chars_split(ptr + sizeof(void*), sizeof(size_t));
     chars_to_integer_((void*) &(mip->value), sizeof(size_t), false);
     chars_split(ptr + sizeof(void*) + sizeof(size_t), sizeof(size_t));
     chars_to_integer_((void*) &(mip->chain), sizeof(size_t), false);
-    assume(mip->chain == 0); // VeriFast's chars-to-integers loses track of the value, but we have all chars == 0 as a precondition
     chars_split(ptr + sizeof(void*) + sizeof(size_t) + sizeof(size_t), sizeof(hash_t));
     chars_to_integer_((void*) &(mip->key_hash), sizeof(hash_t), false);
     chars_split(ptr + sizeof(void*) + sizeof(size_t) + sizeof(size_t) + sizeof(hash_t), sizeof(uint32_t));
@@ -115,9 +111,7 @@ struct map_item {
   lemma void bytes_to_map_items(char* ptr, nat count)
     requires chars(ptr, int_of_nat(count) * sizeof(struct map_item), ?cs) &*&
              true == all_eq(cs, 0);
-    ensures map_itemsp((struct map_item*) ptr, int_of_nat(count), ?is) &*&
-            true == forall(map(map_item_chain_, is), (eq)(0)) &*&
-            true == forall(map(map_item_key_addr_, is), (eq)(NULL));
+    ensures map_itemsp((struct map_item*) ptr, int_of_nat(count), ?is);
   {
     switch (count) {
       case zero:
@@ -551,6 +545,42 @@ struct map* map_alloc(size_t key_size, size_t capacity)
   m->key_size = key_size;
   //@ assert m->items |-> ?raw_items;
   //@ bytes_to_map_items((char*) raw_items, nat_of_int(real_capacity));
+  // Zero-allocating the items isn't enough to guarantee the key addrs are NULL, since NULL may not be 0 on all architectures
+  // We need to explicitly set them to NULL (and the compiler will do whatever is needed in case we're on a weird arch)
+  // While we're at it, set chain to 0 not because it's needed but because VeriFast loses track of values when converting from chars to size_t :-(
+  for (size_t n = 0; n < real_capacity; n++)
+  /*@ invariant 0 <= n &*& n <= real_capacity &*&
+                m->items |-> raw_items &*&
+                map_itemsp(raw_items, real_capacity, ?items) &*&
+                true == forall(map(map_item_key_addr_, take(n, items)), (eq)(NULL)) &*&
+                true == forall(map(map_item_chain_, take(n, items)), (eq)(0)); @*/
+  //@ decreases real_capacity - n;
+  {
+    //@ length_map_items(real_capacity);
+    //@ extract_item(raw_items, n);
+    m->items[n].key_addr = NULL;
+    m->items[n].chain = 0;
+    //@ map_item new_item = map_item(NULL, map_item_value_(nth(n, items)), 0, map_item_key_hash_(nth(n, items)));
+    //@ take_update_unrelevant(n, n, new_item, items);
+    //@ drop_update_unrelevant(n + 1, n, new_item, items);
+    //@ map_preserves_length(map_item_key_addr_, update(n, new_item, items));
+    //@ map_preserves_length(map_item_value_, update(n, new_item, items));
+    //@ map_preserves_length(map_item_chain_, update(n, new_item, items));
+    //@ map_preserves_length(map_item_key_hash_, update(n, new_item, items));
+    //@ map_update_update_map(map_item_key_addr_, n, new_item, items);
+    //@ map_update_update_map(map_item_value_, n, new_item, items);
+    //@ map_update_update_map(map_item_chain_, n, new_item, items);
+    //@ map_update_update_map(map_item_key_hash_, n, new_item, items);
+    //@ map_nth_nth_map(map_item_value_, n, items);
+    //@ map_nth_nth_map(map_item_key_hash_, n, items);
+    //@ glue_items(raw_items, update(n, new_item, items), n);
+    //@ take_map(n, map_item_key_addr_, update(n, new_item, items));
+    //@ forall_upto(map(map_item_key_addr_, update(n, new_item, items)), (eq)(NULL), n);
+    //@ if (n + 1 < length(items)) take_map(n + 1, map_item_key_addr_, update(n, new_item, items));
+    //@ take_map(n, map_item_chain_, update(n, new_item, items));
+    //@ forall_upto(map(map_item_chain_, update(n, new_item, items)), (eq)(0), n);
+    //@ if (n + 1 < length(items)) take_map(n + 1, map_item_chain_, update(n, new_item, items));
+  }
   //@ assert map_itemsp(raw_items, real_capacity, ?items);
   //@ length_map_items(real_capacity);
   //@ map_preserves_length(map_item_key_addr_, items);

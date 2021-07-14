@@ -3,18 +3,29 @@
 
 #include <listex.gh>
 
+lemma void forall_upto<t>(list<t> lst, fixpoint(t, bool) p, int n)
+requires true == forall(take(n, lst), p) &*&
+         true == p(nth(n, lst));
+ensures true == forall(take(n+1, lst), p);
+{
+  switch (lst) {
+    case nil:
+    case cons(h, t):
+      if (n != 0) forall_upto(t, p, n - 1);
+  }
+}
+
 lemma void length_0_nil<T>(list<T> lst)
 requires length(lst) == 0;
 ensures lst == nil;
 {
   switch (lst) {
-    case nil: return;
+    case nil:
     case cons(h, t):
       assert(length(lst) > length(t));
       assert(length(t) == 0);
       assert(length(lst) > 0);
       assert(length(lst) == 0);
-      return;
   }
 }
 
@@ -23,8 +34,8 @@ requires lst != nil;
 ensures nth(0, lst) == head(lst);
 {
   switch(lst) {
-    case nil: return;
-    case cons(h, t): return;
+    case nil:
+    case cons(h, t):
   }
 }
 
@@ -33,8 +44,8 @@ requires 0 < n;
 ensures nth(n-1, lst) == nth(n, cons(head, lst));
 {
   switch(lst) {
-    case nil: return;
-    case cons(h, t): return;
+    case nil:
+    case cons(h, t):
   }
 }
 
@@ -43,10 +54,9 @@ requires true;
 ensures nth(length(lst), append(lst, cons(x, nil))) == x;
 {
   switch(lst) {
-    case nil: return;
+    case nil:
     case cons(h, t):
       nth_len_append_cons(t, x);
-      return;
   }
 }
 
