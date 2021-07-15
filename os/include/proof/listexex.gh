@@ -22,10 +22,6 @@ ensures lst == nil;
   switch (lst) {
     case nil:
     case cons(h, t):
-      assert(length(lst) > length(t));
-      assert(length(t) == 0);
-      assert(length(lst) > 0);
-      assert(length(lst) == 0);
   }
 }
 
@@ -76,15 +72,13 @@ requires 0 <= n &*& n < length(lst);
 ensures nth(n, append(lst, cons(x, nil))) == nth(n, lst);
 {
   switch(lst) {
-    case nil: return;
+    case nil:
     case cons(h, t):
       if (n == 0) {
         assert(h == nth(n, lst));
         assert(h == nth(n, append(lst, cons(x, nil))));
-        return;
       } else {
         nth_less_append_cons(n - 1, t, x);
-        return;
       }
   }
 }
@@ -94,21 +88,19 @@ requires lst != nil;
 ensures lst == append(take(length(lst) - 1, lst), cons(nth(length(lst) - 1, lst), nil));
 {
   switch(lst) {
-    case nil: return;
+    case nil:
     case cons(h, t):
       if (t == nil) {
         assert(length(lst) == 1);
         assert(take(length(lst) - 1, lst) == nil);
         assert(cons(nth(length(lst) - 1, lst), nil) == lst);
         assert(append(nil, lst) == lst);
-        return;
       } else {
         append_take_cons(t);
         assert(take(length(lst) - 1, lst) == cons(h, take(length(t) - 1, t)));
         assert(nth(length(lst) - 1, lst) == nth(length(t) - 1, t));
         assert(append(take(length(lst) - 1, lst), cons(nth(length(lst) - 1, lst), nil)) ==
                cons(h, append(take(length(t) - 1, t), cons(nth(length(t) - 1, t), nil))));
-        return;
       }
   }
 }
@@ -119,9 +111,8 @@ requires 0 <= n;
 ensures cons(head, take(n, tail)) == take(n + 1, cons(head, tail));
 {
   switch(tail) {
-    case nil: return;
+    case nil:
     case cons(h, t):
-      return;
   }
 }
 
@@ -131,8 +122,8 @@ requires lst != nil;
 ensures lst == cons(head(lst), tail(lst));
 {
   switch(lst){
-    case nil: return;
-    case cons(h, t): return;
+    case nil:
+    case cons(h, t):
   }
 }
 
@@ -141,8 +132,8 @@ requires lst != nil;
 ensures length(lst) == 1 + length(tail(lst)) &*& 0 < length(lst);
 {
   switch(lst) {
-    case nil: return;
-    case cons(h,t): return;
+    case nil:
+    case cons(h,t):
   }
 }
 
@@ -151,15 +142,13 @@ requires 0 < index;
 ensures tail(update(index, val, cons(lhead, ltail))) == update(index - 1, val, ltail);
 {
   switch(ltail) {
-    case nil: return;
+    case nil:
     case cons(h, t):
-      if (index - 1 == 0) {
-      } else {
+      if (index - 1 != 0) {
         update_tail_tail_update(h, t, index - 1, val);
         assert(update(index - 1, val, ltail) == cons(h, update(index - 2, val, t)));
         assert(update(index, val, cons(lhead, ltail)) == cons(lhead, update(index - 1, val, ltail)));
       }
-      return;
   }
 }
 
@@ -168,8 +157,8 @@ requires lst != nil;
 ensures tail(lst) == tail(update(0, val, lst));
 {
   switch(lst) {
-    case nil: break;
-    case cons(h,t): break;
+    case nil:
+    case cons(h,t):
   }
 }
 
@@ -178,13 +167,11 @@ requires true;
 ensures lst == update(index, nth(index, lst), lst);
 {
   switch(lst){
-    case nil: return;
+    case nil:
     case cons(h, t):
-      if (index == 0) {
-      } else {
+      if (index != 0) {
         update_id(index - 1, t);
       }
-      return;
   }
 }
 
@@ -193,8 +180,8 @@ requires lst != nil;
 ensures update(n, val, lst) != nil;
 {
   switch(lst) {
-    case nil: break;
-    case cons(h,t): break;
+    case nil:
+    case cons(h,t):
   }
 }
 
@@ -223,7 +210,7 @@ requires false == mem(vsearch, l) &*& vsearch != vnew;
 ensures false == mem(vsearch, update(n, vnew, l));
 {
   switch(l) {
-    case nil: break;
+    case nil:
     case cons(h,t):
       if (n == 0) {
       } else {
@@ -237,10 +224,11 @@ requires 0 <= k &*& k <= i &*& i < length(l);
 ensures drop(k, update(i, val, l)) == update(i-k, val, drop(k, l));
 {
   switch(l) {
-    case nil: return;
+    case nil:
     case cons(h,t):
-      if (k == 0) return;
-      drop_update_relevant(k-1, i-1, val, t);
+      if (k != 0) {
+        drop_update_relevant(k-1, i-1, val, t);
+      }
   }
 }
 
@@ -249,10 +237,11 @@ requires 0 <= i &*& i < k;
 ensures drop(k, update(i, val, l)) == drop(k, l);
 {
   switch(l) {
-    case nil: return;
+    case nil:
     case cons(h,t):
-      if (i == 0) return;
-      drop_update_unrelevant(k-1, i-1, val, t);
+      if (i != 0) {
+        drop_update_unrelevant(k-1, i-1, val, t);
+      }
   }
 }
 
@@ -261,10 +250,11 @@ requires 0 <= i &*& i <= k &*& k < length(l);
 ensures take(k, update(i, val, l)) == update(i, val, take(k, l));
 {
   switch(l) {
-    case nil: return;
+    case nil:
     case cons(h,t):
-      if (i == 0) return;
-      take_update_relevant(k-1, i-1, val, t);
+      if (i != 0) {
+        take_update_relevant(k-1, i-1, val, t);
+      }
   }
 }
 
@@ -273,10 +263,11 @@ requires 0 <= k &*& k <= i;
 ensures take(k, update(i, val, l)) == take(k, l);
 {
   switch(l) {
-    case nil: return;
+    case nil:
     case cons(h,t):
-      if (k == 0) return;
-      take_update_unrelevant(k-1, i-1, val, t);
+      if (k != 0) {
+        take_update_unrelevant(k-1, i-1, val, t);
+      }
   }
 }
 
@@ -285,7 +276,7 @@ requires true == forall(lst, prop) &*& true == prop(v);
 ensures true == forall(update(i, v, lst), prop);
 {
   switch(lst) {
-    case nil: return;
+    case nil:
     case cons(h,t):
       if (i != 0) forall_update(t, prop, i-1, v);
   }
@@ -296,11 +287,10 @@ requires i != j;
 ensures update(i, vi, update(j, vj, lst)) == update(j, vj, update(i, vi, lst));
 {
   switch(lst) {
-    case nil: return;
+    case nil:
     case cons(h,t):
-      if (i == 0) return;
-      if (j == 0) return;
-      update_update(t, i-1, vi, j-1, vj);
+      if (i != 0 && j != 0)
+        update_update(t, i-1, vi, j-1, vj);
   }
 }
 
@@ -309,11 +299,10 @@ requires i != j;
 ensures nth(i, update(j, y, xs)) == nth(i, xs);
 {
   switch(xs){
-    case nil: break;
+    case nil:
     case cons(h,t):
-      if (j == 0) break;
-      if (i == 0) break;
-      nth_update_unrelevant(i-1, j-1, y, t);
+      if (j != 0 && i != 0)
+        nth_update_unrelevant(i-1, j-1, y, t);
   }
 }
 
@@ -322,11 +311,9 @@ requires 0 <= n &*& n < length(lst);
 ensures drop(n+1, lst) == tail(drop(n, lst));
 {
   switch(lst) {
-    case nil: return;
+    case nil:
     case cons(h,t):
-      if (n == 0) {
-        return;
-      } else {
+      if (n != 0) {
         tail_drop(t, n-1);
       }
   }
@@ -375,7 +362,7 @@ requires true;
 ensures append(append(l1, cons(el, nil)), l2) == append(l1, cons(el, l2));
 {
   switch(l1) {
-    case nil: return;
+    case nil:
     case cons(h,t):
       append_append_cons_to_append_cons(t, el, l2);
   }
@@ -400,10 +387,9 @@ requires 0 <= i &*& i < length(lst) &*& true == forall(lst, p);
 ensures true == p(nth(i, lst));
 {
   switch(lst) {
-    case nil: return;
+    case nil:
     case cons(h,t):
-      if (i == 0){}
-      else {
+      if (i != 0){
         forall_nth(t, p, i-1);
       }
   }
@@ -414,10 +400,9 @@ requires true == forall(lst, p);
 ensures true == forall(remove(x, lst), p);
 {
   switch(lst) {
-    case nil: return;
+    case nil:
     case cons(h,t):
-      if (h == x) {
-      } else {
+      if (h != x) {
         forall_remove(t, x, p);
       }
   }
@@ -428,11 +413,10 @@ requires 0 <= n &*& 0 <= m &*& n + m <= length(l);
 ensures drop(n, drop(m, l)) == drop(n + m, l);
 {
   switch(l) {
-    case nil: return;
+    case nil:
     case cons(h,t):
-      if (n == 0) return;
-      if (m == 0) return;
-      drop_drop(n, m-1, t);
+      if (n != 0 && m != 0)
+        drop_drop(n, m-1, t);
   }
 }
 
@@ -441,9 +425,8 @@ requires a != nil;
 ensures append(a, b) != nil;
 {
   switch(a) {
-    case nil: return;
+    case nil:
     case cons(h,t):
-      return;
   }
 }
 
@@ -452,7 +435,7 @@ requires true;
 ensures length(filter(f, xs)) <= length(xs);
 {
   switch(xs) {
-    case nil: return;
+    case nil:
     case cons(h,t):
       filter_no_increase_len(f, t);
   }
@@ -463,7 +446,7 @@ requires true;
 ensures length(map(f, xs)) == length(xs);
 {
   switch(xs) {
-    case nil: return;
+    case nil:
     case cons(h,t):
       map_preserves_length(f, t);
   }
@@ -476,7 +459,7 @@ ensures (n <= length(l) ?
          (length(take(n, l)) == length(l)));
 {
   switch(l) {
-    case nil: return;
+    case nil:
     case cons(h,t):
       if (n != 0) take_effect_on_len(t, n-1);
   }
@@ -487,7 +470,7 @@ requires true;
 ensures length(l) == length(map(f, l));
 {
   switch(l) {
-    case nil: return;
+    case nil:
     case cons(h,t):
       map_effect_on_len(t, f);
   }
@@ -500,7 +483,7 @@ ensures (length(filter(f, l)) == length(l) ?
          (length(filter(f, l)) < length(l)));
 {
   switch(l) {
-    case nil: return;
+    case nil:
     case cons(h,t):
       filter_effect_on_len(t, f);
   }
@@ -511,7 +494,7 @@ requires 0 <= n &*& n < length(lst) &*& drop(n, lst) == cons(?head,_);
 ensures nth(n, lst) == head;
 {
   switch(lst) {
-    case nil: return;
+    case nil:
     case cons(h,t):
       if (0 < n) car_drop_is_nth(n-1, t);
   }
@@ -522,7 +505,7 @@ requires 0 <= n &*& n <= m;
 ensures take(n, take(m, lst)) == take(n, lst);
 {
   switch(lst) {
-    case nil: return;
+    case nil:
     case cons(h,t):
       if (0 < n) take_take(n-1, m-1, t);
   }
@@ -533,7 +516,7 @@ requires 0 <= n &*& n < length(lst);
 ensures take(n, map(f, lst)) == map(f, take(n, lst));
 {
   switch(lst) {
-    case nil: return;
+    case nil:
     case cons(h,t):
       if (0 < n) take_map(n-1, f, t);
   }
@@ -544,7 +527,7 @@ requires false == mem(el, l);
 ensures remove(el, l) == l;
 {
   switch(l) {
-    case nil: return;
+    case nil:
     case cons(h,t):
       if (h != el) remove_nonmem(el, t);
   }
@@ -594,10 +577,10 @@ requires 0 <= n &*& n <= length(l1);
 ensures append(drop(n, l1), l2) == drop(n, append(l1, l2));
 {
   switch(l1) {
-    case nil: return;
+    case nil:
     case cons(h, t):
-      if (n == 0) return;
-      drop_append_small(n-1, t, l2);
+      if (n != 0)
+        drop_append_small(n-1, t, l2);
   }
 }
 
@@ -606,10 +589,10 @@ requires 0 <= n &*& n <= length(l1);
 ensures take(n, l1) == take(n, append(l1, l2));
 {
   switch(l1) {
-    case nil: return;
+    case nil:
     case cons(h, t):
-      if (n == 0) return;
-      take_append_small(n-1, t, l2);
+      if (n != 0)
+        take_append_small(n-1, t, l2);
   }
 }
 
@@ -618,10 +601,10 @@ requires 0 < n;
 ensures head(l) == head(take(n, l));
 {
   switch(l) {
-    case nil: return;
+    case nil:
     case cons(h,t):
-      if (n == 1) return;
-      else head_take(n-1, t);
+      if (n != 1)
+        head_take(n-1, t);
   }
 }
 
@@ -720,8 +703,7 @@ ensures true == (l == filter(f, l)) == forall(l, f) &*&
     case nil:
     case cons(h,t):
       filter_forall(f, t);
-      if (f(h)) {
-      } else {
+      if (!f(h)) {
         assert false == forall(l, f);
         assert filter(f,l) == filter(f,t);
         filter_no_increase_len(f, t);
@@ -762,10 +744,9 @@ requires false == mem(some(k), ks);
 ensures false == mem(some(k), update(i, none, ks));
 {
   switch(ks) {
-    case nil: break;
+    case nil:
     case cons(h,t):
-      if (i == 0) {
-      } else {
+      if (i != 0) {
         rem_preserves_no_mem(t, k, i-1);
       }
   }
@@ -931,7 +912,6 @@ ensures true == distinct(lst);
     case cons(h,t):
       if (mem(h, t)) {
         mem_map(h, t, f);
-        assert true == mem(f(h), map(f, t));
       }
       distinct_unmap(t, f);
   }
@@ -968,7 +948,6 @@ ensures x1 == x2;
       if (h == x1) {
         if (h != x2) {
           mem_map(x2, t, f);
-          assert mem(f(x1), t);
           assert false;
         }
         assert h == x2;

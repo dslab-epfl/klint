@@ -118,7 +118,7 @@ requires true == subset(xs, ys) &*& true == mem(el, xs);
 ensures true == mem(el, ys);
 {
   switch(xs) {
-    case nil: return;
+    case nil:
     case cons(h,t):
       if (h != el) subset_mem_trans(t, ys, el);
   }
@@ -241,7 +241,6 @@ ensures true == distinct(append(xs, zs));
       if (mem(h, zs)) {
         assert true == mem(h, ys);
         double_mem_append_nondistinct(ys, zs, h);
-        assert false == distinct(append(ys, zs));
       }
       subset_append_distinct(t, ys, zs);
   }

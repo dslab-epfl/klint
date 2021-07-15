@@ -341,9 +341,7 @@
             bits_of_int_remainder(x, n);
             int_of_bits_of_int(x, n);
 
-            assert (int_of_bits(0, x_bits) == 0);
-            assert (x == int_of_bits(0, x_bits));
-            assert (false);
+            assert false;
         }
     }
 
@@ -503,16 +501,8 @@
             assert (0 < count_bits(drop(m, x_bits)));
 
             bits_of_int_and_def(x, x_bits, x - 1, x_minus_one_bits, N64);
-            assert (x & (x - 1) == int_of_bits(0, bits_of_int_and(x_bits, x_minus_one_bits)));
 
-            bits_of_int_and_count_nonzero(x_bits, x_minus_one_bits, m+1);
-            assert (0 < count_bits(bits_of_int_and(x_bits, x_minus_one_bits)));
-
-            bitand_limits(x, x - 1, N64);
-            bits_of_int_remainder(x & (x - 1), N64);
-            int_of_bits_count_nonzero(bits_of_int_and(x_bits, x_minus_one_bits));
-
-            assert (false);
+            assert false;
         } else {
             assert (count_bits(x_bits) == 1);
 

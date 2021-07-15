@@ -72,7 +72,6 @@
     if ((a+b)/b <= a/b) {
         div_rem(a, b);
         mul_mono((a+b)/b, a/b, b);
-        assert true == ((a+b)/b*b <= a/b*b);
         assert false;
     }
 
@@ -241,29 +240,7 @@
             mod_bijection((capacity + x)%capacity, capacity);
             assert true == (x == (((capacity + x)%capacity + capacity)%capacity));
         } else {
-            div_rem(y-x, capacity);
-            int n = (y-x)/capacity;
-            int r = (y-x)%capacity;
-            assert true == (y-x == n*capacity + r);
-
-
-            mod_rotate(x, capacity);
-            mod_bijection(x, capacity);
-            assert true == (x == (capacity + x)%capacity);
-            mod_rotate((capacity + x)%capacity, capacity);
-            mod_bijection((capacity + x)%capacity, capacity);
-            assert true == (x == (((capacity + x)%capacity + capacity)%capacity));
-
-            if (0 <= capacity + y - r) {
-            if (capacity + y - r < capacity) {
-                mod_rotate_n(capacity + y - r, -n, capacity);
-            } else {
-                assert false;
-            }
-            } else {
             assert false;
-            }
-
         }
 
         } else {

@@ -51,7 +51,6 @@ ensures length(tails) <= int_of_nat(lim);
       switch(tails) {
         case nil:
         case cons(h,t):
-          assert int_of_nat(h) < 0;
           assert false;
       };
     case succ(n):

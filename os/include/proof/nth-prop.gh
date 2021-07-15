@@ -20,11 +20,9 @@ requires true == up_to(n, prop) &*& 0 <= x &*& x < int_of_nat(n);
 ensures true == prop(x);
 {
   switch(n) {
-    case zero: return;
+    case zero:
     case succ(m):
-      if (x == int_of_nat(m)) {
-        return;
-      } else {
+      if (x != int_of_nat(m)) {
         up_to_covers_x(m, prop, x);
       }
   }

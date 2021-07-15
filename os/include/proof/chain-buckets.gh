@@ -430,13 +430,6 @@ ensures shrt == nil;
   switch(shrt) {
     case nil:
     case cons(h,t):
-      switch(h) {
-        case pair(key,dist):
-          switch(dist) {
-            case zero:
-            case succ(n):
-          }
-      }
   }
 }
 
@@ -494,7 +487,7 @@ requires 0 <= index &*& index < length(buckets) &*&
 ensures nil == get_crossing_chains_rec_fp(acc, buckets, index);
 {
   switch(buckets) {
-    case nil: return;
+    case nil:
     case cons(bh,bt):
       if (0 == index) {
         assert get_crossing_chains_rec_fp(acc, buckets, index) ==
@@ -754,7 +747,6 @@ ensures get_current_key_fp(acc) == some(k);
               if (h != pair(k, zero)) {
                 assert true == mem(pair(k,zero), t);
                 mem_map(pair(k,zero), t, snd);
-                assert true == mem(zero, map(snd, t));
                 assert false;
               }
             case succ(n):
@@ -915,7 +907,7 @@ ensures true == mem(k, map(fst,
                                                       start + int_of_nat(i))));
 {
   switch(buckets) {
-    case nil: return;
+    case nil:
     case cons(h,t):
       if (start == 0) {
         bucket_has_then_acc_has_key(h, acc, k);
@@ -950,9 +942,6 @@ ensures true == mem(k, map(fst,
         }
 
       } else {
-        if (t == nil) {
-          return;
-        }
         less_than_neq(0, start + int_of_nat(i));
         upToByLoopNthPropShift1(
           succ(i),
@@ -2272,9 +2261,7 @@ ensures true == multiset_eq
             key_unique_filter_remove(k, append(acc, chains));
             append_void_acc_same_chain_with_key(k, acc, chains);
             multiset_eq_refl(new_atb);
-            if (dist == 0) {
-              advance_acc_removes_zero(atb, k);
-            } else {
+            if (dist != 0) {
               advance_acc_multiset_eq(new_atb,
                                       remove(pair(k, nat_of_int(dist)), atb));
               advance_acc_remove_swap(atb, k, nat_of_int(dist-1));
@@ -2662,7 +2649,6 @@ ensures true == mem(pair(k,nat_of_int(dist - length(buckets))),
           assert int_of_nat(dn) == dist;
           assert dist == 0;
           note(dist == 0);
-          note(0 < dist);
           assert false;
         case succ(n):
           acc_at_this_bucket_keeps_chain(acc, k, nat_of_int(dist), h);
@@ -3410,7 +3396,6 @@ ensures int_of_nat(dst) != i;
           case zero:
             acc_at_this_bucket_keeps_chain(acc, k, dst, h);
             distinct_and_zero_this_is_the_key(acc_at_this_bucket(acc, h), k);
-            assert get_current_key_fp(acc_at_this_bucket(acc, h)) == some(k);
             assert false;
           case succ(n):
             assert 0 != int_of_nat(dst);
@@ -3706,7 +3691,6 @@ ensures buckets_get_chain_fp(buckets, k, start) == i;
                   distinct_key_in_here_not_in_the_following(k, chains, t);
                   key_not_in_acc_then_in_buckets(advance_acc(atb),
                                                  t, k, i - 1);
-                  assert true == mem(k, buckets_all_keys_fp(t));
                   assert false;
                 }
                 return;
@@ -3717,7 +3701,7 @@ ensures buckets_get_chain_fp(buckets, k, start) == i;
                   assert true == mem(pair(k, zero), atb);
                   unique_map_identical_elems(fst, atb, pair(k, nat_of_int(i)),
                                              pair(k, chn));
-                  return;
+                  assert false;
                 }
                 distinct_key_in_here_not_in_the_following(k, chains, t);
                 acc_chain_end_rec(advance_acc(atb), t,
@@ -4629,8 +4613,6 @@ ensures buckets_get_chain_fp(buckets, k, start) == i;
     assert false == mem(k, buckets_all_keys_fp(high));
     if (capacity <= start + real_value) {
       long_chain_in_keep_long(buckets, k, start);
-      assert true == bucket_has_key_fp(k, nth(start, high));
-      assert true == mem(k, buckets_all_keys_fp(high));
       assert false;
     }
     assert start + real_value < capacity;
@@ -4663,8 +4645,6 @@ ensures buckets_get_chain_fp(buckets, k, start) == i;
       multiset_eq_mem(k, buckets_all_keys_fp(buckets),
                       append(buckets_all_keys_fp(low),
                              buckets_all_keys_fp(high)));
-      mem_append(k, buckets_all_keys_fp(low),
-                 buckets_all_keys_fp(high));
       assert false;
     }
     assert true == mem(k, buckets_all_keys_fp(high));
@@ -4672,8 +4652,6 @@ ensures buckets_get_chain_fp(buckets, k, start) == i;
                     buckets_all_keys_fp(high));
     if (start + real_value < capacity) {
       short_chain_in_keep_short(buckets, k, start);
-      assert true == bucket_has_key_fp(k, nth(start, low));
-      assert true == mem(k, buckets_all_keys_fp(low));
       assert false;
     }
     assert capacity <= start + real_value;
@@ -6646,8 +6624,6 @@ ensures false == mem(nat_of_int(dist), map(snd, acc));
         }
         assert succ(nat_of_int(dist - 1)) == nat_of_int(dist);
         advance_acc_dec_mem(atb, nat_of_int(dist - 1));
-        assert true == mem(nat_of_int(dist - 1),
-                           map(snd, advance_acc(atb)));
 
         assert false;
       }
@@ -7384,7 +7360,6 @@ ensures get_current_key_fp(acc1) == get_current_key_fp(acc2);
               distinct_unmap(acc2, snd);
               distinct_unique(acc2, h);
               if (h == pair(k, dst)) {
-                assert true == mem(dst, map(snd, acc1));
               }
               assert false == mem(h, remove(h, cons(pair(k, dst), acc1)));
               set_eq_remove_uniq_both(cons(pair(k, dst), acc1), acc2, h);
@@ -7458,7 +7433,6 @@ ensures buckets_get_keys_rec_fp(acc2, buckets) ==
         assert true == distinct(map(snd, atb2));
         if (mem(pair(k, nat_of_int(dist)), atb1)) {
           mem_map(pair(k, nat_of_int(dist)), atb1, snd);
-          assert true == mem(nat_of_int(dist), map(snd, atb2));
           assert false;
         }
         distinct_unmap(atb1, snd);
