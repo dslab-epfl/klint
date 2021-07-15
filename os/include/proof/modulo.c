@@ -29,18 +29,6 @@
     assert(0 <= ((k%capacity + capacity)%capacity));
     }
 
-    lemma void bar(int a, int b, int q, int r)
-    requires 0 <= a &*& a < b &*& 0 <= r &*& a == q * b + r &*& r < b;
-    ensures q == 0;
-    {
-    if (q == 0) {
-    } else if (0 <= q) {
-        mul_mono(1, q, b);
-    } else {
-        mul_mono(q, -1, b);
-    }
-    }
-
     lemma void quotidient_zero_pos(int a, int b, int q, int r)
     requires 0 <= a &*& a < b &*& 0 <= r &*& a == q * b + r &*& r < b;
     ensures q == 0;

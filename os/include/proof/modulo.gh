@@ -23,10 +23,6 @@ lemma void loop_lims(int k, int capacity);
 requires 0 < capacity;
 ensures 0 <= loop_fp(k, capacity) &*& loop_fp(k, capacity) < capacity;
 
-lemma void bar(int a, int b, int q, int r);
-requires 0 <= a &*& a < b &*& 0 <= r &*& a == q * b + r &*& r < b;
-ensures q == 0;
-
 lemma void quotidient_zero_pos(int a, int b, int q, int r);
 requires 0 <= a &*& a < b &*& 0 <= r &*& a == q * b + r &*& r < b;
 ensures q == 0;
@@ -125,14 +121,6 @@ lemma void div_plus_one(int a, int b);
 lemma void mod_rotate_mul(int a, int b);
     requires    0 <= a &*& 0 < b;
     ensures     ((a * b) % b) == 0;
-
-lemma void div_2_plus_2(int a);
-    requires 0 <= a;
-    ensures (a + 2) / 2 == a / 2 + 1;
-    
-lemma void div_even(int a, int b);
-    requires 0 <= a &*& b % 2 == 0;
-    ensures (a * b) / 2 == a * (b / 2);
 
 lemma void mod_compensate(int a, int m);
 requires a >= 0 &*& m > 0;

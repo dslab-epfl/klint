@@ -537,8 +537,10 @@ struct map* map_alloc(size_t key_size, size_t capacity)
   struct map* m = (struct map*) os_memory_alloc(1, sizeof(struct map));
   //@ close_struct_zero(m);
   //@ div_ge(capacity * 32, SIZE_MAX + 2, 2);
-  //@ div_2_plus_2(SIZE_MAX);
-  //@ div_even(capacity, 32);
+  //@ div_incr(SIZE_MAX, 2);
+  //@ div_exact(capacity * 16, 2);
+  //@ div_ge(capacity, capacity * 16 * 64, 64);
+  //@ div_exact(capacity * 16, 64);
   size_t real_capacity = get_real_capacity(capacity);
   m->items = (struct map_item*) os_memory_alloc(real_capacity, sizeof(struct map_item));
   m->capacity = real_capacity;
