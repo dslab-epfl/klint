@@ -88,24 +88,35 @@ static inline bool net_ipv4_checksum_valid(struct net_ipv4_header* header)
 }
 
 // Incrementally updates an IP/UDP/TCP checksum given a 16-bit word change
-static inline void net_checksum_update(uint16_t* checksum_ptr, uint16_t old_word, uint16_t new_word)
+static inline void net_checksum_update(void* checksum_ptr, uint16_t old_word, uint16_t new_word)
 {
+	// 'checksum_ptr' is a void* instead of an uint16_t* so we don't get 'changes required alignment' warnings,
+	// since the compiler can't know in practice it will be aligned correctly due to the way packets are received
+
 	// RFC 1624 Equation 3
-	*checksum_ptr = ~(~(*checksum_ptr) + ~old_word + new_word);
+	*((uint16_t*)checksum_ptr) = ~(~(*((uint16_t*)checksum_ptr)) + ~old_word + new_word);
 }
 
 // Incrementally updates a packet's checksum given its IPv4 header and the old and new values of a 16-bit word, as well as whether the word is in the IP header
 static inline void net_packet_checksum_update(struct net_ipv4_header* ipv4_header, uint16_t old_word, uint16_t new_word, bool in_ip)
 {
+	// Manual pointer addition to avoid "address of packed member" warnings
+
 	if (in_ip) {
-		// manual pointer addition to avoid an "address of packed member" warning
-		net_checksum_update((uint16_t*) ipv4_header + 6, old_word, new_word);
+		net_checksum_update((uint8_t*) ipv4_header + 12, old_word, new_word);
 	}
 
-	uint16_t* l4_header = (uint16_t*) (ipv4_header + 1);
+	uint8_t* l4_header = (uint8_t*) (ipv4_header + 1);
 	if (ipv4_header->next_proto_id == IP_PROTOCOL_TCP) {
-		net_checksum_update(l4_header + 8, old_word, new_word);
+		net_checksum_update(l4_header + 16, old_word, new_word);
 	} else if (ipv4_header->next_proto_id == IP_PROTOCOL_UDP) {
-		net_checksum_update(l4_header + 3, old_word, new_word);
+		net_checksum_update(l4_header + 6, old_word, new_word);
 	}
+}
+
+// Incrementally updates a packet's checksum given its IPv4 header and the old and new values of a 32-bit word, as well as whether the word is in the IP header
+static inline void net_packet_checksum_update_32(struct net_ipv4_header* ipv4_header, uint32_t old_word, uint32_t new_word, bool in_ip)
+{
+	net_packet_checksum_update(ipv4_header, (uint16_t) old_word, (uint16_t) new_word, in_ip);
+	net_packet_checksum_update(ipv4_header, (uint16_t) (old_word >> 16), (uint16_t) (new_word >> 16), in_ip);
 }

@@ -4,6 +4,7 @@
 
 
 enum net_transmit_flags {
+        NONE = 0,
 	UPDATE_ETHER_ADDRS = 1 << 0,
 };
 

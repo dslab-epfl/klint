@@ -14,6 +14,10 @@
 #define ETHERNET_MTU_ 1514
 
 // not the best place but they have to be somewhere so...
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunknown-pragmas"
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wreserved-id-macro"
 #define __be16 uint16_t
 #define __be32 uint32_t
 #define __be64 uint64_t
@@ -25,6 +29,8 @@
 #define __u16 uint16_t
 #define __u32 uint32_t
 #define __u64 uint64_t
+#pragma clang diagnostic pop
+#pragma GCC diagnostic pop
 #define u8 uint8_t
 #define u16 uint16_t
 #define u32 uint32_t
@@ -64,11 +70,11 @@ static inline long bpf_xdp_adjust_head(struct xdp_md* xdp_md, int delta)
 	}
 	xdp_md->_adjust_used = true;
 
-	ptrdiff_t old_length = xdp_md->data_end - xdp_md->data;
+	uintptr_t old_length = xdp_md->data_end - xdp_md->data;
 	if (delta >= 0) {
-		if (delta <= old_length) {
+		if ((uintptr_t) delta <= old_length) {
 			// easy, can always do
-			xdp_md->data += delta;
+			xdp_md->data += (unsigned) delta;
 		} else {
 			// can't adjust head further than tail
 			return -1;
@@ -76,7 +82,7 @@ static inline long bpf_xdp_adjust_head(struct xdp_md* xdp_md, int delta)
 	} else {
 		if (delta >= -ETHERNET_MTU_) {
 			// OK, we have space
-			xdp_md->data += delta;
+			xdp_md->data -= (unsigned) -delta;
 		} else {
 			// can't adjust further than that
 			return -1;

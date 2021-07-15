@@ -31,7 +31,7 @@ static inline int pcn_pkt_redirect(struct xdp_md* pkt, struct pkt_metadata* md, 
 	(void) pkt;
 	(void) md;
 
-	return out_port;
+	return (int) out_port;
 }
 
 extern bool pcn_pkt_controller_flood;

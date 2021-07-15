@@ -5,17 +5,24 @@ CFLAGS += -isystem ../../os/include/compat/uapi
 # Somehow the code expects the Linux UDP header to be included
 CFLAGS += --include linux/udp.h
 
-# The code uses pointer arithmetic on void*
+# Standard BPF issues
+CFLAGS += -Wno-missing-variable-declarations -Wno-missing-prototypes
+
+# Pointer arithmetic on void*
 CFLAGS += -Wno-pointer-arith
 
-# The code has some unused things
-CFLAGS += -Wno-unused-label -Wno-unused-variable
+# Implicit integer truncation
+CFLAGS += -Wno-implicit-int-conversion -Wno-shorten-64-to-32
 
-# The code calls macros without providing any args for the variadic parameter, illegal in ISO C
+# Implicit sign conversion
+CFLAGS += -Wno-sign-conversion
+
+# Unused code
+CFLAGS += -Wno-unused-label -Wno-unused-variable -Wno-unused-macros
+
+# Macros without providing any args for the variadic parameter, illegal in ISO C (or with clang)
 CFLAGS += -std=gnu17
-
-# The code structs need padding
-CFLAGS += -Wno-padded
-
-# Clang complains otherwise
 CFLAGS += -Wno-gnu-zero-variadic-macro-arguments
+
+# Structs need padding
+CFLAGS += -Wno-padded

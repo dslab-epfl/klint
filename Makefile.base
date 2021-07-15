@@ -3,9 +3,10 @@
 # Allow the use of advanced globs in paths
 SHELL := /bin/bash -O extglob -O globstar -c
 
-# GCC by default because why not
+# GCC and ld by default
+# Clang is supported in the sense that setting CC=clang LD=ld.lld works,
+# but performance may or may not be the same, it's mostly useful for -Weverything
 CC ?= gcc
-# Linker, ld because why not
 LD ?= ld
 
 # C17, latest POSIX with GNU extensions
@@ -16,8 +17,10 @@ CFLAGS += -O3
 CFLAGS += -march=native
 CFLAGS += -flto
 
+ifeq (, $(findstring clang,$(CC)))
 # Allow LTO shared objects to also be linked without LTO if needed
 CFLAGS += -ffat-lto-objects
+endif
 
 # Required
 CFLAGS += -fPIC
@@ -31,6 +34,15 @@ CFLAGS += -fno-stack-protector
 
 # Good warnings, and make them fatal errors to avoid walls of output for minor mistakes
 CFLAGS += -Wall -Wextra -Werror -pedantic -Wshadow -Wstrict-aliasing -Wpadded -Wfatal-errors
+
+ifneq (, $(findstring clang,$(CC)))
+# All the warnings!
+CFLAGS += -Weverything
+# ...except this one, somehow clang thinks -nostdinc is not actually used
+CFLAGS += -Wno-unused-command-line-argument
+# ...and also this one, because -Wpacked warns about "unnecessary" uses but this is by definition arch-dependent
+CFLAGS += -Wno-packed
+endif
 
 # Debug log
 # CFLAGS += -DDEBUG_LEVEL=1

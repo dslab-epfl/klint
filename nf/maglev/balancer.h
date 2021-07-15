@@ -26,7 +26,7 @@ struct balancer
 	struct map* flow_indices;
 	struct index_pool* flow_pool;
 	struct flow* flow_heap;
-	size_t* flow_backends;
+	size_t* flow_backends; // TODO change backends to device_t
 	struct index_pool* backend_pool;
 	struct cht* cht;
 };

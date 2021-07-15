@@ -61,7 +61,7 @@ static inline bool flow_table_get_internal(struct flow_table* table, time_t time
 		map_set(table->flow_indexes, &(table->flows[index]), index);
 	}
 
-	*out_port = table->start_port + index;
+	*out_port = table->start_port + (uint16_t) index;
 	return true;
 }
 

@@ -33,7 +33,7 @@ static inline struct flow_table* flow_table_alloc(time_t expiration_time, size_t
 	struct flow_table* table = os_memory_alloc(1, sizeof(struct flow_table));
 	table->flows = os_memory_alloc(max_flows, sizeof(struct flow));
 	table->flow_indexes = map_alloc(sizeof(struct flow), max_flows);
-	table->port_allocator = index_pool_alloc(max_flows, expiration_time);;
+	table->port_allocator = index_pool_alloc(max_flows, expiration_time);
 	return table;
 }
 

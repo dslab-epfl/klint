@@ -41,7 +41,7 @@ struct lpm
 
 /*@ predicate table(struct lpm* t, dir_24_8 dir); @*/
 
-struct lpm *lpm_alloc();
+struct lpm *lpm_alloc(void);
 //@ requires *lpm_out |-> ?old_lo;
 /*@ ensures result == 0 ?
               *lpm_out |-> old_lo :
