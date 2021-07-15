@@ -331,6 +331,13 @@
         }
     }
 
+    lemma void div_exact_rev(int a, int b)
+        requires    0 <= a &*& 0 < b;
+        ensures     a/b*b <= a;
+    {
+        div_rem_nonneg(a, b);
+    }
+
     lemma void div_lt(int a, int b, int c)
         requires    0 <= a &*& 0 < b &*& 0 < c &*& a < b*c;
         ensures     a/c < b*c/c;

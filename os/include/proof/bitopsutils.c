@@ -209,8 +209,10 @@
         ensures
             (x & y) == int_of_bits(0, bits_of_int_and(x_bits, y_bits));
     {
-        Z_of_uintN(x, n);
-        Z_of_uintN(y, n);
+        Z_of_uintN_def(x, n);
+        Z_of_uintN_def(y, n);
+        int_of_Z_of_uintN(x, n);
+        int_of_Z_of_uintN(y, n);
         bitand_def(x, Z_of_bits(Zsign(false), x_bits), y, Z_of_bits(Zsign(false), y_bits));
 
         length_bits_of_int(x, n);

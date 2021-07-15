@@ -1,5 +1,8 @@
 #!/bin/sh
 
+# this worked as of VeriFast commit 5d6271c82a82aff7536db91576e5f673ebf06182
+# (but building it from source requires a bunch of stuff, including ocaml/opam, so let's download it instead)
+
 if [ "$VERIFAST_PATH" = '' ]; then
   echo 'Using local VeriFast. If you want to use a custom one, set $VERIFAST_PATH to the root folder of a VeriFast distribution (which contains bin/verifast).\n'
 
