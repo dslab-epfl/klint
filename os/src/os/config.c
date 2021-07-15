@@ -40,7 +40,9 @@ bool os_config_try_get(const char* name, uint64_t* out_value)
 //@ requires [?f]*name |-> _ &*& *out_value |-> _;
 //@ ensures [f]*name |-> _ &*& *out_value |-> _;
 {
-	//@ assume(false); // This 5-line function cannot be verified meaningfully, and VeriFast anyway is missing a bunch of features to verify its low-level correctness
+	// VeriFast is missing features related to global variables (e.g. it doesn't understand sizeof of a global variable),
+	// so it cannot verify this 5-line function, but it can be easily audited.
+	//@ assume(false);
 	for (size_t n = 0; n < sizeof(items)/sizeof(struct config_item); n++)
 	{
 		if (string_compare(items[n].name, name)) {

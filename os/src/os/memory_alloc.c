@@ -11,12 +11,10 @@ extern int8_t* memory; // VeriFast behaves oddly if this is an uint8_t*...
 extern size_t memory_used_len;
 
 /*@
-// This globals invariant must holds at the start
 predicate globals_invariant() =
         memory |-> ?mem &*&
         mem != NULL &*&
 	memory_used_len |-> ?memlen &*&
-        memlen <= OS_MEMORY_SIZE &*&
         mem + OS_MEMORY_SIZE <= (void*) UINTPTR_MAX &*&
         mem[memlen..OS_MEMORY_SIZE] |-> ?mem_bytes &*&
         true == all_eq(mem_bytes, 0);
@@ -25,6 +23,8 @@ lemma void produce_memory_assumptions(void)
 requires emp;
 ensures globals_invariant();
 {
+	// This lemma represents assumptions about the bootloader, compiler, and linker's behavior, which are outside of the scope of VeriFast.
+	// Specifically, the preallocated block of memory for the allocator must be well-formed and zeroed.
 	assume(false);
 }
 
@@ -32,7 +32,7 @@ lemma void consume_memory_assumptions(void)
 requires globals_invariant();
 ensures emp;
 {
-	assume(false);
+	leak globals_invariant();
 }
 @*/
 

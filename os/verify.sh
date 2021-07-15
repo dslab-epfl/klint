@@ -21,7 +21,7 @@ if [ "$VERIFAST_PATH" = '' ]; then
   VERIFAST_PATH="$(pwd)/verifast"
 fi
 
-echo 'Verifying, this will take ~20min, now is a great time to go make a cup of tea...'
+echo 'Verifying, this will take 10min, now is a great time to go make a cup of tea...'
 
 # TODO it'd be nice to have a proof that did not emit them anyway...
 echo '\nPlease note that "inconsistency in axioms" messages are false positives, see https://github.com/verifast/verifast/issues/32\n'
@@ -37,7 +37,8 @@ $VF_COMMAND -prover z3v4.5 include/proof/arith.vfmanifest \
                            include/proof/modulo.vfmanifest \
                            include/proof/bitopsutils.c \
                            include/proof/mod-pow2.c
-$VF_COMMAND -prover redux include/proof/arith.vfmanifest \
+$VF_COMMAND -prover redux -allow_assume \
+                          include/proof/arith.vfmanifest \
                           include/proof/listutils-lemmas.vfmanifest \
                           include/proof/modulo.vfmanifest \
                           include/proof/bitopsutils.vfmanifest \
@@ -46,3 +47,6 @@ $VF_COMMAND -prover redux include/proof/arith.vfmanifest \
                           src/os/config.c \
                           src/structs/index_pool.c \
                           src/structs/map.c
+
+echo '\nAll good! Now we can grep for any assumptions in proofs...\n'
+grep -Fr --exclude=\*.vfmanifest -B 2 'assume' src/os/*.c src/structs/ include/

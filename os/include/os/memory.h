@@ -43,7 +43,9 @@ static inline bool os_memory_eq(const void* a, const void* b, size_t obj_size)
 //@ ensures [f1]chars(a, obj_size, ac) &*& [f2]chars(b, obj_size, bc) &*& result == (ac == bc);
 //@ terminates;
 {
-	//@ assume(false); // TODO
+	// Assume the correctness of the memory equality function, because VeriFast loses track of values when converting to/from chars/integers.
+	// Anyway, this function is fairly easy to audit, and run frequently enough that any crashes or other issues should be obvious.
+	//@ assume(false);
 	while (obj_size >= sizeof(uint64_t))
 	{
 		if (*((uint64_t*) a) != *((uint64_t*) b))
@@ -91,7 +93,12 @@ static inline hash_t os_memory_hash(const void* obj, size_t obj_size)
             result == hash_fp(value); @*/
 //@ terminates;
 {
-	//@ assume(false); // TODO
+	// Assume the hashing function is correct, because VeriFast doesn't support treating unsigned overflow as well-defined (without also losing checks for signed overflow).
+	// Anyway, this function is obviously pure, it cannot modify its input due to the 'const' modifier, and it is run frequently enough that any crashes would be obvious.
+	//@ assume(false);
+	// Still, there's a leftover beginning of proof below.
+	// TODO: Move from uint*_t to unsigned/unsigned short/char since hash_t is an unsigned
+
 	// Without these two VeriFast loses track of the original obj and obj_size
 	//@ void* old_obj = obj;
 	//@ size_t old_obj_size = obj_size;
@@ -142,7 +149,9 @@ static inline void os_memory_copy(const void* src, void* dst, size_t obj_size)
 //@ ensures [f]chars(src, obj_size, srccs) &*& chars(dst, obj_size, srccs);
 //@ terminates;
 {
-	//@ assume(false); // TODO
+	// Assume the correctness of the memory copy function, because VeriFast loses track of values when converting to/from chars/integers.
+	// Anyway, this function is short, easily auditable, and run frequently enough that any crashes or other issues should be obvious.
+	//@ assume(false);
 	while (obj_size >= sizeof(uint64_t))
 	{
 		*((uint64_t*) dst) = *((uint64_t*) src);
