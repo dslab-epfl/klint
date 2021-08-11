@@ -89,8 +89,11 @@ class MapsMemoryMixin(angr.storage.memory_mixins.MemoryMixin):
                 self.state.solver.add(self.state.maps.forall(addr, lambda k, v: v == default))
         if constraint is not None:
             self.state.solver.add(self.state.maps.forall(addr, constraint))
-        # neither null nor so high it overflows (note the -1 becaus 1-past-the-array is legal C)
-        self.state.solver.add(addr != 0, addr.ULE(claripy.BVV(2**self.state.sizes.ptr-1, self.state.sizes.ptr) - max_size - 1))
+        # neither null nor so high it overflows (note the count+1 becaus 1-past-the-array is legal)
+        self.state.solver.add(
+            addr != 0,
+            addr.ULE(claripy.BVV(-1, self.state.sizes.ptr) - ((count + 1) * size))
+        )
 
         fractions = self.state.maps.new_array(self.state.sizes.ptr, 8, count, name + MapsMemoryMixin.FRACS_NAME)
         self.state.solver.add(self.state.maps.forall(fractions, lambda k, v: v == 100))
