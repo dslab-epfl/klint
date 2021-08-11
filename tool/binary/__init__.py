@@ -1,3 +1,0 @@
-"""
-Symbex tool using angr.
-"""

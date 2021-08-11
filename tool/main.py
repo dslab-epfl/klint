@@ -4,10 +4,10 @@ import os
 from pathlib import Path # TODO in general we should use Path everywhere, or os everywhere, not this weird mix
 import sys
 
-from binary import statistics
-import nf.executor as nf_executor
-import verif.persistence as verif_persist
-import verif.executor as verif_executor
+from klint import statistics
+import klint.executor as nf_executor
+import klint.verif.persistence as verif_persist
+import klint.verif.executor as verif_executor
 
 
 full_stack = False
