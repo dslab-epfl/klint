@@ -55,7 +55,7 @@ class HeapPlugin(SimStatePlugin):
         self.state.metadata.append(addr, HeapPlugin.Metadata(count, size, fractions))
 
         # Push it through the memory subsystem
-        self.state.memory.set_special_object(addr, count, size, self._read, self._write)
+        self.state.memory.set_special_object(addr, count, size, HeapPlugin._read, HeapPlugin._write)
 
         return addr
 
@@ -100,11 +100,12 @@ class HeapPlugin(SimStatePlugin):
         return HeapPlugin.FRACS_NAME in str(obj)
 
 
-    def _read(self, state, base, index, offset, size):
-        meta = self.state.metadata.get(HeapPlugin.Metadata, base)
-        fraction, present = self.state.maps.get(meta.fractions, index)
-        assert utils.definitely_true(self.state.solver, present & (fraction != 0))
-        value, _ = self.state.maps.get(base, index)
+    @staticmethod
+    def _read(state, base, index, offset, size):
+        meta = state.metadata.get(HeapPlugin.Metadata, base)
+        fraction, present = state.maps.get(meta.fractions, index)
+        assert utils.definitely_true(state.solver, present & (fraction != 0))
+        value, _ = state.maps.get(base, index)
 
         if offset != 0:
             value = value[:offset]
@@ -114,25 +115,25 @@ class HeapPlugin(SimStatePlugin):
 
         return value
 
-
-    def _write(self, state, base, index, offset, value):
-        meta = self.state.metadata.get(HeapPlugin.Metadata, base)
-        fraction, present = self.state.maps.get(meta.fractions, index)
+    @staticmethod
+    def _write(state, base, index, offset, value):
+        meta = state.metadata.get(HeapPlugin.Metadata, base)
+        fraction, present = state.maps.get(meta.fractions, index)
         # TODO remove the prints here
-        #assert utils.definitely_true(self.state.solver, present & (fraction == 100))
-        if not utils.definitely_true(self.state.solver, present & (fraction == 100)):
+        #assert utils.definitely_true(state.solver, present & (fraction == 100))
+        if not utils.definitely_true(state.solver, present & (fraction == 100)):
             print("base, index, offset, fraction, present", base, index, offset, fraction, present)
-            print("index", self.state.solver.eval_upto(index, 10))
-            print("offset", self.state.solver.eval_upto(offset, 10))
-            print("fraction", self.state.solver.eval_upto(fraction, 10))
-            print("present", self.state.solver.eval_upto(present, 10))
+            print("index", state.solver.eval_upto(index, 10))
+            print("offset", state.solver.eval_upto(offset, 10))
+            print("fraction", state.solver.eval_upto(fraction, 10))
+            print("present", state.solver.eval_upto(present, 10))
             assert False
 
-        if value.size() != self.state.maps.value_size(base):
-            current, _ = self.state.maps.get(base, index)
+        if value.size() != state.maps.value_size(base):
+            current, _ = state.maps.get(base, index)
             if offset != 0:
                 value = value.concat(current[offset-1:0])
             if value.size() != current.size():
                 value = current[:value.size()].concat(value)
 
-        self.state.maps.set(base, index, value)
+        state.maps.set(base, index, value)
