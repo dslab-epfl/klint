@@ -19,7 +19,7 @@ def merge_states(states):
 
         our_plugin = getattr(merged, plugin)
         other_plugins = [getattr(st, plugin) for st in states[1:] if hasattr(st, plugin)]
-        
+
         # Callstack merely logs an error if there's an issue and never returns anything...
         if plugin == 'callstack':
             if any(o != our_plugin for o in other_plugins):

@@ -15,7 +15,7 @@ extern struct bpf_map_def ch_rings;
 extern struct bpf_map_def reals;
 extern struct bpf_map_def reals_stats;
 extern struct bpf_map_def stats;
-extern struct bpf_map_def quic_mapping;
+extern struct bpf_map_def server_id_map;
 extern struct bpf_map_def ctl_array;
 
 #ifdef LPM_SRC_LOOKUP
@@ -40,32 +40,32 @@ bool nf_init(device_t devices_count)
 {
 	(void) devices_count;
 
-	bpf_map_init(&vip_map);
-	bpf_map_init(&lru_mapping);
-	bpf_map_init(&fallback_cache);
-	bpf_map_init(&ch_rings);
-	bpf_map_init(&reals);
-	bpf_map_init(&reals_stats);
-	bpf_map_init(&stats);
-	bpf_map_init(&quic_mapping);
-	bpf_map_init(&ctl_array);
+	bpf_map_havocinit(&vip_map);
+	bpf_map_init(&lru_mapping); // The only map that must be empty, so that Katran will use fallback_cache instead (we don't support maps-of-maps yet)
+	bpf_map_havocinit(&fallback_cache);
+	bpf_map_havocinit(&ch_rings);
+	bpf_map_havocinit(&reals);
+	bpf_map_havocinit(&reals_stats);
+	bpf_map_havocinit(&stats);
+	bpf_map_havocinit(&server_id_map);
+	bpf_map_havocinit(&ctl_array);
 
 #ifdef LPM_SRC_LOOKUP
-	bpf_map_init(&lpm_src_v4);
-	bpf_map_init(&lpm_src_v6);
+	bpf_map_havocinit(&lpm_src_v4);
+	bpf_map_havocinit(&lpm_src_v6);
 #endif
 
 #ifdef KATRAN_INTROSPECTION
-	bpf_map_init(&event_pipe);
+	bpf_map_havocinit(&event_pipe);
 #endif
 
 #ifdef INLINE_DECAP_GENERIC
-	bpf_map_init(&decap_dst);
-	bpf_map_init(&subprograms);
+	bpf_map_havocinit(&decap_dst);
+	bpf_map_havocinit(&subprograms);
 #endif
 
 #ifdef GUE_ENCAP
-	bpf_map_init(&pckt_srcs);
+	bpf_map_havocinit(&pckt_srcs);
 #endif
 
 	return true;

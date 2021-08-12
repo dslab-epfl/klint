@@ -176,7 +176,7 @@ class Map:
         LOG(state, "GET " + self.meta.name + f" version: {version} " + (" key: " + str(key)) + ((" value: " + str(conditioned_value)) if conditioned_value is not None else "") + (" cond: " + str(condition)))
 
         # Optimization: If the map is empty, the answer is always false
-        if self.is_empty():
+        if self.is_definitely_empty():
             LOGEND(state)
             return (claripy.BVS(self.meta.name + "_bad_value", self.meta.value_size), claripy.false)
 
@@ -257,7 +257,7 @@ class Map:
         LOG(state, "forall " + self.meta.name + "  " + str(pred))
 
         # Optimization: If the map is empty, the answer is always true
-        if self.is_empty():
+        if self.is_definitely_empty():
             return claripy.true
 
         known_items = self.known_items(_exclude_get=_exclude_get)
@@ -317,6 +317,14 @@ class Map:
         else:
             self._previous.add_invariant_conjunction(state, inv)
 
+    def havoced(self, state, length, invs):
+        return Map(
+            self.meta,
+            length,
+            [MapInvariant.new(state, self.meta, inv) for inv in invs], # no invariants yet
+            [] # no known items
+        )
+
     def known_items(self, _exclude_get=False):
         if _exclude_get == True and self._previous is None:
             return []
@@ -357,7 +365,7 @@ class Map:
             [] # no known items
         )
 
-    def is_empty(self):
+    def is_definitely_empty(self):
         l = self.length()
         return l.structurally_match(claripy.BVV(0, l.size()))
 
@@ -420,6 +428,11 @@ class GhostMapsPlugin(SimStatePlugin):
 
     def forall(self, obj, pred, _exclude_get=False):
         return self[obj].forall(self.state, pred, _exclude_get=_exclude_get)
+
+    # === Havocing, not meant for general use ===
+
+    def UNSAFE_havoc(self, obj, length, invs):
+        self[obj] = self[obj].havoced(self.state, length, invs)
 
     # === Import and Export ===
 

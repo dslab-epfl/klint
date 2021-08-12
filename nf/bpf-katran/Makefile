@@ -32,7 +32,7 @@ CFLAGS += -Wno-unused-parameter
 # For some reason gcc claims it might not be able to inline an unused function
 CFLAGS += -Wno-attributes
 
-# Give up on pedantism, there are a few empty structs
+# Give up on pedantism, there are a few empty struct values
 CFLAGS += -Wno-pedantic
 
 # Give up on padding

@@ -290,3 +290,21 @@ static inline void bpf_map_init(struct bpf_map_def* map)
 		}
 	}
 }
+
+// For BPF NFs that usually rely on userspace to set data in maps
+static inline void bpf_map_havocinit(struct bpf_map_def* map)
+{
+	bpf_map_init(map);
+
+	extern void klint_havoc_array(void* values);
+	extern void klint_havoc_hashmap(struct map* map, struct index_pool* index_pool, void* keys, void* values);
+
+	if (map->type == BPF_MAP_TYPE_ARRAY) {
+		klint_havoc_array(map->_values);
+	} else if (map->type == BPF_MAP_TYPE_HASH) {
+		klint_havoc_hashmap(map->_map, map->_indices, map->_keys, map->_values);
+	} else {
+		os_debug("Unsupported map type for havocing");
+		halt();
+	}
+}
