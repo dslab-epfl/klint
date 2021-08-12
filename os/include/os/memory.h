@@ -143,7 +143,7 @@ static inline hash_t os_memory_hash(const void* obj, size_t obj_size)
 	return hash;
 }
 
-
+// TODO "void* restrict" for both src and dst ?
 static inline void os_memory_copy(const void* src, void* dst, size_t obj_size)
 //@ requires [?f]chars(src, obj_size, ?srccs) &*& chars(dst, obj_size, ?dstcs);
 //@ ensures [f]chars(src, obj_size, srccs) &*& chars(dst, obj_size, srccs);

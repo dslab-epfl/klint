@@ -272,7 +272,7 @@ static inline int process_encaped_ipip_pckt(void **data, void **data_end,
   int action;
   if (*protocol == IPPROTO_IPIP) {
     if (*is_ipv6) {
-      int offset = sizeof(struct ipv6hdr) + sizeof(struct eth_hdr);
+      int offset = sizeof(struct ipv6hdr) + sizeof(struct ethhdr);
       if ((*data + offset) > *data_end) {
         return XDP_DROP;
       }
@@ -282,7 +282,7 @@ static inline int process_encaped_ipip_pckt(void **data, void **data_end,
       }
       *is_ipv6 = false;
     } else {
-      int offset = sizeof(struct iphdr) + sizeof(struct eth_hdr);
+      int offset = sizeof(struct iphdr) + sizeof(struct ethhdr);
       if ((*data + offset) > *data_end) {
         return XDP_DROP;
       }
@@ -292,7 +292,7 @@ static inline int process_encaped_ipip_pckt(void **data, void **data_end,
       }
     }
   } else if (*protocol == IPPROTO_IPV6) {
-    int offset = sizeof(struct ipv6hdr) + sizeof(struct eth_hdr);
+    int offset = sizeof(struct ipv6hdr) + sizeof(struct ethhdr);
     if ((*data + offset) > *data_end) {
       return XDP_DROP;
     }
@@ -321,7 +321,7 @@ static inline int process_encaped_gue_pckt(void **data, void **data_end,
   int action;
   if (is_ipv6) {
     __u8 v6 = 0;
-    offset = sizeof(struct ipv6hdr) + sizeof(struct eth_hdr) +
+    offset = sizeof(struct ipv6hdr) + sizeof(struct ethhdr) +
       sizeof(struct udphdr);
     // 1 byte for gue v1 marker to figure out what is internal protocol
     if ((*data + offset + 1) > *data_end) {
@@ -343,7 +343,7 @@ static inline int process_encaped_gue_pckt(void **data, void **data_end,
       }
     }
   } else {
-    offset = sizeof(struct iphdr) + sizeof(struct eth_hdr) +
+    offset = sizeof(struct iphdr) + sizeof(struct ethhdr) +
       sizeof(struct udphdr);
     if ((*data + offset) > *data_end) {
       return XDP_DROP;
@@ -412,6 +412,7 @@ static inline int process_packet(void *data, __u64 off, void *data_end,
   struct lb_stats *data_stats;
   __u64 iph_len;
   __u8 protocol;
+  __u16 original_sport;
 
   int action;
   __u32 vip_num;
@@ -510,10 +511,8 @@ static inline int process_packet(void *data, __u64 off, void *data_end,
   // total packets
   data_stats->v1 += 1;
 
+  // Lookup dst based on id in packet
   if ((vip_info->flags & F_QUIC_VIP)) {
-// ADDED:
-    if (protocol != IPPROTO_UDP) { return XDP_DROP; }
-
     __u32 quic_stats_key = MAX_VIPS + QUIC_ROUTE_STATS;
     struct lb_stats* quic_stats = bpf_map_lookup_elem(&stats, &quic_stats_key);
     if (!quic_stats) {
@@ -524,10 +523,10 @@ static inline int process_packet(void *data, __u64 off, void *data_end,
     if (real_index > 0) {
       increment_quic_cid_version_stats(real_index);
       __u32 key = real_index;
-      __u32 *real_pos = bpf_map_lookup_elem(&quic_mapping, &key);
+      __u32 *real_pos = bpf_map_lookup_elem(&server_id_map, &key);
       if (real_pos) {
         key = *real_pos;
-        // TODO: quic_mapping is array, which never fails to lookup element,
+        // TODO: server_id_map is array, which never fails to lookup element,
         // resulting in default value 0 for real id
         if (key == 0) {
           increment_quic_cid_drop_real_0();
@@ -549,6 +548,9 @@ static inline int process_packet(void *data, __u64 off, void *data_end,
     }
   }
 
+  // save the original sport before making real selection, possibly changing its value.
+  original_sport = pckt.flow.port16[0];
+
   if (!dst) {
     if ((vip_info->flags & F_HASH_NO_SRC_PORT)) {
       // service, where diff src port, but same ip must go to the same real,
@@ -564,16 +566,42 @@ static inline int process_packet(void *data, __u64 off, void *data_end,
       if (!lru_stats) {
         return XDP_DROP;
       }
-      // we weren't able to retrieve per cpu/core lru and falling back to
-      // default one. this counter should never be anything except 0 in prod.
-      // we are going to use it for monitoring.
+      // We were not able to retrieve per cpu/core lru and falling back to
+      // default one. This counter should never be anything except 0 in prod.
+      // We are going to use it for monitoring.
       lru_stats->v1 += 1;
     }
+#ifdef TCP_SERVER_ID_ROUTING
+    // First try to lookup dst in the tcp_hdr_opt (if enabled)
+    if (pckt.flow.proto == IPPROTO_TCP && !(pckt.flags & F_SYN_SET)) {
+      __u32 routing_stats_key = MAX_VIPS + TCP_SERVER_ID_ROUTE_STATS;
+      struct lb_stats* routing_stats =
+          bpf_map_lookup_elem(&stats, &routing_stats_key);
+      if (!routing_stats) {
+        return XDP_DROP;
+      }
+      if (tcp_hdr_opt_lookup(
+              data,
+              data_end,
+              is_ipv6,
+              &dst,
+              &pckt,
+              vip_info->flags & F_LRU_BYPASS,
+              lru_map) == FURTHER_PROCESSING) {
+        routing_stats->v1 += 1;
+      } else {
+        routing_stats->v2 += 1;
+      }
+    }
+#endif // TCP_SERVER_ID_ROUTING
 
-    if (!(pckt.flags & F_SYN_SET) &&
+    // Next, try to lookup dst in the lru_cache
+    if (!dst && !(pckt.flags & F_SYN_SET) &&
         !(vip_info->flags & F_LRU_BYPASS)) {
       connection_table_lookup(&dst, &pckt, lru_map);
     }
+
+    // if dst is not found, route via consistent-hashing of the flow.
     if (!dst) {
       if (pckt.flow.proto == IPPROTO_TCP) {
         __u32 lru_stats_key = MAX_VIPS + LRU_MISS_CNTR;
@@ -607,15 +635,6 @@ static inline int process_packet(void *data, __u64 off, void *data_end,
     return XDP_DROP;
   }
 
-  /*if (dst->flags & F_IPV6) {
-    if(!PCKT_ENCAP_V6(xdp, cval, is_ipv6, &pckt, dst, pkt_bytes)) {
-      return XDP_DROP;
-    }
-  } else*/ {
-    if(!PCKT_ENCAP_V4(xdp, cval, &pckt, dst, pkt_bytes)) {
-      return XDP_DROP;
-    }
-  }
   vip_num = vip_info->vip_num;
   data_stats = bpf_map_lookup_elem(&stats, &vip_num);
   if (!data_stats) {
@@ -631,6 +650,22 @@ static inline int process_packet(void *data, __u64 off, void *data_end,
   }
   data_stats->v1 += 1;
   data_stats->v2 += pkt_bytes;
+#ifdef LOCAL_DELIVERY_OPTIMIZATION
+  if ((vip_info->flags & F_LOCAL_VIP) && (dst->flags & F_LOCAL_REAL)) {
+    return XDP_PASS;
+  }
+#endif
+  // restore the original sport value to use it as a seed for the GUE sport
+  pckt.flow.port16[0] = original_sport;
+  if (dst->flags & F_IPV6) {
+    if(!PCKT_ENCAP_V6(xdp, cval, is_ipv6, &pckt, dst, pkt_bytes)) {
+      return XDP_DROP;
+    }
+  } else {
+    if(!PCKT_ENCAP_V4(xdp, cval, &pckt, dst, pkt_bytes)) {
+      return XDP_DROP;
+    }
+  }
 
   return XDP_TX;
 }
@@ -639,17 +674,17 @@ SEC("xdp-balancer")
 int balancer_ingress(struct xdp_md *ctx) {
   void *data = (void *)(long)ctx->data;
   void *data_end = (void *)(long)ctx->data_end;
-  struct eth_hdr *eth = data;
+  struct ethhdr *eth = data;
   __u32 eth_proto;
   __u32 nh_off;
-  nh_off = sizeof(struct eth_hdr);
+  nh_off = sizeof(struct ethhdr);
 
   if (data + nh_off > data_end) {
     // bogus packet, len less than minimum ethernet frame size
     return XDP_DROP;
   }
 
-  eth_proto = eth->eth_proto;
+  eth_proto = eth->h_proto;
 
   if (eth_proto == BE_ETH_P_IP) {
     return process_packet(data, nh_off, data_end, false, ctx);

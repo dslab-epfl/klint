@@ -45,7 +45,22 @@ else
 CFLAGS += -Wno-compare-distinct-pointer-types
 endif
 
-# Katran uses a variable uninitialized, which Clang warns against
 ifneq (, $(findstring clang,$(CC)))
+# Katran uses a variable uninitialized, which Clang warns against
 CFLAGS += -Wno-sometimes-uninitialized
+
+# Allow reserved identifiers (i.e., beginning with __) as macros, which Clang warns against
+CFLAGS += -Wno-reserved-id-macro
+
+# Clang warns about BPF maps and functions not being static for some reason
+CFLAGS += -Wno-missing-variable-declarations -Wno-missing-prototypes
+
+# Allow implicit int conversions
+CFLAGS += -Wno-implicit-int-conversion
+
+# Allow implicit sign conversions (ouch)
+CFLAGS += -Wno-sign-conversion
+
+# Allow empty statements
+CFLAGS += -Wno-extra-semi-stmt
 endif

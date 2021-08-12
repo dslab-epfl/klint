@@ -104,6 +104,8 @@
 // real_definition flags:
 // address is ipv6
 #define F_IPV6 (1 << 0)
+// real is specified as local
+#define F_LOCAL_REAL (1 << 1)
 // vip_meta flags
 // dont use client's port for hash calculation
 #define F_HASH_NO_SRC_PORT (1 << 0)
@@ -115,6 +117,8 @@
 #define F_HASH_DPORT_ONLY (1 << 3)
 // check if src based routing should be used
 #define F_SRC_ROUTING (1 << 4)
+// vip is select to optimize local delivery
+#define F_LOCAL_VIP (1 << 5)
 // packet_description flags:
 // the description has been created from icmp msg
 #define F_ICMP (1 << 0)
@@ -151,6 +155,22 @@
 #endif
 #define QUIC_CONNID_VERSION_V1_MAX_VAL 0xFFFF
 
+// Constants related to the feature for routing of TCP packets
+// using server_id (also referred as TPR: TCP Packet Routing).
+#ifdef TCP_SERVER_ID_ROUTING
+// the structure of the header-option used to embed server_id is:
+//  __u8 kind | __u8 len | __u32 server_id
+// Arbitrarily picked unused value from IANA TCP Option Kind Numbers
+#define TCP_HDR_OPT_KIND_TPR 0xB7
+// Length of the tcp header option
+#define TCP_HDR_OPT_LEN_TPR 6
+// maximum number of header options to check to lookup server_id
+#define TCP_HDR_OPT_MAX_OPT_CHECKS 15
+// End of Option List (reserved in IANA)
+#define TCP_OPT_EOL 0
+// No-Operation (reserved in IANA)
+#define TCP_OPT_NOP 1
+#endif
 
 // max ethernet packet's size which destination is a vip
 // we need to inforce it because if origin_packet + encap_hdr > MTU
@@ -188,6 +208,8 @@
 #define QUIC_CID_VERSION_STATS 8
 // QUIC CID drops stats
 #define QUIC_CID_DROP_STATS 9
+// offset of stats for server_id based routing of TCP packets (TPR)
+#define TCP_SERVER_ID_ROUTE_STATS 10
 
 // max ammount of new connections per seconda per core for lru update
 // if we go beyond this value - we will bypass lru update.
@@ -232,7 +254,9 @@
 #define GUE_DPORT 6080
 #endif
 
+#ifndef GUE_CSUM
 #define GUE_CSUM 0
+#endif
 
 // initial value for jhash hashing function, used to pick up a real server
 #ifndef INIT_JHASH_SEED
@@ -269,6 +293,9 @@
  *
  * KATRAN_INTROSPECTION - katran will start to perfpipe packet's header which
  * have triggered specific events
+ *
+ * LOCAL_DELIVERY_OPTIMIZATION - allow to do optimization on local traffic,
+ * where vip and real address are specified the same machine
  */
 #ifdef LPM_SRC_LOOKUP
 #ifndef INLINE_DECAP
@@ -279,7 +306,9 @@
 #endif // of LPM_SRC_LOOKUP
 
 #ifdef INLINE_DECAP
+#ifndef INLINE_DECAP_IPIP
 #define INLINE_DECAP_IPIP
+#endif // of INLINE_DECAP_IPIP
 #endif
 
 #ifdef INLINE_DECAP_IPIP
