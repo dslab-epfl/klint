@@ -128,12 +128,25 @@ def base_index_offset(state, addr, meta_type, allow_failure=False):
     if simple_addr is not None:
         return (simple_addr, claripy.BVV(0, 64), 0) # Directly addressing a base, i.e., base[0]
 
+    # Weirdness that happens in Katran: concat(If(X, a1, b1), If(X, a2, b2), ...)
+    # which claripy should've already simplified as If(X, concat(a1, a2, ...), concat(b1, b2, ...))
+    if addr.op == 'Concat' and all(a.op == 'If' for a in addr.args) and all(a.args[0].structurally_match(addr.args[0].args[0]) for a in addr.args):
+        addr = claripy.If(addr.args[0].args[0], claripy.Concat(*[a.args[1] for a in addr.args]), claripy.Concat(*[a.args[2] for a in addr.args]))
+        addr = state.solver.simplify(addr)
+        # Somehow simplifying doesn't do this
+        cond_const = get_if_constant(state.solver, addr.args[0])
+        if cond_const is True:
+            addr = addr.args[1]
+        elif cond_const is False:
+            addr = addr.args[2]
+
     if addr.op == '__add__':
         base = [a for a in map(as_simple, addr.args) if a is not None]
 
         if len(base) == 0:
-            # let's hope this can be solved by simplifying?
-            addr = state.solver.simplify(addr)
+            # Excavate then burrow ITEs, and simplify, this often solves issues
+            # (e.g. "(if a then b+x else b+y) + 1" => "b + (if a then x+1 else y+1)")
+            addr = state.solver.simplify(addr.ite_excavated.ite_burrowed)
             base = [a for a in map(as_simple, addr.args) if a is not None]
 
         if len(base) == 1:

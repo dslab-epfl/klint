@@ -94,5 +94,8 @@ class klint_havoc_hashmap(angr.SimProcedure):
             (lambda i: ghostmaps.MapHas(keys, i.key)),
         #Inferred: when POOL contains (K,V), then K_FRACS contains K
         #          in addition, the value is 75
-            (lambda i: ghostmaps.MapHas(keys_fracs, i.key, claripy.BVV(75, 8)))
+            (lambda i: ghostmaps.MapHas(keys_fracs, i.key, claripy.BVV(75, 8))),
+        # These ones is inferred within the map
+            (lambda i: i.value != claripy.BVV(-1, self.state.sizes.uint64_t)),
+            (lambda i: i.key.ULT(map_capacity))
         ])
