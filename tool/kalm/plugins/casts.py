@@ -25,18 +25,16 @@ class CastsPlugin(SimStatePlugin):
             o = o.args[2].args[0][63:0] // o.args[2].args[1][63:0]
         return o
 
-    def set_state(self, state):
-        for t in TYPES:
-            setattr(self, t, lambda arg, t=t: CastsPlugin._fix(arg)[getattr(self.state.sizes, t)-1:0])
-        for (n, t) in ALIASES:
-            setattr(self, n, lambda arg, t=t: CastsPlugin._fix(arg)[getattr(self.state.sizes, n)-1:0])
-        for t in EXTRA:
-            setattr(self, t, lambda arg: CastsPlugin._fix(arg))
-        return super().set_state(state)
-
     @SimStatePlugin.memo
     def copy(self, memo):
-        return self
+        return CastsPlugin()
 
     def merge(self, others, merge_conditions, common_ancestor=None):
         return True
+
+for t in TYPES:
+    setattr(CastsPlugin, t, lambda self, arg, t=t: CastsPlugin._fix(arg)[getattr(self.state.sizes, t)-1:0])
+for (n, t) in ALIASES:
+    setattr(CastsPlugin, n, lambda self, arg, t=t: CastsPlugin._fix(arg)[getattr(self.state.sizes, n)-1:0])
+for t in EXTRA:
+    setattr(CastsPlugin, t, lambda self, arg: CastsPlugin._fix(arg))

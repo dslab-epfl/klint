@@ -25,5 +25,5 @@ class EmptyLibrary:
     def get(self, name, arch):
         return Abort
 
-    # immutable; this makes things simpler
-    def copy(self): return self
+    def copy(self):
+        return EmptyLibrary()

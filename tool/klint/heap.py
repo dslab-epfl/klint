@@ -16,7 +16,7 @@ class HeapPlugin(SimStatePlugin):
 
     @SimStatePlugin.memo
     def copy(self, memo):
-        return self
+        return HeapPlugin()
 
     def merge(self, others, merge_conditions, common_ancestor=None):
         return True

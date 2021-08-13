@@ -19,6 +19,8 @@ def _create_project(binary_path):
 def create_blank_state(binary_path):
     proj = _create_project(binary_path)
     state = proj.factory.blank_state()
+    # Don't copy states when executing, we'll copy what we need
+    state.options.remove(angr.sim_options.COPY_STATES)
     # TODO: It seems there's no way around enabling these, since code can access uninitialized variables (common in the "return bool, take in a pointer to the result" pattern)
     state.options.add(angr.sim_options.SYMBOL_FILL_UNCONSTRAINED_MEMORY)
     state.options.add(angr.sim_options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS)
