@@ -23,7 +23,7 @@ def get_length(state, packet_addr):
     return state.memory.load(packet_addr+(state.sizes.ptr // 8), state.sizes.size_t // 8, endness=state.arch.memory_endness)
 
 def get_device(state, packet_addr):
-    return state.memory.load(packet_addr+(state.sizes.uint64_t+state.sizes.size_t+state.sizes.ptr // 8), state.sizes.uint16_t // 8, endness=state.arch.memory_endness)
+    return state.memory.load(packet_addr+((state.sizes.uint64_t+state.sizes.size_t+state.sizes.ptr) // 8), state.sizes.uint16_t // 8, endness=state.arch.memory_endness)
 
 def alloc(state, devices_count):
     # Ignore the _padding and os_tag, we just pretend they don't exist so that code cannot possibly access them

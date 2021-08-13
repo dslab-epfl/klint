@@ -3,7 +3,8 @@ import claripy
 
 # Version of SimState.merge that succeeds only if all plugins successfully merge, and returns the state or None
 def merge_states(states):
-    candidate = states.pop(0)
+    candidate = states.pop()
+    failed = []
     while len(states) > 0:
         merged = candidate.copy()
         merge_flag = claripy.BVS("state_merge", 16)
@@ -36,11 +37,9 @@ def merge_states(states):
             merged.solver.add(claripy.Or(*merge_conds))
             candidate = merged
             continue
-        # did break -> some plugin couldn't be merged, put other back on the list
-        states.append(other)
-        return (candidate, states)
-    # states is empty, we merged everything, yay!
-    return (candidate, states)
+        # did break -> some plugin couldn't be merged
+        failed.append(other)
+    return (candidate, failed)
 
 
 # Explores the state with the earliest instruction pointer first;
