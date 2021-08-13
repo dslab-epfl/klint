@@ -3,47 +3,53 @@ import claripy
 
 # Version of SimState.merge that succeeds only if all plugins successfully merge, and returns the state or None
 def merge_states(states):
-    merged = states[0].copy()
-    merge_flag = claripy.BVS("state_merge", 16)
-    merge_conditions =  [merge_flag == b for b in range(len(states))]
-
-    all_plugins = set()
-    for state in states:
-        all_plugins.update(state.plugins.keys())
-
-    for plugin in all_plugins:
-        # Some plugins have nothing to merge by design
-        if plugin in ('regs', 'mem', 'scratch'):
-            continue
-
-        our_plugin = getattr(merged, plugin)
-        other_plugins = [getattr(st, plugin) for st in states[1:] if hasattr(st, plugin)]
-
-        # Callstack merely logs an error if there's an issue and never returns anything...
-        if plugin == 'callstack':
-            if any(o != our_plugin for o in other_plugins):
-                #print("Merge failed because of callstack?!?")
-                return None
-            continue
-        # TODO what could we pass as ancestor here?
-        if not our_plugin.merge(other_plugins, merge_conditions):
-            # Memory (of which register is a kind) returns false if nothing was merged, but that just means the memory was untouched
-            if plugin in ('memory', 'registers'):
+    candidate = states.pop(0)
+    while len(states) > 0:
+        merged = candidate.copy()
+        merge_flag = claripy.BVS("state_merge", 16)
+        merge_conds = [(merge_flag == 0), (merge_flag == 1)]
+        other = states.pop()
+        for plugin in other.plugins.keys():
+            # Some plugins have nothing to merge by design
+            if plugin in ('regs', 'mem', 'scratch'):
                 continue
-            #print("Merge failed because of", plugin)
-            return None
 
-    merged.solver.add(claripy.Or(*merge_conditions))
-    return merged
+            our_plugin = getattr(merged, plugin)
+            other_plugin = getattr(other, plugin)
+
+            # Callstack merely logs an error if there's an issue and never returns anything...
+            if plugin == 'callstack':
+                if other_plugin != our_plugin:
+                    #print("Merge failed because of callstack?!?")
+                    break
+                continue
+
+            # TODO what could we pass as ancestor here?
+            if not our_plugin.merge([other_plugin], merge_conds):
+                # Memory (of which register is a kind) returns false if nothing was merged, but that just means the memory was untouched
+                if plugin in ('memory', 'registers'):
+                    continue
+                #print("Merge failed because of", plugin)
+                break
+        else:
+            # no break -> all good
+            merged.solver.add(claripy.Or(*merge_conds))
+            candidate = merged
+            continue
+        # did break -> some plugin couldn't be merged, put other back on the list
+        states.append(other)
+        return (candidate, states)
+    # states is empty, we merged everything, yay!
+    return (candidate, states)
+
 
 # Explores the state with the earliest instruction pointer first;
 # if there are multiple, attempts to merge them.
 # This is useful to merge states resulting from checks such as "if (a == X || a == Y)"
 class MergingExplorationTechnique(angr.exploration_techniques.ExplorationTechnique):
-    def __init__(self, deferred_stash='deferred', nomerge_stash='nomerge'):
+    def __init__(self, deferred_stash='deferred'):
         super().__init__()
         self.deferred_stash = deferred_stash
-        self.nomerge_stash = nomerge_stash
 
     def setup(self, simgr):
         if self.deferred_stash not in simgr.stashes:
@@ -63,11 +69,6 @@ class MergingExplorationTechnique(angr.exploration_techniques.ExplorationTechniq
         simgr.split(from_stash=stash, to_stash=self.deferred_stash, limit=0)
         simgr.stashes[self.deferred_stash].sort(key=lambda s: s.regs.rip.args[0])
 
-        # If there were states that couldn't be merged before, go with the first one
-        if len(simgr.stashes[self.nomerge_stash]) > 0:
-            simgr.stashes[stash].append(simgr.stashes[self.nomerge_stash].pop(0))
-            return simgr
-
         # If there are none, then we are done (it rhymes!)
         if len(simgr.stashes[self.deferred_stash]) == 0:
             return simgr
@@ -81,16 +82,7 @@ class MergingExplorationTechnique(angr.exploration_techniques.ExplorationTechniq
             else:
                 simgr.stashes[self.deferred_stash].append(current)
                 break
-        if len(lowest) == 1:
-            new_state = lowest[0]
-        else:
-            #print("Trying to merge", len(lowest), "states")
-            merged = merge_states(lowest)
-            if merged is None:
-                new_state = lowest[0]
-                simgr.stashes[self.nomerge_stash].extend(lowest[1:])
-            else:
-                #print("Success!")
-                new_state = merged
+        new_state, rest = merge_states(lowest)
+        simgr.stashes[self.deferred_stash].extend(rest)
         simgr.stashes[stash].append(new_state)
         return simgr
