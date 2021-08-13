@@ -602,7 +602,7 @@ static inline int process_packet(void *data, __u64 off, void *data_end,
     }
 
     // if dst is not found, route via consistent-hashing of the flow.
-    if (!dst) {
+/*    if (!dst) {
       if (pckt.flow.proto == IPPROTO_TCP) {
         __u32 lru_stats_key = MAX_VIPS + LRU_MISS_CNTR;
         struct lb_stats *lru_stats = bpf_map_lookup_elem(
@@ -626,7 +626,7 @@ static inline int process_packet(void *data, __u64 off, void *data_end,
       }
       // lru misses (either new connection or lru is full and starts to trash)
       data_stats->v2 += 1;
-    }
+    }*/
   }
 
   cval = bpf_map_lookup_elem(&ctl_array, &mac_addr_pos);
@@ -657,7 +657,7 @@ static inline int process_packet(void *data, __u64 off, void *data_end,
 #endif
   // restore the original sport value to use it as a seed for the GUE sport
   pckt.flow.port16[0] = original_sport;
-  if (dst->flags & F_IPV6) {
+/*  if (dst->flags & F_IPV6) {
     if(!PCKT_ENCAP_V6(xdp, cval, is_ipv6, &pckt, dst, pkt_bytes)) {
       return XDP_DROP;
     }
@@ -666,7 +666,7 @@ static inline int process_packet(void *data, __u64 off, void *data_end,
       return XDP_DROP;
     }
   }
-
+*/
   return XDP_TX;
 }
 

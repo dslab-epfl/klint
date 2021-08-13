@@ -59,43 +59,45 @@ class klint_havoc_hashmap(angr.SimProcedure):
         keysize = self.state.metadata.get(Map, map).key_size
         log2_keysize = int(math.log2(self.state.solver.eval_one(keysize)))
 
+        def implies(a, b): return ~a | b
+
         self.state.maps.UNSAFE_havoc(keys, havoced_length, [
         #Inferred: when KEYS contains (K,V), if MapGet(K_FRACS, K, None) == 75 then M_VALUES contains V
         #          in addition, the value is K
-            (lambda i: ~(ghostmaps.MapGet(keys_fracs, i.key, 8) == 75) | ghostmaps.MapHas(map_values, i.value, value=i.key)),
+            (lambda i: implies(i.present, implies(ghostmaps.MapGet(keys_fracs, i.key, 8) == 75, ghostmaps.MapHas(map_values, i.value, value=i.key)))),
         #Inferred: when KEYS contains (K,V), if MapGet(K_FRACS, K, None) == 75 then M_ADDRS contains V
         #          in addition, the value is (K << log2(KEY_SIZE)) + KEYS
-            (lambda i: ~(ghostmaps.MapGet(keys_fracs, i.key, 8) == 75) | ghostmaps.MapHas(map_addrs, i.value, value=((i.key << log2_keysize) + keys))),
+            (lambda i: implies(i.present, implies(ghostmaps.MapGet(keys_fracs, i.key, 8) == 75, ghostmaps.MapHas(map_addrs, i.value, value=((i.key << log2_keysize) + keys))))),
         #Inferred: when KEYS contains (K,V), if MapGet(K_FRACS, K, None) == 75 then POOL contains K
-            (lambda i: ~(ghostmaps.MapGet(keys_fracs, i.key, 8) == 75) | ghostmaps.MapHas(pool_items, i.key))
+            (lambda i: implies(i.present, implies(ghostmaps.MapGet(keys_fracs, i.key, 8) == 75, ghostmaps.MapHas(pool_items, i.key))))
         ])
 
         self.state.maps.UNSAFE_havoc(map_values, havoced_length, [
         #Inferred: when M_VALUES contains (K,V), then KEYS contains V
         #          in addition, the value is K
-            (lambda i: ghostmaps.MapHas(keys, i.value, value=i.key)),
+            (lambda i: implies(i.present, ghostmaps.MapHas(keys, i.value, value=i.key))),
         #Inferred: when M_VALUES contains (K,V), then K_FRACS contains V
         #          in addition, the value is 75
-            (lambda i: ghostmaps.MapHas(keys_fracs, i.value, value=claripy.BVV(75, 8))),
+            (lambda i: implies(i.present, ghostmaps.MapHas(keys_fracs, i.value, value=claripy.BVV(75, 8)))),
         #Inferred: when M_VALUES contains (K,V), then M_ADDRS contains K
         #          in addition, the value is (V << log2(KEY_SIZE)) + KEYS
-            (lambda i: ghostmaps.MapHas(map_addrs, i.key, value=((i.value << log2_keysize) + keys))),
+            (lambda i: implies(i.present, ghostmaps.MapHas(map_addrs, i.key, value=((i.value << log2_keysize) + keys)))),
         #Inferred: when M_VALUES contains (K,V), then POOL contains V
-            (lambda i: ghostmaps.MapHas(pool_items, i.value))
+            (lambda i: implies(i.present, ghostmaps.MapHas(pool_items, i.value)))
         ])
 
         self.state.maps.UNSAFE_havoc(map_addrs, havoced_length, [
         #Inferred: when M_ADDRS contains (K,V), then M_VALUES contains K
-            lambda i: ghostmaps.MapHas(map_values, i.key)
+            lambda i: implies(i.present, ghostmaps.MapHas(map_values, i.key))
         ])
 
         self.state.maps.UNSAFE_havoc(pool_items, havoced_length, [
         #Inferred: when POOL contains (K,V), then KEYS contains K
-            (lambda i: ghostmaps.MapHas(keys, i.key)),
+            (lambda i: implies(i.present, ghostmaps.MapHas(keys, i.key))),
         #Inferred: when POOL contains (K,V), then K_FRACS contains K
         #          in addition, the value is 75
-            (lambda i: ghostmaps.MapHas(keys_fracs, i.key, claripy.BVV(75, 8))),
+            (lambda i: implies(i.present, ghostmaps.MapHas(keys_fracs, i.key, claripy.BVV(75, 8)))),
         # These ones is inferred within the map
-            (lambda i: i.value != claripy.BVV(-1, self.state.sizes.uint64_t)),
-            (lambda i: i.key.ULT(map_capacity))
+            (lambda i: implies(i.present, i.value != claripy.BVV(-1, self.state.sizes.uint64_t))),
+            (lambda i: implies(i.present, i.key.ULT(map_capacity)))
         ])

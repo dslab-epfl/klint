@@ -233,7 +233,7 @@ class _SpecPacket:
         'dst': 16
     }
 
-    def __init__(self, data, length, time, devices):
+    def __init__(self, data_addr, length, time, devices):
         self.length = length
         self.time = time
         self._devices = devices
@@ -291,7 +291,7 @@ def _spec_wrapper(data):
     global __symbex__
     print("PATH", __symbex__.state._value.path._segments)
 
-    received_packet = _SpecPacket(data.network.received, data.network.received_length, data.time, _SpecSingleDevice(data.network.received_device))
+    received_packet = _SpecPacket(data.network.received_addr, data.network.received_length, data.time, _SpecSingleDevice(data.network.received_device))
     
     transmitted_packet = None
     if len(data.network.transmitted) != 0:
@@ -301,7 +301,7 @@ def _spec_wrapper(data):
             transmitted_device = _SpecFloodedDevice(data.network.transmitted[0].device, data.devices_count)
         else:
             transmitted_device = _SpecSingleDevice(data.network.transmitted[0].device)
-        transmitted_packet = _SpecPacket(data.network.transmitted[0].data, data.network.transmitted[0].length, None, transmitted_device)
+        transmitted_packet = _SpecPacket(data.network.transmitted[0].data_addr, data.network.transmitted[0].length, None, transmitted_device)
 
     config = _SpecConfig(data.config, data.devices_count)
 

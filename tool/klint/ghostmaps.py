@@ -384,7 +384,15 @@ class Map:
         return self.__deepcopy__({})
 
     def __deepcopy__(self, memo):
-        result = Map(self.meta, self._length, copy.deepcopy(self._invariants, memo), copy.deepcopy(self._known_items, memo), copy.deepcopy(self._previous, memo), self._unknown_item, self._layer_item)
+        result = Map(
+            self.meta, # immutable
+            self._length, # immutable
+            copy.copy(self._invariants), # contents are immutable
+            copy.copy(self._known_items), # contents are immutable
+            copy.deepcopy(self._previous, memo),
+            self._unknown_item, # immutable
+            self._layer_item # immutable
+        )
         memo[id(self)] = result
         return result
 
@@ -455,7 +463,7 @@ class GhostMapsPlugin(SimStatePlugin):
 
     @SimStatePlugin.memo
     def copy(self, memo):
-        return GhostMapsPlugin(_maps=copy.deepcopy(self._maps, memo))
+        return GhostMapsPlugin(_maps={k: copy.deepcopy(v, memo) for (k, v) in self._maps.items()}) # no need to deepcopy the keys
 
     def merge(self, others, merge_conditions, common_ancestor=None):
         # Very basic merging for now: only if they all match

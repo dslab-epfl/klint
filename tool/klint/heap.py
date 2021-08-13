@@ -103,37 +103,73 @@ class HeapPlugin(SimStatePlugin):
     @staticmethod
     def _read(state, base, index, offset, size):
         meta = state.metadata.get(HeapPlugin.Metadata, base)
-        fraction, present = state.maps.get(meta.fractions, index)
-        assert utils.definitely_true(state.solver, present & (fraction != 0))
-        value, _ = state.maps.get(base, index)
+
+        # Handle reads larger than the actual size, e.g. read an uint64_t from an array of uint8_t
+        result = claripy.BVV(0, 0)
+        while result.size() < size * 8 + offset:
+            # Ensure we can read
+            fraction, present = state.maps.get(meta.fractions, index)
+            assert utils.definitely_true(state.solver, present & (fraction != 0))
+            # Read (we know it's present since we just checked the fractions)
+            chunk, _ = state.maps.get(base, index)
+            # Remember the result
+            result = chunk.concat(result)
+            # Increment the index for the next chunk
+            index = index + 1
 
         if offset != 0:
-            value = value[:offset]
+            result = result[:offset]
 
-        if value.size() != size * 8:
-            value = value[(size*8)-1:0]
+        if result.size() > size * 8:
+            result = result[(size*8)-1:0]
 
-        return value
+        return result
 
     @staticmethod
     def _write(state, base, index, offset, value):
         meta = state.metadata.get(HeapPlugin.Metadata, base)
-        fraction, present = state.maps.get(meta.fractions, index)
-        # TODO remove the prints here
-        #assert utils.definitely_true(state.solver, present & (fraction == 100))
-        if not utils.definitely_true(state.solver, present & (fraction == 100)):
-            print("base, index, offset, fraction, present", base, index, offset, fraction, present)
-            print("index", state.solver.eval_upto(index, 10))
-            print("offset", state.solver.eval_upto(offset, 10))
-            print("fraction", state.solver.eval_upto(fraction, 10))
-            print("present", state.solver.eval_upto(present, 10))
-            assert False
 
-        if value.size() != state.maps.value_size(base):
-            current, _ = state.maps.get(base, index)
+        # We need to handle writes in chunks, e.g. writing an uint64_t to an array of uint8_t
+        # This can get messy with the offset, e.g. a 4-bit offset 16-bit write into an 8-bit array should be [4 bits] [8 bits] [4 bits],
+        # not [8 bits] [8 bits] both individually offset since they'd span an element and need 2 writes each
+        rest = value
+        write_size = state.maps.value_size(base)
+        while rest.size() != 0:
+            # Ensure we can actually write
+            fraction, present = state.maps.get(meta.fractions, index)
+            # TODO remove the prints here
+            #assert utils.definitely_true(state.solver, present & (fraction == 100))
+            if not utils.definitely_true(state.solver, present & (fraction == 100)):
+                print("base, index, offset, fraction, present", base, index, offset, fraction, present)
+                print("index", state.solver.eval_upto(index, 10))
+                print("offset", state.solver.eval_upto(offset, 10))
+                print("fraction", state.solver.eval_upto(fraction, 10))
+                print("present", state.solver.eval_upto(present, 10))
+                assert False
+            # The rest may be smaller than the write size, need to account for that
+            chunk = rest[min(rest.size(), write_size)-1:0]
+            # If we have to write at an offset, which can only happen on the first chunk, we need to write less
+            # e.g. instead of an 8-bit write into an 8-bit array, at offset 4 it's a 4-bit write, and at offset 6 it's a 2-bit write
+            # but we could already be writing a chunk smaller than the element size, e.g. a 2-bit write at offset 3 into an 8-bit array is still a 2-bit write
             if offset != 0:
-                value = value.concat(current[offset-1:0])
-            if value.size() != current.size():
-                value = current[:value.size()].concat(value)
+                chunk = chunk[min(chunk.size(), write_size-offset)-1:0]
+            # Record the rest now, since we might increase the size of the chunk if it's too small for a full write
+            # But claripy doesn't allow slicing to go beyond the boundaries, so handle that...
+            if chunk.size() < rest.size():
+                rest = rest[:chunk.size()]
+            else:
+                rest = claripy.BVV(0, 0)
+            # Handle partial overwrites, for the first and last chunks
+            if chunk.size() != write_size:
+                current, _ = state.maps.get(base, index)
+                if offset != 0:
+                    chunk = chunk.concat(current[offset-1:0])
+                if chunk.size() != current.size():
+                    chunk = current[:chunk.size()].concat(chunk)
+            # Finally we can write
+            state.maps.set(base, index, chunk)
+            # Increment the index for the next chunk
+            index = index + 1
+            # All subsequent chunks have no more offset (but the last one may be smaller than the write size)
+            offset = 0
 
-        state.maps.set(base, index, value)

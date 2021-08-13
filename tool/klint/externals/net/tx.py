@@ -5,7 +5,7 @@ from collections import namedtuple
 
 from . import packet
 
-TransmissionMetadata = namedtuple("TransmissionMetadata", ["data", "length", "flags", "is_flood", "device", "excluded_devices"])
+TransmissionMetadata = namedtuple("TransmissionMetadata", ["data_addr", "length", "flags", "is_flood", "device", "excluded_devices"])
 
 # TODO enforce model where it's the "right" buffer we're sending and enforce the NF doesn't touch it afterwards
 
@@ -17,11 +17,10 @@ class net_transmit(angr.SimProcedure):
         flags = self.state.casts.enum(flags)
 
         data_addr = packet.get_data_addr(self.state, pkt)
-        data = packet.get_data(self.state, pkt)
         length = packet.get_length(self.state, pkt)
 
         metadata = self.state.metadata.get_one(packet.NetworkMetadata)
-        metadata.transmitted.append(TransmissionMetadata(data, length, flags, False, device, None))
+        metadata.transmitted.append(TransmissionMetadata(data_addr, length, flags, False, device, None))
 
         #self.state.heap.take(None, data_addr - packet.PACKET_MTU)
 
@@ -32,12 +31,11 @@ class net_flood(angr.SimProcedure):
         flags = self.state.casts.enum(flags)
 
         data_addr = packet.get_data_addr(self.state, pkt)
-        data = packet.get_data(self.state, pkt)
         length = packet.get_length(self.state, pkt)
         device = packet.get_device(self.state, pkt)
 
         metadata = self.state.metadata.get_one(packet.NetworkMetadata)
-        metadata.transmitted.append(TransmissionMetadata(data, length, flags, True, device, None))
+        metadata.transmitted.append(TransmissionMetadata(data_addr, length, flags, True, device, None))
 
         #self.state.heap.take(None, data_addr - packet.PACKET_MTU)
 
@@ -49,11 +47,10 @@ class net_flood_except(angr.SimProcedure):
         flags = self.state.casts.enum(flags)
 
         data_addr = packet.get_data_addr(self.state, pkt)
-        data = packet.get_data(self.state, pkt)
         length = packet.get_length(self.state, pkt)
         device = packet.get_device(self.state, pkt)
 
         metadata = self.state.metadata.get_one(packet.NetworkMetadata)
-        metadata.transmitted.append(TransmissionMetadata(data, length, flags, True, device, disabled_devices))
+        metadata.transmitted.append(TransmissionMetadata(data_addr, length, flags, True, device, disabled_devices))
 
         #self.state.heap.take(None, data_addr - packet.PACKET_MTU)

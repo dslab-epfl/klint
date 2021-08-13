@@ -3,8 +3,7 @@ import claripy
 
 # Version of SimState.merge that succeeds only if all plugins successfully merge, and returns the state or None
 def merge_states(states):
-    states = [s.copy() for s in states]
-    merged = states[0]
+    merged = states[0].copy()
     merge_flag = claripy.BVS("state_merge", 16)
     merge_conditions =  [merge_flag == b for b in range(len(states))]
 

@@ -6,9 +6,9 @@ import copy
 from kalm import utils
 from klint.externals.net import packet # ouch
 from klint.externals.net import tx # ouch, bis
-from . import spec_act
-from . import spec_reg
-from . import reg_util
+from klint.fullstack import spec_act
+from klint.fullstack import spec_reg
+from klint.fullstack import reg_util
 
 # counter, use_init, latest_action are single-element lists so we can change them
 SpecDevice = namedtuple('SpecDevice', ['index', 'phys_addr', 'virt_addr', 'bar_size', 'pci_regs', 'regs', 'counter', 'use_init', 'latest_action', 'actions', 'packet_length', 'packet_data'])
@@ -105,6 +105,7 @@ def spec_device_create_default(state, index):
 
     packet_length = claripy.BVS("packet_len", state.sizes.size_t) # TODO how to enforce packet_length here?
     state.solver.add(packet_length.UGE(packet.PACKET_MIN), packet_length.ULE(packet.PACKET_MTU))
+    assert False, "nooo packet_data needs to be allocated the normal way, not like this"
     packet_data = claripy.BVS("packet_data", packet.PACKET_MTU * 8)
 
     device = SpecDevice(index, phys_addr, virt_addr, bar_size, {}, {}, [0], [False], [None], {}, packet_length, packet_data)

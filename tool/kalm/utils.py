@@ -140,6 +140,10 @@ def base_index_offset(state, addr, meta_type, allow_failure=False):
         elif cond_const is False:
             addr = addr.args[2]
 
+    if addr.op == 'If':
+        # Try burrowing it
+        addr = addr.ite_burrowed
+
     if addr.op == '__add__':
         base = [a for a in map(as_simple, addr.args) if a is not None]
 
