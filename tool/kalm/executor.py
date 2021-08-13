@@ -15,12 +15,13 @@ def _create_project(binary_path):
     # Use the base SimOS, not any specific OS, we shouldn't depend on anything
     return angr.Project(binary_path, auto_load_libs=False, use_sim_procedures=False, engine=KalmEngine, simos=SimOS)
 
-# TODO make sure for all states we use the 'symbolic' option set, but try removing COW_STATES (copying states to execute them), it seems not useful to us
 def create_blank_state(binary_path):
     proj = _create_project(binary_path)
     state = proj.factory.blank_state()
     # Don't copy states when executing, we'll copy what we need
     state.options.remove(angr.sim_options.COPY_STATES)
+    # TODO check out whether this helps mem use
+    #state.options.add(angr.sim_options.DOWNSIZE_Z3)
     # TODO: It seems there's no way around enabling these, since code can access uninitialized variables (common in the "return bool, take in a pointer to the result" pattern)
     state.options.add(angr.sim_options.SYMBOL_FILL_UNCONSTRAINED_MEMORY)
     state.options.add(angr.sim_options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS)

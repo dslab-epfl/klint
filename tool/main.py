@@ -38,7 +38,7 @@ else:
 stats = statistics.to_tsv()
 for line in stats:
     print(line)
-
+"""
 spec_path = Path(nf_root_folder) / "spec.py" # TODO spec needs to be an arg
 if spec_path.exists():
     spec = spec_path.read_text()
@@ -50,3 +50,4 @@ else:
     print("No specification. Not verifying.")
 
 (Path(__file__).parent / "symbex.stats").write_text("\n".join(stats))
+"""
