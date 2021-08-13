@@ -274,6 +274,11 @@ class Map:
         LOGEND(state)
         return result
 
+    # === Merging ===
+
+    def merge(self, others, merge_conditions):
+        return all(utils.structural_eq(self, o) for o in others)
+
     # === Private API, also used by invariant inference ===
     # TODO sort out what's actually private and not; verif also uses stuff...
 
@@ -467,7 +472,14 @@ class GhostMapsPlugin(SimStatePlugin):
 
     def merge(self, others, merge_conditions, common_ancestor=None):
         # Very basic merging for now: only if they all match
-        return all(utils.structural_eq(o._maps, self._maps) for o in others)
+        if any(len(self._maps) != len(o._maps) for o in others):
+            return False
+        for (k, v) in self._maps.items():
+            if any(k not in o._maps for o in others):
+                return False
+            if not v.merge([o._maps[k] for o in others], merge_conditions):
+                return False
+        return True
 
 
 # state args have a leading _ to ensure that functions run concurrently don't accidentally touch them (TODO just move the functions out!)
