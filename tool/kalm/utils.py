@@ -142,17 +142,23 @@ def base_index_offset(state, addr, meta_type, allow_failure=False):
     if simple_addr is not None:
         return (simple_addr, claripy.BVV(0, 64), 0) # Directly addressing a base, i.e., base[0]
 
-    # Sometimes we get an If or a Concat that fits our assumptions fine but only if we first excavate then burrow the ifs
-    # e.g. concat(If(X, a1, b1), If(X, a2, b2), ...) -> If(X, concat(a1, a2, ...), concat(b1, b2, ...))
-    addr = state.solver.simplify(addr.ite_excavated.ite_burrowed)
+    def simplify(value):
+        # Sometimes we get an If or a Concat that fits our assumptions fine but only if we first excavate then burrow the ifs
+        # e.g. concat(If(X, a1, b1), If(X, a2, b2), ...) -> If(X, concat(a1, a2, ...), concat(b1, b2, ...))
+        value = state.solver.simplify(value.ite_excavated.ite_burrowed)
+        # Avoid ifs whose condition is constant
+        while value.op == 'If':
+            cond_const = get_if_constant(state.solver, value.args[0])
+            if cond_const is True:
+                value = value.args[1]
+            elif cond_const is False:
+                value = value.args[2]
+            else:
+                break # no more simplification possible
+            value = state.solver.simplify(value.ite_excavated.ite_burrowed)
+        return value
 
-    # Avoid ifs whose condition is constant
-    if addr.op == 'If':
-        cond_const = get_if_constant(state.solver, addr.args[0])
-        if cond_const is True:
-            addr = addr.args[1]
-        elif cond_const is False:
-            addr = addr.args[2]
+    addr = simplify(addr)
 
     if addr.op == '__add__':
         base = [a for a in map(as_simple, addr.args) if a is not None]
