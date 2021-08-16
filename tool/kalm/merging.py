@@ -52,11 +52,10 @@ def merge_states(states):
                 break
         else:
             # no break -> all good
-            print("MERGE SUCCESS", merge_conds)
+            #print("MERGE SUCCESS", merge_conds)
             candidate = merged
             continue
         # did break -> some plugin couldn't be merged
-        print("MERGE FAIL", merge_conds)
         failed.append(other)
     return (candidate, failed)
 

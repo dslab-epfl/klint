@@ -145,7 +145,7 @@ def base_index_offset(state, addr, meta_type, allow_failure=False):
     def simplify(value):
         # Sometimes we get an If or a Concat that fits our assumptions fine but only if we first excavate then burrow the ifs
         # e.g. concat(If(X, a1, b1), If(X, a2, b2), ...) -> If(X, concat(a1, a2, ...), concat(b1, b2, ...))
-        value = state.solver.simplify(value.ite_excavated.ite_burrowed)
+        value = value.ite_excavated
         # Avoid ifs whose condition is constant
         while value.op == 'If':
             cond_const = get_if_constant(state.solver, value.args[0])
@@ -155,8 +155,8 @@ def base_index_offset(state, addr, meta_type, allow_failure=False):
                 value = value.args[2]
             else:
                 break # no more simplification possible
-            value = state.solver.simplify(value.ite_excavated.ite_burrowed)
-        return value
+            value = value.ite_excavated
+        return value.ite_burrowed
 
     addr = simplify(addr)
 
