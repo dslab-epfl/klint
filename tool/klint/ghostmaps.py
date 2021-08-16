@@ -281,9 +281,11 @@ class Map:
             return True
         if self.version() != 0 or any(o.version() != 0 for o in others):
             # TODO merge on non-zero versions
+            print("MAP: non-0 version")
             return False
         if any(not utils.structural_eq(self._invariants, o._invariants) for o in others):
             # TODO merge invariants
+            print("MAP: diff invs")
             return False
         for (o, mc) in zip(others, merge_conditions[1:]):
             (only_left, both, only_right) = utils.structural_diff(self._known_items, o._known_items)
