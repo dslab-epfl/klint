@@ -106,6 +106,20 @@ def structural_eq(a, b):
         return len(a) == len(b) and all(structural_eq(ai, bi) for (ai, bi) in zip(a, b))
     return a == b
 
+# returns ([only_left], [both], [only_right])
+def structural_diff(left, right):
+    only_left = []
+    both = []
+    only_right = right.copy()
+    for item in left:
+        for candidate in right:
+            if structural_eq(item, candidate):
+                only_right.remove(item)
+                both.append(item)
+                break
+        else:
+            only_left.append(item)
+    return (only_left, both, only_right)
 
 # Requires a 'meta_type' such that there is metadata on the type from pointers to a class with 'count' and 'size'
 # Guarantees that:

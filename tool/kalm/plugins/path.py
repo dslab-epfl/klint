@@ -1,6 +1,7 @@
 from angr import SimProcedure
 from angr.state_plugins.plugin import SimStatePlugin
 from angr.state_plugins.sim_action import SimActionObject
+import claripy
 import copy
 import inspect
 
@@ -36,7 +37,11 @@ class PathPlugin(SimStatePlugin):
         return PathPlugin(_segments=copy.deepcopy(self._segments, memo))
 
     def merge(self, others, merge_conditions, common_ancestor=None):
-        return all(utils.structural_eq(o._segments, self._segments) for o in others)
+        # Merging should never fail because of this, it's a debug thing
+        self._segments = [(n, a, r, c & merge_conditions[0]) for (n, a, r, c) in self._segments]
+        for (i, o) in enumerate(others):
+            self._segments.extend([(n, a, r, c & merge_conditions[i + 1]) for (n, a, r, c) in o._segments])
+        return True
 
     @staticmethod
     def wrap(external):
@@ -44,13 +49,13 @@ class PathPlugin(SimStatePlugin):
     
 
     def begin_record(self, name, args):
-        self._segments.append((name, args, None))
+        self._segments.append((name, args, None, claripy.true))
 
     def end_record(self, ret):
-        (name, args, _) = self._segments.pop()
-        self._segments.append((name, args, ret))
+        (name, args, _, cond) = self._segments.pop()
+        self._segments.append((name, args, ret, cond))
 
 
     def print(self):
         for (name, args, ret) in self._segments:
-            print("  ", name, "(", ", ".join(map(str, args)) + ")", ("" if ret is None else (" -> " + str(ret))))
+            print("  ", name, "(", ", ".join(map(str, args)) + ")", ("" if ret is None else (" -> " + str(ret))), ("cond: " + str(cond)))

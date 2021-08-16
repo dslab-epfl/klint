@@ -276,8 +276,29 @@ class Map:
 
     # === Merging ===
 
-    def merge(self, others, merge_conditions):
-        return all(utils.structural_eq(self, o) for o in others)
+    def merge(self, state, others, other_states, merge_conditions):
+        if all(utils.structural_eq(self, o) for o in others):
+            return True
+        if self.version() != 0 or any(o.version() != 0 for o in others):
+            # TODO merge on non-zero versions
+            return False
+        if any(not utils.structural_eq(self._invariants, o._invariants) for o in others):
+            # TODO merge invariants
+            return False
+        for (o, mc) in zip(others, merge_conditions[1:]):
+            (only_left, both, only_right) = utils.structural_diff(self._known_items, o._known_items)
+            # Items that were only here are subject to the invariant if the merge condition holds
+            for i in only_left:
+                state.solver.add(*[Implies(mc, inv(state, i)) for inv in self.invariant_conjunctions()])
+            # Other items must be those of the other state if the merge condition holds
+            for i in both + only_right:
+                (v, p) = self.get(state, i.key)
+                state.solver.add(Implies(mc, (v == i.value) & (p == i.present)))
+        # Basic map invariants have to hold no matter what
+        for i in self._known_items:
+            state.solver.add(*[Implies(i.key == oi.key, (i.value == oi.value) & (i.present == oi.present)) for oi in self._known_items + [self._unknown_item]])
+        state.solver.add(self.known_length() <= self.length())
+        return True
 
     # === Private API, also used by invariant inference ===
     # TODO sort out what's actually private and not; verif also uses stuff...
@@ -402,7 +423,7 @@ class Map:
         return result
 
     def __repr__(self):
-        return f"[Map {self.meta.name} v{self.version()}]"
+        return f"<Map {self.meta.name} v{self.version()}>"
 
     def _asdict(self): # pretend we are a namedtuple so functions that expect one will work (e.g. utils.structural_eq)
         return {'meta': self.meta, '_length': self._length, '_invariants': self._invariants, '_known_items': self._known_items, '_previous': self._previous, '_unknown_item': self._unknown_item, '_layer_item': self._layer_item}
@@ -477,7 +498,7 @@ class GhostMapsPlugin(SimStatePlugin):
         for (k, v) in self._maps.items():
             if any(k not in o._maps for o in others):
                 return False
-            if not v.merge([o._maps[k] for o in others], merge_conditions):
+            if not v.merge(self.state, [o._maps[k] for o in others], [o.state for o in others], merge_conditions):
                 return False
         return True
 
