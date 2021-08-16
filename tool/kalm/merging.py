@@ -4,6 +4,7 @@ import math
 
 # Specialized function to merge solvers that are expected to have a lot in common
 # Anything in common is kept as-is, the rest is added as (merge_cond implies noncommon_constraint)
+# This doesn't help perf, but massively helps readability
 def merge_solvers(this_solver, other_solvers, merge_conds):
     new_underlying = this_solver._solver.blank_copy()
     divergence_index = 0
