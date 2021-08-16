@@ -56,7 +56,7 @@ def merge_states(states):
         # Callstack merely logs an error if there's an issue and never returns anything...
         if plugin == 'callstack':
             if any(op != our_plugin for op in other_plugins):
-                print("Merge failed because of callstack?!?")
+                print("Merge failed because of callstack")
                 return None
             continue
 
