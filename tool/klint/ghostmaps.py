@@ -275,18 +275,16 @@ class Map:
         return result
 
     # === Merging ===
+    # Two-phase merging, so that we avoid spending lots of (solver) time on a merge only to realize the very next map can't be merged and the effort was wasted
 
-    def merge(self, state, others, other_states, merge_conditions):
+    def can_merge(self, others):
+        # TODO merge on non-zero versions
+        # TODO merge invariants
         if all(utils.structural_eq(self, o) for o in others):
             return True
-        if self.version() != 0 or any(o.version() != 0 for o in others):
-            # TODO merge on non-zero versions
-            print("MAP: non-0 version")
-            return False
-        if any(not utils.structural_eq(self._invariants, o._invariants) for o in others):
-            # TODO merge invariants
-            print("MAP: diff invs")
-            return False
+        return self.version() == 0 and all(o.version() == 0 for o in others) and all(utils.structural_eq(self._invariants, o._invariants) for o in others)
+
+    def merge(self, state, others, other_states, merge_conditions):
         for (o, mc) in zip(others, merge_conditions[1:]):
             (only_left, both, only_right) = utils.structural_diff(self._known_items, o._known_items)
             # Items that were only here are subject to the invariant if the merge condition holds
@@ -300,7 +298,6 @@ class Map:
         for i in self._known_items:
             state.solver.add(*[Implies(i.key == oi.key, (i.value == oi.value) & (i.present == oi.present)) for oi in self._known_items + [self._unknown_item]])
         state.solver.add(self.known_length() <= self.length())
-        return True
 
     # === Private API, also used by invariant inference ===
     # TODO sort out what's actually private and not; verif also uses stuff...
@@ -500,8 +497,10 @@ class GhostMapsPlugin(SimStatePlugin):
         for (k, v) in self._maps.items():
             if any(k not in o._maps for o in others):
                 return False
-            if not v.merge(self.state, [o._maps[k] for o in others], [o.state for o in others], merge_conditions):
+            if not v.can_merge([o._maps[k] for o in others]):
                 return False
+        for (k, v) in self._maps.items():
+            v.merge(self.state, [o._maps[k] for o in others], [o.state for o in others], merge_conditions)
         return True
 
 
