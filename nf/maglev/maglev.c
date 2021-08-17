@@ -17,19 +17,21 @@ bool nf_init(device_t _devices_count)
 		return false;
 	}
 	devices_count = _devices_count;
-	size_t backend_capacity = devices_count - 1;
+	device_t backend_capacity = devices_count - 1;
 
-	size_t flow_capacity, cht_height;
+	size_t flow_capacity;
+	device_t cht_height;
 	time_t flow_expiration_time, backend_expiration_time;
-	if (!os_config_get_size("flow capacity", &flow_capacity) || !os_config_get_size("cht height", &cht_height) ||
+	if (!os_config_get_size("flow capacity", &flow_capacity) || !os_config_get_u16("cht height", &cht_height) ||
 	    !os_config_get_time("backend expiration time", &backend_expiration_time) || !os_config_get_time("flow expiration time", &flow_expiration_time)) {
 		return false;
 	}
 
+	// TODO: can we remove the need for those?
 	if (cht_height == 0 || cht_height >= MAX_CHT_HEIGHT) {
 		return false;
 	}
-	if (backend_capacity >= cht_height || backend_capacity * cht_height >= UINT32_MAX) {
+	if (backend_capacity >= cht_height) {
 		return false;
 	}
 
@@ -59,7 +61,7 @@ void nf_handle(struct net_packet *packet)
 		.dst_port = tcpudp_header->dst_port,
 		.protocol = ipv4_header->next_proto_id
 	};
-	size_t backend;
+	device_t backend;
 	if (balancer_get_backend(balancer, &flow, packet->time, &backend)) {
 		net_transmit(packet, backend, 0);
 	}

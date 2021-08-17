@@ -26,27 +26,27 @@ struct balancer
 	struct map* flow_indices;
 	struct index_pool* flow_pool;
 	struct flow* flow_heap;
-	size_t* flow_backends; // TODO change backends to device_t
+	device_t* flow_backends;
 	struct index_pool* backend_pool;
 	struct cht* cht;
 };
 
-static inline struct balancer* balancer_alloc(size_t flow_capacity, time_t flow_expiration_time, size_t backend_capacity, time_t backend_expiration_time, size_t cht_height)
+static inline struct balancer* balancer_alloc(size_t flow_capacity, time_t flow_expiration_time, device_t backend_capacity, time_t backend_expiration_time, device_t cht_height)
 {
 	struct balancer* balancer = os_memory_alloc(1, sizeof(struct balancer));
 	balancer->flow_indices = map_alloc(sizeof(struct flow), flow_capacity);
 	balancer->flow_pool = index_pool_alloc(flow_capacity, flow_expiration_time);
 	balancer->flow_heap = os_memory_alloc(flow_capacity, sizeof(struct flow));
-	balancer->flow_backends = os_memory_alloc(flow_capacity, sizeof(size_t));
+	balancer->flow_backends = os_memory_alloc(flow_capacity, sizeof(device_t));
 	balancer->backend_pool = index_pool_alloc(backend_capacity, backend_expiration_time);
 	balancer->cht = cht_alloc(cht_height, backend_capacity);
 	return balancer;
 }
 
-static inline bool balancer_get_backend(struct balancer* balancer, struct flow* flow, time_t time, size_t* out_backend)
+static inline bool balancer_get_backend(struct balancer* balancer, struct flow* flow, time_t time, device_t* out_backend)
 {
 	size_t flow_index;
-	size_t backend;
+	device_t backend;
 	if (map_get(balancer->flow_indices, flow, &flow_index)) {
 		// We know the backend; is it alive?
 		backend = balancer->flow_backends[flow_index];
@@ -81,7 +81,7 @@ static inline bool balancer_get_backend(struct balancer* balancer, struct flow* 
 	return true;
 }
 
-static inline void balancer_process_heartbeat(struct balancer* balancer, size_t backend, time_t time)
+static inline void balancer_process_heartbeat(struct balancer* balancer, device_t backend, time_t time)
 {
 	index_pool_refresh(balancer->backend_pool, time, backend);
 }

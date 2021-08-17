@@ -13,14 +13,13 @@ MAX_CHT_HEIGHT = 40000
 class ChtAlloc(angr.SimProcedure):
     def run(self, cht_height, backend_capacity):
         # Casts
-        cht_height = self.state.casts.size_t(cht_height)
-        backend_capacity = self.state.casts.size_t(backend_capacity)
+        cht_height = self.state.casts.uint16_t(cht_height)
+        backend_capacity = self.state.casts.uint16_t(backend_capacity)
 
         # Preconditions
         assert utils.definitely_true(self.state.solver, claripy.And(
             0 < cht_height, cht_height < MAX_CHT_HEIGHT,
-            0 < backend_capacity, backend_capacity < cht_height, 
-            cht_height * backend_capacity < (2 ** self.state.sizes.uint32_t - 1)
+            0 < backend_capacity, backend_capacity < cht_height
         ))
 
         # Postconditions
@@ -45,13 +44,13 @@ class ChtFindPreferredAvailableBackend(angr.SimProcedure):
         # Preconditions
         cht = self.state.metadata.get(Cht, cht)
         active_backends = self.state.metadata.get(Pool, active_backends)
-        self.state.memory.load(chosen_backend, self.state.sizes.size_t // 8)
+        self.state.memory.load(chosen_backend, self.state.sizes.uint16_t // 8)
         assert utils.definitely_true(self.state.solver,
-            cht.backend_capacity <= active_backends.size
+            cht.backend_capacity.zero_extend(self.state.sizes.size_t - self.state.sizes.uint16_t) <= active_backends.size
         )
 
         # Postconditions
-        backend = claripy.BVS("backend", self.state.sizes.size_t)
+        backend = claripy.BVS("backend", self.state.sizes.uint16_t)
         def case_true(state):
             print("!!! cht_find_preferred_available_backend: did not find available backend")
             return claripy.BVV(0, state.sizes.bool)
@@ -59,8 +58,8 @@ class ChtFindPreferredAvailableBackend(angr.SimProcedure):
             print("!!! cht_find_preferred_available_backend: found available backend")
             state.memory.store(chosen_backend, backend, endness=state.arch.memory_endness)
             state.solver.add(0 <= backend, backend < cht.backend_capacity)
-            state.solver.add(state.maps.get(active_backends.items, backend)[1])
+            state.solver.add(state.maps.get(active_backends.items, backend.zero_extend(self.state.sizes.size_t - self.state.sizes.uint16_t))[1])
             return claripy.BVV(1, state.sizes.bool)
 
-        guard = self.state.maps.forall(active_backends.items, lambda k, v: claripy.Or(k < 0, k >= cht.backend_capacity))
+        guard = self.state.maps.forall(active_backends.items, lambda k, v: claripy.Or(k < 0, k >= cht.backend_capacity.zero_extend(self.state.sizes.size_t - self.state.sizes.uint16_t)))
         return utils.fork_guarded(self, self.state, guard, case_true, case_false)
