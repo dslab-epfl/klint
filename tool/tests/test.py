@@ -1,11 +1,12 @@
 import angr
 import claripy
+import copy
 import os
 import unittest
 
-from binary.executor import CustomSolver
-from binary.ghost_maps import Map, GhostMapsPlugin, MapGet, MapHas
-from binary.sizes import SizesPlugin
+from kalm.solver import KalmSolver
+from kalm.plugins import SizesPlugin
+from klint.ghostmaps import Map, GhostMapsPlugin, MapGet, MapHas
 
 # Disable logs we don't care about
 import logging
@@ -20,7 +21,7 @@ angr.SimState.register_default("sizes", SizesPlugin)
 def empty_state():
     proj = angr.Project(os.path.dirname(os.path.realpath(__file__)) + "/empty_binary", simos=angr.simos.SimOS)
     state = proj.factory.blank_state()
-    state.solver._stored_solver = CustomSolver()
+    state.solver._stored_solver = KalmSolver()
     state.maps = GhostMapsPlugin()
     state.maps.set_state(state)
     return state
@@ -347,6 +348,68 @@ class Tests(unittest.TestCase):
         state.solver.add(p2)
         self.assertSolverUnknown(state, v2 == X)
 
+
+
+    def mergeSetup(self, **kwargs):
+        state1 = empty_state()
+        state2 = empty_state()
+        map1 = Map.new(state1, KEY_SIZE, VALUE_SIZE, "map", **kwargs)
+        map2 = copy.deepcopy(map1)
+        return (state1, state2, map1, map2)
+
+    def test_merge_wrongkeysize(self):
+        state1 = empty_state()
+        state2 = empty_state()
+        map1 = Map.new(state1, KEY_SIZE, VALUE_SIZE, "map")
+        map2 = Map.new(state1, VALUE_SIZE, VALUE_SIZE, "map")
+        self.assertFalse(map1.can_merge([map2]))
+
+    def test_merge_wrongkeysize_many(self):
+        state1 = empty_state()
+        state2 = empty_state()
+        state3 = empty_state()
+        map1 = Map.new(state1, KEY_SIZE, VALUE_SIZE, "map")
+        map2 = Map.new(state1, KEY_SIZE, VALUE_SIZE, "map")
+        map3 = Map.new(state1, VALUE_SIZE, VALUE_SIZE, "map")
+        self.assertFalse(map1.can_merge([map2, map3]))
+
+    def test_merge_wrongvaluesize(self):
+        state1 = empty_state()
+        state2 = empty_state()
+        map1 = Map.new(state1, KEY_SIZE, VALUE_SIZE, "map")
+        map2 = Map.new(state1, KEY_SIZE, KEY_SIZE, "map")
+        self.assertFalse(map1.can_merge([map2]))
+
+    def test_merge_empty(self):
+        (state1, state2, map1, map2) = self.mergeSetup()
+        self.assertTrue(map1.can_merge([map2]))
+        map1.merge(state1, [map2], [state2], [X == 0, X == 1])
+        self.assertEqual(map1.meta.key_size, KEY_SIZE)
+        self.assertEqual(map1.meta.value_size, VALUE_SIZE)
+        self.assertSolver(state1, map1.length() == 0)
+
+    def test_merge_leftget(self):
+        (state1, state2, map1, map2) = self.mergeSetup(_length=10, _invariants=[lambda i: claripy.true])
+        (v1, p1) = map1.get(state1, K)
+        self.assertTrue(map1.can_merge([map2]))
+        (statem, conds, _) = state1.merge(state2)
+        map1.merge(statem, [map2], [state2], conds)
+        (vm, pm) = map1.get(statem, K)
+        self.assertSolverUnknown(statem, (v1 == vm) & (p1 == pm))
+        self.assertSolver(statem, ~conds[0] | ((v1 == vm) & (p1 == pm)))
+
+    def test_merge_rightget(self):
+        state1 = empty_state()
+        state2 = empty_state()
+        map1 = Map.new(state1, KEY_SIZE, VALUE_SIZE, "map", _length=10, _invariants=[lambda i: claripy.true])
+        map2 = copy.deepcopy(map1)
+        (v2, p2) = map2.get(state2, K)
+        self.assertTrue(map1.can_merge([map2]))
+        (statem, conds, _) = state1.merge(state2)
+        map1.merge(statem, [map2], [state2], conds)
+        (vm, pm) = map1.get(statem, K)
+        self.assertSolverUnknown(statem, (v2 == vm) & (p2 == pm))
+        self.assertSolver(statem, ~conds[1] | ((v2 == vm) & (p2 == pm)))
 
 if __name__ == '__main__':
     unittest.main()
