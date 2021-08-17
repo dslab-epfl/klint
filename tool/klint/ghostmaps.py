@@ -282,8 +282,11 @@ class Map:
         # TODO merge invariants
         if all(utils.structural_eq(self, o) for o in others):
             return True
+        if any(o.meta.key_size != self.meta.key_size or o.meta.value_size != self.meta.value_size for o in others):
+            return False
         return self.version() == 0 and all(o.version() == 0 for o in others) and all(utils.structural_eq(self._invariants, o._invariants) for o in others)
 
+    # This assumes the solvers have already been merged
     def merge(self, state, others, other_states, merge_conditions):
         for (o, mc) in zip(others, merge_conditions[1:]):
             (only_left, both, only_right) = utils.structural_diff(self._known_items, o._known_items)

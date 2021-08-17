@@ -9,6 +9,10 @@ import klint.executor as nf_executor
 import klint.verif.persistence as verif_persist
 import klint.verif.executor as verif_executor
 
+# kept here to ease debugging
+#import tests.test
+#tests.test.Tests().test_merge_leftget()
+#sys.exit(0)
 
 full_stack = False
 nf_to_verify = "bpf-katran"

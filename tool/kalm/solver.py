@@ -1,3 +1,4 @@
+import claripy
 import claripy.frontend_mixins as cfms
 from claripy.frontends import CompositeFrontend
 from claripy import backends, SolverCompositeChild
@@ -32,6 +33,28 @@ class KalmSolver(
                 if not self.satisfiable():
                     raise Exception("UNSAT after adding constraint: " + str(con))
         return super().add(constraints, **kwargs)
+    
+    # Specialized function to merge solvers that are expected to have a lot in common
+    # Anything in common is kept as-is, the rest is added as (merge_cond implies noncommon_constraint)
+    # This doesn't help perf, but massively helps readability
+    def merge(self, others, merge_conditions, common_ancestor=None):
+        merged = self.blank_copy()
+        divergence_index = 0
+        min_length = min(len(self.constraints), *[len(s.constraints) for s in others])
+        while divergence_index < min_length:
+            for solver in others:
+                if self.constraints[divergence_index] is not solver.constraints[divergence_index]:
+                    break
+            else:
+                merged.add(self.constraints[divergence_index])
+                divergence_index = divergence_index + 1
+                continue
+            break
+        for i, solver in enumerate([self] + others):
+            for extra in solver.constraints[divergence_index:]:
+                merged.add(~merge_conditions[i] | extra)
+        merged.add(claripy.Or(*merge_conditions))
+        return True, merged
 
     def simplify(self, **kwargs):
         # TODO: Investigate this. There seems to be a bug in the simplification that drops constraints

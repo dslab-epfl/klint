@@ -391,12 +391,13 @@ class Tests(unittest.TestCase):
     def test_merge_leftget(self):
         (state1, state2, map1, map2) = self.mergeSetup(_length=10, _invariants=[lambda i: claripy.true])
         (v1, p1) = map1.get(state1, K)
+        state1.solver.add(p1, v1 == 42)
         self.assertTrue(map1.can_merge([map2]))
         (statem, conds, _) = state1.merge(state2)
         map1.merge(statem, [map2], [state2], conds)
         (vm, pm) = map1.get(statem, K)
-        self.assertSolverUnknown(statem, (v1 == vm) & (p1 == pm))
-        self.assertSolver(statem, ~conds[0] | ((v1 == vm) & (p1 == pm)))
+        self.assertSolverUnknown(statem, pm & (vm == 42))
+        self.assertSolver(statem, ~conds[0] | (pm & (vm == 42)))
 
     def test_merge_rightget(self):
         state1 = empty_state()
@@ -404,12 +405,13 @@ class Tests(unittest.TestCase):
         map1 = Map.new(state1, KEY_SIZE, VALUE_SIZE, "map", _length=10, _invariants=[lambda i: claripy.true])
         map2 = copy.deepcopy(map1)
         (v2, p2) = map2.get(state2, K)
+        state2.solver.add(p2, v2 == 42)
         self.assertTrue(map1.can_merge([map2]))
         (statem, conds, _) = state1.merge(state2)
         map1.merge(statem, [map2], [state2], conds)
         (vm, pm) = map1.get(statem, K)
-        self.assertSolverUnknown(statem, (v2 == vm) & (p2 == pm))
-        self.assertSolver(statem, ~conds[1] | ((v2 == vm) & (p2 == pm)))
+        self.assertSolverUnknown(statem, pm & (vm == 42))
+        self.assertSolver(statem, ~conds[1] | (pm & (vm == 42)))
 
 if __name__ == '__main__':
     unittest.main()

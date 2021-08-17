@@ -2,28 +2,6 @@ import angr
 import claripy
 import math
 
-# Specialized function to merge solvers that are expected to have a lot in common
-# Anything in common is kept as-is, the rest is added as (merge_cond implies noncommon_constraint)
-# This doesn't help perf, but massively helps readability
-def merge_solvers(this_solver, other_solvers, merge_conds):
-    new_underlying = this_solver._solver.blank_copy()
-    divergence_index = 0
-    min_length = min(len(this_solver.constraints), *[len(s.constraints) for s in other_solvers])
-    while divergence_index < min_length:
-        for solver in other_solvers:
-            if this_solver.constraints[divergence_index] is not solver.constraints[divergence_index]:
-                break
-        else:
-            new_underlying.add(this_solver.constraints[divergence_index])
-            divergence_index = divergence_index + 1
-            continue
-        break
-    for i, solver in enumerate([this_solver] + other_solvers):
-        for extra in solver.constraints[divergence_index:]:
-            new_underlying.add(~merge_conds[i] | extra)
-    new_underlying.add(claripy.Or(*merge_conds))
-    this_solver._stored_solver = new_underlying
-
 # Version of SimState.merge that succeeds only if all plugins successfully merge
 # Returns (merged_state, [deferred_states], [unmergeable_states])
 def merge_states(states):
@@ -56,8 +34,8 @@ def merge_states(states):
     plugins.remove("callstack") # we guaranteed it's the same earlier
 
     # Start by merging the solver so other plugins can rely on that, using our own function
+    merged.solver.merge([st.solver for st in to_merge[1:]], merge_conds)
     plugins.remove("solver")
-    merge_solvers(merged.solver, [st.solver for st in to_merge[1:]], merge_conds)
 
     for plugin in plugins:
         # Some plugins have nothing to merge by design
