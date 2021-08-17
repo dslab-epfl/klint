@@ -102,6 +102,7 @@ def get_libnf_inited_states(binary_path, devices_count):
         init_result = cc.get_return_val(state, stack_base=state.regs.sp - cc.STACKARG_SP_DIFF)
         state.solver.add(init_result != 0)
         if state.solver.satisfiable():
+            state.path.clear() # less noise when debugging
             state_creator = lambda st: binary_executor.create_calling_state(st, "nf_handle", [klint.externals.net.packet.alloc(st, devices_count)], libnf_handle_externals)
             inited_states.append((state, state_creator))
     return inited_states

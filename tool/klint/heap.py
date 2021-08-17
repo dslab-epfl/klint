@@ -101,7 +101,7 @@ class HeapPlugin(SimStatePlugin):
 
 
     @staticmethod
-    def _read(state, base, index, offset, size):
+    def _read(state, base, index, offset, size, reverse_endness):
         meta = state.metadata.get(HeapPlugin.Metadata, base)
 
         # Handle reads larger than the actual size, e.g. read an uint64_t from an array of uint8_t
@@ -117,6 +117,9 @@ class HeapPlugin(SimStatePlugin):
             # Increment the index for the next chunk
             index = index + 1
 
+        if reverse_endness:
+            result = result.reversed
+
         if offset != 0:
             result = result[:offset]
 
@@ -126,7 +129,7 @@ class HeapPlugin(SimStatePlugin):
         return result
 
     @staticmethod
-    def _write(state, base, index, offset, value):
+    def _write(state, base, index, offset, value, reverse_endness):
         meta = state.metadata.get(HeapPlugin.Metadata, base)
 
         # We need to handle writes in chunks, e.g. writing an uint64_t to an array of uint8_t
@@ -162,10 +165,14 @@ class HeapPlugin(SimStatePlugin):
             # Handle partial overwrites, for the first and last chunks
             if chunk.size() != write_size:
                 current, _ = state.maps.get(base, index)
+                if reverse_endness:
+                    current = current.reversed
                 if offset != 0:
                     chunk = chunk.concat(current[offset-1:0])
                 if chunk.size() != current.size():
                     chunk = current[:chunk.size()].concat(chunk)
+            if reverse_endness:
+                chunk = chunk.reversed
             # Finally we can write
             state.maps.set(base, index, chunk)
             # Increment the index for the next chunk

@@ -55,6 +55,9 @@ class PathPlugin(SimStatePlugin):
         (name, args, _, cond) = self._segments.pop()
         self._segments.append((name, args, ret, cond))
 
+    def clear(self):
+        self._segments = []
+
 
     def print(self):
         for (name, args, ret) in self._segments:

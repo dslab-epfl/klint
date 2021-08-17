@@ -46,16 +46,21 @@ def receive_packet_on_device(state, index):
     state.metadata.append(packet_addr, packet.NetworkMetadata(dev.packet_data, packet_addr, dev.index, dev.packet_length, []))
 
 
-def device_reader(state, base, index, offset, size):
+def device_reader(state, base, index, offset, size, reverse_endness):
     assert index.structurally_match(claripy.BVV(0, index.size()))
     assert size is None or size == 4
     dev = find_device(state, base)
     reg, index = reg_util.find_reg_from_addr(state, offset // 8)
     reg_data = spec_reg.registers[reg]
-    return reg_util.fetch_reg(dev.regs, reg, index, reg_data, dev.use_init[0])
+    result = reg_util.fetch_reg(dev.regs, reg, index, reg_data, dev.use_init[0])
+    if reverse_endness:
+        result = result.reversed
+    return result
 
-def device_writer(state, base, index, offset, value):
+def device_writer(state, base, index, offset, value, reverse_endness):
     assert index.structurally_match(claripy.BVV(0, index.size()))
+    if reverse_endness:
+        value = value.reversed
     dev = find_device(state, base)
     reg, index = reg_util.find_reg_from_addr(state, offset // 8)
     reg_data = spec_reg.registers[reg]

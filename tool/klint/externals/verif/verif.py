@@ -8,7 +8,7 @@ from klint.fullstack import device as nf_device
 
 
 def _custom_memory(memory_count, memory_size): # size in bits
-    def reader(state, base, index, offset, size):
+    def reader(state, base, index, offset, size, reverse_endness):
         if size is None:
             size = memory_size
         else:
@@ -19,9 +19,12 @@ def _custom_memory(memory_count, memory_size): # size in bits
 
         memory = state.metadata.get(type({}), base, default_init=lambda: {})
 
-        return memory.setdefault(index, claripy.BVV(0, memory_size))[offset+size-1:offset]
+        result = memory.setdefault(index, claripy.BVV(0, memory_size))[offset+size-1:offset]
+        if reverse_endness:
+            result = result.reversed
+        return result
 
-    def writer(state, base, index, offset, value):
+    def writer(state, base, index, offset, value, reverse_endness):
         index = utils.get_if_constant(state.solver, index)
         assert index is not None
         assert index < memory_count
@@ -29,10 +32,14 @@ def _custom_memory(memory_count, memory_size): # size in bits
         memory = state.metadata.get(type({}), base, default_init=lambda: {})
 
         existing_value = memory.setdefault(index, claripy.BVV(0, memory_size))
+        if reverse_endness:
+            existing_value = existing_value.reversed
         if offset != 0:
             value = value.concat(existing_value[offset-1:0])
         if value.size() != memory_size:
             value = existing_value[:value.size()].concat(value)
+        if reverse_endness:
+            value = value.reversed
         memory[index] = value
 
     return (reader, writer)

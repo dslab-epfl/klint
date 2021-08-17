@@ -24,26 +24,40 @@ def merge_solvers(this_solver, other_solvers, merge_conds):
     new_underlying.add(claripy.Or(*merge_conds))
     this_solver._stored_solver = new_underlying
 
-# Version of SimState.merge that succeeds only if all plugins successfully merge, and returns the state or None
+# Version of SimState.merge that succeeds only if all plugins successfully merge
+# Returns (merged_state, [deferred_states], [unmergeable_states])
 def merge_states(states):
     if len(states) == 0:
         raise Exception("Zero states to merge??")
-    if len(states) == 1:
-        return states[0]
-    print("Trying to merge", len(states), "states")
 
-    merge_flag = claripy.BVS("state_merge", math.ceil(math.log2(len(states))))
-    merge_conds = [(merge_flag == n) for n in range(len(states))]
+    # Filter out the states with a different callstack, to be merged later
+    # This avoids the issue where there's a large number of states that could be merged but e.g. 1 is different
+    # (without having to try and merge states pairwise, which takes too much time)
+    deferred = []
+    to_merge = [states[0]]
+    for state in states[1:]:
+        if state.callstack == states[0].callstack:
+            to_merge.append(state)
+        else:
+            deferred.append(state)
 
-    merged = states[0].copy()
+    if len(to_merge) == 1:
+        return (to_merge[0], [], [])
+    print("Trying to merge", len(to_merge), "states")
+
+    merge_flag = claripy.BVS("state_merge", math.ceil(math.log2(len(to_merge))))
+    merge_conds = [(merge_flag == n) for n in range(len(to_merge))]
+
+    merged = to_merge[0].copy()
 
     plugins = set()
-    for state in states:
+    for state in to_merge:
         plugins = plugins | state.plugins.keys()
+    plugins.remove("callstack") # we guaranteed it's the same earlier
 
     # Start by merging the solver so other plugins can rely on that, using our own function
     plugins.remove("solver")
-    merge_solvers(merged.solver, [st.solver for st in states[1:]], merge_conds)
+    merge_solvers(merged.solver, [st.solver for st in to_merge[1:]], merge_conds)
 
     for plugin in plugins:
         # Some plugins have nothing to merge by design
@@ -51,22 +65,15 @@ def merge_states(states):
             continue
 
         our_plugin = getattr(merged, plugin)
-        other_plugins = [getattr(st, plugin) for st in states[1:]]
-
-        # Callstack merely logs an error if there's an issue and never returns anything...
-        if plugin == 'callstack':
-            if any(op != our_plugin for op in other_plugins):
-                print("Merge failed because of callstack")
-                return None
-            continue
+        other_plugins = [getattr(st, plugin) for st in to_merge[1:]]
 
         if not our_plugin.merge(other_plugins, merge_conds):
             # Memory (of which register is a kind) returns false if nothing was merged, but that just means the memory was untouched
             if plugin in ('memory', 'registers'):
                 continue
             print("Merge failed because of", plugin)
-            return None
-    return merged
+            return (to_merge[0], deferred, to_merge[1:])
+    return (merged, deferred, [])
 
 
 # Explores the state with the earliest instruction pointer first;
@@ -116,16 +123,15 @@ class MergingExplorationTechnique(angr.exploration_techniques.ExplorationTechniq
                 simgr.stashes[self.deferred_stash].append(current)
                 break
 
-        # Try and merge them
-        # Do not try to merge the final states, it'll fail 99% of the time
-        if lowest[0].history.jumpkind == 'Ijk_Ret' and lowest[0].callstack.ret_addr == 0:
-            new_state = None
-        else:
-            new_state = merge_states(lowest)
-
-        if new_state is None:
+        if 'SimProcedure' in lowest[0].history.recent_description:
+            # Do not try to merge states that have just returned from an external call, it's pointless
             new_state = lowest[0]
             simgr.stashes[self.nomerge_stash].extend(lowest[1:])
+        else:
+            # Try and merge them
+            (new_state, deferred, unmergeable) = merge_states(lowest)
+            simgr.stashes[self.deferred_stash].extend(deferred)
+            simgr.stashes[self.nomerge_stash].extend(unmergeable)
 
         simgr.stashes[stash].append(new_state)
         return simgr
