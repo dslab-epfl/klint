@@ -5,6 +5,5 @@ The original file is Copyright 2018 The Polycube Authors, Licensed under the Apa
 It was modified in the following ways:
 - Replaced the `timestamp` table, intended to be updated by userspace, with a call to `bpf_ktime_get_boot_ns`.
 - Replaced the object-oriented BCC table method calls with standard BPF ones.
-- Made `handle_rx` non-static.
 
 No other changes were performed; comments are from the original authors.

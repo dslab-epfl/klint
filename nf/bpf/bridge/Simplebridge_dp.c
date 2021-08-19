@@ -48,7 +48,7 @@ static __always_inline u32 time_get_sec() {
   return bpf_ktime_get_boot_ns();
 }
 
-int handle_rx(struct CTXTYPE *ctx,
+static int handle_rx(struct CTXTYPE *ctx,
                                      struct pkt_metadata *md) {
   void *data = (void *)(long)ctx->data;
   void *data_end = (void *)(long)ctx->data_end;
