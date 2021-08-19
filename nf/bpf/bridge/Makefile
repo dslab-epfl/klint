@@ -2,6 +2,9 @@
 CFLAGS += -isystem ../../os/include/compat
 CFLAGS += --include compat/polycube.h
 
+# For the 'bcc' folder
+CFLAGS += -isystem .
+
 # The code expects this defined
 CFLAGS += -D__always_inline=inline
 
