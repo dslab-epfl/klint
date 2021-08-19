@@ -36,11 +36,6 @@ if [ "$(which clang)" = '' ]; then
   exit 1
 fi
 
-# This is ludicrous
-#if [ "$(find /usr/include/ -name stubs-32.h)" = '' ]; then
-#  echo 'WARNING: gnu/stubs-32.h header not found, if compilation fails because if it you need the i386 libc dev packages, e.g. libc6-dev-i386 on Ubuntu'
-#fi
-
 # Ensure kernel BPF JIT is enabled
 echo 1 | sudo tee '/proc/sys/net/core/bpf_jit_enable' >/dev/null
 
@@ -52,16 +47,27 @@ rm -rf '/tmp/bpf-headers'
 mkdir '/tmp/bpf-headers'
 ln -s "$THIS_DIR/libbpf/src" '/tmp/bpf-headers/bpf'
 mkdir '/tmp/bpf-headers/uapi'
-ln -s '/usr/include/linux' '/tmp/bpf-headers/uapi/linux'
+ln -s "$THIS_DIR/libbpf/include/uapi/linux" '/tmp/bpf-headers/uapi/linux'
 
 # Compile (not sure why we explicitly need that x86_64 include but we do)
 # 2nd line is for bridge
 # 3rd line is for CRAB
+# 4th line is for firewall
 # TODO move those to a makefile or smth
+#         --include=stdint.h -D u8=uint8_t -D u16=uint16_t -D u32=uint32_t -D u64=uint64_t \
 clang -O3 -target bpf -isystem '/tmp/bpf-headers' -isystem '/usr/include/x86_64-linux-gnu/' \
          -isystem . \
          -I common -Wno-compare-distinct-pointer-types \
+         -D ntohs=__builtin_bswap16 -D uint64_t=__u64 --include=linux/udp.h \
+         -D u8=__u8 -D u16=__u16 -D u32=__u32 -D u64=__u64 \
          -o bpf.o -c $@
+if [ $? -ne 0 ]; then
+  # This is ludicrous
+  if [ "$(find /usr/include/ -name stubs-32.h)" = '' ]; then
+    echo 'WARNING: gnu/stubs-32.h header not found, if compilation failed because of it you need the i386 libc dev packages, e.g. libc6-dev-i386 on Ubuntu'
+  fi
+  exit 1
+fi
 
 # Load into kernel
 sudo bpftool prog load bpf.o '/sys/fs/bpf/temp'
