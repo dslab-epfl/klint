@@ -1,6 +1,5 @@
 # Compatibility layer
-CFLAGS += -isystem ../../os/include/compat
-CFLAGS += --include compat/polycube.h
+CFLAGS += -isystem ../../../os/include/compat
 
 # For the 'bcc' folder
 CFLAGS += -isystem .

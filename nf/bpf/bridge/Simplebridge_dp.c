@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#include <polycube.h>
+
 #ifndef FDB_TIMEOUT
 #define FDB_TIMEOUT 300
 #endif

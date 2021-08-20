@@ -66,7 +66,7 @@ if [ $? -ne 0 ]; then
 fi
 
 # Load into kernel
-sudo bpftool prog load bpf.o '/sys/fs/bpf/temp' type xdp
+sudo bpftool prog load bpf.o '/sys/fs/bpf/temp'
 
 # Dump
 sudo "$LINUX_BPFTOOL" prog dump jited pinned '/sys/fs/bpf/temp'

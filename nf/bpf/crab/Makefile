@@ -1,6 +1,6 @@
 # Compatibility layer; also, the code expects common one level up and addresses it as ../, let's trick it
-CFLAGS += -I ../../os/include/compat/uapi
-CFLAGS += -I ../../os/include/compat
+CFLAGS += -I ../../../os/include/compat/uapi
+CFLAGS += -I ../../../os/include/compat
 CFLAGS += -I common
 
 # The code expects this defined

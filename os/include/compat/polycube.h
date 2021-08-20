@@ -6,6 +6,7 @@
 
 
 struct pkt_metadata {
+	int _unused; // avoid a warning
 };
 
 #define CTXTYPE xdp_md
@@ -43,14 +44,13 @@ static inline int pcn_pkt_controller(struct xdp_md* pkt, struct pkt_metadata* md
 	return 0;
 }
 
-
 // Polycube NFs implement this, it returns one of the RX_* values above and may call pcn_pkt_redirect or pcn_pkt_controller
 static int handle_rx(struct xdp_md* ctx, struct pkt_metadata* md);
 
 SEC("xdp")
 int xdp_prog_polycube(struct xdp_md* ctx)
 {
-	struct pkt_metadata md = {};
+	struct pkt_metadata md = {0};
 
 	int rx_result = handle_rx(ctx, &md);
 

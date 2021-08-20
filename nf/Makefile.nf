@@ -2,7 +2,7 @@
 SELF_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 
 # Base makefile
-include $(SELF_DIR)/Makefile.base
+include $(SELF_DIR)/../Makefile.base
 
 # No libC, thus no extra stuff like __cxa_finalize
 CFLAGS += -nostdlib
@@ -11,7 +11,7 @@ CFLAGS += -nostdlib
 CFLAGS += -ffreestanding -nostdinc -isystem $(shell gcc -print-search-dirs | head -n 1 | cut -d ':' -f 2)/include
 
 # OS headers
-CFLAGS += -I$(SELF_DIR)/os/include
+CFLAGS += -I$(SELF_DIR)/../os/include
 
 # NF source
 SRCS += $(shell echo *.c)

@@ -1,6 +1,6 @@
 # Compatibility layer
-CFLAGS += -isystem ../../os/include/compat
-CFLAGS += -isystem ../../os/include/compat/uapi
+CFLAGS += -isystem ../../../os/include/compat
+CFLAGS += -isystem ../../../os/include/compat/uapi
 
 # Somehow the code expects the Linux UDP header to be included
 CFLAGS += --include linux/udp.h

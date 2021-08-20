@@ -1,8 +1,8 @@
 # Compatibility layer
-CFLAGS += -isystem ../../os/include/compat
-CFLAGS += -I ../../os/include/compat/uapi
-CFLAGS += -I ../../os/include/compat/uapi/linux
-CFLAGS += -I ../../os/include/compat/bpf
+CFLAGS += -isystem ../../../os/include/compat
+CFLAGS += -I ../../../os/include/compat/uapi
+CFLAGS += -I ../../../os/include/compat/uapi/linux
+CFLAGS += -I ../../../os/include/compat/bpf
 
 # Linux defines
 CFLAGS += -D__u8=uint8_t
