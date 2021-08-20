@@ -45,7 +45,7 @@ struct eth_hdr {
 } __attribute__((packed));
 
 static __always_inline u32 time_get_sec() {
-  return bpf_ktime_get_boot_ns();
+  return bpf_ktime_get_ns();
 }
 
 static int handle_rx(struct CTXTYPE *ctx,
@@ -57,7 +57,7 @@ static int handle_rx(struct CTXTYPE *ctx,
   if (data + sizeof(*eth) > data_end)
     return RX_DROP;
 
-  u32 in_ifc = md->in_port;
+  u32 in_ifc = ctx->ingress_ifindex;
 
   pcn_log(ctx, LOG_TRACE, "Received a new packet from port %d", in_ifc);
   pcn_log(ctx, LOG_TRACE, "mac src:%M dst:%M", eth->src, eth->dst);

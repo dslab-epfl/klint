@@ -1,16 +1,11 @@
 // Implements Polycube in terms of XDP.
 #pragma once
 
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
-
 #include <uapi/linux/bpf.h>
 #include <bpf/bpf_helpers.h>
 
 
 struct pkt_metadata {
-	uint16_t in_port;
 };
 
 #define CTXTYPE xdp_md
@@ -34,7 +29,7 @@ static inline int pcn_pkt_redirect(struct xdp_md* pkt, struct pkt_metadata* md, 
 	return (int) out_port;
 }
 
-static bool pcn_pkt_controller_flood = false;
+static int pcn_pkt_controller_flood = 0;
 static inline int pcn_pkt_controller(struct xdp_md* pkt, struct pkt_metadata* md, uint16_t reason)
 {
 	(void) pkt;
@@ -42,7 +37,7 @@ static inline int pcn_pkt_controller(struct xdp_md* pkt, struct pkt_metadata* md
 
 	if (reason == 1) // REASON_FLOODING in simplebridge
 	{
-		pcn_pkt_controller_flood = true;
+		pcn_pkt_controller_flood = 1;
 	}
 
 	return 0;
@@ -55,13 +50,11 @@ static int handle_rx(struct xdp_md* ctx, struct pkt_metadata* md);
 SEC("xdp")
 int xdp_prog_polycube(struct xdp_md* ctx)
 {
-	struct pkt_metadata md = {
-		.in_port = ctx->ingress_ifindex
-	};
+	struct pkt_metadata md = {};
 
 	int rx_result = handle_rx(ctx, &md);
 
-	if (pcn_pkt_controller_flood) {
+	if (pcn_pkt_controller_flood == 1) {
 		return XDP_TX; // not great but oh well #ResearchCode
 	} else if (rx_result == RX_DROP) {
 		return XDP_DROP;
@@ -69,3 +62,6 @@ int xdp_prog_polycube(struct xdp_md* ctx)
 		return XDP_TX;
 	}
 }
+
+// the BPF verifier refuses to let us use some functions otherwise
+char _license[] SEC("license") = "GPL";
