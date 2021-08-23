@@ -56,7 +56,7 @@ cp -r '/tmp/bpf-headers/uapi/linux/' '/tmp/bpf-headers/linux/'
 clang -O3 -target bpf -isystem '/tmp/bpf-headers' -isystem '/usr/include/x86_64-linux-gnu/' \
       $EXTRA_CFLAGS \
       -D u8=__u8 -D u16=__u16 -D u32=__u32 -D u64=__u64 -D __wsum=__u32 -D __sum16=__u16 \
-      -o 'nf.bpf' -c $@
+      -o 'bpf.bin' -c $@
 if [ $? -ne 0 ]; then
   # This is ludicrous
   if [ "$(find /usr/include/ -name stubs-32.h)" = '' ]; then
@@ -65,17 +65,23 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
-# Load into kernel
-sudo bpftool prog load 'nf.bpf' '/sys/fs/bpf/temp'
+# Remove an existing program, just in case some previous script run failed
+sudo rm -f '/sys/fs/bpf/temp'
 
-# Dump
+# Load into kernel
+sudo bpftool prog load 'bpf.bin' '/sys/fs/bpf/temp'
+
+# Dump BPF
+sudo "$LINUX_BPFTOOL" prog dump xlated pinned '/sys/fs/bpf/temp' > 'bpf.ops'
+
+# Dump x86
 sudo "$LINUX_BPFTOOL" prog dump jited pinned '/sys/fs/bpf/temp' file '/tmp/x86'
 sudo chmod 755 '/tmp/x86'
-cp '/tmp/x86' 'nf.x86'
+cp '/tmp/x86' 'bpf.x86'
 
 # Remove
 sudo rm '/sys/fs/bpf/temp'
 
 # Dump the maps
 # From https://stackoverflow.com/a/3925586
-objdump -h 'nf.bpf' | grep '.maps' | awk '{print "dd if='nf.bpf' of='nf.maps' bs=1 count=$[0x" $3 "] skip=$[0x" $6 "]"}' | bash 2>/dev/null
+objdump -h 'bpf.bin' | grep '.maps' | awk '{print "dd if='bpf.bin' of='bpf.maps' bs=1 count=$[0x" $3 "] skip=$[0x" $6 "]"}' | bash 2>/dev/null

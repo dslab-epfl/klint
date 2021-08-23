@@ -1,3 +1,4 @@
-nf.bpf
-nf.maps
-nf.x86
+bpf.bin
+bpf.maps
+bpf.ops
+bpf.x86
