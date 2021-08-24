@@ -40,6 +40,7 @@ register_plugin('path', PathPlugin)
 register_plugin('pci', PciPlugin)
 register_plugin('sizes', SizesPlugin)
 register_plugin('sym_memory', KalmMemory) # Has to be named that way for angr to use it as default
+register_plugin('fast_memory', KalmMemory) # angr needs this for some analyses to work
 
 # Register the plugins we need even though we don't want them
 from .plugins import FakeFilesystemPlugin

@@ -3,6 +3,7 @@
 import argparse
 
 from klint import statistics
+import klint.bpf.analysis as bpf_analysis
 import klint.executor as nf_executor
 import klint.verif.persistence as verif_persist
 import klint.verif.executor as verif_executor
@@ -13,7 +14,7 @@ import klint.verif.executor as verif_executor
 #sys.exit(0)
 
 
-def verif():
+def verif(data_path, spec):
     # print them now just in case verif fails somehow
     for line in statistics.to_tsv():
         print(line)
@@ -37,17 +38,20 @@ def handle_libnf(args):
     if not args.use_cached_symbex:
         states, devices_count = nf_executor.execute_libnf(args.file)
         verif_persist.dump_data(states, devices_count, cached_data_path)
-    verif(args.spec)
+    verif(cached_data_path, args.spec)
 
 def handle_fullstack(args):
     cached_data_path = args.file + ".symbex-cache"
     if not args.use_cached_symbex:
         states, devices_count = nf_executor.execute_nf(args.file)
         verif_persist.dump_data(states, devices_count, cached_data_path)
-    verif(args.spec)
+    verif(cached_data_path, args.spec)
 
 def handle_bpf(args):
-    raise "TODO"
+    ext_addrs = bpf_analysis.get_externals_addresses(args.binary)
+    ext_maps = bpf_analysis.get_maps(args.maps)
+    ext_names = bpf_analysis.get_externals_names(args.instructions)
+    print(ext_addrs, ext_maps, ext_names)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--use-cached-symbex', type=bool, default=False, help='Verify only, using cached symbolic execution results')

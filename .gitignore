@@ -4,8 +4,7 @@
 *.so
 
 # Cached symbolic execution stuff
-symbex.result
-symbex.stats
+*.symbex-cache
 
 # Python environment path file 
 .env
