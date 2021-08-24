@@ -54,7 +54,7 @@ cp -r '/tmp/bpf-headers/uapi/linux/' '/tmp/bpf-headers/linux/'
 
 # Compile (not sure why we explicitly need that x86_64 include but we do)
 clang -O3 -target bpf -isystem '/tmp/bpf-headers' -isystem '/usr/include/x86_64-linux-gnu/' \
-      $EXTRA_CFLAGS \
+      $EXTRA_BPF_CFLAGS \
       -D u8=__u8 -D u16=__u16 -D u32=__u32 -D u64=__u64 -D __wsum=__u32 -D __sum16=__u16 \
       -o 'bpf.bin' -c $@
 if [ $? -ne 0 ]; then
@@ -76,7 +76,7 @@ sudo "$LINUX_BPFTOOL" prog dump xlated pinned '/sys/fs/bpf/temp' > 'bpf.ops'
 
 # Dump x86
 sudo "$LINUX_BPFTOOL" prog dump jited pinned '/sys/fs/bpf/temp' file '/tmp/x86'
-sudo chmod 755 '/tmp/x86'
+sudo chmod 644 '/tmp/x86'
 cp '/tmp/x86' 'bpf.x86'
 
 # Remove
