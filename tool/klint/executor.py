@@ -78,6 +78,7 @@ libnf_init_externals.update(structs_alloc_externals)
 
 libnf_handle_externals = {
     'os_debug': klint.externals.os.log.os_debug,
+    'os_debug2': klint.externals.os.log.os_debug2,
     'net_transmit': klint.externals.net.tx.net_transmit,
     'net_flood': klint.externals.net.tx.net_flood,
     'net_flood_except': klint.externals.net.tx.net_flood_except

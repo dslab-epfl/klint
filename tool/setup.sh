@@ -1,5 +1,6 @@
 # tested on Ubuntu 18.04
 # THIS SCRIPT SHOULD BE SOURCED NOT RAN
+# TODO fail if the script is not sourced (how?)
 
 if [ ! -d "$HOME/.virtualenvs/angr" ]; then
   # Virtual env for angr using pypy for python3

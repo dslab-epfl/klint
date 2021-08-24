@@ -70,7 +70,7 @@ class HeapPlugin(SimStatePlugin):
         current_fraction, present = self.state.maps.get(meta.fractions, index)
         if fraction is None:
             fraction = current_fraction
-        self.state.solver.add(present & current_fraction.UGE(fraction))
+        assert utils.definitely_true(self.state.solver, present & current_fraction.UGE(fraction))
 
         self.state.maps.set(meta.fractions, index, current_fraction - fraction)
 
@@ -85,7 +85,7 @@ class HeapPlugin(SimStatePlugin):
         meta = self.state.metadata.get(HeapPlugin.Metadata, base)
 
         current_fraction, present = self.state.maps.get(meta.fractions, index)
-        self.state.solver.add(present & (current_fraction + fraction).ULE(100))
+        assert utils.definitely_true(self.state.solver, present & (current_fraction + fraction).ULE(100))
 
         self.state.maps.set(meta.fractions, index, current_fraction + fraction)
 

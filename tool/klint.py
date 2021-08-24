@@ -4,6 +4,7 @@ import argparse
 
 from klint import statistics
 import klint.bpf.analysis as bpf_analysis
+import klint.bpf.executor as bpf_executor
 import klint.executor as nf_executor
 import klint.verif.persistence as verif_persist
 import klint.verif.executor as verif_executor
@@ -48,10 +49,7 @@ def handle_fullstack(args):
     verif(cached_data_path, args.spec)
 
 def handle_bpf(args):
-    ext_addrs = bpf_analysis.get_externals_addresses(args.binary)
-    ext_maps = bpf_analysis.get_maps(args.maps)
-    ext_names = bpf_analysis.get_externals_names(args.instructions)
-    print(ext_addrs, ext_maps, ext_names)
+    bpf_executor.execute(args.binary, args.calls, args.maps)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--use-cached-symbex', type=bool, default=False, help='Verify only, using cached symbolic execution results')
@@ -70,8 +68,8 @@ parser_fullstack.set_defaults(func=handle_fullstack)
 
 parser_bpf = subparsers.add_parser('bpf-jited', help='Verify a JITed BPF program')
 parser_bpf.add_argument('binary', type=str, help='Path to the dumped JITed binary function')
-parser_bpf.add_argument('maps', type=str, help='Path to the contents of the .maps section')
-parser_bpf.add_argument('instructions', type=str, help='Path to the dumped BPF instructions')
+parser_bpf.add_argument('calls', type=str, help='Path to a file with one line per called BPF helper, format "[hex kernel address] [name]"')
+parser_bpf.add_argument('maps', type=str, help='Path to a file with one line per BPF map, format "[hex kernel address] [hex data]"')
 parser_bpf.add_argument('spec', type=str, nargs='?', help='Path to the specification')
 parser_bpf.set_defaults(func=handle_bpf)
 

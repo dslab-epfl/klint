@@ -1,4 +1,4 @@
+bpf.obj
 bpf.bin
 bpf.maps
-bpf.ops
-bpf.x86
+bpf.calls

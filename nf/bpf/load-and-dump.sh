@@ -1,8 +1,17 @@
 #!/bin/sh
 
+# Input: Files to compile
+# Optional extra input: environment variable $EXTRA_BPF_CFLAGS for the BPF compilation
+# Output, as files in the working directory:
+# - 'bpf.obj', the compiled BPF bytecode
+# - 'bpf.bin', the kernel-JITed native code
+# - 'bpf.calls', a file with one line per called BPF helper, format '[hex kernel address] [name]'
+# - 'bpf.maps', a file with one line per BPF map, format '[hex kernel address] [hex data]'
+
 # This script contains many ludicrous things, so let me explain...
 # - First, the built-in bpftool in Ubuntu isn't built with libbfd support, so it cannot dump JITted programs
 # - Second, the bpftool from the kernel segfaults when loading programs, but works fine for dumping
+# (these observations were made on Ubuntu 18.04 HWE, i.e., kernel 5.4)
 # -> We use both!
 # - Third, the location of headers when compiling BPF programs is super weird
 # -> We create a folder in /tmp that we then use as -isystem
@@ -56,7 +65,7 @@ cp -r '/tmp/bpf-headers/uapi/linux/' '/tmp/bpf-headers/linux/'
 clang -O3 -target bpf -isystem '/tmp/bpf-headers' -isystem '/usr/include/x86_64-linux-gnu/' \
       $EXTRA_BPF_CFLAGS \
       -D u8=__u8 -D u16=__u16 -D u32=__u32 -D u64=__u64 -D __wsum=__u32 -D __sum16=__u16 \
-      -o 'bpf.bin' -c $@
+      -o 'bpf.obj' -c $@
 if [ $? -ne 0 ]; then
   # This is ludicrous
   if [ "$(find /usr/include/ -name stubs-32.h)" = '' ]; then
@@ -69,19 +78,36 @@ fi
 sudo rm -f '/sys/fs/bpf/temp'
 
 # Load into kernel
-sudo bpftool prog load 'bpf.bin' '/sys/fs/bpf/temp'
+sudo bpftool prog load 'bpf.obj' '/sys/fs/bpf/temp'
 
-# Dump BPF
-sudo "$LINUX_BPFTOOL" prog dump xlated pinned '/sys/fs/bpf/temp' > 'bpf.ops'
+# Dump BPF as text
+sudo "$LINUX_BPFTOOL" prog dump xlated pinned '/sys/fs/bpf/temp' > '/tmp/bpf'
 
-# Dump x86
-sudo "$LINUX_BPFTOOL" prog dump jited pinned '/sys/fs/bpf/temp' file '/tmp/x86'
-sudo chmod 644 '/tmp/x86'
-cp '/tmp/x86' 'bpf.x86'
+# Dump x86 as text
+sudo "$LINUX_BPFTOOL" prog dump jited pinned '/sys/fs/bpf/temp' > '/tmp/x86'
+
+# Create the calls list (address to name)
+grep -F call '/tmp/x86' | sed 's/.*\(0x.*\)/\1/' > '/tmp/x86-calls'
+grep -F call '/tmp/bpf' | sed 's/.*call \(.*\)#.*/\1/' > '/tmp/bpf-calls'
+paste -d ' ' '/tmp/x86-calls' '/tmp/bpf-calls' > 'bpf.calls'
+
+# Create the maps list (address to maps)
+# First, create a mapping from addresses to names, using the order in which loads and relocations appear
+sed 's/.*movabs $\(0x[0-9a-z]*\),%rdi/\1/;t;d' '/tmp/x86' > '/tmp/map-addrs'
+objdump -r 'bpf.obj' | tail -n+6 | tr -s ' ' | cut -d ' ' -f 3 | head -n-2 > '/tmp/map-names'
+paste -d ' ' '/tmp/map-addrs' '/tmp/map-names' | sort | uniq > '/tmp/addrs-to-names'
+# Then, create a mapping from names to data
+MAPS_SECTION_IDX="$(readelf --sections 'bpf.obj' | sed 's/.*\[\s*\([0-9]*\)\]\s*maps.*/\1/;t;d')"
+objdump -h 'bpf.obj' | grep '.maps' | awk '{print "dd if='bpf.obj' of='/tmp/maps' bs=1 count=$[0x" $3 "] skip=$[0x" $6 "]"}' | bash 2>/dev/null # From https://stackoverflow.com/a/3925586
+readelf -s 'bpf.obj' | tail -n+4 | tr -s ' ' | grep -F "DEFAULT $MAPS_SECTION_IDX" | cut -d ' ' -f 3,9 > '/tmp/offset-to-name'
+cat '/tmp/offset-to-name' | awk '{print "echo -n " $2 " ; echo -n '"' '"' ; xxd -p -seek 0x" $1 " -l 20 /tmp/maps"}' | sh > '/tmp/names-to-contents'
+# Finally, combine the two
+cat '/tmp/addrs-to-names' | awk '{ print "echo " $1 " $(grep -F " $2 " /tmp/names-to-contents | cut -d '"' '"' -f 2)"  }' | sh > 'bpf.maps'
+
+# Dump x86 as binary
+sudo "$LINUX_BPFTOOL" prog dump jited pinned '/sys/fs/bpf/temp' file '/tmp/bin'
+sudo chmod 644 '/tmp/bin'
+cp '/tmp/bin' 'bpf.bin'
 
 # Remove
 sudo rm '/sys/fs/bpf/temp'
-
-# Dump the maps
-# From https://stackoverflow.com/a/3925586
-objdump -h 'bpf.bin' | grep '.maps' | awk '{print "dd if='bpf.bin' of='bpf.maps' bs=1 count=$[0x" $3 "] skip=$[0x" $6 "]"}' | bash 2>/dev/null

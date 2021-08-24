@@ -550,7 +550,7 @@ static inline int process_packet(void *data, __u64 off, void *data_end,
 
   // save the original sport before making real selection, possibly changing its value.
   original_sport = pckt.flow.port16[0];
-/*
+
   if (!dst) {
     if ((vip_info->flags & F_HASH_NO_SRC_PORT)) {
       // service, where diff src port, but same ip must go to the same real,
@@ -628,7 +628,7 @@ static inline int process_packet(void *data, __u64 off, void *data_end,
       data_stats->v2 += 1;
     }
   }
-*/
+
   cval = bpf_map_lookup_elem(&ctl_array, &mac_addr_pos);
 
   if (!cval) {

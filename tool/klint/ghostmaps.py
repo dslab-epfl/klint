@@ -202,19 +202,13 @@ class Map:
         # This must happen now; calling the invariant later might cause recursion which needs the item to be in there to stop
         self.add_item(MapItem(key, value, present))
 
-        # Optimization: If the map length is concrete and there are definitely not too many items, don't even compute the known length
-        if not self.length().symbolic and len(known_items) < self.length().args[0]:
-            known_length_lte_total = claripy.true
-        else:
-            known_length_lte_total = self.known_length() <= self.length()
-
         state.solver.add(
             # Add K = K' => (V = V' and P = P') to the path constraint for each existing known item (K', V', P') in the map,
             *[Implies(key == i.key, (value == i.value) & (present == i.present)) for i in known_items + [self._unknown_item]],
             # Add UK => invariant(M)(K', V', P') to the path constraint [conditioned]
             *[Implies(unknown, inv(state, MapItem(key, value, present), condition=condition)) for inv in self.invariant_conjunctions()],
             # Add L <= length(M)
-            known_length_lte_total
+            self.is_not_overfull()
         )
 
         # Return (V, P)
@@ -224,6 +218,12 @@ class Map:
     def set(self, state, key, value):
         # Let P be get(M, K) != None
         (_, present) = self.get(state, key)
+
+        # Optimization: Avoid a symbolic presence bit if possible
+        #               This helps with the is_not_overfull fast path as well
+        present_const = utils.get_if_constant(state.solver, present)
+        if present_const is not None:
+            present = present_const
 
         # Return a new map with:
         #   ITE(P, 0, 1) added to the map length.
@@ -264,7 +264,7 @@ class Map:
         known_items_result = claripy.And(*[pred(state, i) for i in known_items])
 
         unknown_is_not_known = claripy.And(*[self._unknown_item.key != i.key for i in known_items])
-        unknown_items_result = Implies(self.known_length() < self.length(), Implies(unknown_is_not_known, pred(state, self._unknown_item)))
+        unknown_items_result = Implies(self.is_not_overfull(), Implies(unknown_is_not_known, pred(state, self._unknown_item)))
         # TODO try with just (since we don't really need the weird length=1 case)
         #unknown_items_result = Implies(unknown_is_not_known, pred(state, self._unknown_item))
 
@@ -278,29 +278,48 @@ class Map:
     # Two-phase merging, so that we avoid spending lots of (solver) time on a merge only to realize the very next map can't be merged and the effort was wasted
 
     def can_merge(self, others):
-        # TODO merge on non-zero versions
-        # TODO merge invariants
         if all(utils.structural_eq(self, o) for o in others):
             return True
         if any(o.meta.key_size != self.meta.key_size or o.meta.value_size != self.meta.value_size for o in others):
             return False
-        return self.version() == 0 and all(o.version() == 0 for o in others) and all(utils.structural_eq(self._invariants, o._invariants) for o in others)
+        if any(not utils.structural_eq(self._invariants, o._invariants) for o in others):
+            return False
+        self_ver = self.version()
+        if any(o.version() != self_ver for o in others):
+            return False
+        if any(abs(len(o._known_items) - len(self._known_items)) > 1 for o in others):
+            return False
+        if self_ver > 0 and not self._previous.can_merge([o._previous for o in others]):
+            return False
+        return True
 
     # This assumes the solvers have already been merged
     def merge(self, state, others, other_states, merge_conditions):
+#        print("begin merge, num_known_items=", [len(m.known_items()) for m in [self] + others])
         for (o, mc) in zip(others, merge_conditions[1:]):
+#            print("splitting")
             (only_left, both, only_right) = utils.structural_diff(self._known_items, o._known_items)
             # Items that were only here are subject to the invariant if the merge condition holds
             for i in only_left:
+#                print("adding only left: " + str(i))
                 state.solver.add(*[Implies(mc, inv(state, i)) for inv in self.invariant_conjunctions()])
             # Other items must be those of the other state if the merge condition holds
             for i in both + only_right:
+#                print("Adding item " + str(i) + " to merged constraints...")
                 (v, p) = self.get(state, i.key)
+#                print("(v,p) = (" + str(v) + ", " + str(p) + ")")
                 state.solver.add(Implies(mc, (v == i.value) & (p == i.present)))
+#                print("done adding")
         # Basic map invariants have to hold no matter what
-        for i in self._known_items:
-            state.solver.add(*[Implies(i.key == oi.key, (i.value == oi.value) & (i.present == oi.present)) for oi in self._known_items + [self._unknown_item]])
-        state.solver.add(self.known_length() <= self.length())
+        for (n, it) in enumerate(self._known_items):
+#            print("Adding basic inv")
+            state.solver.add(*[Implies(i.key == oi.key, (i.value == oi.value) & (i.present == oi.present)) for oi in self._known_items[(n+1):] + [self._unknown_item]])
+#            print("done adding basic inv")
+        state.solver.add(self.is_not_overfull())
+        if self._previous is not None:
+#            print("merging previous")
+            self._previous.merge(state, [o._previous for o in others], other_states, merge_conditions)
+#        print("done!")
 
     # === Private API, also used by invariant inference ===
     # TODO sort out what's actually private and not; verif also uses stuff...
@@ -397,16 +416,21 @@ class Map:
         l = self.length()
         return l.structurally_match(claripy.BVV(0, l.size()))
 
-    # TODO this is only used in a kl < length context, can be specialized (with eg the opt of not even checking if the length is concrete and len(known_items) is smaller)
-    def known_length(self):
+    def is_not_overfull(self):
         l = self.length()
+        known_items = self.known_items()
+
+        # Optimization: If the map length is concrete and there are definitely not too many items, don't even compute the known length
+        if not l.symbolic and len(known_items) <= l.args[0]:
+            return claripy.true
+
         known_len = claripy.BVV(0, l.size())
         known_keys = []
-        for item in self.known_items():
+        for item in known_items:
             key_is_new = claripy.And(*[item.key != k for k in known_keys])
             known_keys.append(item.key)
             known_len = known_len + claripy.If(key_is_new & item.present, claripy.BVV(1, l.size()), claripy.BVV(0, l.size()))
-        return known_len
+        return known_len <= l
 
     def __copy__(self):
         return self.__deepcopy__({})

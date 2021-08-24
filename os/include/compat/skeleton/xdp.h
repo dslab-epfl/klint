@@ -20,7 +20,19 @@ void nf_handle(struct net_packet* packet)
 #ifdef XDP_SKELETON_RESTRICT
 	struct net_ether_header* ether_header;
 	struct net_ipv4_header* ipv4_header;
-	if (!net_get_ether_header(packet, &ether_header) || !net_get_ipv4_header(ether_header, &ipv4_header) || ipv4_header->next_proto_id != 6) {
+	if (!net_get_ether_header(packet, &ether_header) || !net_get_ipv4_header(ether_header, &ipv4_header)) {
+		return;
+	}
+	if (ipv4_header->next_proto_id == 1) {
+		// ICMP
+		return;
+	}
+	if (packet->data[sizeof(struct net_ether_header) + sizeof(struct net_ipv4_header) + 8] != 0) {
+		// QUIC, non-0 flags
+		return;
+	}
+	if (packet->data[sizeof(struct net_ether_header) + sizeof(struct net_ipv4_header) + 8 + 1] != 0) {
+		// QUIC, non-0 connId
 		return;
 	}
 #endif
