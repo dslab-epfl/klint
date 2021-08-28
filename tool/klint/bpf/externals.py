@@ -26,11 +26,12 @@ def align(n, val):
 # Equivalent pseudo-VeriFast contract:
 #  requires bpfmap(map, ?def, ?values, ?items) &*&
 #           key != NULL &*&
-#           [f]chars(key, def.key_size, ?key_data);
-#  ensures switch(ghostmap_get(items, key_data)) {
-#      case none: result == NULL;
-#      case some(i): result == values + i;
-#  }
+#           [?f]chars(key, def.key_size, ?key_data);
+#  ensures bpfmap(map, def, values, items) &*&
+#          switch(ghostmap_get(items, key_data)) {
+#              case none: result == NULL;
+#              case some(i): result == values + i;
+#          };
 class bpf_map_lookup_elem(angr.SimProcedure):
     def run(self, map, key):
         # Casts
@@ -51,8 +52,30 @@ class bpf_map_lookup_elem(angr.SimProcedure):
 
 # long bpf_map_update_elem(struct bpf_map *map, const void *key, const void *value, u64 flags)
 # Copies both the key and the value into the map
+# Equivalent pseudo-VeriFast contract:
+#  requires bpfmap(map, ?def, ?values, ?items) &*&
+#           key != NULL &*&
+#           value != NULL &*&
+#           [?fk]chars(key, def.key_size, ?key_data) &*&
+#           [?fv]chars(value, def.value_size, ?value_data);
+#  ensures flags == BPF_ANY ? (result == 0 &*& bpfmap(map, def, ghostmap_set??????????what to put here???)
+#                           : ...we don't care...;
 class bpf_map_update_elem(angr.SimProcedure):
     def run(self, map, key, value, flags):
+        # Casts
+        map = self.state.casts.ptr(map)
+        key = self.state.casts.ptr(key)
+        value = self.state.casts.ptr(value)
+        flags = self.state.casts.uint64_t(flags)
+
+        assert utils.definitely_true(self.state.solver, flags == 0) # BPF_ANY, we don't support the others for now
+
+        # Preconditions
+        bpfmap = self.state.metadata.get(BpfMap, map)
+        assert utils.definitely_true(self.state.solver, (key != 0) & (value != 0))
+        key_data = self.state.memory.load(key, bpfmap.map_def.key_size, endness=self.state.arch.memory_endness)
+        value_data = self.state.memory.load(value, bpfmap.map_def.value_size, endness=self.state.arch.memory_endness)
+
         print("update", map, key, value, flags)
         print("map", self.state.metadata.get(BpfMap, map))
         raise "TODO"
@@ -77,6 +100,11 @@ class __htab_map_lookup_elem(angr.SimProcedure):
             # when the BPF code compensates, it'll add back the right value to return 'result'
             return result - align(8, 4 * (state.sizes.ptr // 8) + 2 * 4) - align(8, bpfmap.map_def.key_size)
         return utils.fork_guarded(self, self.state, result == 0, case_null, case_nonnull)
+
+# int htab_map_update_elem(struct bpf_map *map, void *key, void *value, u64 map_flags)
+class htab_map_update_elem(angr.SimProcedure):
+    def run(self, map, key, value, flags):
+        return self.inline_call(bpf_map_update_elem, map, key, value, flags).ret_expr[31:0] # for some bizarre reason this returns an int, not a long
 
 # long bpf_redirect_map(struct bpf_map *map, u32 key, u64 flags)
 # "XDP_REDIRECT on success, or the value of the two lower bits of the flags argument on error."
