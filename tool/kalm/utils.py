@@ -173,7 +173,6 @@ def base_index_offset(state, addr, meta_type, allow_failure=False):
                 base = [b for b in addr.args if state.metadata.get_or_none(meta_type, b) is not None]
                 if len(base) != 1:
                     if allow_failure:
-                        print("1111"); import pdb; pdb.set_trace()
                         return (None, None, None)
                     raise Exception("!= 1 candidate for base??? are you symbolically indexing a global variable or something?")
                 base = base[0]
@@ -197,7 +196,6 @@ def base_index_offset(state, addr, meta_type, allow_failure=False):
         return (addr, claripy.BVV(0, 64), 0)
 
     if allow_failure:
-        if addr.symbolic: print("222"); import pdb; pdb.set_trace()
         return (None, None, None)
     raise Exception("B_I_O doesn't know what to do with: " + str(addr) + " of type " + str(type(addr)) + " ; op is " + str(addr.op) + " ; args is " + str(addr.args) + " ; constrs are " + str(state.solver.constraints))
 
