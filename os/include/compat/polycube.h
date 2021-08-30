@@ -6,7 +6,7 @@
 
 
 struct pkt_metadata {
-	int _unused; // avoid a warning
+	int pcn_pkt_controller_flood;
 };
 
 #define CTXTYPE xdp_md
@@ -30,7 +30,6 @@ static inline int pcn_pkt_redirect(struct xdp_md* pkt, struct pkt_metadata* md, 
 	return (int) out_port;
 }
 
-static int pcn_pkt_controller_flood = 0;
 static inline int pcn_pkt_controller(struct xdp_md* pkt, struct pkt_metadata* md, uint16_t reason)
 {
 	(void) pkt;
@@ -38,7 +37,7 @@ static inline int pcn_pkt_controller(struct xdp_md* pkt, struct pkt_metadata* md
 
 	if (reason == 1) // REASON_FLOODING in simplebridge
 	{
-		pcn_pkt_controller_flood = 1;
+		md->pcn_pkt_controller_flood = 1;
 	}
 
 	return 0;
@@ -54,7 +53,7 @@ int xdp_prog_polycube(struct xdp_md* ctx)
 
 	int rx_result = handle_rx(ctx, &md);
 
-	if (pcn_pkt_controller_flood == 1) {
+	if (md.pcn_pkt_controller_flood == 1) {
 		return XDP_TX; // not great but oh well #ResearchCode
 	} else if (rx_result == RX_DROP) {
 		return XDP_DROP;

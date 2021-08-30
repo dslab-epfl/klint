@@ -89,12 +89,12 @@ sudo "$LINUX_BPFTOOL" prog dump jited pinned '/sys/fs/bpf/temp' > '/tmp/x86'
 # Create the calls list (address to name)
 grep -F call '/tmp/x86' | sed 's/.*\(0x.*\)/\1/' > '/tmp/x86-calls'
 grep -F call '/tmp/bpf' | sed 's/.*call \(.*\)#.*/\1/' > '/tmp/bpf-calls'
-paste -d ' ' '/tmp/x86-calls' '/tmp/bpf-calls' > 'bpf.calls'
+paste -d ' ' '/tmp/x86-calls' '/tmp/bpf-calls' | sort | uniq > 'bpf.calls'
 
 # Create the maps list (address to maps)
 # First, create a mapping from addresses to names, using the order in which loads and relocations appear
 sed 's/.*movabs $\(0x[0-9a-z]*\),%rdi/\1/;t;d' '/tmp/x86' > '/tmp/map-addrs'
-objdump -r 'bpf.obj' | tail -n+6 | tr -s ' ' | cut -d ' ' -f 3 | head -n-2 > '/tmp/map-names'
+objdump -r 'bpf.obj' | tail -n+6 | tr -s ' ' | cut -d ' ' -f 3 | grep -Fv '.bss' | head -n-2 > '/tmp/map-names'
 paste -d ' ' '/tmp/map-addrs' '/tmp/map-names' | sort | uniq > '/tmp/addrs-to-names'
 # Then, create a mapping from names to data
 MAPS_SECTION_IDX="$(readelf --sections 'bpf.obj' | sed 's/.*\[\s*\([0-9]*\)\]\s*maps.*/\1/;t;d')"
