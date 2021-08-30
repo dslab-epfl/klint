@@ -91,10 +91,10 @@ class HeapPlugin(SimStatePlugin):
 
 
     # For BPF maps...
-    def UNCHECKED_write(self, ptr, value, endness):
+    def UNCHECKED_store(self, ptr, value, endness):
         old_frac = self.take(None, ptr)
         self.give(100, ptr)
-        self.state.memory.write(ptr, value, endness=endness)
+        self.state.memory.store(ptr, value, endness=endness)
         self.take(100 - old_frac, ptr)
     def get_fraction(self, ptr):
         (base, index, offset) = utils.base_index_offset(self.state, ptr, HeapPlugin.Metadata)
@@ -122,7 +122,15 @@ class HeapPlugin(SimStatePlugin):
         while result.size() < size * 8 + offset:
             # Ensure we can read
             fraction, present = state.maps.get(meta.fractions, index)
-            assert utils.definitely_true(state.solver, present & (fraction != 0))
+            # TODO remove the prints here
+            #assert utils.definitely_true(state.solver, present & (fraction != 0))
+            if not utils.definitely_true(state.solver, present & (fraction != 0)):
+                print("base, index, offset, fraction, present", base, index, offset, fraction, present)
+                print("index", state.solver.eval_upto(index, 10))
+                print("offset", state.solver.eval_upto(offset, 10))
+                print("fraction", state.solver.eval_upto(fraction, 10))
+                print("present", state.solver.eval_upto(present, 10))
+                assert False
             # Read (we know it's present since we just checked the fractions)
             chunk, _ = state.maps.get(base, index)
             # Remember the result

@@ -68,16 +68,15 @@ def fork_guarded(proc, state, guard, case_true, case_false):
         if guard_value:
             return case_true(state)
         return case_false(state)
-
     state_copy = state.copy()
     state_copy.solver.add(~guard)
     false_ret_expr = case_false(state_copy)
     state_copy.path.end_record(false_ret_expr) # hacky, see Path
     false_ret_addr = proc.cc.teardown_callsite(state_copy, false_ret_expr, arg_types=[False]*proc.num_args if proc.cc.args is None else None)
     proc.successors.add_successor(state_copy, false_ret_addr, claripy.true, 'Ijk_Ret')
-
     state.solver.add(guard)
     return case_true(state)
+
 def fork_guarded_has(proc, state, ghost_map, key, case_has, case_not):
     (value, present) = state.maps.get(ghost_map, key)
     def case_true(state):
@@ -156,7 +155,7 @@ def base_index_offset(state, addr, meta_type, allow_failure=False):
             else:
                 break # no more simplification possible
             value = value.ite_excavated
-        return value.ite_burrowed
+        return state.solver.simplify(value.ite_burrowed)
 
     addr = simplify(addr)
 
@@ -174,6 +173,7 @@ def base_index_offset(state, addr, meta_type, allow_failure=False):
                 base = [b for b in addr.args if state.metadata.get_or_none(meta_type, b) is not None]
                 if len(base) != 1:
                     if allow_failure:
+                        print("1111"); import pdb; pdb.set_trace()
                         return (None, None, None)
                     raise Exception("!= 1 candidate for base??? are you symbolically indexing a global variable or something?")
                 base = base[0]
@@ -193,11 +193,11 @@ def base_index_offset(state, addr, meta_type, allow_failure=False):
             index = _div_simplify(state.solver, (added - offset), meta.size)
         return (base, index, offset * 8)
 
-    addr = state.solver.simplify(addr) # this handles the descriptor addresses, which are split between two NIC registers
     if addr.op == "BVS":
         return (addr, claripy.BVV(0, 64), 0)
 
     if allow_failure:
+        if addr.symbolic: print("222"); import pdb; pdb.set_trace()
         return (None, None, None)
     raise Exception("B_I_O doesn't know what to do with: " + str(addr) + " of type " + str(type(addr)) + " ; op is " + str(addr.op) + " ; args is " + str(addr.args) + " ; constrs are " + str(state.solver.constraints))
 

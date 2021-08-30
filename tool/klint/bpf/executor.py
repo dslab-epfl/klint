@@ -1,22 +1,13 @@
 import claripy
-import platform
 
 from kalm import executor as kalm_executor
 from klint.bpf import analysis
+from klint.bpf import detection
 from klint.bpf import externals
 from klint import executor as klint_executor
 from klint import statistics
 
 PACKET_MTU = 1514 # 1500 (Ethernet spec) + 2xMAC + EtherType
-
-def get_linux_version():
-    if platform.system() != 'Linux':
-        return None
-    return platform.release()
-
-def is_64bit():
-    # https://stackoverflow.com/a/12578715
-    return platform.machine().endswith('64')
 
 def get_external(name):
     return getattr(externals, name)
@@ -45,10 +36,10 @@ def create_arg(state):
     #   Note that offsets are in bytes!
     # - Once it works, send a pull request ;-)
     # NOTE: If these don't change across minor releases, it may be worth doing a substring check on the major version instead... do they change?
-    linux_ver = get_linux_version()
+    linux_ver = detection.get_linux_version()
     if linux_ver is None:
         raise Exception("Looks like you're not running Linux. Sorry, no idea how BPF is even implemented on your platform...")
-    elif linux_ver == '5.4.0-81-generic' and is_64bit():
+    elif linux_ver == '5.4.0-81-generic' and detection.is_64bit():
         buff_data_offset = 0
         buff_dataend_offset = 8
         buff_rxq_offset = 40
