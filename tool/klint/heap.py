@@ -90,19 +90,6 @@ class HeapPlugin(SimStatePlugin):
         self.state.maps.set(meta.fractions, index, current_fraction + fraction)
 
 
-    # For BPF maps...
-    def UNCHECKED_store(self, ptr, value, endness):
-        old_frac = self.take(None, ptr)
-        self.give(100, ptr)
-        self.state.memory.store(ptr, value, endness=endness)
-        self.take(100 - old_frac, ptr)
-    def get_fraction(self, ptr):
-        (base, index, offset) = utils.base_index_offset(self.state, ptr, HeapPlugin.Metadata)
-        meta = self.state.metadata.get(HeapPlugin.Metadata, base)
-        (fraction, present) = self.state.maps.get(meta.fractions, index)
-        assert utils.definitely_true(self.state.solver, present)
-        return fraction
-
     # For invariant inference
     def get_fractions(self, obj):
         meta = self.state.metadata.get_or_none(HeapPlugin.Metadata, obj)

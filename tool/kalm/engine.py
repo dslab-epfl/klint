@@ -2,6 +2,8 @@ from angr.engines.failure import SimEngineFailure
 from angr.engines.hook import HooksMixin
 from angr.engines.vex import HeavyVEXMixin
 
+from kalm import clock
+
 # Keep only what we need in the engine, and handle in, out, rdtsc
 # Also, special-case hlt into the 'trapped_states' global
 class KalmEngine(SimEngineFailure, HooksMixin, HeavyVEXMixin):

@@ -2,6 +2,7 @@ import angr
 import claripy
 from collections import namedtuple
 
+from kalm import clock
 from kalm import utils
 from klint.bpf import detection
 
@@ -126,7 +127,11 @@ class htab_map_update_elem(angr.SimProcedure):
         assert utils.definitely_true(self.state.solver, flags == 0)
 
         def case_has(state, i):
-            state.heap.UNCHECKED_store(bpfmap.values + i * bpfmap.map_def.value_size, value_data, endness=state.arch.memory_endness)
+            value_ptr = bpfmap.values + i * bpfmap.map_def.value_size
+            old_frac = state.heap.take(None, value_ptr)
+            state.heap.give(100, value_ptr)
+            state.memory.store(value_ptr, value_data, endness=state.arch.memory_endness)
+            state.heap.take(100 - old_frac, value_ptr)
             return claripy.BVV(0, 32)
         def case_not(state):
             def case_true(state):
@@ -134,9 +139,11 @@ class htab_map_update_elem(angr.SimProcedure):
             def case_false(state):
                 i = claripy.BVS("i", state.sizes.ptr)
                 state.solver.add(i.UGE(0) & i.ULT(bpfmap.map_def.max_entries))
-                state.solver.add(state.heap.get_fraction(bpfmap.values + i * bpfmap.map_def.value_size) == 0) # needs to be a separate call, otherwise 'i' might be out of bounds
-                state.heap.give(100, bpfmap.values + i * bpfmap.map_def.value_size)
-                state.memory.store(bpfmap.values + i * bpfmap.map_def.value_size, value_data, endness=state.arch.memory_endness)
+                value_ptr = bpfmap.values + i * bpfmap.map_def.value_size
+                fraction = state.heap.take(None, value_ptr)
+                state.solver.add(fraction == 0)
+                state.heap.give(100, value_ptr)
+                state.memory.store(value_ptr, value_data, endness=state.arch.memory_endness)
                 state.maps.set(bpfmap.items, key_data, i)
                 return claripy.BVV(0, 32)
             return utils.fork_guarded(self, state, state.maps.length(bpfmap.items) == bpfmap.map_def.max_entries, case_true, case_false)
@@ -188,5 +195,5 @@ class bpf_xdp_redirect_map(angr.SimProcedure):
 # u64 bpf_ktime_get_ns(void)
 class bpf_ktime_get_ns(angr.SimProcedure):
     def run(self):
-        print("ktime")
-        raise "TODO"
+        (time, _) = clock.get_time_and_cycles(self.state)
+        return time
