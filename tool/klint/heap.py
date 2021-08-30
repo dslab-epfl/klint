@@ -21,7 +21,7 @@ class HeapPlugin(SimStatePlugin):
     def merge(self, others, merge_conditions, common_ancestor=None):
         return True
 
-    def allocate(self, count, size, default=None, name=None, constraint=None):
+    def allocate(self, count, size, default=None, default_fraction=100, name=None, constraint=None):
         max_size = self.state.solver.max(size)
         if max_size > 4096:
             raise Exception("That's a huge block you want to allocate... let's just not: " + str(max_size))
@@ -49,7 +49,7 @@ class HeapPlugin(SimStatePlugin):
 
         # Create the corresponding fractions
         fractions = self.state.maps.new_array(self.state.sizes.ptr, 8, count, name + HeapPlugin.FRACS_NAME)
-        self.state.solver.add(self.state.maps.forall(fractions, lambda k, v: v == 100))
+        self.state.solver.add(self.state.maps.forall(fractions, lambda k, v: v == default_fraction))
 
         # Record this info
         self.state.metadata.append(addr, HeapPlugin.Metadata(count, size, fractions))
@@ -89,6 +89,19 @@ class HeapPlugin(SimStatePlugin):
 
         self.state.maps.set(meta.fractions, index, current_fraction + fraction)
 
+
+    # For BPF maps...
+    def UNCHECKED_write(self, ptr, value, endness):
+        old_frac = self.take(None, ptr)
+        self.give(100, ptr)
+        self.state.memory.write(ptr, value, endness=endness)
+        self.take(100 - old_frac, ptr)
+    def get_fraction(self, ptr):
+        (base, index, offset) = utils.base_index_offset(self.state, ptr, HeapPlugin.Metadata)
+        meta = self.state.metadata.get(HeapPlugin.Metadata, base)
+        (fraction, present) = self.state.maps.get(meta.fractions, index)
+        assert utils.definitely_true(self.state.solver, present)
+        return fraction
 
     # For invariant inference
     def get_fractions(self, obj):
