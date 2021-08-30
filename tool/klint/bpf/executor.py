@@ -4,6 +4,8 @@ import platform
 from kalm import executor as kalm_executor
 from klint.bpf import analysis
 from klint.bpf import externals
+from klint import executor as klint_executor
+from klint import statistics
 
 PACKET_MTU = 1514 # 1500 (Ethernet spec) + 2xMAC + EtherType
 
@@ -87,11 +89,10 @@ def create_arg(state):
 def execute(code_path, calls_path, maps_path):
     with open(code_path, 'rb') as code_file:
         code = code_file.read()
-        blank = kalm_executor.create_blank_state(code)
-        for (addr, map) in analysis.get_maps(maps_path, blank.sizes.ptr):
-            externals.map_init(blank, addr, map)
-        function = 0 # since our code is a single function
-        function_args = [create_arg(blank)]
-        exts = {a: get_external(n) for (a, n) in analysis.get_calls(calls_path)}
-        calling = kalm_executor.create_calling_state(blank, function, function_args, exts)
-        kalm_executor.run_state(calling)
+    blank = kalm_executor.create_blank_state(code)
+    for (addr, map) in analysis.get_maps(maps_path, blank.sizes.ptr):
+        externals.map_init(blank, addr, map)
+    function = 0 # since our code is a single function
+    exts = {a: get_external(n) for (a, n) in analysis.get_calls(calls_path)}
+    states = klint_executor.find_fixedpoint_states([(blank, lambda st: kalm_executor.create_calling_state(st, function, [create_arg(st)], exts))])
+    print("END", states)
