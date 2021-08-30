@@ -61,7 +61,6 @@ class bpf_map_delete_elem(angr.SimProcedure):
 # Returns NULL iff lookup failed, else a pointer to the actual value in the map (i.e., not a copy, can be mutated by users)
 # Equivalent pseudo-VeriFast contract:
 #  requires bpfmap(map, ?def, ?values, ?items) &*&
-#           key != NULL &*&
 #           [?f]chars(key, def.key_size, ?key_data);
 #  ensures bpfmap(map, def, values, items) &*&
 #          switch(ghostmap_get(items, key_data)) {
@@ -78,7 +77,6 @@ class __htab_map_lookup_elem(angr.SimProcedure):
 
         # Preconditions
         bpfmap = self.state.metadata.get(BpfMap, map)
-        assert utils.definitely_true(self.state.solver, key != 0)
         key_data = self.state.memory.load(key, bpfmap.map_def.key_size, endness=self.state.arch.memory_endness)
 
         # Postconditions
@@ -100,13 +98,11 @@ class __htab_map_lookup_elem(angr.SimProcedure):
 # Copies both the key and the value into the map
 # Equivalent pseudo-VeriFast contract (very "pseudo" here):
 #  requires bpfmap(map, ?def, ?values, ?items) &*&
-#           key != NULL &*&
-#           value != NULL &*&
 #           [?fk]chars(key, def.key_size, ?key_data) &*&
 #           [?fv]chars(value, def.value_size, ?value_data) &*&
 #           flags == BPF_ANY; // TODO remove this one
-#  ensures [fk]chars(key, def.key_size, ?key_data) &*&
-#          [fv]chars(value, def.value_size, ?value_data) &*&
+#  ensures [fk]chars(key, def.key_size, key_data) &*&
+#          [fv]chars(value, def.value_size, value_data) &*&
 #          switch(ghostmap_get(items, key_data)) {
 #              case some: result == 0 &*& bpfmap(map, def, values, items) &*& [0]chars(values + i * def.value_size, def.value_size, value_data); // unsound overwite by design!
 #              case none: length(items) == def.max_entries ? result == -1 &*& bpfmap(map, def, values, items)
@@ -125,7 +121,6 @@ class htab_map_update_elem(angr.SimProcedure):
 
         # Preconditions
         bpfmap = self.state.metadata.get(BpfMap, map)
-        assert utils.definitely_true(self.state.solver, (key != 0) & (value != 0))
         key_data = self.state.memory.load(key, bpfmap.map_def.key_size, endness=self.state.arch.memory_endness)
         value_data = self.state.memory.load(value, bpfmap.map_def.value_size, endness=self.state.arch.memory_endness)
         assert utils.definitely_true(self.state.solver, flags == 0)
@@ -145,6 +140,35 @@ class htab_map_update_elem(angr.SimProcedure):
                 state.maps.set(bpfmap.items, key_data, i)
                 return claripy.BVV(0, 32)
             return utils.fork_guarded(self, state, state.maps.length(bpfmap.items) == bpfmap.map_def.max_entries, case_true, case_false)
+        return utils.fork_guarded_has(self, self.state, bpfmap.items, key_data, case_has, case_not)
+
+# int htab_map_delete_elem(struct bpf_map *map, void *key)
+# pseudo-VeriFast contract:
+#  requires bpfmap(map, ?def, ?values, ?items) &*&
+#           [?f]chars(key, def.key_size, ?key_data);
+#  ensures [f]chars(key, def.key_size, key_data) &*&
+#          switch(ghostmap_get(items, key_data)) {
+#              case some(i): result == 0 &*& bpfmap(map, def, values, ghostmap_remove(items, key_data)) &*&
+#                            <remove the ability of the code to access the corresponding value>;
+#              case none: result == -1 &*& bpfmap(map, def, values, items);
+#          };
+class htab_map_delete_elem(angr.SimProcedure):
+    def run(self, map, key):
+        # Casts
+        map = self.state.casts.ptr(map)
+        key = self.state.casts.ptr(key)
+
+        # Preconditions
+        bpfmap = self.state.metadata.get(BpfMap, map)
+        key_data = self.state.memory.load(key, bpfmap.map_def.key_size, endness=self.state.arch.memory_endness)
+
+        # Postconditions
+        def case_has(state, i):
+            state.maps.remove(bpfmap.items, i)
+            state.heap.take(100, bpfmap.values + i * bpfmap.map_def.value_size)
+            return claripy.BVV(0, 32)
+        def case_not(state):
+            return claripy.BVV(-1, 32)
         return utils.fork_guarded_has(self, self.state, bpfmap.items, key_data, case_has, case_not)
 
 # long bpf_redirect_map(struct bpf_map *map, u32 key, u64 flags)
