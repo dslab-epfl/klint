@@ -855,11 +855,6 @@ def maps_merge_one(states_to_merge, obj, ancestor_maps, ancestor_variables, new_
     if len(states_to_merge) == 0:
         return False
 
-    for map in ancestor_maps._maps.values():
-        ancestor_variables = ancestor_variables - map._unknown_item.key.variables
-        ancestor_variables = ancestor_variables - map._unknown_item.value.variables
-        ancestor_variables = ancestor_variables - map._unknown_item.present.variables
-
     print("Merging map", obj)
     # helper function to find constraints that hold on an expression in a state
     def find_constraints(state, expr, replacement):
@@ -925,14 +920,16 @@ def infer_invariants(ancestor_states, states, previous_results=None):
     # note that we keep track of objs as their string representations to avoid comparing Claripy ASTs (which don't like ==)
     previous_results = copy.deepcopy(previous_results or [])
 
-    # TODO it's ugly we're accessing _maps here...
-    # also we should ensure all maps are equal modulo renaming, which is difficult
     ancestor_maps = ancestor_states[0].maps
     ancestor_objs = [o for (o, _) in ancestor_maps.get_all()]
 
     ancestor_variables = set(ancestor_states[0].solver.variables(claripy.And(*ancestor_states[0].solver.constraints)))
     for st in ancestor_states[1:]:
         ancestor_variables.intersection_update(st.solver.variables(claripy.And(*st.solver.constraints)))
+    for map in ancestor_maps._maps.values():
+        ancestor_variables = ancestor_variables - map._unknown_item.key.variables
+        ancestor_variables = ancestor_variables - map._unknown_item.value.variables
+        ancestor_variables = ancestor_variables - map._unknown_item.present.variables
 
     # Optimization: Ignore maps that have not changed at all
     ancestor_objs = [o for o in ancestor_objs if any(st.maps[o].version() != ancestor_maps[o].version() for st in states)]

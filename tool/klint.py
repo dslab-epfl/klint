@@ -59,7 +59,7 @@ def handle_bpf(args):
 parser = argparse.ArgumentParser()
 parser.add_argument('--use-cached-symbex', type=bool, default=False, help='Verify only, using cached symbolic execution results')
 
-subparsers = parser.add_subparsers()
+subparsers = parser.add_subparsers(dest='command', required=True)
 
 parser_libnf = subparsers.add_parser('libnf', help='Verify a libNF alone')
 parser_libnf.add_argument('file', type=str, help='Path to the libNF .so')
@@ -81,5 +81,5 @@ parser_bpf.add_argument('--override-64bit', type=bool, help='Override 64bit dete
 parser_bpf.set_defaults(func=handle_bpf)
 
 args = parser.parse_args()
-#args = parser.parse_args(['bpf-jited', 'D:/bpf.bin', 'D:/bpf.calls', 'D:/bpf.maps', '--override-linux-version=5.4.0-81-generic', '--override-64bit=True'])
+#For debugging: args = parser.parse_args(['bpf-jited', 'D:/bpf.bin', 'D:/bpf.calls', 'D:/bpf.maps', '--override-linux-version=5.4.0-81-generic', '--override-64bit=True'])
 args.func(args)

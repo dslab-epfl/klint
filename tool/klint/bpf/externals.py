@@ -155,8 +155,7 @@ class htab_map_update_elem(angr.SimProcedure):
 #           [?f]chars(key, def.key_size, ?key_data);
 #  ensures [f]chars(key, def.key_size, key_data) &*&
 #          switch(ghostmap_get(items, key_data)) {
-#              case some(i): result == 0 &*& bpfmap(map, def, values, ghostmap_remove(items, key_data)) &*&
-#                            <remove the ability of the code to access the corresponding value>;
+#              case some(i): result == 0 &*& bpfmap(map, def, values, ghostmap_remove(items, key_data));
 #              case none: result == -1 &*& bpfmap(map, def, values, items);
 #          };
 class htab_map_delete_elem(angr.SimProcedure):
@@ -172,7 +171,8 @@ class htab_map_delete_elem(angr.SimProcedure):
         # Postconditions
         def case_has(state, i):
             state.maps.remove(bpfmap.items, i)
-            state.heap.take(100, bpfmap.values + i * bpfmap.map_def.value_size)
+            # It *feels* like this should be needed but the Linux kernel doesn't actually seem to do it
+            #state.heap.take(100, bpfmap.values + i * bpfmap.map_def.value_size)
             return claripy.BVV(0, 32)
         def case_not(state):
             return claripy.BVV(-1, 32)
