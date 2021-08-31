@@ -349,6 +349,19 @@ class Tests(unittest.TestCase):
         self.assertSolverUnknown(state, v2 == X)
 
 
+    def test_regression_forall_value(self):
+        state = empty_state()
+        o1 = claripy.BVS("O", 64)
+        o2 = claripy.BVS("O", 64)
+        state.maps[o1] = Map.new(state, KEY_SIZE, VALUE_SIZE, "test1", _length=10, _invariants=[lambda i: claripy.true])
+        state.maps[o2] = Map.new(state, VALUE_SIZE, KEY_SIZE, "test2", _length=10, _invariants=[lambda i: claripy.true])
+        state.solver.add(state.maps.forall(o1, lambda k, v: MapHas(o2, v, 1)))
+        (v, p) = state.maps.get(o1, K)
+        state.solver.add(p)
+        state.maps.remove(o1, K)
+        state.maps.set(o2, v, 0)
+        self.assertSolver(state, state.maps.forall(o1, lambda k, v: MapHas(o2, v, 1)))
+
 
     def mergeSetup(self, **kwargs):
         state1 = empty_state()
