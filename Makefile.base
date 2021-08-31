@@ -45,4 +45,4 @@ CFLAGS += -Wno-packed
 endif
 
 # Debug log
- CFLAGS += -DDEBUG_LEVEL=1
+# CFLAGS += -DDEBUG_LEVEL=1

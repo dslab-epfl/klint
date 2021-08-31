@@ -4,6 +4,7 @@ import argparse
 
 from klint import statistics
 import klint.bpf.analysis as bpf_analysis
+import klint.bpf.detection as bpf_detection
 import klint.bpf.executor as bpf_executor
 import klint.executor as nf_executor
 import klint.verif.persistence as verif_persist
@@ -49,6 +50,10 @@ def handle_fullstack(args):
     verif(cached_data_path, args.spec)
 
 def handle_bpf(args):
+    if args.override_linux_version is not None:
+        bpf_detection.override_linux_version(args.override_linux_version)
+    if args.override_64bit is not None:
+        bpf_detection.override_64bit(args.override_64bit)
     bpf_executor.execute(args.binary, args.calls, args.maps)
 
 parser = argparse.ArgumentParser()
@@ -71,7 +76,10 @@ parser_bpf.add_argument('binary', type=str, help='Path to the dumped JITed binar
 parser_bpf.add_argument('calls', type=str, help='Path to a file with one line per called BPF helper, format "[hex kernel address] [name]"')
 parser_bpf.add_argument('maps', type=str, help='Path to a file with one line per BPF map, format "[hex kernel address] [hex data]"')
 parser_bpf.add_argument('spec', type=str, nargs='?', help='Path to the specification')
+parser_bpf.add_argument('--override-linux-version', type=str, help='Override Linux version detection')
+parser_bpf.add_argument('--override-64bit', type=bool, help='Override 64bit detection')
 parser_bpf.set_defaults(func=handle_bpf)
 
 args = parser.parse_args()
+#args = parser.parse_args(['bpf-jited', 'D:/bpf.bin', 'D:/bpf.calls', 'D:/bpf.maps', '--override-linux-version=5.4.0-81-generic', '--override-64bit=True'])
 args.func(args)

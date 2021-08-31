@@ -855,6 +855,11 @@ def maps_merge_one(states_to_merge, obj, ancestor_maps, ancestor_variables, new_
     if len(states_to_merge) == 0:
         return False
 
+    for map in ancestor_maps._maps.values():
+        ancestor_variables = ancestor_variables - map._unknown_item.key.variables
+        ancestor_variables = ancestor_variables - map._unknown_item.value.variables
+        ancestor_variables = ancestor_variables - map._unknown_item.present.variables
+
     print("Merging map", obj)
     # helper function to find constraints that hold on an expression in a state
     def find_constraints(state, expr, replacement):
