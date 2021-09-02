@@ -5,6 +5,8 @@ from collections import namedtuple
 from kalm import clock
 from kalm import utils
 from klint.bpf import detection
+from klint.bpf import packet
+from klint.ghostmaps import MapHas
 
 BpfMapDef = namedtuple('BpfMapDef', ['type', 'key_size', 'value_size', 'max_entries', 'flags'])
 BpfMap = namedtuple('BpfMap', ['map_def', 'values', 'items'])
@@ -221,6 +223,18 @@ class bpf_ktime_get_ns(angr.SimProcedure):
 
 # s64 bpf_csum_diff(__be32 *from, u32 from_size, __be32 *to, u32 to_size, __wsum seed)
 class bpf_csum_diff(angr.SimProcedure):
-    def run(self):
+    def run(self, fromm, from_size, to, to_size, seed):
         # we don't really handle checksums for now, anyway this is just engineering
+        return 0
+
+# long bpf_xdp_adjust_head(struct xdp_buff *xdp_md, int delta)
+class bpf_xdp_adjust_head(angr.SimProcedure):
+    def run(self, xdp_md, delta):
+        (data, length) = packet.get_data_and_length(self.state, xdp_md)
+        assert utils.definitely_true(self.state.solver, length.SGE(delta)) # theoretically we should return -1 but for now let's just fail
+        new_data_length = length - delta
+        new_data = self.state.heap.allocate(new_data_length, 1, name="new_data")
+        self.state.solver.add(self.state.maps.forall(data, lambda k, v: ~(k.SGE(delta)) | MapHas(new_data, k - delta, v)))
+        packet.set_data(self.state, xdp_md, new_data, new_data_length)
+        # TODO: should we randomly fail to mimic an allocation failure? can this ever happen in the kernel?
         return 0
