@@ -230,11 +230,17 @@ class bpf_csum_diff(angr.SimProcedure):
 # long bpf_xdp_adjust_head(struct xdp_buff *xdp_md, int delta)
 class bpf_xdp_adjust_head(angr.SimProcedure):
     def run(self, xdp_md, delta):
+        xdp_md = self.state.casts.ptr(xdp_md)
+        delta = self.state.casts.uint32_t(delta).sign_extend(self.state.sizes.ptr - 32) # need to extend it so we can use it with pointer-sized stuff...
+
         (data, length) = packet.get_data_and_length(self.state, xdp_md)
-        assert utils.definitely_true(self.state.solver, length.SGE(delta)) # theoretically we should return -1 but for now let's just fail
-        new_data_length = length - delta
-        new_data = self.state.heap.allocate(new_data_length, 1, name="new_data")
-        self.state.solver.add(self.state.maps.forall(data, lambda k, v: ~(k.SGE(delta)) | MapHas(new_data, k - delta, v)))
-        packet.set_data(self.state, xdp_md, new_data, new_data_length)
+        def case_true(state):
+            new_data_length = length - delta
+            new_data = state.heap.allocate(new_data_length, 1, name="new_data")
+            state.solver.add(state.maps.forall(data, lambda k, v: ~(k.SGE(delta)) | MapHas(new_data, k - delta, v)))
+            packet.set_data(state, xdp_md, new_data, new_data_length)
+            return claripy.BVV(0, 64)
+        def case_false(state):
+            return claripy.BVV(-1, 64)
         # TODO: should we randomly fail to mimic an allocation failure? can this ever happen in the kernel?
-        return 0
+        return utils.fork_guarded(self, self.state, length.SGE(delta), case_true, case_false)

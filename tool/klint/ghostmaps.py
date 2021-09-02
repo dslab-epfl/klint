@@ -281,15 +281,20 @@ class Map:
         if all(utils.structural_eq(self, o) for o in others):
             return True
         if any(o.meta.key_size != self.meta.key_size or o.meta.value_size != self.meta.value_size for o in others):
+            print("Different meta")
             return False
         if any(not utils.structural_eq(self._invariants, o._invariants) for o in others):
+            print("Different invariants")
             return False
         self_ver = self.version()
         if any(o.version() != self_ver for o in others):
+            print("Different versions")
             return False
-        if any(abs(len(o._known_items) - len(self._known_items)) > 1 for o in others):
+        if any(abs(len(o._known_items) - len(self._known_items)) > 4 for o in others):
+            print("Too many different known items", [len(o._known_items) - len(self._known_items) for o in others])
             return False
         if self_ver > 0 and not self._previous.can_merge([o._previous for o in others]):
+            print("Previous cannot be merged")
             return False
         return True
 

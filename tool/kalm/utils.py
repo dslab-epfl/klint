@@ -141,7 +141,17 @@ def base_index_offset(state, addr, meta_type, allow_failure=False):
     if simple_addr is not None:
         return (simple_addr, claripy.BVV(0, 64), 0) # Directly addressing a base, i.e., base[0]
 
+    def force_burrow_ite(value):
+        # claripy's ite_burrowed except it's recursive
+        # so that if(x, a + 1, if(y, a + 2, if(z, a + 3, a + 4))) turns into a + if(x, 1, if(y, 2, if(z, 3, 4)))
+        if value.op != 'If':
+            return value
+        return claripy.If(value.args[0], force_burrow_ite(value.args[1]), force_burrow_ite(value.args[2])).ite_burrowed
+
     def simplify(value):
+        # uggggh angr why do you do this to me? :( the case that inspired this is one that looks like ite_excavated/burrowed should easily work but it did not...
+        if value.op == '__add__':
+            return sum(simplify(a) for a in value.args)
         # Sometimes we get an If or a Concat that fits our assumptions fine but only if we first excavate then burrow the ifs
         # e.g. concat(If(X, a1, b1), If(X, a2, b2), ...) -> If(X, concat(a1, a2, ...), concat(b1, b2, ...))
         value = value.ite_excavated
@@ -155,7 +165,7 @@ def base_index_offset(state, addr, meta_type, allow_failure=False):
             else:
                 break # no more simplification possible
             value = value.ite_excavated
-        return state.solver.simplify(value.ite_burrowed)
+        return state.solver.simplify(force_burrow_ite(value))
 
     addr = simplify(addr)
 
