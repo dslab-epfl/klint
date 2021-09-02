@@ -21,6 +21,10 @@ def map_init(state, addr, map_def):
         values = state.heap.allocate(map_def.max_entries, map_def.value_size, default_fraction=0)
         items = state.maps.new(map_def.key_size * 8, state.sizes.ptr, "bpf_map")
         state.metadata.append(addr, BpfMap(map_def, values, items))
+    elif type == 2 or type == 6:
+        # Array and per-cpu array, treat them the same
+        values = state.heap.allocate(map_def.max_entries, map_def.value_size)
+        state.metadata.append(addr, BpfMap(map_def, values, None))
     elif type == 14:
         # Dev map, only for redirect calls, we don't fully model those yet
         return
@@ -39,6 +43,11 @@ def align(n, val):
 # void *bpf_map_lookup_elem(struct bpf_map *map, const void *key)
 class bpf_map_lookup_elem(angr.SimProcedure):
     def run(self, map, key):
+        bpfmap = self.state.metadata.get(BpfMap, map)
+        if bpfmap.items is None:
+            # Array
+            return self.state.memory.load(bpfmap.values + key * bpfmap.map_def.value_size, bpfmap.map_def.value_size, endness=self.state.arch.memory_endness)
+
         print("lookup", map, key)
         print("map", self.state.metadata.get(BpfMap, map))
         raise "TODO"
@@ -46,6 +55,14 @@ class bpf_map_lookup_elem(angr.SimProcedure):
 # long bpf_map_update_elem(struct bpf_map *map, const void *key, const void *value, u64 flags)
 class bpf_map_update_elem(angr.SimProcedure):
     def run(self, map, key, value, flags):
+        assert utils.definitely_true(self.state.solver, flags == 0)
+
+        bpfmap = self.state.metadata.get(BpfMap, map)
+        if bpfmap.items is None:
+            # Array
+            self.state.memory.store(bpfmap.values + key * bpfmap.map_def.value_size, value, endness=self.state.arch.memory_endness)
+            return
+
         print("update", map, key, value, flags)
         print("map", self.state.metadata.get(BpfMap, map))
         raise "TODO"
