@@ -926,10 +926,10 @@ def infer_invariants(ancestor_states, states, previous_results=None):
     ancestor_variables = set(ancestor_states[0].solver.variables(claripy.And(*ancestor_states[0].solver.constraints)))
     for st in ancestor_states[1:]:
         ancestor_variables.intersection_update(st.solver.variables(claripy.And(*st.solver.constraints)))
-    for map in ancestor_maps._maps.values():
-        ancestor_variables = ancestor_variables - map._unknown_item.key.variables
-        ancestor_variables = ancestor_variables - map._unknown_item.value.variables
-        ancestor_variables = ancestor_variables - map._unknown_item.present.variables
+    for m in ancestor_maps._maps.values():
+        ancestor_variables = ancestor_variables - m._unknown_item.key.variables
+        ancestor_variables = ancestor_variables - m._unknown_item.value.variables
+        ancestor_variables = ancestor_variables - m._unknown_item.present.variables
 
     # Optimization: Ignore maps that have not changed at all
     ancestor_objs = [o for o in ancestor_objs if any(st.maps[o].version() != ancestor_maps[o].version() for st in states)]
