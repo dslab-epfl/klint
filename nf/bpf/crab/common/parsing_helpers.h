@@ -138,9 +138,6 @@ static __always_inline int parse_iphdr(struct hdr_cursor *nh,
 	if (iph + 1 > data_end)
 		return -1;
 
-// ADDED:
-	if (iph->ihl != 5) return -1;
-
 	hdrsize = iph->ihl * 4;
 	/* Sanity check packet field is valid */
 	if(hdrsize < sizeof(iph))

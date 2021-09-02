@@ -1,4 +1,1 @@
-These files, except `main.c`, `spec.py`, and `Makefile`, come from the CRAB load balancer implementation.
-
-They were modified to give up when there are IP options, since this is a pain to symbex and anyway Katran shows it's not realistic to support them.
-See the "ADDED:" line in `common/parsing_helpers.h`
+`lb_kern.c` and `common/parsing_helpers.c` are from the CRAB repo, https://github.com/epfl-dcsl/crab/tree/master/middlebox/ebpf, commit 907e7674c6963f259b20e66c33c490e269c31221
