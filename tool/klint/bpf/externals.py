@@ -218,3 +218,9 @@ class bpf_ktime_get_ns(angr.SimProcedure):
     def run(self):
         (time, _) = clock.get_time_and_cycles(self.state)
         return time
+
+# s64 bpf_csum_diff(__be32 *from, u32 from_size, __be32 *to, u32 to_size, __wsum seed)
+class bpf_csum_diff(angr.SimProcedure):
+    def run(self):
+        # we don't really handle checksums for now, anyway this is just engineering
+        return 0
