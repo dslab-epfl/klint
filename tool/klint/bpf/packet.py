@@ -67,15 +67,13 @@ def create(state):
     state.memory.store(packet + buff_data_offset, data, endness=state.arch.memory_endness)
     state.memory.store(packet + buff_dataend_offset, data + data_length, endness=state.arch.memory_endness)
     state.memory.store(packet + buff_rxq_offset, rxq, endness=state.arch.memory_endness)
-    print("packet", packet, buff_data_offset)
     return packet
 
 def get_data_and_length(state, packet):
-    print("get data packet", packet, buff_data_offset)
     data = state.memory.load(packet + buff_data_offset, state.sizes.ptr // 8, endness=state.arch.memory_endness)
     data_end = state.memory.load(packet + buff_dataend_offset, state.sizes.ptr // 8, endness=state.arch.memory_endness)
     return (data, data_end - data)
 
 def set_data(state, packet, data, length):
     state.memory.store(packet + buff_data_offset, data, endness=state.arch.memory_endness)
-    state.memory.store(packet + buff_data_offset, data + length, endness=state.arch.memory_endness)
+    state.memory.store(packet + buff_dataend_offset, data + length, endness=state.arch.memory_endness)

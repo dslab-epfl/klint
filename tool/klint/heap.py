@@ -117,7 +117,8 @@ class HeapPlugin(SimStatePlugin):
                 print("offset", state.solver.eval_upto(offset, 10))
                 print("fraction", state.solver.eval_upto(fraction, 10))
                 print("present", state.solver.eval_upto(present, 10))
-                assert False
+                print("rip", state.regs.rip)
+                raise Exception("oh no")
             # Read (we know it's present since we just checked the fractions)
             chunk, _ = state.maps.get(base, index)
             # Remember the result
@@ -156,7 +157,8 @@ class HeapPlugin(SimStatePlugin):
                 print("offset", state.solver.eval_upto(offset, 10))
                 print("fraction", state.solver.eval_upto(fraction, 10))
                 print("present", state.solver.eval_upto(present, 10))
-                assert False
+                print("rip", state.regs.rip)
+                raise Exception("oh no")
             # The rest may be smaller than the write size, need to account for that
             chunk = rest[min(rest.size(), write_size)-1:0]
             # If we have to write at an offset, which can only happen on the first chunk, we need to write less

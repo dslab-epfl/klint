@@ -232,6 +232,7 @@ class bpf_xdp_adjust_head(angr.SimProcedure):
     def run(self, xdp_md, delta):
         xdp_md = self.state.casts.ptr(xdp_md)
         delta = self.state.casts.uint32_t(delta).sign_extend(self.state.sizes.ptr - 32) # need to extend it so we can use it with pointer-sized stuff...
+        print("adjust_head", xdp_md, delta)
 
         (data, length) = packet.get_data_and_length(self.state, xdp_md)
         def case_true(state):
