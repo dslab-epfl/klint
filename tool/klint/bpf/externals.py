@@ -74,6 +74,10 @@ class bpf_map_delete_elem(angr.SimProcedure):
         print("map", self.state.metadata.get(BpfMap, map))
         raise "TODO"
 
+class percpu_array_map_lookup_elem(angr.SimProcedure):
+    def run(self, map, key):
+        return self.inline_call(bpf_map_lookup_elem, map, key)
+
 # void *__htab_map_lookup_elem(struct bpf_map *map, void *key)
 # The specialized hash version of bpf_map_lookup_elem.
 # Returns NULL iff lookup failed, else a pointer to the actual value in the map (i.e., not a copy, can be mutated by users)
