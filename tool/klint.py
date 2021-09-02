@@ -11,9 +11,8 @@ import klint.verif.persistence as verif_persist
 import klint.verif.executor as verif_executor
 
 # kept here to ease debugging
-#import tests.test
-#tests.test.Tests().test_merge_leftget()
-#sys.exit(0)
+#import tests.test ; import sys
+#tests.test.Tests().test_forall_subset() ; sys.exit(0)
 
 
 def verif(data_path, spec):
