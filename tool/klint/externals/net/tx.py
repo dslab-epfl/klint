@@ -7,8 +7,6 @@ from . import packet
 
 TransmissionMetadata = namedtuple("TransmissionMetadata", ["data_addr", "length", "flags", "is_flood", "device", "excluded_devices"])
 
-# TODO enforce model where it's the "right" buffer we're sending and enforce the NF doesn't touch it afterwards
-
 # void net_transmit(struct net_packet* packet, device_t device, enum net_transmit_flags flags);
 class net_transmit(angr.SimProcedure):
     def run(self, pkt, device, flags):
@@ -21,8 +19,6 @@ class net_transmit(angr.SimProcedure):
 
         metadata = self.state.metadata.get_one(packet.NetworkMetadata)
         metadata.transmitted.append(TransmissionMetadata(data_addr, length, flags, False, device, None))
-
-        #self.state.heap.take(None, data_addr - packet.PACKET_MTU)
 
 # void net_flood(struct net_packet* packet, enum net_transmit_flags flags);
 class net_flood(angr.SimProcedure):
@@ -37,8 +33,6 @@ class net_flood(angr.SimProcedure):
         metadata = self.state.metadata.get_one(packet.NetworkMetadata)
         metadata.transmitted.append(TransmissionMetadata(data_addr, length, flags, True, device, None))
 
-        #self.state.heap.take(None, data_addr - packet.PACKET_MTU)
-
 # void net_flood_except(struct net_packet* packet, bool* disabled_devices, enum net_transmit_flags flags);
 class net_flood_except(angr.SimProcedure):
     def run(self, pkt, disabled_devices, flags):
@@ -52,5 +46,3 @@ class net_flood_except(angr.SimProcedure):
 
         metadata = self.state.metadata.get_one(packet.NetworkMetadata)
         metadata.transmitted.append(TransmissionMetadata(data_addr, length, flags, True, device, disabled_devices))
-
-        #self.state.heap.take(None, data_addr - packet.PACKET_MTU)
