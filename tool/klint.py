@@ -54,6 +54,7 @@ def handle_bpf(args):
     if args.override_64bit is not None:
         bpf_detection.override_64bit(args.override_64bit)
     bpf_executor.execute(args.binary, args.calls, args.maps)
+    verif(None, None) # no actual verif for bpf-jited for now...
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--use-cached-symbex', type=bool, default=False, help='Verify only, using cached symbolic execution results')

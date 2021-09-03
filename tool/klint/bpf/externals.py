@@ -14,7 +14,6 @@ BpfMap = namedtuple('BpfMap', ['map_def', 'values', 'items'])
 
 # Not an external, called to mimic the kernel initializing a map
 def map_init(state, addr, map_def):
-    print("Map init", addr, map_def)
     assert utils.definitely_true(state.solver, map_def.flags == 0) # no flags handled yet
 
     type = utils.get_if_constant(state.solver, map_def.type)
@@ -33,9 +32,14 @@ def map_init(state, addr, map_def):
         else:
             raise("Sorry, you need to do some work here as well: " + __file__)
 
-        state.heap.allocate(map_def.max_entries, map_def.value_size, addr=addr+offset)
+        # The kernel rounds up the value size
+        value_size = claripy.If(map_def.value_size < 8, 8, map_def.value_size)
+        state.heap.allocate(map_def.max_entries, value_size, addr=addr+offset)
     elif type == 6:
         # Per-cpu array, like an array but accessed with explicit function calls
+        # The kernel rounds up the value size
+        value_size = claripy.If(map_def.value_size < 8, 8, map_def.value_size)
+        map_def = BpfMapDef(map_def.type, map_def.key_size, value_size, map_def.max_entries, map_def.flags)
         values = state.heap.allocate(map_def.max_entries, map_def.value_size)
         state.metadata.append(addr, BpfMap(map_def, values, None))
     elif type == 14:
@@ -96,10 +100,7 @@ class bpf_map_delete_elem(angr.SimProcedure):
 
 class percpu_array_map_lookup_elem(angr.SimProcedure):
     def run(self, map, key):
-        #return self.inline_call(bpf_map_lookup_elem, map, key).ret_expr
-        result = self.inline_call(bpf_map_lookup_elem, map, key).ret_expr
-        print("!!!percpu", result)
-        return result
+        return self.inline_call(bpf_map_lookup_elem, map, key).ret_expr
 
 # void *__htab_map_lookup_elem(struct bpf_map *map, void *key)
 # The specialized hash version of bpf_map_lookup_elem.
@@ -253,7 +254,6 @@ class bpf_xdp_adjust_head(angr.SimProcedure):
     def run(self, xdp_md, delta):
         xdp_md = self.state.casts.ptr(xdp_md)
         delta = self.state.casts.uint32_t(delta).sign_extend(self.state.sizes.ptr - 32) # need to extend it so we can use it with pointer-sized stuff...
-        print("adjust_head", xdp_md, delta)
 
         length = packet.get_length(self.state, xdp_md)
         def case_true(state):

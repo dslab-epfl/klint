@@ -281,50 +281,37 @@ class Map:
         if all(utils.structural_eq(self, o) for o in others):
             return True
         if any(o.meta.key_size != self.meta.key_size or o.meta.value_size != self.meta.value_size for o in others):
-            print("Different meta")
+            #print("Different meta")
             return False
         if any(not utils.structural_eq(self._invariants, o._invariants) for o in others):
-            print("Different invariants")
+            #print("Different invariants")
             return False
         self_ver = self.version()
         if any(o.version() != self_ver for o in others):
-            print("Different versions")
+            #print("Different versions")
             return False
-        #if any(abs(len(o._known_items) - len(self._known_items)) > 4 for o in others):
-        #    print("Too many different known items", [len(o._known_items) - len(self._known_items) for o in others])
-        #    return False
         if self_ver > 0 and not self._previous.can_merge([o._previous for o in others]):
-            print("Previous cannot be merged")
+            #print("Previous cannot be merged")
             return False
-        return False
+        return True
 
     # This assumes the solvers have already been merged
     def merge(self, state, others, other_states, merge_conditions):
-#        print("begin merge, num_known_items=", [len(m.known_items()) for m in [self] + others])
         for (o, mc) in zip(others, merge_conditions[1:]):
-#            print("splitting")
             (only_left, both, only_right) = utils.structural_diff(self._known_items, o._known_items)
             # Items that were only here are subject to the invariant if the merge condition holds
             for i in only_left:
-#                print("adding only left: " + str(i))
                 state.solver.add(*[Implies(mc, inv(state, i)) for inv in self.invariant_conjunctions()])
             # Other items must be those of the other state if the merge condition holds
             for i in both + only_right:
-#                print("Adding item " + str(i) + " to merged constraints...")
                 (v, p) = self.get(state, i.key)
-#                print("(v,p) = (" + str(v) + ", " + str(p) + ")")
                 state.solver.add(Implies(mc, (v == i.value) & (p == i.present)))
-#                print("done adding")
         # Basic map invariants have to hold no matter what
         for (n, it) in enumerate(self._known_items):
-#            print("Adding basic inv")
             state.solver.add(*[Implies(i.key == oi.key, (i.value == oi.value) & (i.present == oi.present)) for oi in self._known_items[(n+1):] + [self._unknown_item]])
-#            print("done adding basic inv")
         state.solver.add(self.is_not_overfull())
         if self._previous is not None:
-#            print("merging previous")
             self._previous.merge(state, [o._previous for o in others], other_states, merge_conditions)
-#        print("done!")
 
     # === Private API, also used by invariant inference ===
     # TODO sort out what's actually private and not; verif also uses stuff...

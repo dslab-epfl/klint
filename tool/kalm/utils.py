@@ -127,10 +127,10 @@ def structural_diff(left, right):
 # - 'index': BV, is a symbolic index
 # - 'offset': int, is an offset in bits, concrete
 def base_index_offset(state, addr, meta_type, allow_failure=False):
-    if isinstance(addr, int):
-        if allow_failure:
-            return (None, None, None)
-        raise Exception("B_I_O was given an int")
+#    if isinstance(addr, int):
+#        if allow_failure:
+#            return (None, None, None)
+#        raise Exception("B_I_O was given an int")
 
     def force_burrow_ite(value):
         # claripy's ite_burrowed except it's recursive
@@ -163,9 +163,21 @@ def base_index_offset(state, addr, meta_type, allow_failure=False):
     if addr.op == '__add__':
         (base, meta) = state.metadata.find(meta_type, addr.args)
         if base is None:
-            # Annoying tricky part that defeat the entire purpose of this: when we symbex JITed BPF code, the "arrays" are at fixed offsets
-            # So if there are any non-symbolic keys in the metadata, try them all manually
-            raise "TODO"
+            # Annoying tricky part that goes against the design of this function:
+            # when we symbex JITed BPF code, the "arrays" are at fixed offsets
+            # So if there are any non-symbolic keys in the metadata, try them all manually...
+            for (k, v) in state.metadata.get_all(meta_type).items():
+                if not k.symbolic:
+                    for arg in addr.args:
+                        if not arg.symbolic:
+                            if definitely_true(state.solver, (arg - k).ULT(v.size)):
+                                base = k
+                                meta = v
+                                addr = addr - arg + base # trick so the 'added' later works, let's not dirty the "clean" path
+                                break
+                    if base is not None:
+                        break
+        if base is None:
             if allow_failure:
                 return (None, None, None)
             raise Exception("!= 1 candidate for base??? are you symbolically indexing a global variable or something?")

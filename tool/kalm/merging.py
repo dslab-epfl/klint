@@ -8,9 +8,9 @@ def merge_states(states):
     if len(states) == 0:
         raise Exception("Zero states to merge??")
 
-    if True or len(states) >= 50:
+    if len(states) >= 50:
         # Don't even bother trying, odds of succeeding are slim given our current heuristics
-        #print("Not bothering to try a merge with", len(states), "states")
+        print("Not bothering to try a merge with", len(states), "states")
         return (states[0], [], states[1:])
 
     # Filter out the states with a different callstack, to be merged later
@@ -26,7 +26,7 @@ def merge_states(states):
 
     if len(to_merge) == 1:
         return (to_merge[0], [], [])
-    print("Trying to merge", len(to_merge), "states")
+    #print("Trying to merge", len(to_merge), "states")
 
     merge_flag = claripy.BVS("state_merge", math.ceil(math.log2(len(to_merge))))
     merge_conds = [(merge_flag == n) for n in range(len(to_merge))]
@@ -51,10 +51,10 @@ def merge_states(states):
         other_plugins = [getattr(st, plugin) for st in to_merge[1:]]
 
         if not our_plugin.merge(other_plugins, merge_conds):
-            # Memory (of which register is a kind) returns false if nothing was merged, but that just means the memory was untouched
+            # Memory (of which registers is a kind) returns false if nothing was merged, but that just means the memory was untouched
             if plugin in ('memory', 'registers'):
                 continue
-            print("Merge failed because of", plugin)
+            #print("Merge failed because of", plugin)
             return (to_merge[0], deferred, to_merge[1:])
     return (merged, deferred, [])
 

@@ -98,7 +98,6 @@ def adjust_data_head(state, packet, delta):
     new_length = length - delta
     new_data = state.heap.allocate(1, PACKET_MTU, name="new_data")
     existing_value = state.memory.load(data, PACKET_MTU, endness=state.arch.memory_endness)
-    print(existing_value, delta)
     if delta >= 0:
         state.memory.store(new_data, existing_value[:delta], endness=state.arch.memory_endness)
     else:
