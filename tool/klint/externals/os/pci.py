@@ -55,10 +55,9 @@ class os_pci_enumerate(angr.SimProcedure):
         meta = self.state.metadata.get_all(PciDevices)
         if len(meta) == 0:
             self.state.solver.add(count.ULT(256 * 32 * 8)) # 256 buses, 32 devices, 8 functions
-            meta = PciDevices(
-                self.state.heap.allocate(count, 8, name="pci_devices", constraint=lambda k, v: (v & 0xFFFF_FFFF_FFF8_E000) == 0), # 8 == sizeof(os_pci_address); enforce constraints on BDF and padding
-                count
-            )
+            addr = self.state.heap.allocate(count, 8, name="pci_devices") # 8 == sizeof(os_pci_address)
+            self.state.solver.add(self.state.maps.forall(addr, lambda k, v: (v & 0xFFFF_FFFF_FFF8_E000) == 0) # enforce constraints on BDF and padding
+            meta = PciDevices(addr, count)
             self.state.metadata.append(None, meta)
             # ouch! TODO we need to do better... see above if count were to be symbolic
             self.state.solver.add(self.state.memory.load(meta.ptr + 0 * 8, 8, endness=self.state.arch.memory_endness) != self.state.memory.load(meta.ptr + 1 * 8, 8, endness=self.state.arch.memory_endness))

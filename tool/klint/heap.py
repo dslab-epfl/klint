@@ -21,7 +21,7 @@ class HeapPlugin(SimStatePlugin):
     def merge(self, others, merge_conditions, common_ancestor=None):
         return True
 
-    def allocate(self, count, size, default=None, default_fraction=100, name=None, constraint=None, addr=None):
+    def allocate(self, count, size, default=None, default_fraction=100, addr=None, name=None):
         max_size = self.state.solver.max(size)
         if max_size > 4096:
             raise Exception("That's a huge block you want to allocate... let's just not: " + str(max_size))
@@ -36,10 +36,6 @@ class HeapPlugin(SimStatePlugin):
                 self.state.maps.set(addr, claripy.BVV(0, self.state.sizes.ptr), default) # simpler
             else:
                 self.state.solver.add(self.state.maps.forall(addr, lambda k, v: v == default))
-
-        # Add the constraint if needed
-        if constraint is not None:
-            self.state.solver.add(self.state.maps.forall(addr, constraint))
 
         # Add constraints on the addr so it's neither null nor so high it overflows (note the count+1 becaus 1-past-the-array is legal)
         self.state.solver.add(
