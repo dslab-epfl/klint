@@ -6,9 +6,6 @@ from collections import namedtuple
 from kalm import utils
 
 
-# TODO: Only query the fractions map if 'take' has been called at least once for it;
-#       but this means there may be maps created during the main loop body, how to handle that?
-
 # All sizes are in bytes, and all offsets are in bits
 class HeapPlugin(SimStatePlugin):
     FRACS_NAME = "_fracs"
@@ -21,7 +18,7 @@ class HeapPlugin(SimStatePlugin):
     def merge(self, others, merge_conditions, common_ancestor=None):
         return True
 
-    def allocate(self, count, size, default=None, default_fraction=100, addr=None, name=None):
+    def allocate(self, count, size, ephemeral=False, default=None, default_fraction=100, addr=None, name=None):
         max_size = self.state.solver.max(size)
         if max_size > 4096:
             raise Exception("That's a huge block you want to allocate... let's just not: " + str(max_size))
@@ -43,9 +40,12 @@ class HeapPlugin(SimStatePlugin):
             addr.ULE(claripy.BVV(-1, self.state.sizes.ptr) - ((count + 1) * size))
         )
 
-        # Create the corresponding fractions
-        fractions = self.state.maps.new_array(self.state.sizes.ptr, 8, count, name + HeapPlugin.FRACS_NAME)
-        self.state.solver.add(self.state.maps.forall(fractions, lambda k, v: v == default_fraction))
+        # Create the corresponding fractions if needed
+        if ephemeral:
+            fractions = None
+        else:
+            fractions = self.state.maps.new_array(self.state.sizes.ptr, 8, count, name + HeapPlugin.FRACS_NAME)
+            self.state.solver.add(self.state.maps.forall(fractions, lambda k, v: v == default_fraction))
 
         # Record this info
         self.state.metadata.append(addr, HeapPlugin.Metadata(count, size, fractions))
@@ -56,12 +56,15 @@ class HeapPlugin(SimStatePlugin):
         return addr
 
 
+    # TODO: this should be named 'borrow', but then the other must be 'return' and that's not feasible in Python... better name?
     def take(self, fraction, ptr): # fraction == None -> take all
         (base, index, offset) = utils.base_index_offset(self.state, ptr, HeapPlugin.Metadata)
         if offset != 0:
-            raise Exception("Cannot take at an offset")
+            raise Exception("Cannot borrow at an offset")
 
         meta = self.state.metadata.get(HeapPlugin.Metadata, base)
+        if meta.fractions is None:
+            raise Exception("Cannot borrow from an ephemeral allocation")
 
         current_fraction, present = self.state.maps.get(meta.fractions, index)
         if fraction is None:
@@ -76,9 +79,11 @@ class HeapPlugin(SimStatePlugin):
     def give(self, fraction, ptr):
         (base, index, offset) = utils.base_index_offset(self.state, ptr, HeapPlugin.Metadata)
         if offset != 0:
-            raise Exception("Cannot give at an offset")
+            raise Exception("Cannot release at an offset")
 
         meta = self.state.metadata.get(HeapPlugin.Metadata, base)
+        if meta.fractions is None:
+            raise Exception("Cannot release to an ephemeral allocation")
 
         current_fraction, present = self.state.maps.get(meta.fractions, index)
         assert utils.definitely_true(self.state.solver, present & (current_fraction + fraction).ULE(100))
@@ -103,21 +108,14 @@ class HeapPlugin(SimStatePlugin):
         # Handle reads larger than the actual size, e.g. read an uint64_t from an array of uint8_t
         result = claripy.BVV(0, 0)
         while result.size() < size * 8 + offset:
+            chunk, present = state.maps.get(base, index)
             # Ensure we can read
-            fraction, present = state.maps.get(meta.fractions, index)
-            # TODO remove the prints here
-            #assert utils.definitely_true(state.solver, present & (fraction != 0))
-            if not utils.definitely_true(state.solver, present & (fraction != 0)):
-                print("base, index, offset, fraction, present", base, index, offset, fraction, present)
-                print("index", state.solver.eval_upto(index, 10))
-                print("offset", state.solver.eval_upto(offset, 10))
-                print("fraction", state.solver.eval_upto(fraction, 10))
-                print("present", state.solver.eval_upto(present, 10))
-                print("rip", state.regs.rip)
-                import pdb; pdb.set_trace()
-                raise Exception("oh no")
-            # Read (we know it's present since we just checked the fractions)
-            chunk, _ = state.maps.get(base, index)
+            if meta.fractions is None:
+                assert utils.definitely_true(state.solver, present)
+            else:
+                fraction, fraction_present = state.maps.get(meta.fractions, index)
+                # fraction_present == present by construction so no need to check both
+                assert utils.definitely_true(state.solver, fraction_present & (fraction != 0))
             # Remember the result
             result = chunk.concat(result)
             # Increment the index for the next chunk
@@ -144,18 +142,10 @@ class HeapPlugin(SimStatePlugin):
         rest = value
         write_size = state.maps.value_size(base)
         while rest.size() != 0:
-            # Ensure we can actually write
-            fraction, present = state.maps.get(meta.fractions, index)
-            # TODO remove the prints here
-            #assert utils.definitely_true(state.solver, present & (fraction == 100))
-            if not utils.definitely_true(state.solver, present & (fraction == 100)):
-                print("base, index, offset, fraction, present", base, index, offset, fraction, present)
-                print("index", state.solver.eval_upto(index, 10))
-                print("offset", state.solver.eval_upto(offset, 10))
-                print("fraction", state.solver.eval_upto(fraction, 10))
-                print("present", state.solver.eval_upto(present, 10))
-                print("rip", state.regs.rip)
-                raise Exception("oh no")
+            if meta.fractions is not None:
+                # Ensure we can actually write
+                fraction, present = state.maps.get(meta.fractions, index)
+                assert utils.definitely_true(state.solver, present & (fraction == 100))
             # The rest may be smaller than the write size, need to account for that
             chunk = rest[min(rest.size(), write_size)-1:0]
             # If we have to write at an offset, which can only happen on the first chunk, we need to write less

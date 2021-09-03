@@ -52,7 +52,7 @@ def create(state):
     # Allocate symbolic data
     # Unfortunately for now our maps aren't efficient enough to handle the inefficiencies of a memcpy in bpf :/
     # e.g. copying ethernet+ip+tcp headers byte-by-byte creates like 50 items in the map and our algorithm is O(n^2) because it assumes there are few items
-    data = state.heap.allocate(1, PACKET_MTU, name="data")
+    data = state.heap.allocate(1, PACKET_MTU, ephemeral=True, name="data")
 
     # BPF programs assume they can do incorrect calculations like `data + offset > data_end` to check if `offset` is too far,
     # even though theoretically length could be 0 and data could be so high that `data + offset` overflows.
