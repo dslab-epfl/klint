@@ -21,14 +21,14 @@ class HeapPlugin(SimStatePlugin):
     def merge(self, others, merge_conditions, common_ancestor=None):
         return True
 
-    def allocate(self, count, size, default=None, default_fraction=100, name=None, constraint=None):
+    def allocate(self, count, size, default=None, default_fraction=100, name=None, constraint=None, addr=None):
         max_size = self.state.solver.max(size)
         if max_size > 4096:
             raise Exception("That's a huge block you want to allocate... let's just not: " + str(max_size))
 
         # Create a map
         name = (name or "memory") + "_addr"
-        addr = self.state.maps.new_array(self.state.sizes.ptr, max_size * 8, count, name)
+        addr = self.state.maps.new_array(self.state.sizes.ptr, max_size * 8, count, name, obj=addr)
 
         # Set the default value if needed
         if default is not None:
@@ -118,6 +118,7 @@ class HeapPlugin(SimStatePlugin):
                 print("fraction", state.solver.eval_upto(fraction, 10))
                 print("present", state.solver.eval_upto(present, 10))
                 print("rip", state.regs.rip)
+                import pdb; pdb.set_trace()
                 raise Exception("oh no")
             # Read (we know it's present since we just checked the fractions)
             chunk, _ = state.maps.get(base, index)

@@ -23,8 +23,19 @@ def map_init(state, addr, map_def):
         values = state.heap.allocate(map_def.max_entries, map_def.value_size, default_fraction=0)
         items = state.maps.new(map_def.key_size * 8, state.sizes.ptr, "bpf_map")
         state.metadata.append(addr, BpfMap(map_def, values, items))
-    elif type == 2 or type == 6:
-        # Array and per-cpu array, treat them the same
+    elif type == 2:
+        # Array, the code won't use functions to access it, just direct memory accesses, though there's an offset to the data
+
+        # Figure this out by looking at a BPF dump, it's an addition immediately after loading the array address
+        linux_ver = detection.get_linux_version()
+        if linux_ver == '5.4.0-81-generic' and detection.is_64bit():
+            offset = 0xD0
+        else:
+            raise("Sorry, you need to do some work here as well: " + __file__)
+
+        state.heap.allocate(map_def.max_entries, map_def.value_size, addr=addr+offset)
+    elif type == 6:
+        # Per-cpu array, like an array but accessed with explicit function calls
         values = state.heap.allocate(map_def.max_entries, map_def.value_size)
         state.metadata.append(addr, BpfMap(map_def, values, None))
     elif type == 14:
@@ -46,9 +57,12 @@ def align(n, val):
 class bpf_map_lookup_elem(angr.SimProcedure):
     def run(self, map, key):
         bpfmap = self.state.metadata.get(BpfMap, map)
+        key_data = self.state.memory.load(key, bpfmap.map_def.key_size, endness=self.state.arch.memory_endness)
+
         if bpfmap.items is None:
-            # Array
-            return self.state.memory.load(bpfmap.values + key * bpfmap.map_def.value_size, bpfmap.map_def.value_size, endness=self.state.arch.memory_endness)
+            # Per-CPU array
+            key_data = key_data.zero_extend(self.state.sizes.ptr - key_data.size())
+            return bpfmap.values + key_data * bpfmap.map_def.value_size
 
         print("lookup", map, key)
         print("map", self.state.metadata.get(BpfMap, map))
@@ -60,10 +74,14 @@ class bpf_map_update_elem(angr.SimProcedure):
         assert utils.definitely_true(self.state.solver, flags == 0)
 
         bpfmap = self.state.metadata.get(BpfMap, map)
+        key_data = self.state.memory.load(key, bpfmap.map_def.key_size, endness=self.state.arch.memory_endness)
+        value_data = self.state.memory.load(value, bpfmap.map_def.value_size, endness=self.state.arch.memory_endness)
+
         if bpfmap.items is None:
-            # Array
-            self.state.memory.store(bpfmap.values + key * bpfmap.map_def.value_size, value, endness=self.state.arch.memory_endness)
-            return
+            # Per-CPU array
+            key_data = key_data.zero_extend(self.state.sizes.ptr - key_data.size())
+            self.state.memory.store(bpfmap.values + key_data * bpfmap.map_def.value_size, value_data, endness=self.state.arch.memory_endness)
+            return claripy.BVV(0, 64)
 
         print("update", map, key, value, flags)
         print("map", self.state.metadata.get(BpfMap, map))
@@ -78,7 +96,10 @@ class bpf_map_delete_elem(angr.SimProcedure):
 
 class percpu_array_map_lookup_elem(angr.SimProcedure):
     def run(self, map, key):
-        return self.inline_call(bpf_map_lookup_elem, map, key)
+        #return self.inline_call(bpf_map_lookup_elem, map, key).ret_expr
+        result = self.inline_call(bpf_map_lookup_elem, map, key).ret_expr
+        print("!!!percpu", result)
+        return result
 
 # void *__htab_map_lookup_elem(struct bpf_map *map, void *key)
 # The specialized hash version of bpf_map_lookup_elem.
@@ -234,14 +255,11 @@ class bpf_xdp_adjust_head(angr.SimProcedure):
         delta = self.state.casts.uint32_t(delta).sign_extend(self.state.sizes.ptr - 32) # need to extend it so we can use it with pointer-sized stuff...
         print("adjust_head", xdp_md, delta)
 
-        (data, length) = packet.get_data_and_length(self.state, xdp_md)
+        length = packet.get_length(self.state, xdp_md)
         def case_true(state):
-            new_data_length = length - delta
-            new_data = state.heap.allocate(new_data_length, 1, name="new_data")
-            state.solver.add(state.maps.forall(data, lambda k, v: ~(k.SGE(delta)) | MapHas(new_data, k - delta, v)))
-            packet.set_data(state, xdp_md, new_data, new_data_length)
+            packet.adjust_data_head(state, xdp_md, delta)
             return claripy.BVV(0, 64)
         def case_false(state):
             return claripy.BVV(-1, 64)
         # TODO: should we randomly fail to mimic an allocation failure? can this ever happen in the kernel?
-        return utils.fork_guarded(self, self.state, length.SGE(delta), case_true, case_false)
+        return utils.fork_guarded(self, self.state, length.SGE(delta) & (length - delta).ULE(packet.PACKET_MTU), case_true, case_false)

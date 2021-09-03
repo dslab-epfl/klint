@@ -290,13 +290,13 @@ class Map:
         if any(o.version() != self_ver for o in others):
             print("Different versions")
             return False
-        if any(abs(len(o._known_items) - len(self._known_items)) > 4 for o in others):
-            print("Too many different known items", [len(o._known_items) - len(self._known_items) for o in others])
-            return False
+        #if any(abs(len(o._known_items) - len(self._known_items)) > 4 for o in others):
+        #    print("Too many different known items", [len(o._known_items) - len(self._known_items) for o in others])
+        #    return False
         if self_ver > 0 and not self._previous.can_merge([o._previous for o in others]):
             print("Previous cannot be merged")
             return False
-        return True
+        return False
 
     # This assumes the solvers have already been merged
     def merge(self, state, others, other_states, merge_conditions):
@@ -468,8 +468,9 @@ class GhostMapsPlugin(SimStatePlugin):
         self[obj] = Map.new(self.state, key_size, value_size, name, _length=_length, _invariants=_invariants)
         return obj
 
-    def new_array(self, key_size, value_size, length, name):
-        obj = claripy.BVS(name, self.state.sizes.ptr)
+    def new_array(self, key_size, value_size, length, name, obj=None): # obj so we can create arrays at existing points for BPF... (in general the whole GhostMapsPlugin API is dubious)
+        if obj is None:
+            obj = claripy.BVS(name, self.state.sizes.ptr)
         self[obj] = Map.new_array(self.state, key_size, value_size, length, name)
         return obj
 

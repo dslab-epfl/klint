@@ -132,15 +132,6 @@ def base_index_offset(state, addr, meta_type, allow_failure=False):
             return (None, None, None)
         raise Exception("B_I_O was given an int")
 
-    def as_simple(val):
-        if val.op == "BVS": return val
-        if val.op == '__add__' and len(val.args) == 1: return as_simple(val.args[0])
-        return None
-
-    simple_addr = as_simple(addr)
-    if simple_addr is not None:
-        return (simple_addr, claripy.BVV(0, 64), 0) # Directly addressing a base, i.e., base[0]
-
     def force_burrow_ite(value):
         # claripy's ite_burrowed except it's recursive
         # so that if(x, a + 1, if(y, a + 2, if(z, a + 3, a + 4))) turns into a + if(x, 1, if(y, 2, if(z, 3, 4)))
@@ -170,39 +161,31 @@ def base_index_offset(state, addr, meta_type, allow_failure=False):
     addr = simplify(addr)
 
     if addr.op == '__add__':
-        base = [a for a in map(as_simple, addr.args) if a is not None]
-
-        if len(base) == 1:
-            base = base[0]
-        else:
-            base = [b for b in base if any(b.structurally_match(k) for k in state.metadata.get_all(meta_type).keys())]
-            if len(base) == 1:
-                base = base[0]
-            else:
-                # TODO this check should come earlier and the result should be reused... it's more like "filter out stuff that's definitely not a pointer"
-                base = [b for b in addr.args if state.metadata.get_or_none(meta_type, b) is not None]
-                if len(base) != 1:
-                    if allow_failure:
-                        return (None, None, None)
-                    raise Exception("!= 1 candidate for base??? are you symbolically indexing a global variable or something?")
-                base = base[0]
-        added = sum([a for a in addr.args if not a.structurally_match(base)])
-
-        meta = state.metadata.get_or_none(meta_type, base)
-        if meta is None:
+        (base, meta) = state.metadata.find(meta_type, addr.args)
+        if base is None:
+            # Annoying tricky part that defeat the entire purpose of this: when we symbex JITed BPF code, the "arrays" are at fixed offsets
+            # So if there are any non-symbolic keys in the metadata, try them all manually
+            raise "TODO"
             if allow_failure:
                 return (None, None, None)
-            raise Exception("B_I_O has no info about: " + str(base))
+            raise Exception("!= 1 candidate for base??? are you symbolically indexing a global variable or something?")
 
-        offset = state.solver.eval_one(_modulo_simplify(added, meta.size), cast_to=int)
-        # Don't make the index be a weird '0 // ...' expr if we can avoid it, but don't call the solver for that
-        if (added == offset).is_true():
+        added = sum([a for a in addr.args if not a.structurally_match(base)])
+        if added is 0: # when there are no args
             index = claripy.BVV(0, 64)
+            offset = 0
         else:
-            index = _div_simplify(state.solver, (added - offset), meta.size)
+            offset = state.solver.eval_one(_modulo_simplify(added, meta.size), cast_to=int)
+            # Don't make the index be a weird '0 // ...' expr if we can avoid it, but don't call the solver for that
+            if (added == offset).is_true():
+                index = claripy.BVV(0, 64)
+            else:
+                index = _div_simplify(state.solver, (added - offset), meta.size)
         return (base, index, offset * 8)
 
-    if addr.op == "BVS":
+    # Maybe it's e.g. a BVS and we know about it
+    meta = state.metadata.get_or_none(meta_type, addr)
+    if meta is not None:
         return (addr, claripy.BVV(0, 64), 0)
 
     if allow_failure:

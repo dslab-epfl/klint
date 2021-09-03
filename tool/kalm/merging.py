@@ -8,9 +8,9 @@ def merge_states(states):
     if len(states) == 0:
         raise Exception("Zero states to merge??")
 
-    if len(states) >= 50:
+    if True or len(states) >= 50:
         # Don't even bother trying, odds of succeeding are slim given our current heuristics
-        print("Not bothering to try a merge with", len(states), "states")
+        #print("Not bothering to try a merge with", len(states), "states")
         return (states[0], [], states[1:])
 
     # Filter out the states with a different callstack, to be merged later

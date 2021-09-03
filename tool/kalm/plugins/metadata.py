@@ -34,7 +34,7 @@ class MetadataPlugin(SimStatePlugin):
         if len(all) != 1:
             raise Exception("Not exactly one value")
         return next(iter(all.values()))
-    
+
     def get_or_none(self, cls, key):
         all = self._items.get(cls, {})
         value = all.get(key.cache_key if key is not None else None, None)
@@ -48,3 +48,19 @@ class MetadataPlugin(SimStatePlugin):
             value = default_init()
             self.append(key, value)
         return value
+
+    # find exactly one matching key; fails if >1, returns None if =0
+    def find(self, cls, keys):
+        all = self._items.get(cls, {})
+        matching = []
+        # First, avoid the solver if we can
+        for key in keys:
+            for (k, v) in all.items():
+                if key.structurally_match(k.ast):
+                    matching.append((k.ast, v))
+        if len(matching) == 1:
+            return matching[0]
+        if len(matching) > 1:
+            raise Exception("More than one match found for: " + str(keys))
+        return None
+#        raise Exception("I don't remember if we actually need this, so not implementing it for now")

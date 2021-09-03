@@ -25,14 +25,14 @@ def create_blank_state(thing, arch='amd64'):
         proj = angr.load_shellcode(thing, arch, **_project_kwargs)
     else:
         raise Exception("create_blank_state expects an str (path) or bytes (shellcode)")
-    state = proj.factory.blank_state()
-    # Don't copy states when executing, we'll copy what we need
-    state.options.remove(angr.sim_options.COPY_STATES)
-    # TODO check out whether this helps mem use
-    #state.options.add(angr.sim_options.DOWNSIZE_Z3)
-    # It seems there's no way around enabling these, since code can access uninitialized variables (common in the "return bool, take in a pointer to the result" pattern)
-    state.options.add(angr.sim_options.SYMBOL_FILL_UNCONSTRAINED_MEMORY)
-    state.options.add(angr.sim_options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS)
+    # TODO check out whether adding DOWNSIZE_Z3 helps mem use
+    state = proj.factory.blank_state(
+        # FAST_REGISTERS: see our __init__
+        # SYMBOL_FILL_UNCONSTRAINED_*: it seems there's no way around enabling these, since code can access uninitialized variables (common in the "return bool, take in a pointer to the result" pattern)
+        add_options=set([angr.sim_options.FAST_REGISTERS, angr.sim_options.SYMBOL_FILL_UNCONSTRAINED_MEMORY, angr.sim_options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS]),
+        # Don't copy states when executing, we'll copy what we need
+        remove_options=set([angr.sim_options.COPY_STATES])
+    )
     state.solver._stored_solver = KalmSolver()
     return state
 

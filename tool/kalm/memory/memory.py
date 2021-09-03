@@ -6,7 +6,6 @@ from kalm.memory.objects import ObjectsMemoryMixin
 
 # Keep only what we need in the memory, including our custom layers
 class KalmMemory(
-    csms.NameResolutionMixin, # To allow uses of register names, which angr does internally when this is used for regs
     csms.DataNormalizationMixin, # To always get AST values
     csms.SizeNormalizationMixin, # To always get actual sizes in stores (required by some angr mixins)
     ObjectsMemoryMixin,

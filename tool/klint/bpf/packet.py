@@ -1,5 +1,6 @@
 import claripy
 
+from kalm import utils
 from klint.bpf import detection
 
 PACKET_MTU = 1514 # 1500 (Ethernet spec) + 2xMAC + EtherType
@@ -49,7 +50,9 @@ def create(state):
     device = claripy.BVS("device", 32)
 
     # Allocate symbolic data
-    data = state.heap.allocate(data_length, 1, name="data")
+    # Unfortunately for now our maps aren't efficient enough to handle the inefficiencies of a memcpy in bpf :/
+    # e.g. copying ethernet+ip+tcp headers byte-by-byte creates like 50 items in the map and our algorithm is O(n^2) because it assumes there are few items
+    data = state.heap.allocate(1, PACKET_MTU, name="data")
 
     # BPF programs assume they can do incorrect calculations like `data + offset > data_end` to check if `offset` is too far,
     # even though theoretically length could be 0 and data could be so high that `data + offset` overflows.
@@ -69,11 +72,37 @@ def create(state):
     state.memory.store(packet + buff_rxq_offset, rxq, endness=state.arch.memory_endness)
     return packet
 
-def get_data_and_length(state, packet):
+def get_data_and_end(state, packet):
     data = state.memory.load(packet + buff_data_offset, state.sizes.ptr // 8, endness=state.arch.memory_endness)
     data_end = state.memory.load(packet + buff_dataend_offset, state.sizes.ptr // 8, endness=state.arch.memory_endness)
-    return (data, data_end - data)
+    return (data, data_end)
 
-def set_data(state, packet, data, length):
-    state.memory.store(packet + buff_data_offset, data, endness=state.arch.memory_endness)
-    state.memory.store(packet + buff_dataend_offset, data + length, endness=state.arch.memory_endness)
+def get_length(state, packet):
+    (data, data_end) = get_data_and_end(state, packet)
+    return data_end - data
+
+def adjust_data_head(state, packet, delta):
+    (data, data_end) = get_data_and_end(state, packet)
+    length = data_end - data
+
+    # what we'd like to write is the following, if we had byte-sized elements instead of one big one:
+    # state.solver.add(state.maps.forall(data, lambda k, v: ~(k.SGE(delta)) | MapHas(new_data, k - delta, v)))
+
+    delta = utils.get_if_constant(state.solver, delta)
+    if delta is None:
+        raise Exception("Non-constant delta not supported yet, sorry")
+    # delta is signed
+    if delta > 2 ** 63:
+        delta = (2 ** 64) - delta
+
+    new_length = length - delta
+    new_data = state.heap.allocate(1, PACKET_MTU, name="new_data")
+    existing_value = state.memory.load(data, PACKET_MTU, endness=state.arch.memory_endness)
+    print(existing_value, delta)
+    if delta >= 0:
+        state.memory.store(new_data, existing_value[:delta], endness=state.arch.memory_endness)
+    else:
+        state.memory.store(new_data - delta, existing_value[-(1+delta):], endness=state.arch.memory_endness)
+
+    state.memory.store(packet + buff_data_offset, new_data, endness=state.arch.memory_endness)
+    state.memory.store(packet + buff_dataend_offset, new_data + new_length, endness=state.arch.memory_endness)
