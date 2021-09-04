@@ -19,6 +19,12 @@ class HeapPlugin(SimStatePlugin):
         return True
 
     def allocate(self, count, size, ephemeral=False, default=None, default_fraction=100, addr=None, name=None):
+        # Normalize them, makes life easier
+        if isinstance(count, int):
+            count = claripy.BVV(count, self.state.sizes.ptr)
+        if isinstance(size, int):
+            size = claripy.BVV(size, self.state.sizes.ptr)
+
         max_size = self.state.solver.max(size)
         if max_size > 4096:
             raise Exception("That's a huge block you want to allocate... let's just not: " + str(max_size))

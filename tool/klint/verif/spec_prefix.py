@@ -13,7 +13,7 @@ class TypedWrapper(dict): # for convenience: use dict.item instead of dict['item
 
 def type_size(type):
     if isinstance(type, dict):
-        return sum([type_size(v) for v in type.values()])
+        return sum(type_size(v) for v in type.values())
     if isinstance(type, str):
         global __symbex__
         return int(getattr(__symbex__.state.sizes, type))

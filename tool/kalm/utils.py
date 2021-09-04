@@ -182,31 +182,22 @@ def base_index_offset(state, addr, meta_type, allow_failure=False):
                 return (None, None, None)
             raise Exception("!= 1 candidate for base??? are you symbolically indexing a global variable or something?")
 
-        added = sum([a for a in addr.args if not a.structurally_match(base)])
-        if added is 0: # when there are no args
-            index = claripy.BVV(0, 64)
-            offset = 0
-        else:
-            offset = state.solver.eval_one(_modulo_simplify(state.solver, added, meta.size), cast_to=int)
-            # Don't make the index be a weird '0 // ...' expr if we can avoid it, but don't call the solver for that
-            if (added == offset).is_true():
-                index = claripy.BVV(0, 64)
-            else:
-                index = _div_simplify(state.solver, (added - offset), meta.size)
+        added = sum((a for a in addr.args if not a.structurally_match(base)), start=claripy.BVV(0, addr.size()))
+        offset = state.solver.eval_one(_modulo_simplify(state.solver, added, meta.size), cast_to=int)
+        index = _div_simplify(state.solver, (added - offset), meta.size)
         return (base, index, offset * 8)
 
     # Maybe it's e.g. a BVS and we know about it
     meta = state.metadata.get_or_none(meta_type, addr)
     if meta is not None:
-        return (addr, claripy.BVV(0, 64), 0)
+        return (addr, claripy.BVV(0, addr.size()), 0)
 
     if allow_failure:
         return (None, None, None)
     raise Exception("B_I_O doesn't know what to do with: " + str(addr) + " of type " + str(type(addr)) + " ; op is " + str(addr.op) + " ; args is " + str(addr.args) + " ; constrs are " + str(state.solver.constraints))
 
 
-# Optimization: the "_modulo_simplify" function allows base_index_offset to avoid calling the solver when computing the offset of a memory access
-# This can save minutes, especially for non-power-of-2 modulos such as 6-byte MAC addresses
+# Optimization: simplify modulos and divs, this can save minutes, especially for non-power-of-2 modulos such as 6-byte MAC addresses
 
 # Returns a dictionary such that ast == sum(e.ast * m for (e, m) in result.items())
 def _as_mult_add(ast):
@@ -248,6 +239,7 @@ def _as_mult_add(ast):
                 return {e: m * con for (e, m) in _as_mult_add(lone_sym).items()}
     return {ast.cache_key: 1}
 
+# group things together, e.g. if we end up with '(0 .. x[62:0])' and 'x', group them iff x[63] == 0
 def _as_mult_add_outer(ast, solver):
     result = {}
     for (e, m) in _as_mult_add(ast).items():
@@ -270,10 +262,16 @@ def _modulo_simplify(solver, a, b):
             result += e.ast * m
     return result % b
 
+# Returns a simplified form of a // b
 def _div_simplify(solver, a, b):
+    if (a == 0).is_true():
+        return a
+    if (b == 1).is_true():
+        return a
+
+    def make_term(e, m, b):
+        if (m % b == 0).is_true():
+            return e
+        return e * m // b
     decomposed = _as_mult_add_outer(a, solver)
-    if len(decomposed) == 1:
-        (e, m) = next(iter(decomposed.items()))
-        if definitely_true(solver, e.ast == (a // b)): # TODO speed this up
-            return e.ast
-    return a // b
+    return sum(make_term(e.ast, m, b) for (e, m) in decomposed.items())
