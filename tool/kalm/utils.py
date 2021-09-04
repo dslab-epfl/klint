@@ -198,6 +198,7 @@ def base_index_offset(state, addr, meta_type, allow_failure=False):
 
 
 # Optimization: simplify modulos and divs, this can save minutes, especially for non-power-of-2 modulos such as 6-byte MAC addresses
+# Ideally this is something Claripy or Z3 would do...
 
 # Returns a dictionary such that ast == sum(e.ast * m for (e, m) in result.items())
 def _as_mult_add(ast):

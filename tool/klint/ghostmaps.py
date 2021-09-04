@@ -916,7 +916,6 @@ def maps_merge_one(states_to_merge, obj, ancestor_maps, ancestor_variables, new_
 # new_results is the results to pass as previous_results next time,
 # reached_fixpoint is self-explanatory
 def infer_invariants(ancestor_states, states, previous_results=None):
-    import sys; sys.exit(0)
     # note that we keep track of objs as their string representations to avoid comparing Claripy ASTs (which don't like ==)
     previous_results = copy.deepcopy(previous_results or [])
 
