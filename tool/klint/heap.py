@@ -34,10 +34,11 @@ class HeapPlugin(SimStatePlugin):
             else:
                 self.state.solver.add(self.state.maps.forall(addr, lambda k, v: v == default))
 
-        # Add constraints on the addr so it's neither null nor so high it overflows (note the count+1 becaus 1-past-the-array is legal)
+        # Add constraints on the addr so it's neither null nor so high it overflows (note the -1 becaus 1-past-the-array is legal)
+        # TODO: This is the wrong level of abstraction for this, the heap should not know about this kind of stuff
         self.state.solver.add(
             addr != 0,
-            addr.ULE(claripy.BVV(-1, self.state.sizes.ptr) - ((count + 1) * size))
+            addr.ULE(claripy.BVV(-1, self.state.sizes.ptr) - (count * size) - 1)
         )
 
         # Create the corresponding fractions if needed

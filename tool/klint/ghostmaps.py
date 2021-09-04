@@ -219,12 +219,6 @@ class Map:
         # Let P be get(M, K) != None
         (_, present) = self.get(state, key)
 
-        # Optimization: Avoid a symbolic presence bit if possible
-        #               This helps with the is_not_overfull fast path as well
-        present_const = utils.get_if_constant(state.solver, present)
-        if present_const is not None:
-            present = present_const
-
         # Return a new map with:
         #   ITE(P, 0, 1) added to the map length.
         #   Each known item (K', V', P') updated to (K', ITE(K = K', V', V), ITE(K = K', true, P'))
@@ -297,6 +291,8 @@ class Map:
 
     # This assumes the solvers have already been merged
     def merge(self, state, others, other_states, merge_conditions):
+        if all(utils.structural_eq(self, o) for o in others):
+            return
         for (o, mc) in zip(others, merge_conditions[1:]):
             (only_left, both, only_right) = utils.structural_diff(self._known_items, o._known_items)
             # Items that were only here are subject to the invariant if the merge condition holds
@@ -510,8 +506,7 @@ class GhostMapsPlugin(SimStatePlugin):
     def copy(self, memo):
         return GhostMapsPlugin(_maps={k: copy.deepcopy(v, memo) for (k, v) in self._maps.items()}) # no need to deepcopy the keys
 
-    def merge(self, others, merge_conditions, common_ancestor=None):
-        # Very basic merging for now: only if they all match
+    def can_merge(self, others):
         if any(len(self._maps) != len(o._maps) for o in others):
             return False
         for (k, v) in self._maps.items():
@@ -519,6 +514,17 @@ class GhostMapsPlugin(SimStatePlugin):
                 return False
             if not v.can_merge([o._maps[k] for o in others]):
                 return False
+        return True
+
+    def merge(self, others, merge_conditions, common_ancestor=None):
+        # Very basic merging for now: only if they all match
+#        if any(len(self._maps) != len(o._maps) for o in others):
+#            return False
+#        for (k, v) in self._maps.items():
+#            if any(k not in o._maps for o in others):
+#                return False
+#            if not v.can_merge([o._maps[k] for o in others]):
+#                return False
         for (k, v) in self._maps.items():
             v.merge(self.state, [o._maps[k] for o in others], [o.state for o in others], merge_conditions)
         return True
@@ -910,6 +916,7 @@ def maps_merge_one(states_to_merge, obj, ancestor_maps, ancestor_variables, new_
 # new_results is the results to pass as previous_results next time,
 # reached_fixpoint is self-explanatory
 def infer_invariants(ancestor_states, states, previous_results=None):
+    import sys; sys.exit(0)
     # note that we keep track of objs as their string representations to avoid comparing Claripy ASTs (which don't like ==)
     previous_results = copy.deepcopy(previous_results or [])
 

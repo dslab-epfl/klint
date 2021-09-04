@@ -38,6 +38,13 @@ def merge_states(states):
         plugins = plugins | state.plugins.keys()
     plugins.remove("callstack") # we guaranteed it's the same earlier
 
+    for plugin in plugins:
+        our_plugin = getattr(merged, plugin)
+        if hasattr(our_plugin, 'can_merge'):
+            if not our_plugin.can_merge([getattr(st, plugin) for st in to_merge[1:]]):
+                #print("cannot merge")
+                return (to_merge[0], deferred, to_merge[1:])
+
     # Start by merging the solver so other plugins can rely on that, using our own function
     merged.solver.merge([st.solver for st in to_merge[1:]], merge_conds)
     plugins.remove("solver")

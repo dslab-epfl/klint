@@ -187,7 +187,7 @@ def base_index_offset(state, addr, meta_type, allow_failure=False):
             index = claripy.BVV(0, 64)
             offset = 0
         else:
-            offset = state.solver.eval_one(_modulo_simplify(added, meta.size), cast_to=int)
+            offset = state.solver.eval_one(_modulo_simplify(state.solver, added, meta.size), cast_to=int)
             # Don't make the index be a weird '0 // ...' expr if we can avoid it, but don't call the solver for that
             if (added == offset).is_true():
                 index = claripy.BVV(0, 64)
@@ -206,9 +206,14 @@ def base_index_offset(state, addr, meta_type, allow_failure=False):
 
 
 # Optimization: the "_modulo_simplify" function allows base_index_offset to avoid calling the solver when computing the offset of a memory access
+# This can save minutes, especially for non-power-of-2 modulos such as 6-byte MAC addresses
 
 # Returns a dictionary such that ast == sum(e.ast * m for (e, m) in result.items())
 def _as_mult_add(ast):
+    if ast.op == 'Concat' and len(ast.args) == 2 and \
+       ast.args[1].op == 'BVV' and ast.args[1].args[0] == 0:
+        nested = _as_mult_add(ast.args[0])
+        return {e.ast.zero_extend(ast.args[1].size()).cache_key: m << ast.args[1].size() for (e, m) in nested.items()}
     if ast.op == '__lshift__':
         nested = _as_mult_add(ast.args[0])
         return {e: m << ast.args[1] for (e, m) in nested.items()}
@@ -243,11 +248,22 @@ def _as_mult_add(ast):
                 return {e: m * con for (e, m) in _as_mult_add(lone_sym).items()}
     return {ast.cache_key: 1}
 
+def _as_mult_add_outer(ast, solver):
+    result = {}
+    for (e, m) in _as_mult_add(ast).items():
+        if e.ast.op == 'ZeroExt' and e.ast.args[1].op == 'Extract' and e.ast.args[1].args[1] == 0:
+            if definitely_true(solver, e.ast.args[1].args[2] == e.ast):
+                e = e.ast.args[1].args[2].cache_key
+        if e in result:
+            result[e] += m
+        else:
+            result[e] = m
+    return result
+
 # Returns a simplified form of a % b
-# TODO check how much time this really saves
-def _modulo_simplify(a, b):
+def _modulo_simplify(solver, a, b):
     result = 0
-    for (e, m) in _as_mult_add(a).items():
+    for (e, m) in _as_mult_add_outer(a, solver).items():
         # note that is_true just performs basic checks, so if _as_mult_add decomposed it nicely, we'll skip the modulo entirely
         # e.g. (x * 4) % 2 can be simplified to 0
         if not (e.ast % b == claripy.BVV(0, a.size())).is_true() and not (m % b == claripy.BVV(0, a.size())).is_true():
@@ -255,9 +271,9 @@ def _modulo_simplify(a, b):
     return result % b
 
 def _div_simplify(solver, a, b):
-    decomposed = _as_mult_add(a)
+    decomposed = _as_mult_add_outer(a, solver)
     if len(decomposed) == 1:
         (e, m) = next(iter(decomposed.items()))
-        if definitely_true(solver, e.ast == (a // b)):
+        if definitely_true(solver, e.ast == (a // b)): # TODO speed this up
             return e.ast
     return a // b

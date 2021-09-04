@@ -55,7 +55,7 @@ class map_get(angr.SimProcedure):
 
         # Preconditions
         mapp = self.state.metadata.get(Map, map)
-        assert utils.definitely_true(self.state.solver, key_ptr != 0)
+        # key_ptr != NULL implicit due to the way the heap works; there can never be something at NULL
         key = self.state.memory.load(key_ptr, mapp.key_size, endness=self.state.arch.memory_endness)
         self.state.memory.load(out_value, self.state.sizes.ptr // 8)
         print("!!! map_get key", key)
@@ -88,7 +88,7 @@ class map_set(angr.SimProcedure):
 
         # Preconditions
         mapp = self.state.metadata.get(Map, map)
-        assert utils.definitely_true(self.state.solver, key_ptr != 0)
+        # key_ptr != NULL implicit due to the way the heap works; there can never be something at NULL
         key = self.state.memory.load(key_ptr, mapp.key_size, endness=self.state.arch.memory_endness)
         self.state.heap.take(25, key_ptr)
         assert utils.definitely_true(self.state.solver, claripy.And(
@@ -120,7 +120,7 @@ class map_remove(angr.SimProcedure):
 
         # Preconditions
         mapp = self.state.metadata.get(Map, map)
-        assert utils.definitely_true(self.state.solver, key_ptr != 0)
+        # key_ptr != NULL implicit due to the way the heap works; there can never be something at NULL
         key = self.state.memory.load(key_ptr, mapp.key_size, endness=self.state.arch.memory_endness)
         frac = self.state.heap.take(None, key_ptr)
         assert utils.definitely_true(self.state.solver, claripy.And(

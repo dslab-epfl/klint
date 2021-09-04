@@ -11,8 +11,7 @@ EXTRA = [
 ]
 
 class CastsPlugin(SimStatePlugin):
-    @staticmethod
-    def _fix(o):
+    def _fix(self, o):
         if isinstance(o, SimActionObject):
             o = o.ast
         # HACK: Turn ((0#64 .. a) / (0#64 .. b))[63:0] into (a / b),
@@ -33,8 +32,8 @@ class CastsPlugin(SimStatePlugin):
         return True
 
 for t in TYPES:
-    setattr(CastsPlugin, t, lambda self, arg, t=t: CastsPlugin._fix(arg)[getattr(self.state.sizes, t)-1:0])
+    setattr(CastsPlugin, t, lambda self, arg, t=t: self._fix(arg)[getattr(self.state.sizes, t)-1:0])
 for (n, t) in ALIASES:
-    setattr(CastsPlugin, n, lambda self, arg, t=t: CastsPlugin._fix(arg)[getattr(self.state.sizes, n)-1:0])
+    setattr(CastsPlugin, n, lambda self, arg, t=t: self._fix(arg)[getattr(self.state.sizes, n)-1:0])
 for t in EXTRA:
-    setattr(CastsPlugin, t, lambda self, arg: CastsPlugin._fix(arg))
+    setattr(CastsPlugin, t, lambda self, arg: self._fix(arg))
