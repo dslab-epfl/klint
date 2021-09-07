@@ -26,7 +26,9 @@ def alloc(state, devices_count):
     packet_addr = state.heap.allocate(1, packet_size, name="packet")
     packet_length = claripy.BVS("packet_length", state.sizes.size_t)
     state.solver.add(packet_length.UGE(PACKET_MIN), packet_length.ULE(PACKET_MTU))
-#    data_addr = state.heap.allocate(packet_length, 1, ephemeral=True, name="packet_data")
+    # TODO: decide on whether this line should be used instead, what should the semantics be?
+    #       right now the NF can return a shorter len to truncate _or_ a longer len to add data, which is fine cause buffers are MTU-sized...
+    #data_addr = state.heap.allocate(packet_length, 1, ephemeral=True, name="packet_data")
     data_addr = state.heap.allocate(PACKET_MTU, 1, ephemeral=True, name="packet_data")
     packet_device = claripy.BVS("packet_device", state.sizes.uint16_t)
     state.solver.add(packet_device.ULT(devices_count))

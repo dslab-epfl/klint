@@ -127,7 +127,7 @@ class Map:
     # === Public API ===
 
     @staticmethod
-    def new(state, key_size, value_size, name, _invariants=None, _length=None, _name_counter=[0]): # use a list for the counter as a byref equivalent
+    def new(state, key_size, value_size, name, _invariants=None, _length=None, _exact_name=False, _name_counter=[0]): # use a list for the counter as a byref equivalent
         def to_int(n, name):
             if isinstance(n, int):
                 return n
@@ -138,8 +138,9 @@ class Map:
         key_size = to_int(key_size, "key_size")
         value_size = to_int(value_size, "value_size")
 
-        name = name + "_" + str(_name_counter[0])
-        _name_counter[0] = _name_counter[0] + 1
+        if not _exact_name:
+            name = name + "_" + str(_name_counter[0])
+            _name_counter[0] = _name_counter[0] + 1
 
         assert (_length is None) == (_invariants is None), "otherwise we'll add ~P as inv which makes no sense"
 
@@ -485,7 +486,7 @@ class GhostMapsPlugin(SimStatePlugin):
 
     # === Import and Export ===
 
-    def get_all(self): # return .cache_key as keys!
+    def get_all(self):
         return [(obj.ast, m) for (obj, m) in self._maps.items()]
 
     # === Private API, including for invariant inference ===
@@ -517,47 +518,91 @@ class GhostMapsPlugin(SimStatePlugin):
         return True
 
     def merge(self, others, merge_conditions, common_ancestor=None):
-        # Very basic merging for now: only if they all match
-#        if any(len(self._maps) != len(o._maps) for o in others):
-#            return False
-#        for (k, v) in self._maps.items():
-#            if any(k not in o._maps for o in others):
-#                return False
-#            if not v.can_merge([o._maps[k] for o in others]):
-#                return False
         for (k, v) in self._maps.items():
             v.merge(self.state, [o._maps[k] for o in others], [o.state for o in others], merge_conditions)
         return True
 
 
-# state args have a leading _ to ensure that functions run concurrently don't accidentally touch them (TODO just move the functions out!)
-def maps_merge_across(_states, objs, _ancestor_maps, _ancestor_variables, _cache={}):
+
+# === Invariant inference ===
+
+# Get all variables from a set of states that have the same maps
+def get_variables(states):
+    result = set(states[0].solver.variables(claripy.And(*states[0].solver.constraints)))
+    for st in states[1:]:
+        result.intersection_update(st.solver.variables(claripy.And(*st.solver.constraints)))
+    for (_, m) in states[0].maps.get_all():
+        result = result - m._unknown_item.key.variables
+        result = result - m._unknown_item.value.variables
+        result = result - m._unknown_item.present.variables
+    return result
+
+# Find constraints that hold on an expression in a state
+def find_constraints(state, expr, replacement, ancestor_variables):
+    # If the expression is constant or constrained to be, return that
+    const = utils.get_if_constant(state.solver, expr)
+    if const is not None:
+        return [replacement == const]
+    # Otherwise, find constraints that contain the expression, but ignore those that also contain variables not in the ancestor
+    # This might miss stuff due to transitive constraints,
+    # but it's sound since having overly lax invariants can only over-approximate
+    expr_vars = state.solver.variables(expr)
+    results = []
+    for constr in state.solver.constraints:
+        constr_vars = state.solver.variables(constr)
+        if not constr.replace(expr, replacement).structurally_match(constr) and constr_vars.difference(expr_vars).issubset(ancestor_variables):
+            results.append(constr.replace(expr, replacement))
+    # Also, if the item is always 0 in places, remember that.
+    # Or at least remember the beginning, that's enough for a prototype.
+    # This is because some programmers use variables that are too wide, e.g. their skeleton has the device as an u16 but they cast to an u32
+    if expr.op == "Concat" and expr.args[0].structurally_match(claripy.BVV(0, expr.args[0].size())):
+        results.append(replacement[expr.size()-1:expr.size()-expr.args[0].size()] == 0)
+    return results
+
+# "Flatten" a map's items into invariants, returning a (changed, new_invariants) tuple
+def flatten_items(obj, states, ancestor_states, ancestor_variables):
+    changed = False
+    invariant_conjs = []
+    for conjunction in ancestor_states[0].maps[obj].invariant_conjunctions():
+        for state in states:
+            # TODO can we get rid of _exclude_get entirely?
+            for item in state.maps[obj].known_items(_exclude_get=True):
+                conj = conjunction.with_latest_map_versions(state)(state, item)
+                if utils.can_be_false(state.solver, Implies(item.present, conj)):
+                    changed = True
+                    conjunction = conjunction.with_expr(
+                        lambda e, i, oldi=item, state=state: e | claripy.And(*find_constraints(state, oldi.key, i.key, ancestor_variables), *find_constraints(state, oldi.value, i.value, ancestor_variables))
+                    )
+                    print("Item", item, "in map", obj, "does not comply with invariant conjunction", conj, "; it is now", conjunction)
+        invariant_conjs.append(conjunction)
+    return (changed, invariant_conjs)
+
+
+# Get length-related invariants on a map
+def get_length_invariants(obj, relevant_objs, states, ancestor_states):
+    if all(utils.definitely_true(st.solver, st.maps.length(obj) == ancestor_states[0].maps.length(obj)) for st in states):
+        # No changes
+        return None
+    result = []
+    for other_obj in relevant_objs:
+        # Not the map itself
+        if other_obj is obj: continue
+        # Not maps that never changed in a state in which the map changed
+        if all(st.maps[obj].version() == ancestor_states[0].maps[obj].version() or st.maps[other_obj].version() == ancestor_states[0].maps[other_obj].version() for st in states): continue
+        # Try everything else for an <= length relationship
+        inv = lambda st, obj=obj, other_obj=other_obj: st.maps.length(obj) <= st.maps.length(other_obj)
+        if all(utils.definitely_true(st.solver, inv(st)) for st in states):
+            print("Inferred len ", obj, "<=", other_obj)
+            result.append(inv)
+    return result
+
+def get_items_invariants(obj, relevant_objs, states, ancestor_states, ancestor_variables):
     # TODO: Most of this logic was written back when map invariants were represented as Python lambdas,
     #       making comparisons hard; now that they are ASTs instead, we could compare them as part of heuristics,
     #       which would probably make some heuristics more robust and also more widely applicable...
-    # TODO at least we should have a more systematic approach to optimizations that remove objs/states,
-    #      and to what is and isn't parallelizable
-
-    get_key = lambda k, v: k
-    get_value = lambda k, v: v
-
-    def init_cache(objs):
-        for (o1, o2) in itertools.permutations(objs, 2):
-            if o1 not in _cache:
-                _cache[o1] = {}
-            if o2 not in _cache[o1]:
-                _cache[o1][o2] = {k: (False, None) for k in ["k", "p", "v"]}
-
-    def get_cached(o1, o2, op):
-        return _cache[o1][o2][op]
-
-    def set_cached(o1, o2, op, val):
-        _cache[o1][o2][op] = (True, val)
-
-    def clear_cached(o1, o2):
-        _cache[o1][o2] = {k: (True, None) for k in ["k", "p", "v"]}
 
     # helper function to get only the items that are definitely in the map associated with the given obj in the given state
+    # TODO remove this, replace with implies(present, ...)
     def filter_present(state, obj):
         present_items = set()
         for i in state.maps[obj].known_items(_exclude_get=True):
@@ -567,11 +612,11 @@ def maps_merge_across(_states, objs, _ancestor_maps, _ancestor_variables, _cache
 
     # helper function to find FK or FV
     def find_f(states, o1, o2, sel1, sel2, candidate_finders):
-        # Returns False iff the candidate function cannot match each element in items1 with an element of items2 
+        # Returns False iff the candidate function cannot match each element in items1 with an element of items2
         def is_candidate_valid(items1, items2, candidate_func):
             for it1 in items1:
-                # TODO: Here we could loop over all items in items2 at each iteration, to maximize our chance of
-                # satisfying the candidate. Of course that would increase execution-time...
+                # Here we could loop over all items in items2 at each iteration, to maximize our chance of
+                # satisfying the candidate. Of course that would increase execution time... and doesn't seem necessary for now
                 it2 = items2.pop()
                 if utils.can_be_false(state.solver, sel2(it2.key, it2.value) == eval_map_ast(state, candidate_func(it1.key, it1.value))):
                     return False
@@ -589,7 +634,7 @@ def maps_merge_across(_states, objs, _ancestor_maps, _ancestor_variables, _cache
                 # Pigeonhole: there must be an item in 1 that does not match one in 2
                 return None
             elif len(items1) < len(items2):
-                # Lazyness: implementing backtracking in case a guess fails is hard :p
+                # implementing backtracking in case a guess fails is hard :p and doesn't seem necessary for now
                 raise Exception("backtracking not implemented yet")
 
             if candidate_func is None:
@@ -602,7 +647,7 @@ def maps_merge_across(_states, objs, _ancestor_maps, _ancestor_variables, _cache
                             items2.remove(it2)
                             if not is_candidate_valid(items1, items2, candidate_func):
                                 return None
-                            # TODO: If is_candidate_valid returns false we could technically re-add it2 to items2 and try again with another item
+                            # If is_candidate_valid returns false we could technically re-add it2 to items2 and try again with another item, but that doesn't seem necessary for now
                             break
                     if candidate_func is not None:
                         break
@@ -644,7 +689,7 @@ def maps_merge_across(_states, objs, _ancestor_maps, _ancestor_variables, _cache
             # if x1 is "(x..0) + n" where n is known from the ancestor and x2 contains "x"
             if x1.op == "__add__" and \
               len(x1.args) == 2 and \
-              state.solver.variables(x1.args[1]).issubset(_ancestor_variables) and \
+              state.solver.variables(x1.args[1]).issubset(ancestor_variables) and \
               x1.args[0].op == "Concat" and \
               len(x1.args[0].args) == 2 and \
               x1.args[0].args[1].structurally_match(claripy.BVV(0, x1.args[0].args[1].size())):
@@ -674,302 +719,167 @@ def maps_merge_across(_states, objs, _ancestor_maps, _ancestor_variables, _cache
         constants = {c for c in {utils.get_if_constant(state.solver, i.value) for state in states for i in filter_present(state, o)} if c is not None}
         return ([] if is_likely_array else [lambda k, v: claripy.true]) + [lambda k, v, c=c: v == claripy.BVV(c, v.size()) for c in constants]
 
-    # Initialize the cache for fast read and write acces during invariant inference
-    init_cache(objs)
 
-    remaining_work = queue.Queue() # all possible combinations of objects, plus once (o, None) per object
-    results = queue.Queue() # pairs: (ID, maps, lambda states, maps: returns None for no changes or maps to overwrite them)
-    to_cache = queue.Queue() # set_cached(...) will be called with all elements in there
+    # Don't bother even trying if the obj is for fractions, nothing interesting we won't find with other objs
+    if ancestor_states[0].heap.is_fractions(obj):
+        return []
 
-    # Invariant inference algorithm: if some property P holds in all states to merge and the ancestor state, optimistically assume it is part of the invariant
-    def thread_main(ancestor_maps, _orig_states):
-        while True:
-            try:
-                (o1, o2) = remaining_work.get(block=False)
-            except queue.Empty:
-                return
+    # Optimization: Avoid inferring pointless invariants when maps are likely to be arrays.
+    # If both maps are arrays of the same length, then the only interesting invariants are about the values in the 2nd map;
+    # the keys obviously are related. Finding constant values is also likely pointless.
+    # If only the first map is an array, using FP = True makes little sense, so don't try it.
+    def is_likely_array(o):
+        # Stupid, but it works, because these are the only arrays we create...
+        return "allocated_addr" in str(o)
+    obj_is_array = is_likely_array(obj)
 
-            if o2 is None: # TODO this is a bit awkward
-                # only for length
-                if all(utils.definitely_true(st.solver, st.maps.length(o1) == ancestor_maps.length(o1)) for st in _orig_states):
-                    #print("Inferred: Length of", o1, "has not changed")
-                    results.put(("len-eq", [o1], lambda st, o1=o1: st.solver.add(st.maps.length(o1) == ancestor_maps.length(o1))))
-                continue
+    # Optimization: Ignore states in which the map did not change
+    states = [st for st in states if st.maps[obj].version() != ancestor_states[0].maps[obj].version()]
 
-            # Optimization: Ignore o1 as fractions, that's rather useless, and ignore o1/o2 as array and its fractions
-            if _orig_states[0].heap.is_fractions(o1):
-                continue
-            if _orig_states[0].heap.get_fractions(o1) is o2:
-                continue
+    # Try to find FPs, early out if there are none
+    fps = find_fps(states, obj, obj_is_array)
+    if len(fps) == 0:
+        return []
 
-            # Optimization: Ignore maps with a value size over a kilobyte, they're likely "buffer"-like, too big to seriously use as part of program logic
-            if _orig_states[0].maps.value_size(o1) > 1024 * 8 or _orig_states[0].maps.value_size(o2) > 1024 * 8:
-                continue
+    # Convenience lambdas
+    get_key = lambda k, v: k
+    get_value = lambda k, v: v
 
-            # Optimization: Ignore the combination entirely if there are no states in which both maps changed
-            if not any(st.maps[o1].version() != 0 and st.maps[o2].version() != 0 for st in _orig_states):
-                #print("No states in which both changed for", o1, o2)
-                continue
+    # For logging purposes only
+    log_k = claripy.BVS("K", ancestor_states[0].maps.key_size(obj), explicit_name=True)
+    log_v = claripy.BVS("V", ancestor_states[0].maps.value_size(obj), explicit_name=True)
 
-            #print("Considering", o1, o2, "at", datetime.datetime.now())
+    result = []
+    for other_obj in relevant_objs:
+        # Not the map itself
+        if other_obj is obj: continue
+        # Not maps that never changed (in the states we are concerned with, i.e., those in which our map changed)
+        if all(st.maps[other_obj].version() == ancestor_states[0].maps[other_obj].version() for st in states): continue
+        # Not the fractions corresponding to the map
+        if ancestor_states[0].heap.get_fractions(other_obj) is obj: continue
 
-            # Length relationships.
-            # For each pair of maps (M1, M2),
-            #   if length(M1) <= length(M2) across all states,
-            #   then assume this holds in the merged state
-            # Only do that if the map didn't start with length 1, though, otherwise we catch "cell"-like maps that e.g. hold a state structure
-            # TODO: It feels like in general we could do a better job to find length-related constraints...
-            #       e.g. find equality across maps, and find == and <= constraints in path constraints, and drop this one
-            if any(utils.can_be_false(st.solver, st.maps[o1].oldest_version().length() == 1) for st in _orig_states) and \
-               any(utils.can_be_false(st.solver, st.maps[o2].oldest_version().length() == 1) for st in _orig_states) and \
-               all(utils.definitely_true(st.solver, st.maps.length(o1) <= st.maps.length(o2)) for st in _orig_states):
-                #print("Inferred: Length of", o1, "is always <= that of", o2)
-                results.put(("len-le", [o1, o2], lambda st, o1=o1, o2=o2: st.solver.add(st.maps.length(o1) <= st.maps.length(o2))))
+        other_is_array = is_likely_array(other_obj)
 
-            # Optimization: Ignore the states in which neither map changed
-            # (do this after len-le because otherwise we might only get the states in which length==1 for a map)
-            orig_states = [st for st in _orig_states if st.maps[o1].version() != 0 or st.maps[o2].version() != 0]
-            if len(orig_states) == 0:
-                #print("Ignored all states for maps", o1, o2)
-                continue
+        # Try to find a FK
+        fk_finders = [candidate_finder_various]
+        fk = find_f(states, obj, other_obj, get_key, get_key, fk_finders) \
+          or find_f(states, obj, other_obj, get_value, get_key, fk_finders)
+        # No point in continuing if we couldn't find a FK
+        if fk is None: continue
 
-            # Map relationships.
-            # For each pair of maps (M1, M2),
-            #  if there exist functions FP, FK such that in all states, forall(M1, (K,V): FP(K,V) => get(M2, FK(K, V)) == (_, true)),
-            #  then assume this is an invariant of M1 in the merged state.
-            # Additionally,
-            #  if there exists a function FV such that in all states, forall(M1, (K,V): FP(K,V) => get(M2, FK(K, V)) == (FV(K, V), true)),
-            #  then assume this is an invariant of M1 in the merged state.
-            # We use maps directly to refer to the map state as it was in the ancestor, not during execution;
-            # otherwise, get(M1, k) after remove(M2, k) might add has(M2, k) to the constraints, which is obviously false
+        # Try to find a FV
+        fv_finders = [candidate_finder_various]
+        if not (obj_is_array and other_is_array):
+            fv_finders.append(candidate_finder_constant)
+        fv = find_f(states, obj, other_obj, get_key, get_value, fv_finders) \
+          or find_f(states, obj, other_obj, get_value, get_value, fv_finders)
 
-            states = [s.copy() for s in orig_states] # avoid polluting states across attempts
-
-            # Optimization: Avoid inferring pointless invariants when maps are likely to be arrays.
-            # If both maps are arrays of the same length, then the only interesting invariants are about the values in the 2nd map;
-            # the keys obviously are related. Finding constant values is also likely pointless.
-            # If only the first map is an array, using FP = True makes little sense, so don't try it.
-            def is_likely_array(o):
-                # Stupid, but it works, because these are the only arrays we create...
-                return "allocated_addr" in str(o)
-            o1_is_array = is_likely_array(o1)
-            o2_is_array = is_likely_array(o2)
-
-            # Try to find FPs
-            (fps_is_cached, fps) = get_cached(o1, o2, "p")
-            if not fps_is_cached:
-                fps = find_fps(states, o1, o1_is_array)
-
-            if fps == []:
-                to_cache.put([o1, o2, "p", []])
-                # No point in continuing if we couldn't find FPs
-                continue
-
-            # Try to find a FK
-            (fk_is_cached, fk) = get_cached(o1, o2, "k")
-            if not fk_is_cached:
-                fk_finders = [candidate_finder_various]
-                fk = find_f(states, o1, o2, get_key, get_key, fk_finders) \
-                  or find_f(states, o1, o2, get_value, get_key, fk_finders)
-            if not fk:
-                to_cache.put([o1, o2, "k", None])
-                # No point in continuing if we couldn't find a FK
-                continue
-
-            # Try to find a FV
-            (fv_is_cached, fv) = get_cached(o1, o2, "v")
-            if not fv_is_cached:
-                fv_finders = [candidate_finder_various]
-                if not (o1_is_array and o2_is_array):
-                    fv_finders.append(candidate_finder_constant)
-                fv = find_f(states, o1, o2, get_key, get_value, fv_finders) \
-                  or find_f(states, o1, o2, get_value, get_value, fv_finders)
-
-            log_k = claripy.BVS("K", states[0].maps.key_size(o1), explicit_name=True)
-            log_v = claripy.BVS("V", states[0].maps.value_size(o1), explicit_name=True)
-            #print("For", o1, o2, "found p,k,v:", [fp(log_k, log_v) for fp in fps], fk(log_k, log_v), fv(log_k, log_v) if fv is not None else "<none>", "at", datetime.datetime.now())
-            for fp in fps:
-                log_text = ""
-                if fv and all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk, fv=fv: \
-                                                                                             Implies(fp(k, v), MapHas(o2, fk(k, v), value=fv(k, v))), _exclude_get=True)) for st in states):
-                        to_cache.put([o1, o2, "p", [fp]]) # only put the working one, don't have us try a pointless one next time
-                        to_cache.put([o1, o2, "k", fk])
-                        to_cache.put([o1, o2, "v", fv])
-                        log_text +=   f"Inferred: when {o1} contains (K,V), if {fp(log_k, log_v)} then {o2} contains {fk(log_k, log_v)}"
-                        log_text += f"\n          in addition, the value is {fv(log_k, log_v)}"
-                        results.put(("x-value", [o1, o2],
-                                     lambda state, o1=o1, o2=o2, fp=fp, fk=fk, fv=fv: state.solver.add(state.maps.forall(o1, lambda k, v: Implies(fp(k, v), MapHas(o2, fk(k, v), value=fv(k, v)))))))
-                else:
-                    to_cache.put([o1, o2, "v", None]) # do not cache fv since it didn't work
-
-                    if all(utils.definitely_true(st.solver, st.maps.forall(o1, lambda k, v, st=st, o2=o2, fp=fp, fk=fk: Implies(fp(k, v), MapHas(o2, fk(k, v))), _exclude_get=True)) for st in states):
-                        log_text += f"Inferred: when {o1} contains (K,V), if {fp(log_k, log_v)} then {o2} contains {fk(log_k, log_v)}"
-                        results.put(("x-key", [o1, o2],
-                                     lambda state, o1=o1, o2=o2, fp=fp, fk=fk: state.solver.add(state.maps.forall(o1, lambda k, v: Implies(fp(k, v), MapHas(o2, fk(k, v)))))))
-                        to_cache.put([o1, o2, "p", [fp]]) # only put the working one, don't have us try a pointless one next time
-                        to_cache.put([o1, o2, "k", fk])
-
-                if log_text != "":
-                    print(log_text) # print it at once to avoid interleavings from threads
-                    break # this might make us miss some stuff in theory? but that's sound; and in practice it doesn't
-            else:
-                # executed if we didn't break, i.e., nothing found
-                to_cache.put([o1, o2, "p", []])
-                to_cache.put([o1, o2, "k", None])
-
-    for o in objs:
-        remaining_work.put((o, None))
-    for (o1, o2) in itertools.permutations(objs, 2):
-        remaining_work.put((o1, o2))
-
-    # Multithreading disabled because:
-    # - with threads, one needs to disable GC to avoid weird angr/Z3 issues (see angr issue #938), and it quickly OOMs unless there's tons of RAM
-    # - with processes, we'd need to rearchitect this entire method to only pass pickle-able objects, i.e., never lambdas...
-    thread_main(copy.deepcopy(_ancestor_maps), [s.copy() for s in _states])
-    """threads = []
-    import gc
-    gc.disable()
-    for n in range(os.cpu_count()): # os.sched_getaffinity(0) would be better (get the CPUs we might be restricted to) but is not available on Win and OSX
-        t = threading.Thread(group=None, target=thread_main, name=None, args=[copy.deepcopy(_ancestor_maps), [s.copy() for s in _states]], kwargs=None, daemon=False)
-        t.start()
-        threads.append(t)
-    for thread in threads:
-        thread.join()
-    gc.enable()"""
-
-    # Convert results queue into a list
-    results_list = []
-    while not results.empty():
-        results_list.append(results.get(block=False))
-
-    # Fill cache
-    while not to_cache.empty():
-        set_cached(*(to_cache.get(block=False)))
-
-    return results_list
-
-def maps_merge_one(states_to_merge, obj, ancestor_maps, ancestor_variables, new_states):
-    # Optimization: Drop states in which the map has not changed at all
-    states_to_merge = [st for st in states_to_merge if st.maps[obj].version() != ancestor_maps[obj].version()]
-    if len(states_to_merge) == 0:
-        return False
-
-    print("Merging map", obj)
-    # helper function to find constraints that hold on an expression in a state
-    def find_constraints(state, expr, replacement):
-        # If the expression is constant or constrained to be, return that
-        const = utils.get_if_constant(state.solver, expr)
-        if const is not None:
-            return [replacement == const]
-        # Otherwise, find constraints that contain the expression, but ignore those that also contain variables not in the ancestor
-        # This might miss stuff due to transitive constraints,
-        # but it's sound since having overly lax invariants can only over-approximate
-        expr_vars = state.solver.variables(expr)
-        results = []
-        for constr in state.solver.constraints:
-            constr_vars = state.solver.variables(constr)
-            if not constr.replace(expr, replacement).structurally_match(constr) and constr_vars.difference(expr_vars).issubset(ancestor_variables):
-                results.append(constr.replace(expr, replacement))
-        # Also, if the item is always 0 in places, remember that.
-        # Or at least remember the beginning, that's enough for a prototype.
-        # This is because some programmers use variables that are too wide, e.g. their skeleton has the device as an u16 but they cast to an u32
-        if expr.op == "Concat" and expr.args[0].structurally_match(claripy.BVV(0, expr.args[0].size())):
-            results.append(replacement[expr.size()-1:expr.size()-expr.args[0].size()] == 0)
-        return results
-
-    # Oblivion algorithm: "forget" known items by integrating them into the unknown items invariant
-    # For each conjunction in the unknown items invariant,
-    # for each known item in any state,
-    #  if the conjunction may not hold on that item assuming the item is present,
-    #  find constraints that do hold and add them as a disjunction to the conjunction.
-    # except this is done on the latest map versions... i.e. we take invs designed for v0 and apply them to vNow; not sure how to best phrase this
-    changed = False
-    invariant_conjs = []
-    for conjunction in ancestor_maps[obj].invariant_conjunctions():
-        for state in states_to_merge:
-            for item in state.maps[obj].known_items(_exclude_get=True):
-                conj = conjunction.with_latest_map_versions(state)(state, item)
-                if utils.can_be_false(state.solver, Implies(item.present, conj)):
-                    changed = True
-                    conjunction = conjunction.with_expr(
-                        lambda e, i, oldi=item, state=state: e | claripy.And(*find_constraints(state, oldi.key, i.key), *find_constraints(state, oldi.value, i.value))
-                    )
-                    print("Item", item, "in map", obj, "does not comply with invariant conjunction", conj, "; it is now", conjunction)
-        invariant_conjs.append(conjunction)
-
-    map_funcs = []
-    new_map = ancestor_maps[obj].relax()
-    for new_state in new_states:
-        new_state.maps[obj] = new_map.__copy__()
-        map_funcs.append(lambda st: [st.maps[obj].add_invariant_conjunction(st, inv) for inv in invariant_conjs])
-        #for inv in invariant_conjs:
-        #    new_state.maps[obj].add_invariant_conjunction(new_state, inv)
-
-    return (changed, map_funcs)
-
-
-# TODO TODO TODO rewrite this so we only do cross-inference for _new_ pairs (i.e., those that were outright ignored before)
-# and the one-inference is used to tell if past invariants still hold (they're right there! we're already doing it!)
+        for fp in fps:
+            if fv is not None:
+                inner_inv = lambda k, v, fp=fp, fk=fk, fv=fv, other_obj=other_obj: Implies(fp(k, v), MapHas(other_obj, fk(k, v), value=fv(k, v)))
+                inv = lambda st, obj=obj, inner_inv=inner_inv: st.maps.forall(obj, inner_inv)
+                if all(utils.definitely_true(st.solver, inv(st)) for st in states):
+                    print(f"Inferred: when {obj} contains (K,V), if {fp(log_k, log_v)} then {other_obj} contains {fk(log_k, log_v)}")
+                    print(f"          in addition, the value is {fv(log_k, log_v)}")
+                    result.append(inv)
+                    break
+            # either no fv, or it didn't work
+            inner_inv = lambda k, v, fp=fp, fk=fk, other_obj=other_obj: Implies(fp(k, v), MapHas(other_obj, fk(k, v)))
+            inv = lambda st, obj=obj, inner_inv=inner_inv: st.maps.forall(obj, inner_inv)
+            if all(utils.definitely_true(st.solver, inv(st)) for st in states):
+                print(f"Inferred: when {obj} contains (K,V), if {fp(log_k, log_v)} then {other_obj} contains {fk(log_k, log_v)}")
+                result.append(inv)
+                break
+    return result
 
 # Returns (new_states, new_results, reached_fixpoint), where
 # new_states is the new states to use instead of the ancestors,
 # new_results is the results to pass as previous_results next time,
 # reached_fixpoint is self-explanatory
+# Assumes all ancestor_states have the same maps
 def infer_invariants(ancestor_states, states, previous_results=None):
-    # note that we keep track of objs as their string representations to avoid comparing Claripy ASTs (which don't like ==)
-    previous_results = copy.deepcopy(previous_results or [])
+    if previous_results is None:
+        previous_results = {}
 
-    ancestor_maps = ancestor_states[0].maps
-    ancestor_objs = [o for (o, _) in ancestor_maps.get_all()]
+    # Compute them once and for all
+    ancestor_variables = get_variables(ancestor_states)
 
-    ancestor_variables = set(ancestor_states[0].solver.variables(claripy.And(*ancestor_states[0].solver.constraints)))
-    for st in ancestor_states[1:]:
-        ancestor_variables.intersection_update(st.solver.variables(claripy.And(*st.solver.constraints)))
-    for m in ancestor_maps._maps.values():
-        ancestor_variables = ancestor_variables - m._unknown_item.key.variables
-        ancestor_variables = ancestor_variables - m._unknown_item.value.variables
-        ancestor_variables = ancestor_variables - m._unknown_item.present.variables
+    # Ignore maps that have not changed at all
+    relevant_objs = [o for (o, m) in ancestor_states[0].maps.get_all() if any(st.maps[o].version() != ancestor_states[0].maps[o].version() for st in states)]
 
-    # Optimization: Ignore maps that have not changed at all
-    ancestor_objs = [o for o in ancestor_objs if any(st.maps[o].version() != ancestor_maps[o].version() for st in states)]
+    # Keep a copy of the states so we don't pollute them across attemps
+    orig_states = [st.copy() for st in states]
 
-    across_results = maps_merge_across(states, ancestor_objs, ancestor_maps, ancestor_variables)
-    # To check if we have reached a superset of the previous results, remove all values we now have
-    for (id, objs, _) in across_results:
-        try:
-            previous_results.remove((id, list(map(str, objs))))
-        except ValueError:
-            pass # was not in previous_results, that's OK
+    changed = False
+    items_invariants = {}
+    length_invariants = {}
+    for obj in relevant_objs:
+        states = [st.copy() for st in orig_states]
 
-    new_states = [s.copy() for s in ancestor_states]
+        # First, items
+        (items_changed, invs) = flatten_items(obj, states, ancestor_states, ancestor_variables)
+        items_invariants[obj.cache_key] = invs
+        if items_changed:
+            changed = True
+            # Try and find some invariants since the maps' items changed, so we don't end up with overly simplistic invariants
+            # that do not allow us to prove necessary facts. Most importantly, this will look for invariant across maps.
+            items_invariants[obj.cache_key].extend(get_items_invariants(obj, relevant_objs, states, ancestor_states, ancestor_variables))
 
-    # Merge individual values, keeping track of whether any of them changed
-    any_individual_changed = False
-    one_funcs = []
-    for obj in ancestor_objs:
-        (has_changed, funcs) = maps_merge_one(states, obj, ancestor_maps, ancestor_variables, new_states)
-        any_individual_changed = any_individual_changed or has_changed
-        one_funcs += funcs
+        # Second, length
+        len_invs = previous_results.get(obj.cache_key, default=None)
+        if len_invs is None:
+            # This map's length has never changed before
+            new_invs = get_length_invariants(obj, relevant_objs, states, ancestor_states)
+            if new_invs is not None:
+                length_invariants[obj.cache_key] = new_invs
+                changed = True
+        else:
+            # There may be some invariants on this map's length (or there could be none)
+            new_invs = []
+            for inv in len_invs:
+                for state in states:
+                    if utils.can_be_false(state.solver, inv(state)):
+                        changed = True
+                        break
+                else:
+                    new_invs.append(inv)
+            # Note that if len_invs was empty then new_invs is also empty and changed was not set to True,
+            # which makes sense: there were no invariants so there are no changes, there are still no invariants (we gave up, in a sense)
+            length_invariants[obj.cache_key] = new_invs
 
-    # Fixpoint if all merges resulted in the old result and the across_results are a superset
-    reached_fixpoint = not any_individual_changed and len(previous_results) == 0
-    if not reached_fixpoint:
-        print("### No fixpoint yet, because:")
-        if any_individual_changed:
-            print("### - Individual items changed")
-        if len(previous_results) != 0:
-            print("### - Invariants were removed: " + str(previous_results))
+    # If we've reached a fixpoint, we're done
+    if not changed:
+        return (None, None, True)
 
-    if reached_fixpoint:
-        # No point in spending time setting up invariants on the new state if we won't use it
-        new_states = None
-    else:
-        for new_state in new_states:
-            for func in one_funcs:
-                func(new_state)
-            for (_, _, func) in across_results:
-                func(new_state)
-        statistics.set_value("#invs", sum(len(m._invariants) for (_, m) in new_states[0].maps.get_all()))
+    # Otherwise, we create a new state per ancestor state with relaxed clones of each map...
+    new_states = [st.copy() for st in ancestor_states]
+    for state in new_states:
+        for obj in relevant_objs:
+            map = state.maps[obj]
 
-    new_results = [(id, list(map(str, objs))) for (id, objs, _) in across_results]
-    return (new_states, new_results, reached_fixpoint)
+            length_invs = length_invariants.get(obj.cache_key)
+            if length_invs is None:
+                # No need to change it
+                new_length = map.length()
+            else:
+                new_length = claripy.BVS("havoced_length", map.length().size())
+
+            state.maps[obj] = Map.new(
+                state,
+                map.meta.key_size,
+                map.meta.value_size,
+                map.meta.name,
+                _invariants=[],
+                _length=new_length,
+                _exact_name=True
+            )
+        # ... and apply the invariants (must be done as a separate step so cross-map invariants reference updated maps)
+        for obj in relevant_objs:
+            for inv in items_invariants.get(obj.cache_key, default=[]) + length_invariants.get(obj.cache_key, default=[]):
+                if isinstance(inv, MapInvariant):
+                    state.solver.add(state.maps.forall(obj, inv))
+                else:
+                    state.solver.add(inv(state))
+
+    # And we set the length invariant as the previous results for next time
+    return (new_states, length_invariants, False)

@@ -55,6 +55,10 @@ def get_exact_match(solver, item, candidates, assumption=claripy.true, selector=
         if item.structurally_match(selector(cand)):
             return cand
 
+    # TODO move this function to ghostmaps, that's the only way this makes sense
+    if not item.symbolic:
+        return None
+
     for cand in candidates:
         if definitely_true(solver, ~assumption | (item == selector(cand))):
             return cand
