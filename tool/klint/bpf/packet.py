@@ -5,25 +5,11 @@ from klint.bpf import detection
 
 PACKET_MTU = 1514 # 1500 (Ethernet spec) + 2xMAC + EtherType
 
-# If you're reading this because you got the exception below, what you need to do is:
-# - See what 'import platform; print(platform.release(), platform.architecture()[0])' returns on your system, and add an 'elif' case below
-# - Add information about the offsets in that case, which you can get either by compiling a BPF program that uses ifindex and dumping it,
-#   or by manually looking at Linux's 'include/net/xdp.h' and 'include/linux/netdevice.h', but don't forget to include padding...
-#   Note that offsets are in bytes!
-# - Once it works, send a pull request ;-)
-# NOTE: If these don't change across minor releases, it may be worth doing a substring check on the major version instead... do they change?
-linux_ver = detection.get_linux_version()
-if linux_ver is None:
-    raise Exception("Looks like you're not running Linux. Sorry, no idea how BPF is even implemented on your platform...")
-elif linux_ver == '5.4.0-81-generic' and detection.is_64bit():
-    buff_data_offset = 0
-    buff_dataend_offset = 8
-    buff_rxq_offset = 40
-    rxq_dev_offset = 0
-    dev_ifindex_offset = 264
-else:
-    raise Exception("Sorry, your specific kernel version is not supported. Adding support is easy, see instructions in " + __file__)
-
+buff_data_offset = None
+buff_dataend_offset = None
+buff_rxq_offset = None
+rxq_dev_offset = None
+dev_ifindex_offset = None
 
 def create(state):
     # 'struct xdp_md' is { u32 data, u32 data_end, u32 data_meta, u32 ingress_ifindex, u32 rx_queue_index, u32 egress_ifindex }
@@ -41,6 +27,25 @@ def create(state):
 
     # For now let's only support {data, data_end, ingress_ifindex}.
     # This means we must have 'rxq' which must have a 'dev' which must have an 'ifindex'
+
+    # If you're reading this because you got the exception below, what you need to do is:
+    # - See what 'import platform; print(platform.release(), platform.architecture()[0])' returns on your system, and add an 'elif' case below
+    # - Add information about the offsets in that case, which you can get either by compiling a BPF program that uses ifindex and dumping it,
+    #   or by manually looking at Linux's 'include/net/xdp.h' and 'include/linux/netdevice.h', but don't forget to include padding...
+    #   Note that offsets are in bytes!
+    # - Once it works, send a pull request ;-)
+    # NOTE: If these don't change across minor releases, it may be worth doing a substring check on the major version instead... do they change?
+    linux_ver = detection.get_linux_version()
+    if linux_ver is None:
+        raise Exception("Looks like you're not running Linux. Sorry, no idea how BPF is even implemented on your platform...")
+    elif linux_ver == '5.4.0-81-generic' and detection.is_64bit():
+        buff_data_offset = 0
+        buff_dataend_offset = 8
+        buff_rxq_offset = 40
+        rxq_dev_offset = 0
+        dev_ifindex_offset = 264
+    else:
+        raise Exception("Sorry, your specific kernel version is not supported. Adding support is easy, see instructions in " + __file__)
 
     # Generate a symbolic length that is at most the MTU. No minimum.
     data_length = claripy.BVS("data_length", state.sizes.ptr)

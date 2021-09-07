@@ -57,7 +57,7 @@ def handle_bpf(args):
     verif(None, None) # no actual verif for bpf-jited for now...
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--use-cached-symbex', type=bool, default=False, help='Verify only, using cached symbolic execution results')
+parser.add_argument('--use-cached-symbex', action='store_true', help='Verify only, using cached symbolic execution results')
 
 subparsers = parser.add_subparsers(dest='command', required=True)
 
@@ -80,6 +80,6 @@ parser_bpf.add_argument('--override-linux-version', type=str, help='Override Lin
 parser_bpf.add_argument('--override-64bit', type=bool, help='Override 64bit detection')
 parser_bpf.set_defaults(func=handle_bpf)
 
-args = parser.parse_args()
-#For debugging: args = parser.parse_args(['bpf-jited', 'D:/bpf.bin', 'D:/bpf.calls', 'D:/bpf.maps', '--override-linux-version=5.4.0-81-generic', '--override-64bit=True'])
+#args = parser.parse_args()
+#For debugging: args = parser.parse_args(['--use-cached-symbex', 'libnf', 'D:/Projects/vigor-binary-experiments/nf/firewall/libnf.so'])
 args.func(args)

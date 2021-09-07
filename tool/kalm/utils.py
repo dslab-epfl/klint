@@ -186,7 +186,8 @@ def base_index_offset(state, addr, meta_type, allow_failure=False):
                 return (None, None, None)
             raise Exception("!= 1 candidate for base??? are you symbolically indexing a global variable or something?")
 
-        added = sum((a for a in addr.args if not a.structurally_match(base)), start=claripy.BVV(0, addr.size()))
+        # 2nd parameter is 'start', but cannot be a named parameter before Python 3.8...
+        added = sum((a for a in addr.args if not a.structurally_match(base)), claripy.BVV(0, addr.size()))
         offset = state.solver.eval_one(_modulo_simplify(state.solver, added, meta.size), cast_to=int)
         index = _div_simplify(state.solver, (added - offset), meta.size)
         return (base, index, offset * 8)

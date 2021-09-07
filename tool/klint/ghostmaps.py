@@ -826,7 +826,7 @@ def infer_invariants(ancestor_states, states, previous_results=None):
             items_invariants[obj.cache_key].extend(get_items_invariants(obj, relevant_objs, states, ancestor_states, ancestor_variables))
 
         # Second, length
-        len_invs = previous_results.get(obj.cache_key, default=None)
+        len_invs = previous_results.get(obj.cache_key, None)
         if len_invs is None:
             # This map's length has never changed before
             new_invs = get_length_invariants(obj, relevant_objs, states, ancestor_states)
@@ -875,7 +875,7 @@ def infer_invariants(ancestor_states, states, previous_results=None):
             )
         # ... and apply the invariants (must be done as a separate step so cross-map invariants reference updated maps)
         for obj in relevant_objs:
-            for inv in items_invariants.get(obj.cache_key, default=[]) + length_invariants.get(obj.cache_key, default=[]):
+            for inv in items_invariants.get(obj.cache_key, []) + length_invariants.get(obj.cache_key, []):
                 if isinstance(inv, MapInvariant):
                     state.solver.add(state.maps.forall(obj, inv))
                 else:
