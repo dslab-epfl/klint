@@ -4,6 +4,7 @@ import copy
 import os
 import unittest
 
+from kalm import executor as kalm_executor
 from kalm.solver import KalmSolver
 from kalm.plugins import SizesPlugin
 from klint.ghostmaps import Map, GhostMapsPlugin, MapGet, MapHas
@@ -19,9 +20,7 @@ angr.SimState.register_default("sizes", SizesPlugin)
 
 # Can't find another way to create an empty state...
 def empty_state():
-    proj = angr.Project(os.path.dirname(os.path.realpath(__file__)) + "/empty_binary", simos=angr.simos.SimOS)
-    state = proj.factory.blank_state()
-    state.solver._stored_solver = KalmSolver()
+    state = kalm_executor.create_blank_state(os.path.dirname(os.path.realpath(__file__)) + "/empty_binary")
     state.maps = GhostMapsPlugin()
     state.maps.set_state(state)
     return state
@@ -268,6 +267,11 @@ class Tests(unittest.TestCase):
         state.solver.add(map.forall(state, lambda k, v: v == X))
         map2 = map.set(state, claripy.BVV(0, KEY_SIZE), Y)
         self.assertSolver(state, map2.forall(state, lambda k, v: v == claripy.If(k == 0, Y, X)))
+
+    def test_forall_itself(self):
+        state = empty_state()
+        map = Map.new(state, KEY_SIZE, VALUE_SIZE, "test", _length=10, _invariants=[lambda i: claripy.true])
+        self.assertSolver(state, map.forall(state, lambda k, v: MapHas(map, k, value=v)))
 
     def test_forall_cross_o1first(self):
         state = empty_state()

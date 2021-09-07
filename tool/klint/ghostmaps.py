@@ -46,6 +46,8 @@ MapItem = namedtuple("MapItem", ["key", "value", "present"])
 
 # TODO: Any way we can remove ITEs completely here? out of curiosity...
 
+# MapHas/MapGet *must* be used whenever doing anything inside of a forall... otherwise bad stuff might happen
+
 # value=None -> returns whether the map has the key; value!=None -> also checks whether the map has exactly that value for the key
 def MapHas(map, key, value=None, version=None):
     return claripy.ast.Bool("MapHas", [map, key, value, version])
@@ -73,20 +75,23 @@ def eval_map_ast_core(expr, replace_dict, has_handler, get_handler):
 
 def freeze_map_ast_versions(state, expr):
     def map_handler(ast, replacer):
-        return ast.make_like(ast.op, [replacer(a) for a in ast.args[0:len(ast.args)-1]] + [state.maps[ast.args[0]].version()])
+        map = ast.args[0] if isinstance(ast.args[0], Map) else state.maps[ast.args[0]]
+        return ast.make_like(ast.op, [replacer(a) for a in ast.args[0:len(ast.args)-1]] + [map.version()])
     return eval_map_ast_core(expr, {}, map_handler, map_handler)
 
 def eval_map_ast(state, expr, replace_dict={}, condition=claripy.true):
     def has_handler(ast, replacer):
+        map = ast.args[0] if isinstance(ast.args[0], Map) else state.maps[ast.args[0]]
         replaced_key = replacer(ast.args[1])
         replaced_value = replacer(ast.args[2])
         if replaced_value is None:
-            return state.maps[ast.args[0]].get(state, replaced_key, condition=condition, version=ast.args[2])[1]
-        result = state.maps[ast.args[0]].get(state, replaced_key, conditioned_value=replaced_value, condition=condition, version=ast.args[3])
+            return map.get(state, replaced_key, condition=condition, version=ast.args[2])[1]
+        result = map.get(state, replaced_key, conditioned_value=replaced_value, condition=condition, version=ast.args[3])
         return result[1] & (result[0] == replaced_value)
     def get_handler(ast, replacer):
+        map = ast.args[0] if isinstance(ast.args[0], Map) else state.maps[ast.args[0]]
         replaced_key = replacer(ast.args[1])
-        return state.maps[ast.args[0]].get(state, replaced_key, condition=condition, version=ast.args[2])[0]
+        return map.get(state, replaced_key, condition=condition, version=ast.args[2])[0]
     return eval_map_ast_core(expr, replace_dict, has_handler, get_handler)
 
 
@@ -245,7 +250,7 @@ class Map:
             length_change=claripy.If(present, claripy.BVV(-1, self.length().size()), claripy.BVV(0, self.length().size())),
         )
 
-    def forall(self, state, pred, _exclude_get=False):
+    def forall(self, state, pred):
         if not isinstance(pred, MapInvariant):
             pred = MapInvariant.new(state, self.meta, (lambda i, old_pred=pred: Implies(i.present, old_pred(i.key, i.value))))
 
@@ -255,7 +260,7 @@ class Map:
         if self.is_definitely_empty():
             return claripy.true
 
-        known_items = self.known_items(_exclude_get=_exclude_get)
+        known_items = self.known_items()
         known_items_result = claripy.And(*[pred(state, i) for i in known_items])
 
         unknown_is_not_known = claripy.And(*[self._unknown_item.key != i.key for i in known_items])
@@ -476,8 +481,8 @@ class GhostMapsPlugin(SimStatePlugin):
     def remove(self, obj, key):
         self[obj] = self[obj].remove(self.state, key)
 
-    def forall(self, obj, pred, _exclude_get=False):
-        return self[obj].forall(self.state, pred, _exclude_get=_exclude_get)
+    def forall(self, obj, pred):
+        return self[obj].forall(self.state, pred)
 
     # === Havocing, not meant for general use ===
 

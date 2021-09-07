@@ -256,7 +256,7 @@ def _symbex(state_data):
             return ([cs[0] for cs in choices], results)
         except:
             # Debug:
-            #print("A choice didn't work. Trying with a different one.")
+            print("A choice didn't work. Trying with a different one.")
             #failures = failures + 1
             #if failures == 1: raise
             # Prune choice sets that were fully explored

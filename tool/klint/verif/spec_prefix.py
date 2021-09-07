@@ -251,7 +251,7 @@ class _SpecPacketData:
         self.map = map
 
     def __eq__(self, other):
-        return (self.map.length() == other.map.length()) & self.map.forall(self.state, lambda k, v: other.map.get(self.state, k)[1] & (other.map.get(self.state, k)[0] == v))
+        return (self.map.length() == other.map.length()) & self.map.forall(self.state, lambda k, v: self.state.MapHas(other.map, k, value=v))
 
 class _SpecPacket:
     def __init__(self, state, map, length, time, devices):

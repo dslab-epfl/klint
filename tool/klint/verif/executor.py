@@ -11,6 +11,7 @@ from kalm import utils
 from kalm.plugins.sizes import SizesPlugin
 from kalm.solver import KalmSolver
 
+from klint import ghostmaps
 from klint import statistics
 from klint.verif import symbex
 
@@ -35,6 +36,8 @@ class _VerifState:
         # Allow the spec to create a BV without importing claripy explicitly
         self.BVS = claripy.BVS
         self.BVV = claripy.BVV
+        # Allow the spec to create MapHas as well, for packet.data's ==
+        self.MapHas = ghostmaps.MapHas
 
         self.sizes = SizesPlugin()
         self.sizes.set_state(self)
