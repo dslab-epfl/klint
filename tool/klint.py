@@ -15,23 +15,16 @@ import klint.verif.executor as verif_executor
 #tests.test.Tests().test_forall_subset() ; sys.exit(0)
 
 
-def verif(data_path, spec):
-    # print them now just in case verif fails somehow
+def verif(data_path, spec_path):
+    if spec_path is None:
+        print("No specification. Not verifying.")
+    else:
+        with open(spec_path, 'r') as spec_file:
+            spec = spec_file.read()
+        verif_executor.verify(verif_persist.load_data(data_path), spec)
+
     for line in statistics.to_tsv():
         print(line)
-"""
-    spec_path = Path(nf_root_folder) / "spec.py" # TODO spec needs to be an arg
-    if spec_path.exists():
-        spec = spec_path.read_text()
-        verif_executor.verify(verif_persist.load_data(cached_data_path), spec)
-        stats = statistics.to_tsv()
-        for line in stats:
-            print(line)
-    else:
-        print("No specification. Not verifying.")
-
-    (Path(__file__).parent / "symbex.stats").write_text("\n".join(stats))
-"""
 
 
 def handle_libnf(args):
@@ -80,6 +73,7 @@ parser_bpf.add_argument('--override-linux-version', type=str, help='Override Lin
 parser_bpf.add_argument('--override-64bit', type=bool, help='Override 64bit detection')
 parser_bpf.set_defaults(func=handle_bpf)
 
-#args = parser.parse_args()
-#For debugging: args = parser.parse_args(['--use-cached-symbex', 'libnf', 'D:/Projects/vigor-binary-experiments/nf/firewall/libnf.so'])
+args = parser.parse_args()
+#For debugging:
+#args = parser.parse_args(['--use-cached-symbex', 'libnf', 'D:/Projects/vigor-binary-experiments/nf/firewall/libnf.so', 'D:/Projects/vigor-binary-experiments/nf/firewall/spec.py'])
 args.func(args)

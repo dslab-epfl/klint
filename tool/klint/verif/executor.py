@@ -7,15 +7,14 @@ import itertools
 import os
 from pathlib import Path
 
-from klint import statistics
-from kalm import clock
+from kalm import utils
 from kalm.plugins.sizes import SizesPlugin
 from kalm.solver import KalmSolver
 
-from . import symbex
+from klint import statistics
+from klint.verif import symbex
 
 
-# TODO this class wouldn't need to exist if non-plugin stuff in ghost maps didn't depend on state.maps...
 class _VerifMaps:
     def __init__(self, maps):
         self._maps = maps
@@ -62,7 +61,7 @@ def verify(all_data, spec):
     full_spec_text = spec_prefix + os.linesep + spec_utils + os.linesep + spec
 
     globals = {
-        # TODO move this somewhere... maybe just use "device_t" since we have time_t and such?
+        # TODO move this somewhere...
         "Device": "uint16_t",
         "Time": "uint64_t"
     }
@@ -75,4 +74,4 @@ def verify(all_data, spec):
     ) for data in all_data]
     (choices, results) = symbex.symbex(full_spec_text, "_spec_wrapper", globals, state_data)
     statistics.work_end()
-    print("NF verified! at", datetime.datetime.now()) #, choices, results)
+    print("NF verified! at", datetime.datetime.now())

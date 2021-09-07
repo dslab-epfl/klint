@@ -29,6 +29,7 @@ class _SymbexData:
 
 def symbex_builtin_choose(choices):
     assert isinstance(choices, list)
+    assert len(choices) != 0
     global __symbex__
     if __symbex__.choice_index == len(__symbex__.choices):
         __symbex__.choices.append(choices)
@@ -87,13 +88,6 @@ class ValueProxy:
     def _op(self, other, op):
         other_value = other
         self_value = self._value
-
-        # Claripy bug #214: Bool doesn't support rand/ror
-        # TODO fixed by fe614e61564636bb118c8514b8b08e525aa670bb, update
-        if op == '__ror__':
-            op = '__or__'
-        if op == '__rand__':
-            op = '__and__'
 
         # Convert if needed
         if isinstance(other, ValueProxy):
@@ -264,7 +258,7 @@ def _symbex(state_data):
             # Debug:
             #print("A choice didn't work. Trying with a different one.")
             #failures = failures + 1
-            #if failures == 4: raise
+            #if failures == 1: raise
             # Prune choice sets that were fully explored
             while len(choices) > 0 and len(choices[-1]) == 1: choices.pop()
             # If all choices were explored, we failed

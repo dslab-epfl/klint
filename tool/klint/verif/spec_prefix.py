@@ -207,40 +207,59 @@ class _SpecSingleDevice:
 
 # === Network packet ===
 
-class _SpecPacket:
-    _ETHER_HEADER = {
-        'dst': 48,
-        'src': 48,
-        'type': 16
-    }
-    _IPV4_HEADER = {
-        'version': 4,
-        'ihl': 4,
-        'dscp': 6,
-        'ecn': 2,
-        'total_length': 16,
-        'identification': 16,
-        'flags': 3,
-        'fragment_offset': 13,
-        'time_to_live': 8,
-        'protocol': 8,
-        'checksum': 16,
-        'src': 32,
-        'dst': 32
-    }
-    _TCPUDP_HEADER = {
-        'src': 16,
-        'dst': 16
-    }
+class _SpecPacketHeader:
+    def __init__(self, state, map, offset, attrs):
+        self.state = state
+        self.map = map
+        self.offset = offset
+        self.attrs = attrs
 
-    def __init__(self, data_addr, length, time, devices):
+    def __getattr__(self, attr):
+        # Same logic as the heap plugin's read method
+        # First find the attribute's offset and size
+        offset = self.offset
+        size = None
+        for (name, sz) in self.attrs.items():
+            if name == attr:
+                size = sz
+                break
+            offset += sz
+        if size is None:
+            raise Exception("Unknown attribute: " + attr)
+        # Convert the offset to index+offset
+        index = offset // 8
+        offset = offset % 8
+        # Then read, in chunks if needed
+        result = self.state.solver.BVV(0, 0)
+        while result is None or result.size() < size + offset:
+            chunk, present = self.map.get(self.state, self.state.solver.BVV(index, self.state.sizes.ptr))
+            # Ensure we can read
+            assert not self.state.solver.satisfiable(extra_constraints=[~present])
+            # Remember the result
+            result = chunk.concat(result)
+            # Increment the index for the next chunk
+            index = index + 1
+        if offset != 0:
+            result = result[:offset]
+        if result.size() > size:
+            result = result[size-1:0]
+        return result
+
+class _SpecPacketData:
+    def __init__(self, state, map):
+        self.state = state
+        self.map = map
+
+    def __eq__(self, other):
+        return (self.map.length() == other.map.length()) & self.map.forall(self.state, lambda k, v: other.map.get(self.state, k)[1] & (other.map.get(self.state, k)[0] == v))
+
+class _SpecPacket:
+    def __init__(self, state, map, length, time, devices):
+        self.map = map
+        self.state = state
         self.length = length
         self.time = time
         self._devices = devices
-        self.ether = type_wrap(data, _SpecPacket._ETHER_HEADER) # always set for now, we only support Ethernet packets
-        self._data = data[:type_size(_SpecPacket._ETHER_HEADER)]
-        self._ipv4 = None
-        self._tcpudp = None
 
     @property
     def device(self):
@@ -253,30 +272,45 @@ class _SpecPacket:
         return self._devices
 
     @property
+    def ether(self): # always set for now, we only support Ethernet packets
+        return _SpecPacketHeader(self.state, self.map, 0, {
+            'dst': 48,
+            'src': 48,
+            'type': 16
+        })
+
+    @property
     def ipv4(self):
-        if self._ipv4 is None:
-            if self.ether.type == 0x0008: # TODO handle endness in spec
-                self._ipv4 = type_wrap(self._data, _SpecPacket._IPV4_HEADER)
-                self._data = self._data[:type_size(_SpecPacket._IPV4_HEADER)]
-        return self._ipv4
+        if self.ether.type == 0x0008: # TODO handle endness in spec
+            return _SpecPacketHeader(self.state, self.map, 48+48+16, {
+                'version': 4,
+                'ihl': 4,
+                'dscp': 6,
+                'ecn': 2,
+                'total_length': 16,
+                'identification': 16,
+                'flags': 3,
+                'fragment_offset': 13,
+                'time_to_live': 8,
+                'protocol': 8,
+                'checksum': 16,
+                'src': 32,
+                'dst': 32
+            })
+        return None
 
     @property
     def tcpudp(self):
-        if self._tcpudp is None:
-            if self.ipv4 is not None and ((self.ipv4.protocol == 6) | (self.ipv4.protocol == 17)):
-                self._tcpudp = type_wrap(self._data, _SpecPacket._TCPUDP_HEADER)
-                self._data = self._data[:type_size(_SpecPacket._TCPUDP_HEADER)]
-        return self._tcpudp
+        if self.ipv4 is not None and ((self.ipv4.protocol == 6) | (self.ipv4.protocol == 17)):
+            return _SpecPacketHeader(self.state, self.map, (48+48+16)+(8+8+16+16+16+8+8+16+32+32), {
+                'src': 16,
+                'dst': 16
+            })
+        return None
 
     @property
     def data(self):
-        full = type_unwrap(self.ether, type_size(_SpecPacket._ETHER_HEADER))
-        if self._ipv4 is not None:
-            full = type_unwrap(self.ipv4, type_size(_SpecPacket._IPV4_HEADER)).concat(full)
-            if self._tcpudp is not None:
-                full = type_unwrap(self.tcpudp, type_size(_SpecPacket._TCPUDP_HEADER)).concat(full)
-        full = self._data.concat(full)
-        return full
+        return _SpecPacketData(self.state, self.map)
 
 
 # === Network 'built-in' functions ===
@@ -289,9 +323,11 @@ def ipv4_checksum(header):
 
 def _spec_wrapper(data):
     global __symbex__
+    state = __symbex__.state
     print("PATH", __symbex__.state._value.path._segments)
 
-    received_packet = _SpecPacket(data.network.received_addr, data.network.received_length, data.time, _SpecSingleDevice(data.network.received_device))
+    received_packet_map = state.maps[data.network.received_addr].oldest_version()
+    received_packet = _SpecPacket(state, received_packet_map, data.network.received_length, data.time, _SpecSingleDevice(data.network.received_device))
     
     transmitted_packet = None
     if len(data.network.transmitted) != 0:
@@ -301,7 +337,8 @@ def _spec_wrapper(data):
             transmitted_device = _SpecFloodedDevice(data.network.transmitted[0].device, data.devices_count)
         else:
             transmitted_device = _SpecSingleDevice(data.network.transmitted[0].device)
-        transmitted_packet = _SpecPacket(data.network.transmitted[0].data_addr, data.network.transmitted[0].length, None, transmitted_device)
+        transmitted_packet_map = state.maps[data.network.transmitted[0].data_addr]
+        transmitted_packet = _SpecPacket(state, transmitted_packet_map, data.network.transmitted[0].length, None, transmitted_device)
 
     config = _SpecConfig(data.config, data.devices_count)
 

@@ -24,9 +24,7 @@ def spec(packet, config, transmitted_packet):
             return
 
         assert flows.did_refresh(flow)
-        packet.ipv4.dst = flow.src_ip
         assert transmitted_packet.ipv4.dst == flow.src_ip
-        packet.tcpudp.dst = flow.src_port
         assert transmitted_packet.tcpudp.dst == flow.src_port
     else:
         flow = {
@@ -42,10 +40,8 @@ def spec(packet, config, transmitted_packet):
             assert transmitted_packet is None
             return
 
-        packet.ipv4.src = config["external addr"]
         assert transmitted_packet.ipv4.src == config["external addr"]
-        packet.tcpudp.src = config["start port"] + flows.get_index(flow)
         assert transmitted_packet.tcpudp.src == config["start port"] + flows.get_index(flow)
 
-    #assert transmitted_packet.data == packet.data # TODO handle the checksum change with a nice API for specs
+    #assert transmitted_packet.data == packet.data # TODO handle the flow and checksum changes with a nice API for specs
     assert transmitted_packet.device == 1 - packet.device

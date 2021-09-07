@@ -25,12 +25,11 @@ def spec(packet, config, transmitted_packet):
         }
 
         if transmitted_packet is None:
-            print("XYZSZZSSSZSZSSS", backends._map)
             assert backends.forall(lambda k, v: (k < 0) | (k >= config.devices_count - 1))
         else:
             if flow not in flows:
                 assert flows.old.full
-            # TODO assert device; but we need the CHT info for that... uninterpreted functions maybe?
+            # Ideally we'd check the device; but we need the CHT info for that... uninterpreted functions maybe?
             assert transmitted_packet.data == packet.data
     else:
         assert packet.device in backends
