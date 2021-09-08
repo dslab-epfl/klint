@@ -10,9 +10,9 @@
 
 struct cht
 {
-    device_t *data;
-    device_t height;
-    device_t backend_capacity;
+    uint16_t *data;
+    uint16_t height;
+    uint16_t backend_capacity;
     uint8_t _padding[4];
 };
 
@@ -26,14 +26,14 @@ struct cht
     }
 @*/
 
-struct cht *cht_alloc(device_t cht_height, device_t backend_capacity);
+struct cht *cht_alloc(uint16_t cht_height, uint16_t backend_capacity);
 /*@ requires
         0 < cht_height &*& cht_height < MAX_CHT_HEIGHT &*&
         0 < backend_capacity &*& backend_capacity < cht_height; @*/
 /*@ ensures
         chtp(result); @*/
 
-bool cht_find_preferred_available_backend(struct cht *cht, void* obj, size_t obj_size, struct index_pool *active_backends, device_t* chosen_backend, time_t time);
+bool cht_find_preferred_available_backend(struct cht *cht, void* obj, size_t obj_size, struct index_pool *active_backends, uint16_t* chosen_backend, time_t time);
 /*@ requires
         chtp(cht) &*&
         poolp(active_backends, ?size, ?backends) &*& cht->backend_capacity <= size &*&

@@ -7,7 +7,6 @@ OS_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 
 # Remove the shared memory allocator, DPDK has its own
 OS_SRCS := $(filter-out $(abspath $(OS_DIR)/../memory_alloc.c),$(OS_SRCS))
-$(info lala $(OS_SRCS))
 
 # Our sources
 OS_SRCS += $(shell echo $(OS_DIR)/*.c)
