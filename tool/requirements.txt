@@ -9,7 +9,7 @@ claripy==9.0.9438
 cle==9.0.9438
 CppHeaderParser==2.7.4
 decorator==5.0.9
-dpkt==1.9.6
+dpkt==1.9.7.2
 future==0.18.2
 gitdb==4.0.7
 GitPython==3.1.18
@@ -17,7 +17,7 @@ itanium-demangler==1.0
 mulpyplexer==0.9
 nampa==0.1.1
 networkx==2.6.2
-pefile==2021.5.24
+pefile==2021.9.3
 plumbum==1.7.0
 ply==3.11
 progressbar2==3.53.1
@@ -25,15 +25,12 @@ protobuf==3.17.3
 psutil==5.8.0
 pycparser==2.20
 pyelftools==0.27
-pypiwin32==223
 PySMT==0.9.1.dev139
 python-utils==2.5.6
 pyvex==9.0.9438
-pywin32==301
 rpyc==5.0.1
 six==1.16.0
 smmap==4.0.0
 sortedcontainers==2.4.0
-typing-extensions==3.10.0.0
 unicorn==1.0.2rc4
 z3-solver==4.8.12.0
