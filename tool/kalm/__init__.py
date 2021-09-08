@@ -64,5 +64,6 @@ else:
     # Disable logs we don't care about
     logging.getLogger('cle.loader').setLevel('ERROR')
     logging.getLogger('cle.backends.externs').setLevel('ERROR')
+    logging.getLogger('cle.backends.elf.elf').setLevel('ERROR')
     logging.getLogger('angr.engines.successors').setLevel('ERROR')
     logging.getLogger('angr.project').setLevel('ERROR')

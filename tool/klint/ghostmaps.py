@@ -854,6 +854,8 @@ def infer_invariants(ancestor_states, states, previous_results=None):
 
     # If we've reached a fixpoint, we're done
     if not changed:
+        # Not the greatest place to put this or way to compute it, but anyway it's a very basic metric, some invariants are far more complex
+        statistics.set_value("#invs", sum(len(m._invariants) for (_, m) in ancestor_states[0].maps.get_all()))
         return (None, None, True)
 
     # Otherwise, we create a new state per ancestor state with relaxed clones of each map...
