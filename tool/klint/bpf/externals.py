@@ -270,3 +270,8 @@ class bpf_xdp_adjust_head(angr.SimProcedure):
             return claripy.BVV(-1, 64)
         # TODO: should we randomly fail to mimic an allocation failure? can this ever happen in the kernel?
         return utils.fork_guarded(self, self.state, length.SGE(delta) & (length - delta).ULE(packet.PACKET_MTU), case_true, case_false)
+
+# u32 bpf_user_rnd_u32(void)
+class bpf_user_rnd_u32(angr.SimProcedure):
+    def run(self):
+        return claripy.BVS("bpf_user_rnd_u32_result", 32)

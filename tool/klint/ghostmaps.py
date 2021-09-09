@@ -214,7 +214,7 @@ class Map:
             # Add UK => invariant(M)(K', V', P') to the path constraint [conditioned]
             *[Implies(unknown, inv(state, MapItem(key, value, present), condition=condition)) for inv in self.invariant_conjunctions()],
             # Add L <= length(M)
-            self.is_not_overfull()
+            self.is_not_overfull(state)
         )
 
         # Return (V, P)
@@ -264,7 +264,7 @@ class Map:
         known_items_result = claripy.And(*[pred(state, i) for i in known_items])
 
         unknown_is_not_known = claripy.And(*[self._unknown_item.key != i.key for i in known_items])
-        unknown_items_result = Implies(self.is_not_overfull(), Implies(unknown_is_not_known, pred(state, self._unknown_item)))
+        unknown_items_result = Implies(self.is_not_overfull(state), Implies(unknown_is_not_known, pred(state, self._unknown_item)))
         # TODO try with just (since we don't really need the weird length=1 case)
         #unknown_items_result = Implies(unknown_is_not_known, pred(state, self._unknown_item))
 
@@ -311,7 +311,7 @@ class Map:
         # Basic map invariants have to hold no matter what
         for (n, it) in enumerate(self._known_items):
             state.solver.add(*[Implies(i.key == oi.key, (i.value == oi.value) & (i.present == oi.present)) for oi in self._known_items[(n+1):] + [self._unknown_item]])
-        state.solver.add(self.is_not_overfull())
+        state.solver.add(self.is_not_overfull(state))
         if self._previous is not None:
             self._previous.merge(state, [o._previous for o in others], other_states, merge_conditions)
 
@@ -410,12 +410,12 @@ class Map:
         l = self.length()
         return l.structurally_match(claripy.BVV(0, l.size()))
 
-    def is_not_overfull(self):
+    def is_not_overfull(self, state):
         l = self.length()
         known_items = self.known_items()
 
         # Optimization: If the map length is concrete and there are definitely not too many items, don't even compute the known length
-        if not l.symbolic and len(known_items) <= l.args[0]:
+        if utils.definitely_true(state.solver, len(known_items) <= l):
             return claripy.true
 
         known_len = claripy.BVV(0, l.size())

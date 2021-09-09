@@ -1,4 +1,7 @@
-#!/bin/sh
+#!/bin/bash
+
+cd '../tool'
+. './setup.sh'
 
 printf "NF\ttime\t\t\t\t#invs\n"
 printf "\tsymbex\tinfer\tverif\ttotal\n"
