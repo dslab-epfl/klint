@@ -15,7 +15,7 @@ def execute(code_path, calls_path, maps_path):
     with open(code_path, 'rb') as code_file:
         code = code_file.read()
     blank = kalm_executor.create_blank_state(code)
-    for (addr, map) in analysis.get_maps(maps_path, blank.sizes.ptr):
+    for (addr, name, map) in analysis.get_maps(maps_path, blank.sizes.ptr):
         externals.map_init(blank, addr, map)
     function = 0 # since our code is a single function
     exts = {a: get_external(n) for (a, n) in analysis.get_calls(calls_path)}

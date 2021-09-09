@@ -99,7 +99,7 @@ objdump -h 'bpf.obj' | grep '.maps' | head -n 1 | awk '{print "dd if='bpf.obj' o
 readelf -s 'bpf.obj' | tail -n+4 | tr -s ' ' | grep -F "DEFAULT $MAPS_SECTION_IDX" | cut -d ' ' -f 3,9 > '/tmp/offset-to-name'
 cat '/tmp/offset-to-name' | awk '{print "echo -n " $2 " ; echo -n '"' '"' ; xxd -p -seek 0x" $1 " -l 20 /tmp/maps"}' | sh > '/tmp/names-to-contents'
 # Finally, combine the two
-cat '/tmp/addrs-to-names' | awk '{ print "echo " $1 " $(grep \"^" $2 " \" /tmp/names-to-contents | cut -d '"' '"' -f 2)"  }' | sh > 'bpf.maps'
+cat '/tmp/addrs-to-names' | awk '{ print "echo " $1 " $(grep \"^" $2 " \" /tmp/names-to-contents)"  }' | sh > 'bpf.maps'
 
 # Dump x86 as binary
 sudo "$LINUX_BPFTOOL" prog dump jited pinned '/sys/fs/bpf/temp' file '/tmp/bin'

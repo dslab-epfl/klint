@@ -14,4 +14,4 @@ def get_maps(path, ptr_size):
         return [claripy.BVV(int(c, 16), 32).reversed.zero_extend(ptr_size - 32) for c in chunks]
 
     with open(path, 'r') as file:
-        return [(a, BpfMapDef(d[0], d[1], d[2], d[3], d[4])) for (a, d) in [(claripy.BVV(int(l[0], 16), ptr_size), to_bvs(l[1])) for l in [l.strip().split(' ') for l in file.readlines()]]]
+        return [(a, n, BpfMapDef(d[0], d[1], d[2], d[3], d[4])) for (a, n, d) in [(claripy.BVV(int(l[0], 16), ptr_size), l[1], to_bvs(l[2])) for l in [l.strip().split(' ') for l in file.readlines()]]]
