@@ -14,7 +14,7 @@
 # (these observations were made on Ubuntu 18.04 HWE, i.e., kernel 5.4)
 # -> We use both!
 # - Third, the location of headers when compiling BPF programs is super weird
-# -> We create a folder in /tmp that we then use as -isystem
+# -> We use the Linux source we needed for bpftool anyway
 
 THIS_DIR="$(dirname $(readlink -f $0))"
 
@@ -58,18 +58,8 @@ echo 1 | sudo tee '/proc/sys/net/core/bpf_jit_enable' >/dev/null
 # Ensure the libbpf submodule was cloned
 git submodule update --init --recursive
 
-# Prep the headers just right. This is beyond absurd, especially the uapi/linux / linux confusion...
-rm -rf '/tmp/bpf-headers'
-mkdir '/tmp/bpf-headers'
-ln -s "$THIS_DIR/libbpf/src" '/tmp/bpf-headers/bpf'
-mkdir -p '/tmp/bpf-headers/uapi/linux'
-cp '/usr/include/linux/'* '/tmp/bpf-headers/uapi/linux/.' 2>/dev/null
-cp "$THIS_DIR/libbpf/include/uapi/linux/"* '/tmp/bpf-headers/uapi/linux/.'
-cp "$THIS_DIR/libbpf/include/linux/"* '/tmp/bpf-headers/uapi/linux/.'
-cp -r '/tmp/bpf-headers/uapi/linux/' '/tmp/bpf-headers/linux/'
-
 # Compile (not sure why we explicitly need that x86_64 include but we do)
-clang -O3 -target bpf -isystem '/tmp/bpf-headers' -isystem '/usr/include/x86_64-linux-gnu/' \
+clang -O3 -target bpf -I "$THIS_DIR/libbpf/include" -I '/tmp/linux/tools/lib' \
       $EXTRA_BPF_CFLAGS \
       -D u8=__u8 -D u16=__u16 -D u32=__u32 -D u64=__u64 -D __wsum=__u32 -D __sum16=__u16 \
       -o 'bpf.obj' -c $@
