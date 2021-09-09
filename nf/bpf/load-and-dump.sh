@@ -24,6 +24,10 @@ if [ ! -f "$LINUX_BPFTOOL" ]; then
     echo 'libbfd not found, and bpftool needs it to dump programs. Please install it, e.g. binutils-dev in Ubuntu.'
     exit 1
   fi
+  if [ ! -f '/usr/include/libelf.h' ]; then
+    echo 'libelf.h not found, and bpftool needs it. Please install it, e.g. libelf-dev in Ubuntu.'
+    exit 1
+  fi
   echo 'Cloning Linux to build bpftool... will take a bit...'
   git clone --depth=1 'https://github.com/torvalds/linux' /tmp/linux
   make -C '/tmp/linux/tools/bpf/bpftool/'
@@ -34,9 +38,12 @@ if [ "$(which bpftool)" = '' ]; then
   exit 1
 fi
 bpftool 2>/dev/null
-if [ $? -ne 0 ]; then
+if [ $? -eq 0 ]; then
+  BPFTOOL=bpftool
+else
   echo 'bpftool found but not working, maybe you have the wrong version compared to your kernel, perhaps because you need to reboot to apply a newer one?'
-  exit 1
+  echo 'Will try with the one compiled from source, but this might not work...'
+  BPFTOOL="$LINUX_BPFTOOL"
 fi
 
 # Ensure we have clang
@@ -78,7 +85,7 @@ fi
 sudo rm -f '/sys/fs/bpf/temp'
 
 # Load into kernel
-sudo bpftool prog load 'bpf.obj' '/sys/fs/bpf/temp'
+sudo "$BPFTOOL" prog load 'bpf.obj' '/sys/fs/bpf/temp'
 
 # Dump BPF as text
 sudo "$LINUX_BPFTOOL" prog dump xlated pinned '/sys/fs/bpf/temp' > '/tmp/bpf'
