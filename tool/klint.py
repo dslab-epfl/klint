@@ -71,7 +71,7 @@ parser_bpf.add_argument('maps', type=str, help='Path to a file with one line per
 parser_bpf.add_argument('spec', type=str, nargs='?', help='Path to the specification')
 parser_bpf.add_argument('--override-linux-version', type=str, help='Override Linux version detection')
 parser_bpf.add_argument('--override-64bit', type=bool, help='Override 64bit detection')
-parser_bpf.add_argument('--havoc', type=str, action='append', help='Map name to be havoced')
+parser_bpf.add_argument('--havoc', type=str, action='append', default=[], help='Map name to be havoced')
 parser_bpf.set_defaults(func=handle_bpf)
 
 args = parser.parse_args()

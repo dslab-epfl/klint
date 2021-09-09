@@ -13,17 +13,22 @@ BpfMap = namedtuple('BpfMap', ['map_def', 'values', 'items'])
 
 
 # Not an external, called to mimic the kernel initializing a map
-def map_init(state, addr, map_def):
+def map_init(state, addr, map_def, havoc):
     assert utils.definitely_true(state.solver, map_def.flags == 0) # no flags handled yet
 
-    type = utils.get_if_constant(state.solver, map_def.type)
-    if type == 1 or type == 9:
+    if map_def.type == 1 or map_def.type == 9:
         # Hash map
         # TODO: 9 is LRU, so inserting should never fail
         values = state.heap.allocate(map_def.max_entries, map_def.value_size, default_fraction=0)
-        items = state.maps.new(map_def.key_size * 8, state.sizes.ptr, "bpf_map")
+        length = None
+        invariants = None
+        if havoc:
+            length = claripy.BVS("havoced_length", state.sizes.ptr)
+            state.solver.add(length.ULE(map_def.max_entries))
+            invariants = [lambda i: claripy.true]
+        items = state.maps.new(map_def.key_size * 8, state.sizes.ptr, "bpf_map", _length=length, _invariants=invariants)
         state.metadata.append(addr, BpfMap(map_def, values, items))
-    elif type == 2:
+    elif map_def.type == 2:
         # Array, the code won't use functions to access it, just direct memory accesses, though there's an offset to the data
 
         # See bpf/packet.py for a detailed explanation
@@ -37,24 +42,26 @@ def map_init(state, addr, map_def):
             raise("Sorry, you need to do some work here: " + __file__)
 
         # The kernel rounds up the value size
-        value_size = claripy.If(map_def.value_size < 8, 8, map_def.value_size)
-        state.heap.allocate(map_def.max_entries, value_size, addr=addr+offset)
-    elif type == 6:
+        value_size = 8 if map_def.value_size < 8 else map_def.value_size
+        default = None
+        if not havoc:
+            default = claripy.BVV(0, value_size * 8)
+        state.heap.allocate(map_def.max_entries, value_size, addr=addr+offset, default=default)
+    elif map_def.type == 6:
         # Per-cpu array, like an array but accessed with explicit function calls
         # The kernel rounds up the value size
-        value_size = claripy.If(map_def.value_size < 8, 8, map_def.value_size)
+        value_size = 8 if map_def.value_size < 8 else map_def.value_size
+        default = None
+        if not havoc:
+            default = claripy.BVV(0, value_size * 8)
         map_def = BpfMapDef(map_def.type, map_def.key_size, value_size, map_def.max_entries, map_def.flags)
-        values = state.heap.allocate(map_def.max_entries, map_def.value_size)
+        values = state.heap.allocate(map_def.max_entries, map_def.value_size, default=default)
         state.metadata.append(addr, BpfMap(map_def, values, None))
-    elif type == 14:
+    elif map_def.type == 14:
         # Dev map, only for redirect calls, we don't fully model those yet
         return
     else:
-        raise Exception("Unsupported map type: " + str(type))
-
-# Not an external, called to havoc a map
-def map_havoc(state, addr, map_def):
-    print("TODO: havoc", map_def)
+        raise Exception("Unsupported map type: " + str(map_def.type))
 
 
 # void *bpf_map_lookup_elem(struct bpf_map *map, const void *key)
