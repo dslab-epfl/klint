@@ -90,16 +90,16 @@ paste -d ' ' '/tmp/x86-calls' '/tmp/bpf-calls' | sort | uniq > 'bpf.calls'
 
 # Create the maps list (address to maps)
 # First, create a mapping from addresses to names, using the order in which loads and relocations appear
-sed 's/.*movabs $\(0x[0-9a-z]*\),%rdi/\1/;t;d' '/tmp/x86' > '/tmp/map-addrs'
+sed 's/.*movabs $\(0x[0-9a-z]\{16\}\),%rdi/\1/;t;d' '/tmp/x86' > '/tmp/map-addrs'
 objdump -r 'bpf.obj' | tail -n+6 | tr -s ' ' | cut -d ' ' -f 3 | grep -Fv '.bss' | head -n-2 > '/tmp/map-names'
 paste -d ' ' '/tmp/map-addrs' '/tmp/map-names' | sort | uniq > '/tmp/addrs-to-names'
 # Then, create a mapping from names to data
 MAPS_SECTION_IDX="$(readelf --sections 'bpf.obj' | sed 's/.*\[\s*\([0-9]*\)\]\s*maps.*/\1/;t;d')"
-objdump -h 'bpf.obj' | grep '.maps' | awk '{print "dd if='bpf.obj' of='/tmp/maps' bs=1 count=$[0x" $3 "] skip=$[0x" $6 "]"}' | bash 2>/dev/null # From https://stackoverflow.com/a/3925586
+objdump -h 'bpf.obj' | grep '.maps' | head -n 1 | awk '{print "dd if='bpf.obj' of='/tmp/maps' bs=1 count=$[0x" $3 "] skip=$[0x" $6 "]"}' | bash 2>/dev/null # From https://stackoverflow.com/a/3925586
 readelf -s 'bpf.obj' | tail -n+4 | tr -s ' ' | grep -F "DEFAULT $MAPS_SECTION_IDX" | cut -d ' ' -f 3,9 > '/tmp/offset-to-name'
 cat '/tmp/offset-to-name' | awk '{print "echo -n " $2 " ; echo -n '"' '"' ; xxd -p -seek 0x" $1 " -l 20 /tmp/maps"}' | sh > '/tmp/names-to-contents'
 # Finally, combine the two
-cat '/tmp/addrs-to-names' | awk '{ print "echo " $1 " $(grep -F " $2 " /tmp/names-to-contents | cut -d '"' '"' -f 2)"  }' | sh > 'bpf.maps'
+cat '/tmp/addrs-to-names' | awk '{ print "echo " $1 " $(grep \"^" $2 " \" /tmp/names-to-contents | cut -d '"' '"' -f 2)"  }' | sh > 'bpf.maps'
 
 # Dump x86 as binary
 sudo "$LINUX_BPFTOOL" prog dump jited pinned '/sys/fs/bpf/temp' file '/tmp/bin'
