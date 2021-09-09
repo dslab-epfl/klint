@@ -46,7 +46,7 @@ def handle_bpf(args):
         bpf_detection.override_linux_version(args.override_linux_version)
     if args.override_64bit is not None:
         bpf_detection.override_64bit(args.override_64bit)
-    bpf_executor.execute(args.binary, args.calls, args.maps)
+    bpf_executor.execute(args.binary, args.calls, args.maps, args.havoc)
     verif(None, None) # no actual verif for bpf-jited for now...
 
 parser = argparse.ArgumentParser()
@@ -71,6 +71,7 @@ parser_bpf.add_argument('maps', type=str, help='Path to a file with one line per
 parser_bpf.add_argument('spec', type=str, nargs='?', help='Path to the specification')
 parser_bpf.add_argument('--override-linux-version', type=str, help='Override Linux version detection')
 parser_bpf.add_argument('--override-64bit', type=bool, help='Override 64bit detection')
+parser_bpf.add_argument('--havoc', type=str, action='append', help='Map name to be havoced')
 parser_bpf.set_defaults(func=handle_bpf)
 
 args = parser.parse_args()

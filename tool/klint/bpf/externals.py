@@ -52,13 +52,9 @@ def map_init(state, addr, map_def):
     else:
         raise Exception("Unsupported map type: " + str(type))
 
-def align(n, val):
-    if not isinstance(val, int):
-        if val.symbolic: raise Exception("nope")
-        val = val.args[0]
-    if val % n == 0:
-        return val
-    return val + (n - (val % n))
+# Not an external, called to havoc a map
+def map_havoc(state, addr, map_def):
+    print("TODO: havoc", map_def)
 
 
 # void *bpf_map_lookup_elem(struct bpf_map *map, const void *key)
@@ -121,6 +117,14 @@ class percpu_array_map_lookup_elem(angr.SimProcedure):
 #          because what it really returns is a pointer to the hash table entry, and the BPF code compensates to find the pointer to the value
 class __htab_map_lookup_elem(angr.SimProcedure):
     def run(self, map, key):
+        def align(n, val):
+            if not isinstance(val, int):
+                if val.symbolic: raise Exception("nope")
+                val = val.args[0]
+            if val % n == 0:
+                return val
+            return val + (n - (val % n))
+
         # Casts
         map = self.state.casts.ptr(map)
         key = self.state.casts.ptr(key)
