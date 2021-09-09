@@ -19,5 +19,4 @@ def execute(code_path, calls_path, maps_path):
         externals.map_init(blank, addr, map)
     function = 0 # since our code is a single function
     exts = {a: get_external(n) for (a, n) in analysis.get_calls(calls_path)}
-    states = klint_executor.find_fixedpoint_states([(blank, lambda st: kalm_executor.create_calling_state(st, function, [packet.create(st)], exts))])
-    print("END", states)
+    return klint_executor.find_fixedpoint_states([(blank, lambda st: kalm_executor.create_calling_state(st, function, [packet.create(st)], exts))])

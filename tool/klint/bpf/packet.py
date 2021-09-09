@@ -12,6 +12,7 @@ rxq_dev_offset = None
 dev_ifindex_offset = None
 
 def create(state):
+    global buff_data_offset, buff_dataend_offset, buff_rxq_offset, rxq_dev_offset, dev_ifindex_offset
     # 'struct xdp_md' is { u32 data, u32 data_end, u32 data_meta, u32 ingress_ifindex, u32 rx_queue_index, u32 egress_ifindex }
     # Except... not. The kernel doesn't actually passes a 'struct xdp_md' but a 'struct xdp_buff' (defined in Linux's `include/net/xdp.h`),
     # and rewrites code to map between the two. See `xdp_convert_ctx_access` in net/core/filter.c in Linux.
