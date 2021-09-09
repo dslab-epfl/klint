@@ -17,20 +17,24 @@ def map_init(state, addr, map_def):
     assert utils.definitely_true(state.solver, map_def.flags == 0) # no flags handled yet
 
     type = utils.get_if_constant(state.solver, map_def.type)
-    if type == 1:
+    if type == 1 or type == 9:
         # Hash map
+        # TODO: 9 is LRU, so inserting should never fail
         values = state.heap.allocate(map_def.max_entries, map_def.value_size, default_fraction=0)
         items = state.maps.new(map_def.key_size * 8, state.sizes.ptr, "bpf_map")
         state.metadata.append(addr, BpfMap(map_def, values, items))
     elif type == 2:
         # Array, the code won't use functions to access it, just direct memory accesses, though there's an offset to the data
 
+        # See bpf/packet.py for a detailed explanation
         # Figure this out by looking at a BPF dump, it's an addition immediately after loading the array address
         linux_ver = detection.get_linux_version()
-        if linux_ver == '5.4.0-81-generic' and detection.is_64bit():
+        if linux_ver.startswith('5.4.0-81') and detection.is_64bit():
             offset = 0xD0
+        elif linux_ver.startswith('5.10.16.3') and detection.is_64bit():
+            offset = 0x110
         else:
-            raise("Sorry, you need to do some work here as well: " + __file__)
+            raise("Sorry, you need to do some work here: " + __file__)
 
         # The kernel rounds up the value size
         value_size = claripy.If(map_def.value_size < 8, 8, map_def.value_size)
@@ -129,12 +133,13 @@ class __htab_map_lookup_elem(angr.SimProcedure):
         def case_has(state, index):
             result = bpfmap.values + index * bpfmap.map_def.value_size
             linux_ver = detection.get_linux_version()
+            # See bpf/packet.py for a detailed explanation
             # Figure this out by looking at a BPF dump that includes a call to __htab_map_lookup_elem :-/
             # Alternatively, try with the existing offset and see if it works or if it obviously needs a correction (e.g. the code is trying to access an item 1 off the target)
-            if linux_ver == '5.4.0-81-generic' and detection.is_64bit():
+            if (linux_ver.startswith('5.4.0-81') or linux_ver.startswith('5.10.16.3')) and detection.is_64bit():
                 offset = 48 + align(8, bpfmap.map_def.key_size)
             else:
-                raise("Sorry, you need to do some work here as well: " + __file__)
+                raise("Sorry, you need to do some work here: " + __file__)
             return result - offset
         def case_not(state):
             return claripy.BVV(0, state.sizes.ptr)
@@ -194,6 +199,9 @@ class htab_map_update_elem(angr.SimProcedure):
             return utils.fork_guarded(self, state, state.maps.length(bpfmap.items) == bpfmap.map_def.max_entries, case_true, case_false)
         return utils.fork_guarded_has(self, self.state, bpfmap.items, key_data, case_has, case_not)
 
+class htab_lru_map_update_elem(htab_map_update_elem):
+    pass
+
 # int htab_map_delete_elem(struct bpf_map *map, void *key)
 # pseudo-VeriFast contract:
 #  requires bpfmap(map, ?def, ?values, ?items) &*&
@@ -233,9 +241,8 @@ class bpf_redirect_map(angr.SimProcedure):
 
 # long bpf_xdp_redirect_map(struct bpf_map *map, u32 key, u64 flags)
 # In practice, an alias for bpf_redirect_map
-class bpf_xdp_redirect_map(angr.SimProcedure):
-    def run(self, map, key, flags):
-        return self.inline_call(bpf_redirect_map, map, key, flags).ret_expr
+class bpf_xdp_redirect_map(bpf_redirect_map):
+    pass
 
 # u64 bpf_ktime_get_ns(void)
 class bpf_ktime_get_ns(angr.SimProcedure):

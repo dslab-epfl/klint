@@ -38,12 +38,18 @@ def create(state):
     linux_ver = detection.get_linux_version()
     if linux_ver is None:
         raise Exception("Looks like you're not running Linux. Sorry, no idea how BPF is even implemented on your platform...")
-    elif linux_ver == '5.4.0-81-generic' and detection.is_64bit():
+    elif linux_ver.startswith('5.4.0-81') and detection.is_64bit():
         buff_data_offset = 0
         buff_dataend_offset = 8
         buff_rxq_offset = 40
         rxq_dev_offset = 0
         dev_ifindex_offset = 264
+    elif linux_ver.startswith('5.10.16.3') and detection.is_64bit():
+        buff_data_offset = 0
+        buff_dataend_offset = 8
+        buff_rxq_offset = 32
+        rxq_dev_offset = 0
+        dev_ifindex_offset = 256
     else:
         raise Exception("Sorry, your specific kernel version is not supported. Adding support is easy, see instructions in " + __file__)
 
