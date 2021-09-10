@@ -19,13 +19,14 @@ def map_init(state, addr, map_def, havoc):
     if map_def.type == 1 or map_def.type == 9:
         # Hash map
         # TODO: 9 is LRU, so inserting should never fail
-        values = state.heap.allocate(map_def.max_entries, map_def.value_size, default_fraction=0)
+        values = state.heap.allocate(map_def.max_entries, map_def.value_size, default_fraction=(None if havoc else 0))
+        values_fractions = state.heap.get_fractions(values)
         length = None
         invariants = None
         if havoc:
             length = claripy.BVS("havoced_length", state.sizes.ptr)
             state.solver.add(length.ULE(map_def.max_entries))
-            invariants = [lambda i: claripy.true]
+            invariants = [lambda i: ~i.present | MapHas(values_fractions, i.value, value=claripy.BVV(100, 8))]
         items = state.maps.new(map_def.key_size * 8, state.sizes.ptr, "bpf_map", _length=length, _invariants=invariants)
         state.metadata.append(addr, BpfMap(map_def, values, items))
     elif map_def.type == 2:
@@ -118,7 +119,7 @@ class percpu_array_map_lookup_elem(angr.SimProcedure):
 #  ensures bpfmap(map, def, values, items) &*&
 #          switch(ghostmap_get(items, key_data)) {
 #              case none: result == NULL;
-#              case some(i): result == values + i * def.value_size &*& [100]chars(result, def.value_size, _);
+#              case some(i): result == values + i * def.value_size;
 #          };
 # HOWEVER: if the result is non-NULL, it's negatively shifted by some amount
 #          because what it really returns is a pointer to the hash table entry, and the BPF code compensates to find the pointer to the value
@@ -135,6 +136,7 @@ class __htab_map_lookup_elem(angr.SimProcedure):
         # Casts
         map = self.state.casts.ptr(map)
         key = self.state.casts.ptr(key)
+        print("!!! __htab_map_lookup_elem", map, key)
 
         # Preconditions
         bpfmap = self.state.metadata.get(BpfMap, map)
@@ -142,6 +144,7 @@ class __htab_map_lookup_elem(angr.SimProcedure):
 
         # Postconditions
         def case_has(state, index):
+            print("!!! __htab_map_lookup has", index)
             result = bpfmap.values + index * bpfmap.map_def.value_size
             linux_ver = detection.get_linux_version()
             # See bpf/packet.py for a detailed explanation
@@ -153,6 +156,7 @@ class __htab_map_lookup_elem(angr.SimProcedure):
                 raise("Sorry, you need to do some work here: " + __file__)
             return result - offset
         def case_not(state):
+            print("!!! __htab_map_lookup has not")
             return claripy.BVV(0, state.sizes.ptr)
         return utils.fork_guarded_has(self, self.state, bpfmap.items, key_data, case_has, case_not)
 
@@ -170,8 +174,7 @@ class __htab_map_lookup_elem(angr.SimProcedure):
 #              case none: length(items) == def.max_entries ? result == -1 &*& bpfmap(map, def, values, items)
 #                                                          : result == 0 &*& bpfmap(map, def, values, ghostmap_set(items, key_data, ?i)) &*&
 #                                                            0 <= i &*& i < bpfmap.def.max_entries &*&
-#                                                            [100]chars(values + i * def.value_size, def.value_size, value_data) &*&
-#                                                            <the previous fraction of 'i' in 'values' was 0, now it's 100>;
+#                                                            [100]chars(values + i * def.value_size, def.value_size, value_data);
 #          };
 class htab_map_update_elem(angr.SimProcedure):
     def run(self, map, key, value, flags):

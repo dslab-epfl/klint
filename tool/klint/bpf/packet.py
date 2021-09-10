@@ -76,13 +76,13 @@ def create(state, devices_count):
     state.solver.add(data.ULE(claripy.BVV(-4096, state.sizes.ptr)))
 
     # Now for the indirections... (only generate as much as we need, and leave the rest of the structs unconstrained just in case the program does funky things)
-    dev = state.heap.allocate(1, dev_ifindex_offset + 4, name="rxq_dev")
+    dev = state.heap.allocate(1, dev_ifindex_offset + 4, ephemeral=True, name="rxq_dev")
     state.memory.store(dev + dev_ifindex_offset, device, endness=state.arch.memory_endness)
-    rxq = state.heap.allocate(1, rxq_dev_offset + (state.sizes.ptr // 8), name="rxq")
+    rxq = state.heap.allocate(1, rxq_dev_offset + (state.sizes.ptr // 8), ephemeral=True, name="rxq")
     state.memory.store(rxq + rxq_dev_offset, dev, endness=state.arch.memory_endness)
 
     # Aaaand now we can actually create the xdp_buff.
-    packet = state.heap.allocate(1, max(buff_data_offset, buff_dataend_offset, buff_rxq_offset) + (state.sizes.ptr // 8), name="xdp_buff")
+    packet = state.heap.allocate(1, max(buff_data_offset, buff_dataend_offset, buff_rxq_offset) + (state.sizes.ptr // 8), ephemeral=True, name="xdp_buff")
     state.memory.store(packet + buff_data_offset, data, endness=state.arch.memory_endness)
     state.memory.store(packet + buff_dataend_offset, data + data_length, endness=state.arch.memory_endness)
     state.memory.store(packet + buff_rxq_offset, rxq, endness=state.arch.memory_endness)

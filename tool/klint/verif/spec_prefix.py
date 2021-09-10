@@ -324,7 +324,7 @@ def ipv4_checksum(header):
 def _spec_wrapper(data):
     global __symbex__
     state = __symbex__.state
-    print("PATH", __symbex__.state._value.path._segments)
+    print("PATH", state._value.path._segments)
 
     received_packet_map = state.maps[data.network.received_addr].oldest_version()
     received_packet = _SpecPacket(state, received_packet_map, data.network.received_length, data.time, _SpecSingleDevice(data.network.received_device))

@@ -68,7 +68,7 @@ def verify(all_data, spec):
         "Device": "uint16_t",
         "Time": "uint64_t"
     }
-    
+
     print("Verifying NF's", len(all_data), "states at", datetime.datetime.now())
     statistics.work_start("verif")
     state_data = [(

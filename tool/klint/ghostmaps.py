@@ -293,7 +293,13 @@ class Map:
         if self_ver > 0 and not self._previous.can_merge([o._previous for o in others]):
             #print("Previous cannot be merged")
             return False
-        #print("can merge, #items=", [len(x.known_items()) for x in [self] + others])
+        max_to_add = 0
+        for o in others:
+            (_, _, to_add) = utils.structural_diff(self._known_items, o._known_items)
+            max_to_add = max(max_to_add, len(to_add))
+        if max_to_add > 5:
+            #print("too many items to add")
+            return False
         return True
 
     # This assumes the solvers have already been merged
@@ -418,7 +424,14 @@ class Map:
         # Optimization: If the map length is concrete and there are definitely not too many items, don't even compute the known length
         if utils.definitely_true(state.solver, len(known_items) <= l):
             return claripy.true
-        #print("overfull?", state.solver.min(l), len(known_items), [i.key for i in known_items])
+# NOTE: doesn't work because there's often an unknown_key from some other map's forall in there
+#        print("overfull? rip=", state.regs.rip, " minlen=", state.solver.min(l), " actlen=", len(known_items), " items=", [i.key for i in known_items])
+#        for item in known_items:
+#            if utils.can_be_false(state.solver, item.present):
+#                print("            can be absent", item.key)
+#                break
+#        else:
+#            return claripy.true
 
         known_len = claripy.BVV(0, l.size())
         known_keys = []

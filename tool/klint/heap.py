@@ -52,7 +52,10 @@ class HeapPlugin(SimStatePlugin):
             fractions = None
         else:
             fractions = self.state.maps.new_array(self.state.sizes.ptr, 8, count, name + HeapPlugin.FRACS_NAME)
-            self.state.solver.add(self.state.maps.forall(fractions, lambda k, v: v == default_fraction))
+            if default_fraction is None:
+                self.state.solver.add(self.state.maps.forall(fractions, lambda k, v: v.ULE(100)))
+            else:
+                self.state.solver.add(self.state.maps.forall(fractions, lambda k, v: v == default_fraction))
 
         # Record this info
         self.state.metadata.append(addr, HeapPlugin.Metadata(count, size, fractions))
@@ -98,7 +101,7 @@ class HeapPlugin(SimStatePlugin):
         self.state.maps.set(meta.fractions, index, current_fraction + fraction)
 
 
-    # For invariant inference
+    # For invariant inference and BPF
     def get_fractions(self, obj):
         meta = self.state.metadata.get_or_none(HeapPlugin.Metadata, obj)
         if meta is None:
