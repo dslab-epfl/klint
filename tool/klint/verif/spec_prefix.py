@@ -328,7 +328,7 @@ def _spec_wrapper(data):
 
     received_packet_map = state.maps[data.network.received_addr].oldest_version()
     received_packet = _SpecPacket(state, received_packet_map, data.network.received_length, data.time, _SpecSingleDevice(data.network.received_device))
-    
+
     transmitted_packet = None
     if len(data.network.transmitted) != 0:
         if len(data.network.transmitted) > 1:

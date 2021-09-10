@@ -379,6 +379,17 @@ class Tests(unittest.TestCase):
         self.assertSolver(state, ~p | p2)
         self.assertSolver(state, ~p | (v == v2))
 
+    def test_forall_subset_rev(self):
+        state = empty_state()
+        o1 = claripy.BVS("O1", 64)
+        state.maps[o1] = Map.new(state, KEY_SIZE, VALUE_SIZE, "test1", _length=100, _invariants=[lambda i: claripy.true])
+        (v, p) = state.maps.get(o1, K)
+        o2 = claripy.BVS("O2", 64)
+        state.maps[o2] = Map.new(state, KEY_SIZE, VALUE_SIZE, "test2", _length=10, _invariants=[lambda i: claripy.true])
+        state.solver.add(state.maps.forall(o2, lambda k, v: MapHas(o1, k+10, v)))
+        (v2, p2) = state.maps.get(o2, K-10)
+        self.assertSolver(state, ~p2 | (v == v2))
+
 
     def mergeSetup(self, **kwargs):
         state1 = empty_state()

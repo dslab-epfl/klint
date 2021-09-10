@@ -293,6 +293,7 @@ class Map:
         if self_ver > 0 and not self._previous.can_merge([o._previous for o in others]):
             #print("Previous cannot be merged")
             return False
+        #print("can merge, #items=", [len(x.known_items()) for x in [self] + others])
         return True
 
     # This assumes the solvers have already been merged
@@ -417,6 +418,7 @@ class Map:
         # Optimization: If the map length is concrete and there are definitely not too many items, don't even compute the known length
         if utils.definitely_true(state.solver, len(known_items) <= l):
             return claripy.true
+        #print("overfull?", state.solver.min(l), len(known_items), [i.key for i in known_items])
 
         known_len = claripy.BVV(0, l.size())
         known_keys = []

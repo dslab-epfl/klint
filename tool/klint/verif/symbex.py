@@ -42,7 +42,7 @@ def symbex_builtin_choose(choices):
     result = __symbex__.choices[__symbex__.choice_index][0]
     __symbex__.choice_index = __symbex__.choice_index + 1
     return result
-    
+
 
 class ValueProxy:
     @staticmethod
@@ -71,14 +71,17 @@ class ValueProxy:
             return super().__getattr__(name, value)
 
         if hasattr(self._value, name):
-            return ValueProxy.wrap(getattr(self._value, name))
+            result = getattr(self._value, name)
+            if result is None:
+                return None
+            return ValueProxy.wrap(result)
 
         raise Exception(f"idk what to do about attr '{name}'")
 
     def __setattr__(self, name, value):
         assert name[0] == "_", "can only set private variables, which should be from within the class itself"
         return super().__setattr__(name, value)
-    
+
     def __str__(self):
         return self._value.__str__()
 
@@ -143,7 +146,7 @@ class ValueProxy:
 
         return result
 
-    
+
     def __contains__(self, item):
         assert not isinstance(self._value, claripy.ast.Base), "contains cannot be called on an AST"
         return item in self._value
@@ -170,7 +173,7 @@ class ValueProxy:
         return self._op(other, "__and__")
     def __rand__(self, other):
         return self._op(other, "__rand__")
-    
+
     def __or__(self, other):
         return self._op(other, "__or__")
     def __ror__(self, other):
@@ -193,7 +196,7 @@ class ValueProxy:
 
     def __ge__(self, other):
         return self._op(other, "__ge__")
-    
+
     def __add__(self, other):
         return self._op(other, "__add__")
     def __radd__(self, other):
@@ -203,7 +206,7 @@ class ValueProxy:
         return self._op(other, "__sub__")
     def __rsub__(self, other):
         return self._op(other, "__rsub__")
-    
+
     def __mul__(self, other):
         return self._op(other, "__mul__")
     def __rmul__(self, other):
@@ -213,10 +216,10 @@ class ValueProxy:
         return self._op(other, "__floordiv__")
     def __rfloordiv__(self, other):
         return self._op(other, "__rfloordiv__")
-    
+
     def __rshift__(self, other):
         return self._op(other, "LShR")
-    
+
     def __lshift__(self, other):
         return self._op(other, "__lshift__")
 

@@ -1,8 +1,12 @@
 import claripy
+from collections import namedtuple
 
 from kalm import utils
 from klint.bpf import detection
+from klint.externals.net import packet as klint_packet # hacky; see remark in bpf/executor.py
 from klint.ghostmaps import MapHas
+
+BpfPacket = namedtuple('BpfPacket', ['addr'])
 
 PACKET_MTU = 1514 # 1500 (Ethernet spec) + 2xMAC + EtherType
 
@@ -12,7 +16,7 @@ buff_rxq_offset = None
 rxq_dev_offset = None
 dev_ifindex_offset = None
 
-def create(state):
+def create(state, devices_count):
     global buff_data_offset, buff_dataend_offset, buff_rxq_offset, rxq_dev_offset, dev_ifindex_offset
     # 'struct xdp_md' is { u32 data, u32 data_end, u32 data_meta, u32 ingress_ifindex, u32 rx_queue_index, u32 egress_ifindex }
     # Except... not. The kernel doesn't actually passes a 'struct xdp_md' but a 'struct xdp_buff' (defined in Linux's `include/net/xdp.h`),
@@ -59,8 +63,9 @@ def create(state):
     data_length = claripy.BVS("data_length", state.sizes.ptr)
     state.solver.add(data_length.ULE(PACKET_MTU))
 
-    # Generate a symbolic device. No constraints. This is an u32 even on 64-bit systems.
+    # Generate a symbolic device. This is an u32 even on 64-bit systems.
     device = claripy.BVS("device", 32)
+    state.solver.add(device.ULE(devices_count))
 
     # Allocate symbolic data
     data = state.heap.allocate(data_length, 1, ephemeral=True, name="data")
@@ -81,7 +86,14 @@ def create(state):
     state.memory.store(packet + buff_data_offset, data, endness=state.arch.memory_endness)
     state.memory.store(packet + buff_dataend_offset, data + data_length, endness=state.arch.memory_endness)
     state.memory.store(packet + buff_rxq_offset, rxq, endness=state.arch.memory_endness)
+
+    state.metadata.append(None, klint_packet.NetworkMetadata(data, 0, data_length, []))
+    state.metadata.append(None, BpfPacket(packet))
     return packet
+
+# bit of a hack so we can fetch it at the end...
+def get_packet(state):
+    return state.metadata.get_one(BpfPacket).addr
 
 def get_data_and_end(state, packet):
     data = state.memory.load(packet + buff_data_offset, state.sizes.ptr // 8, endness=state.arch.memory_endness)

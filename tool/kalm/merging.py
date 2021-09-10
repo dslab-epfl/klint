@@ -26,7 +26,7 @@ def merge_states(states):
 
     if len(to_merge) == 1:
         return (to_merge[0], [], [])
-    #print("Trying to merge", len(to_merge), "states")
+    print("Trying to merge", len(to_merge), "states")
 
     merge_flag = claripy.BVS("state_merge", math.ceil(math.log2(len(to_merge))))
     merge_conds = [(merge_flag == n) for n in range(len(to_merge))]
@@ -61,8 +61,9 @@ def merge_states(states):
             # Memory (of which registers is a kind) returns false if nothing was merged, but that just means the memory was untouched
             if plugin in ('memory', 'registers'):
                 continue
-            #print("Merge failed because of", plugin)
+            print("    failed because of", plugin)
             return (to_merge[0], deferred, to_merge[1:])
+    print("    done")
     return (merged, deferred, [])
 
 

@@ -145,9 +145,6 @@ static __always_inline int parse_iphdr(struct hdr_cursor *nh,
 	if(hdrsize < sizeof(iph))
 		return -1;
 
-// ADDED:
-	if (iph->ihl != 5) return -1;
-
 	/* Variable-length IPv4 header, need to use byte-based arithmetic */
 	if (nh->pos + hdrsize > data_end)
 		return -1;

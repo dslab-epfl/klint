@@ -42,12 +42,14 @@ def handle_fullstack(args):
     verif(cached_data_path, args.spec)
 
 def handle_bpf(args):
+    cached_data_path = args.binary + ".symbex-cache"
     if args.override_linux_version is not None:
         bpf_detection.override_linux_version(args.override_linux_version)
     if args.override_64bit is not None:
         bpf_detection.override_64bit(args.override_64bit)
-    bpf_executor.execute(args.binary, args.calls, args.maps, args.havoc)
-    verif(None, None) # no actual verif for bpf-jited for now...
+    states, devices_count = bpf_executor.execute(args.binary, args.calls, args.maps, args.havoc)
+    verif_persist.dump_data(states, devices_count, cached_data_path)
+    verif(cached_data_path, args.spec)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--use-cached-symbex', action='store_true', help='Verify only, using cached symbolic execution results')
