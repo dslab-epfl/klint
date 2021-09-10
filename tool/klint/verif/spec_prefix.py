@@ -283,8 +283,8 @@ class _SpecPacket:
     def ipv4(self):
         if self.ether.type == 0x0008: # TODO handle endness in spec
             return _SpecPacketHeader(self.state, self.map, 48+48+16, {
-                'version': 4,
                 'ihl': 4,
+                'version': 4,
                 'dscp': 6,
                 'ecn': 2,
                 'total_length': 16,

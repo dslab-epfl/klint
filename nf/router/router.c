@@ -28,17 +28,17 @@ void nf_handle(struct net_packet* packet)
 		return;
 	}
 
-	if (ipv4_header->version != 4u) {
+	if ((ipv4_header->version_ihl >> 4) != 4u) {
 		os_debug("Not IPv4");
 		return;
 	}
 
-	if (ipv4_header->ihl < 5u) { // ihl is in units of 4 bytes
+	if ((ipv4_header->version_ihl & 0xF) < 5u) { // ihl is in units of 4 bytes
 		os_debug("IPv4 header too short");
 		return;
 	}
 
-	if (ipv4_header->total_length < (ipv4_header->ihl * 4u)) {
+	if (ipv4_header->total_length < ((ipv4_header->version_ihl & 0xF) * 4u)) {
 		os_debug("Total length too short");
 		return;
 	}

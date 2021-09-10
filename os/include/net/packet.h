@@ -36,8 +36,8 @@ struct net_ether_header {
 
 // IPv4 header
 struct net_ipv4_header {
-	uint8_t  version : 4,
-	         ihl : 4;
+	// Let's not use a bit field for this, their behavior is implementation-defined (e.g. padding, endianness)
+	uint8_t version_ihl;
 	uint8_t  type_of_service;
 	uint16_t total_length;
 	uint16_t packet_id;
