@@ -424,14 +424,7 @@ class Map:
         # Optimization: If the map length is concrete and there are definitely not too many items, don't even compute the known length
         if utils.definitely_true(state.solver, len(known_items) <= l):
             return claripy.true
-# NOTE: doesn't work because there's often an unknown_key from some other map's forall in there
-#        print("overfull? rip=", state.regs.rip, " minlen=", state.solver.min(l), " actlen=", len(known_items), " items=", [i.key for i in known_items])
-#        for item in known_items:
-#            if utils.can_be_false(state.solver, item.present):
-#                print("            can be absent", item.key)
-#                break
-#        else:
-#            return claripy.true
+        #print("overfull? rip=", state.regs.rip, " minlen=", state.solver.min(l), " actlen=", len(known_items), " items=", [i.key for i in known_items])
 
         known_len = claripy.BVV(0, l.size())
         known_keys = []

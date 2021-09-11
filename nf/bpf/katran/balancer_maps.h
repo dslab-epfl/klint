@@ -51,7 +51,8 @@ struct bpf_map_def SEC("maps") lru_mapping = {
 */
 // fallback lru. we should never hit this one outside of unittests
 struct bpf_map_def SEC("maps") fallback_cache = {
-  .type = BPF_MAP_TYPE_LRU_HASH,
+// MODIFIED:  .type = BPF_MAP_TYPE_LRU_HASH,
+  .type = BPF_MAP_TYPE_HASH,
   .key_size = sizeof(struct flow_key),
   .value_size = sizeof(struct real_pos_lru),
   .max_entries = DEFAULT_LRU_SIZE,

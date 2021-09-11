@@ -110,7 +110,13 @@ def adjust_data_head(state, packet, delta):
 
     new_length = length - delta
     new_data = state.heap.allocate(new_length, 1, name="new_data")
-    state.solver.add(state.maps.forall(data, lambda k, v: ~(k.SGE(delta)) | MapHas(new_data, k - delta, v)))
+    # This would be more accurate.
+    # However, it runs into issues with buggy logic such as CRAB's,
+    # which parses IP/TCP variable-length headers correctly but then ignores such parsing when copying headers over,
+    # meaning the 'data' map has both the fixed-offset (incorrect) values and the variable-offset (correct) ones,
+    # which requires complex constraints to model and kills performance...
+    # Anyway, not doing so is sound, just not complete.
+    #state.solver.add(state.maps.forall(data, lambda k, v: ~(k.SGE(delta)) | MapHas(new_data, k - delta, v)))
 
     state.memory.store(packet + buff_data_offset, new_data, endness=state.arch.memory_endness)
     state.memory.store(packet + buff_dataend_offset, new_data + new_length, endness=state.arch.memory_endness)

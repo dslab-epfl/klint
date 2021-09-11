@@ -16,9 +16,10 @@ BpfMap = namedtuple('BpfMap', ['map_def', 'values', 'items'])
 def map_init(state, addr, map_def, havoc):
     assert utils.definitely_true(state.solver, map_def.flags == 0) # no flags handled yet
 
-    if map_def.type == 1 or map_def.type == 9:
+    if map_def.type == 1:
         # Hash map
-        # TODO: 9 is LRU, so inserting should never fail
+        # NOTE: There's also type 9 LRU_HASH, but it needs to never fail on inserts due to LRU,
+        #       and also there's some more complex inlining going on with a write to the map element's "lru node"... so it's not that simple
         values = state.heap.allocate(map_def.max_entries, map_def.value_size, default_fraction=(None if havoc else 0))
         values_fractions = state.heap.get_fractions(values)
         length = None
