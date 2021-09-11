@@ -2,7 +2,6 @@ import angr
 import claripy
 from collections import namedtuple
 
-from kalm import clock
 from kalm import utils
 from klint.bpf import detection
 from klint.bpf import packet
@@ -75,7 +74,11 @@ class bpf_map_lookup_elem(angr.SimProcedure):
         if bpfmap.items is None:
             # Per-CPU array
             key_data = key_data.zero_extend(self.state.sizes.ptr - key_data.size())
-            return bpfmap.values + key_data * bpfmap.map_def.value_size
+            def case_true(state):
+                return bpfmap.values + key_data * bpfmap.map_def.value_size
+            def case_false(state):
+                return claripy.BVV(0, state.sizes.ptr)
+            return utils.fork_guarded(self, self.state, key_data.ULT(bpfmap.map_def.max_entries), case_true, case_false)
 
         print("lookup", map, key)
         print("map", self.state.metadata.get(BpfMap, map))
@@ -93,8 +96,12 @@ class bpf_map_update_elem(angr.SimProcedure):
         if bpfmap.items is None:
             # Per-CPU array
             key_data = key_data.zero_extend(self.state.sizes.ptr - key_data.size())
-            self.state.memory.store(bpfmap.values + key_data * bpfmap.map_def.value_size, value_data, endness=self.state.arch.memory_endness)
-            return claripy.BVV(0, 64)
+            def case_true(state):
+                self.state.memory.store(bpfmap.values + key_data * bpfmap.map_def.value_size, value_data, endness=self.state.arch.memory_endness)
+                return claripy.BVV(0, 64)
+            def case_false(state):
+                return claripy.BVV(-1, 64)
+            return utils.fork_guarded(self, self.state, key_data.ULT(bpfmap.map_def.max_entries), case_true, case_false)
 
         print("update", map, key, value, flags)
         print("map", self.state.metadata.get(BpfMap, map))
@@ -107,9 +114,8 @@ class bpf_map_delete_elem(angr.SimProcedure):
         print("map", self.state.metadata.get(BpfMap, map))
         raise "TODO"
 
-class percpu_array_map_lookup_elem(angr.SimProcedure):
-    def run(self, map, key):
-        return self.inline_call(bpf_map_lookup_elem, map, key).ret_expr
+class percpu_array_map_lookup_elem(bpf_map_lookup_elem):
+    pass
 
 # void *__htab_map_lookup_elem(struct bpf_map *map, void *key)
 # The specialized hash version of bpf_map_lookup_elem.
@@ -262,14 +268,13 @@ class bpf_xdp_redirect_map(bpf_redirect_map):
 # u64 bpf_ktime_get_ns(void)
 class bpf_ktime_get_ns(angr.SimProcedure):
     def run(self):
-        (time, _) = clock.get_time_and_cycles(self.state)
-        return time
+        return claripy.BVS("bpf_ktime_ns", 64)
 
 # s64 bpf_csum_diff(__be32 *from, u32 from_size, __be32 *to, u32 to_size, __wsum seed)
 class bpf_csum_diff(angr.SimProcedure):
     def run(self, fromm, from_size, to, to_size, seed):
         # we don't really handle checksums for now, anyway this is just engineering
-        return 0
+        return claripy.BVV(0, 64)
 
 # long bpf_xdp_adjust_head(struct xdp_buff *xdp_md, int delta)
 class bpf_xdp_adjust_head(angr.SimProcedure):

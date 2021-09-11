@@ -27,7 +27,7 @@ class MetadataPlugin(SimStatePlugin):
         self._items.setdefault(type(value), {})[key.cache_key if key is not None else None] = value
 
     def get_all(self, cls):
-        return {k.ast: v for (k, v) in self._items.get(cls, {}).items()}
+        return {(k.ast if k is not None else None): v for (k, v) in self._items.get(cls, {}).items()}
 
     def get_one(self, cls):
         all = self._items.get(cls, {})
