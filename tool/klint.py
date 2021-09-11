@@ -47,7 +47,7 @@ def handle_bpf(args):
         bpf_detection.override_linux_version(args.override_linux_version)
     if args.override_64bit is not None:
         bpf_detection.override_64bit(args.override_64bit)
-    states, devices_count = bpf_executor.execute(args.binary, args.calls, args.maps, args.havoc)
+    states, devices_count = bpf_executor.execute(args.binary, args.calls, args.maps, args.havoc, args.havoc_all)
     verif_persist.dump_data(states, devices_count, cached_data_path)
     verif(cached_data_path, args.spec)
 
@@ -74,6 +74,7 @@ parser_bpf.add_argument('spec', type=str, nargs='?', help='Path to the specifica
 parser_bpf.add_argument('--override-linux-version', type=str, help='Override Linux version detection')
 parser_bpf.add_argument('--override-64bit', type=bool, help='Override 64bit detection')
 parser_bpf.add_argument('--havoc', type=str, action='append', default=[], help='Map name to be havoced')
+parser_bpf.add_argument('--havoc-all', action='store_true', help='Havoc all maps')
 parser_bpf.set_defaults(func=handle_bpf)
 
 args = parser.parse_args()
