@@ -2,74 +2,92 @@ import angr
 import claripy
 import math
 
-# Version of SimState.merge that succeeds only if all plugins successfully merge
-# Returns (merged_state, [deferred_states], [unmergeable_states])
-def merge_states(states):
-    if len(states) == 0:
-        raise Exception("Zero states to merge??")
+def get_plugins(states):
+    plugins = set()
+    for state in states:
+        plugins = plugins | state.plugins.keys()
+    return plugins
 
-    if len(states) >= 50:
+def triage_for_merge(states, plugins):
+    # Triage the callstack first
+    triaged = [[states[0]]]
+    for state in states[1:]:
+        for candidate in triaged:
+            if candidate[0].callstack == state.callstack:
+                candidate.append(state)
+                break
+        else:
+            triaged.append([state])
+    # We guarantee it's literally the same among triaged piles, so no need to look at it further
+    plugins.remove("callstack")
+    # Then triage using plugins
+    def plugin_triage(piles, plugin):
+        # Design note: this really screams for static methods on plugins instead...
+        if not hasattr(getattr(piles[0][0], plugin), 'merge_triage'):
+            return piles
+        final_piles = []
+        for pile in piles:
+            if len(pile) == 1:
+                # No need to bother with single-item piles
+                final_piles.append(pile)
+                continue
+            our_plugin = getattr(pile[0], plugin)
+            plugin_triaged = our_plugin.merge_triage([getattr(st, plugin) for st in pile[1:]])
+            # plugin.state is a weakproxy so we undo it, see https://stackoverflow.com/a/62144308
+            final_piles.extend([[plugin.state.__repr__.__self__ for plugin in plugin_pile] for plugin_pile in plugin_triaged])
+        return final_piles
+    for plugin in plugins:
+        triaged = plugin_triage(triaged, plugin)
+    return triaged
+
+# Version of SimState.merge that succeeds only if all plugins successfully merge
+# Returns merged_state or None
+def merge_states(states, plugins):
+    assert len(states) != 0, "Zero states to merge??"
+
+    # Return None for a single state because this logically means "could not merge", i.e. "don't try again next time"
+    if len(states) == 1:
+        return None
+
+    #if len(states) >= 50:
         # Don't even bother trying, odds of succeeding are slim given our current heuristics
         #print("Not bothering to try a merge with", len(states), "states")
-        return (states[0], [], states[1:])
+        #return None
 
-    # Filter out the states with a different callstack, to be merged later
-    # This avoids the issue where there's a large number of states that could be merged but e.g. 1 is different
-    # (without having to try and merge states pairwise, which takes too much time)
-    deferred = []
-    to_merge = [states[0]]
-    for state in states[1:]:
-        if state.callstack == states[0].callstack:
-            to_merge.append(state)
-        else:
-            deferred.append(state)
+    print("Trying to merge", len(states), "states at", states[0].regs.rip)
 
-    if len(to_merge) == 1:
-        return (to_merge[0], [], [])
-    print("Trying to merge", len(to_merge), "states")
+    merge_flag = claripy.BVS("state_merge", math.ceil(math.log2(len(states))))
+    merge_conds = [(merge_flag == n) for n in range(len(states))]
+    merged = states[0].copy()
 
-    merge_flag = claripy.BVS("state_merge", math.ceil(math.log2(len(to_merge))))
-    merge_conds = [(merge_flag == n) for n in range(len(to_merge))]
-
-    merged = to_merge[0].copy()
-
-    plugins = set()
-    for state in to_merge:
-        plugins = plugins | state.plugins.keys()
-    plugins.remove("callstack") # we guaranteed it's the same earlier
+    # Start by merging the solver so other plugins can rely on that
+    merged.solver.merge([st.solver for st in states[1:]], merge_conds)
 
     for plugin in plugins:
-        our_plugin = getattr(merged, plugin)
-        if hasattr(our_plugin, 'can_merge'):
-            if not our_plugin.can_merge([getattr(st, plugin) for st in to_merge[1:]]):
-                #print("cannot merge")
-                return (to_merge[0], deferred, to_merge[1:])
-
-    # Start by merging the solver so other plugins can rely on that, using our own function
-    merged.solver.merge([st.solver for st in to_merge[1:]], merge_conds)
-    plugins.remove("solver")
-
-    for plugin in plugins:
+        # We merged that already
+        if plugin == 'solver':
+            continue
         # Some plugins have nothing to merge by design
         if plugin in ('regs', 'mem', 'scratch'):
             continue
-
         our_plugin = getattr(merged, plugin)
-        other_plugins = [getattr(st, plugin) for st in to_merge[1:]]
-
+        other_plugins = [getattr(st, plugin) for st in states[1:]]
         if not our_plugin.merge(other_plugins, merge_conds):
             # Memory (of which registers is a kind) returns false if nothing was merged, but that just means the memory was untouched
             if plugin in ('memory', 'registers'):
                 continue
             print("    failed because of", plugin)
-            return (to_merge[0], deferred, to_merge[1:])
+            return None
     print("    done")
-    return (merged, deferred, [])
+    return merged
 
 
 # Explores the state with the earliest instruction pointer first;
 # if there are multiple, attempts to merge them.
 # This is useful to merge states resulting from checks such as "if (a == X || a == Y)"
+# Has two stashes:
+# - 'deferred' for states it hasn't looked at yet
+# - 'nomerge' for states it tried but failed to merge
 class MergingExplorationTechnique(angr.exploration_techniques.ExplorationTechnique):
     def __init__(self, deferred_stash='deferred', nomerge_stash='nomerge'):
         super().__init__()
@@ -79,6 +97,8 @@ class MergingExplorationTechnique(angr.exploration_techniques.ExplorationTechniq
     def setup(self, simgr):
         if self.deferred_stash not in simgr.stashes:
             simgr.stashes[self.deferred_stash] = []
+        if self.nomerge_stash not in simgr.stashes:
+            simgr.stashes[self.nomerge_stash] = []
 
     def step(self, simgr, stash='active', **kwargs):
         if stash != 'active':
@@ -89,25 +109,27 @@ class MergingExplorationTechnique(angr.exploration_techniques.ExplorationTechniq
         simgr = simgr.step(stash=stash, **kwargs)
 
         # Move all active states to our deferred stash
-        simgr.split(from_stash=stash, to_stash=self.deferred_stash, limit=0)
+        simgr.stashes[self.deferred_stash].extend(simgr.stashes[stash])
 
-        # If there were states that couldn't be merged before, go with the first one
+        # If there were states that couldn't be merged before, pick one
         if len(simgr.stashes[self.nomerge_stash]) > 0:
-            simgr.stashes[stash].append(simgr.stashes[self.nomerge_stash].pop(0))
+            new_state = simgr.stashes[self.nomerge_stash].pop()
+            simgr.stashes[stash] = [new_state]
             return simgr
 
         # If there are none, then we are done (it rhymes!)
         if len(simgr.stashes[self.deferred_stash]) == 0:
+            simgr.stashes[stash] = []
             return simgr
 
         # Sort all deferred states by instruction pointer
         def raiser(): raise Exception("Cannot handle symbolic instruction pointers")
-        simgr.stashes[self.deferred_stash].sort(key=lambda s: s.regs.rip.args[0] if not s.regs.rip.symbolic else raiser())
+        simgr.stashes[self.deferred_stash].sort(reverse=True, key=lambda s: s.regs.rip.args[0] if not s.regs.rip.symbolic else raiser())
 
         # Find the states with the lowest instruction pointer
         lowest = []
         while len(simgr.stashes[self.deferred_stash]) > 0:
-            current = simgr.stashes[self.deferred_stash].pop(0)
+            current = simgr.stashes[self.deferred_stash].pop()
             if len(lowest) == 0 or current.regs.rip.structurally_match(lowest[0].regs.rip):
                 lowest.append(current)
             else:
@@ -116,13 +138,28 @@ class MergingExplorationTechnique(angr.exploration_techniques.ExplorationTechniq
 
         if 'SimProcedure' in lowest[0].history.recent_description:
             # Do not try to merge states that have just returned from an external call, it's pointless
-            new_state = lowest[0]
+            # The call split them for a reason (e.g. "in map"/"not in map")
+            simgr.stashes[stash] = [lowest[0]]
             simgr.stashes[self.nomerge_stash].extend(lowest[1:])
         else:
             # Try and merge them
-            (new_state, deferred, unmergeable) = merge_states(lowest)
-            simgr.stashes[self.deferred_stash].extend(deferred)
-            simgr.stashes[self.nomerge_stash].extend(unmergeable)
+            # Start by getting the plugins
+            plugins = get_plugins(lowest)
+            # Then triage
+            triaged_piles = triage_for_merge(lowest, plugins)
+            merged_states = []
+            # Then merge individual piles
+            for pile in triaged_piles:
+                merged = merge_states(pile, plugins)
+                if merged is None:
+                    simgr.stashes[self.nomerge_stash].extend(pile)
+                else:
+                    merged_states.append(merged)
+            if len(merged_states) == 0:
+                # If none could be merged, pick one
+                simgr.stashes[stash] = [simgr.stashes[self.nomerge_stash].pop()]
+            else:
+                simgr.stashes[stash] = [merged_states[0]]
+                simgr.stashes[self.deferred_stash].extend(merged_states[1:])
 
-        simgr.stashes[stash].append(new_state)
         return simgr

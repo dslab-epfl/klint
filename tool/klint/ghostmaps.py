@@ -280,26 +280,27 @@ class Map:
     def can_merge(self, others):
         if all(utils.structural_eq(self, o) for o in others):
             return True
-        if any(o.meta.key_size != self.meta.key_size or o.meta.value_size != self.meta.value_size for o in others):
-            #print("Different meta")
-            return False
-        if any(not utils.structural_eq(self._invariants, o._invariants) for o in others):
-            #print("Different invariants")
-            return False
+        assert all(o.meta.key_size == self.meta.key_size and o.meta.value_size == self.meta.value_size for o in others), "Different meta???"
         self_ver = self.version()
         if any(o.version() != self_ver for o in others):
-            #print("Different versions")
+            #print("Different versions", self, [x.version() for x in [self] + others])
             return False
-        if self_ver > 0: # and not self._previous.can_merge([o._previous for o in others]):
-            #print("Previous cannot be merged")
+        if any(not utils.structural_eq(self._invariants, o._invariants) for o in others):
+            #print("Different invariants", self)
+            return False
+        if self_ver > 0 and not self._previous.can_merge([o._previous for o in others]):
+            #print("Cannot merge previous", self)
             return False
         max_to_add = 0
+        #all_to_add = []
         for o in others:
             (_, _, to_add) = utils.structural_diff(self._known_items, o._known_items)
             max_to_add = max(max_to_add, len(to_add))
+            #all_to_add.append([i.key for i in to_add])
         if max_to_add > 5:
-            #print("too many items to add")
+            #print("too many items to add", self, max_to_add, all_to_add)
             return False
+        #print("merging, max_to_add=", max_to_add, " #known_items=", [len(x._known_items) for x in [self] + others])
         return True
 
     # This assumes the solvers have already been merged
@@ -511,6 +512,18 @@ class GhostMapsPlugin(SimStatePlugin):
     @SimStatePlugin.memo
     def copy(self, memo):
         return GhostMapsPlugin(_maps={k: copy.deepcopy(v, memo) for (k, v) in self._maps.items()}) # no need to deepcopy the keys
+
+    def merge_triage(self, others):
+        triaged = [[self]]
+        for other in others:
+            for candidate in triaged:
+                if candidate[0].can_merge([other]):
+                    candidate.append(other)
+                    break
+            else:
+                triaged.append([other])
+        print("triaged", [len(x) for x in triaged])
+        return triaged
 
     def can_merge(self, others):
         if any(len(self._maps) != len(o._maps) for o in others):
