@@ -87,39 +87,27 @@ def merge_states(states, plugins):
 # This is useful to merge states resulting from checks such as "if (a == X || a == Y)"
 # Has two stashes:
 # - 'deferred' for states it hasn't looked at yet
-# - 'nomerge' for states it tried but failed to merge
 class MergingExplorationTechnique(angr.exploration_techniques.ExplorationTechnique):
-    def __init__(self, deferred_stash='deferred', nomerge_stash='nomerge'):
+    def __init__(self, deferred_stash='deferred'):
         super().__init__()
         self.deferred_stash = deferred_stash
-        self.nomerge_stash = nomerge_stash
 
     def setup(self, simgr):
         if self.deferred_stash not in simgr.stashes:
             simgr.stashes[self.deferred_stash] = []
-        if self.nomerge_stash not in simgr.stashes:
-            simgr.stashes[self.nomerge_stash] = []
 
     def step(self, simgr, stash='active', **kwargs):
         if stash != 'active':
             raise Exception("Sorry, haven't tested that")
-        if len(simgr.stashes[stash]) != 1:
-            raise Exception("Should not be possible, we ensure there is only one active state at a time...")
 
         simgr = simgr.step(stash=stash, **kwargs)
 
         # Move all active states to our deferred stash
         simgr.stashes[self.deferred_stash].extend(simgr.stashes[stash])
-
-        # If there were states that couldn't be merged before, pick one
-        if len(simgr.stashes[self.nomerge_stash]) > 0:
-            new_state = simgr.stashes[self.nomerge_stash].pop()
-            simgr.stashes[stash] = [new_state]
-            return simgr
+        simgr.stashes[stash] = []
 
         # If there are none, then we are done (it rhymes!)
         if len(simgr.stashes[self.deferred_stash]) == 0:
-            simgr.stashes[stash] = []
             return simgr
 
         # Sort all deferred states by instruction pointer
@@ -139,8 +127,7 @@ class MergingExplorationTechnique(angr.exploration_techniques.ExplorationTechniq
         if 'SimProcedure' in lowest[0].history.recent_description:
             # Do not try to merge states that have just returned from an external call, it's pointless
             # The call split them for a reason (e.g. "in map"/"not in map")
-            simgr.stashes[stash] = [lowest[0]]
-            simgr.stashes[self.nomerge_stash].extend(lowest[1:])
+            simgr.stashes[stash] = lowest
         else:
             # Try and merge them
             # Start by getting the plugins
@@ -152,14 +139,8 @@ class MergingExplorationTechnique(angr.exploration_techniques.ExplorationTechniq
             for pile in triaged_piles:
                 merged = merge_states(pile, plugins)
                 if merged is None:
-                    simgr.stashes[self.nomerge_stash].extend(pile)
+                    simgr.stashes[stash].extend(pile)
                 else:
-                    merged_states.append(merged)
-            if len(merged_states) == 0:
-                # If none could be merged, pick one
-                simgr.stashes[stash] = [simgr.stashes[self.nomerge_stash].pop()]
-            else:
-                simgr.stashes[stash] = [merged_states[0]]
-                simgr.stashes[self.deferred_stash].extend(merged_states[1:])
+                    simgr.stashes[stash].append(merged)
 
         return simgr
