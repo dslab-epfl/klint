@@ -290,7 +290,7 @@ class Map:
         if any(o.version() != self_ver for o in others):
             #print("Different versions")
             return False
-        if self_ver > 0 and not self._previous.can_merge([o._previous for o in others]):
+        if self_ver > 0: # and not self._previous.can_merge([o._previous for o in others]):
             #print("Previous cannot be merged")
             return False
         max_to_add = 0
@@ -365,6 +365,7 @@ class Map:
         else:
             self._previous.add_invariant_conjunction(state, inv)
 
+    # TODO get rid of this, it's for BPF-compiled-as-x86, should use the BPF externals directly
     def havoced(self, state, length, invs):
         return Map(
             self.meta,
@@ -393,7 +394,6 @@ class Map:
         else:
             self._previous.add_item(item)
 
-    # TODO get rid of this unsafe thing if we can...
     def with_item_layer(self, item, length_change):
         return Map(
             self.meta,
@@ -403,14 +403,6 @@ class Map:
             _previous=self,
             _unknown_item=self._unknown_item,
             _layer_item=item
-        )
-
-    def relax(self):
-        return Map(
-            self.meta,
-            claripy.BVS(self.meta.name + "_length", self._length.size()),
-            [], # no invariants yet
-            [] # no known items
         )
 
     def is_definitely_empty(self):
