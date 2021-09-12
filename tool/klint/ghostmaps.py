@@ -291,6 +291,12 @@ class Map:
         if any(not utils.structural_eq(self._length, o._length) for o in others):
             #print("Different length", self)
             return False
+        if any(not utils.structural_eq(self._unknown_item, o._unknown_item) for o in others):
+            #print("Different unknown item", self)
+            return False
+        if any(not utils.structural_eq(self._layer_item, o._layer_item) for o in others):
+            #print("Different layer item", self)
+            return False
         if self_ver > 0 and not self._previous.can_merge([o._previous for o in others]):
             #print("Cannot merge previous", self)
             return False
