@@ -288,6 +288,9 @@ class Map:
         if any(not utils.structural_eq(self._invariants, o._invariants) for o in others):
             #print("Different invariants", self)
             return False
+        if any(not utils.structural_eq(self._length, o._length) for o in others):
+            #print("Different length", self)
+            return False
         if self_ver > 0 and not self._previous.can_merge([o._previous for o in others]):
             #print("Cannot merge previous", self)
             return False

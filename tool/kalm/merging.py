@@ -124,9 +124,9 @@ class MergingExplorationTechnique(angr.exploration_techniques.ExplorationTechniq
                 simgr.stashes[self.deferred_stash].append(current)
                 break
 
-        if 'SimProcedure' in lowest[0].history.recent_description:
-            # Do not try to merge states that have just returned from an external call, it's pointless
-            # The call split them for a reason (e.g. "in map"/"not in map")
+        if lowest[0].history.jumpkind == 'Ijk_Ret':
+            # Do not try to merge states that have just returned from a function / external, it's pointless
+            # They're usually split them for a reason (e.g. "in map"/"not in map")
             simgr.stashes[stash] = lowest
         else:
             # Try and merge them
