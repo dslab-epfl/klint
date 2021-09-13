@@ -34,19 +34,33 @@ class PathPlugin(SimStatePlugin):
 
     @SimStatePlugin.memo
     def copy(self, memo):
-        return PathPlugin(_segments=copy.deepcopy(self._segments, memo))
+        return PathPlugin(_segments=self._segments.copy())
 
     def merge(self, others, merge_conditions, common_ancestor=None):
+        divergence_index = 0
+        min_length = min(len(self._segments), *[len(o._segments) for o in others])
+        while divergence_index < min_length:
+            for o in others:
+                if self._segments[divergence_index] is not o._segments[divergence_index]:
+                    break
+            else:
+                divergence_index = divergence_index + 1
+                continue
+            break
+
+        merged_segments = self._segments[:divergence_index]
+        for i, path in enumerate([self] + others):
+            for (n, a, r, c) in path._segments[divergence_index:]:
+                merged_segments.append((n, a, r, c & merge_conditions[i]))
+
         # Merging should never fail because of this, it's a debug thing
-        self._segments = [(n, a, r, c & merge_conditions[0]) for (n, a, r, c) in self._segments]
-        for (i, o) in enumerate(others):
-            self._segments.extend([(n, a, r, c & merge_conditions[i + 1]) for (n, a, r, c) in o._segments])
+        self._segments = merged_segments
         return True
 
     @staticmethod
     def wrap(external):
         return ExternalWrapper(external)
-    
+
 
     def begin_record(self, name, args):
         self._segments.append((name, args, None, claripy.true))
@@ -57,8 +71,3 @@ class PathPlugin(SimStatePlugin):
 
     def clear(self):
         self._segments = []
-
-
-    def print(self):
-        for (name, args, ret) in self._segments:
-            print("  ", name, "(", ", ".join(map(str, args)) + ")", ("" if ret is None else (" -> " + str(ret))), ("cond: " + str(cond)))

@@ -33,7 +33,7 @@ class KalmSolver(
                 if not self.satisfiable():
                     raise Exception("UNSAT after adding constraint: " + str(con))
         return super().add(constraints, **kwargs)
-    
+
     # Specialized function to merge solvers that are expected to have a lot in common
     # Anything in common is kept as-is, the rest is added as (merge_cond implies noncommon_constraint)
     # This doesn't help perf, but massively helps readability

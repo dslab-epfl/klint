@@ -288,7 +288,7 @@ class Map:
         assert all(o.meta.key_size == self.meta.key_size and o.meta.value_size == self.meta.value_size for o in others), "Different meta???"
         self_ver = self.version()
         if any(o.version() != self_ver for o in others):
-            #print("Different versions", self, [x.version() for x in [self] + others])
+            print("Different versions", self, [x.version() for x in [self] + others])
             return False
         if any(not utils.structural_eq(self._invariants, o._invariants) for o in others):
             print("Different invariants", self)
@@ -299,9 +299,9 @@ class Map:
         if any(not utils.structural_eq(self._unknown_item, o._unknown_item) for o in others):
             print("Different unknown item", self, [x._unknown_item for x in [self] + others])
             return False
-        if self._layer_item is not None and any(not utils.structural_eq(self._layer_item.key, o._layer_item.key) for o in others):
-            print("Different layer item key", self, [x._layer_item.key for x in [self] + others])
-            return False
+        #if self._layer_item is not None and any(not utils.structural_eq(self._layer_item.key, o._layer_item.key) for o in others):
+        #    print("Different layer item key", self, [x._layer_item.key for x in [self] + others])
+        #    return False
         #if any(not utils.structural_eq(self._layer_item, o._layer_item) for o in others):
         #    print("Different layer item", self, [x._layer_item for x in [self] + others])
         #    return False
@@ -323,7 +323,7 @@ class Map:
     # This assumes the solvers have already been merged
     def merge(self, state, others, other_states, merge_conditions):
         if all(utils.structural_eq(self, o) for o in others):
-            return
+            return self
         if self._previous is None:
             for (o, mc) in zip(others, merge_conditions[1:]):
                 (only_left, both, only_right) = utils.structural_diff(self._known_items, o._known_items)
@@ -338,14 +338,16 @@ class Map:
             for (n, it) in enumerate(self._known_items):
                 state.solver.add(*[Implies(i.key == oi.key, (i.value == oi.value) & (i.present == oi.present)) for oi in self._known_items[(n+1):] + [self._unknown_item]])
             state.solver.add(self.is_not_overfull(state))
+            return self
         else:
-            # we know lengths and layer item keys are the same due to can_merge
+            # we know lengths are the same due to can_merge
             self._layer_item = MapItem(
-                self._layer_item.key,
+                claripy.ite_cases(zip(merge_conditions, [o._layer_item.key for o in others]), self._layer_item.key),
                 claripy.ite_cases(zip(merge_conditions, [o._layer_item.value for o in others]), self._layer_item.value),
                 claripy.ite_cases(zip(merge_conditions, [o._layer_item.present for o in others]), self._layer_item.present)
             )
-            self._previous.merge(state, [o._previous for o in others], other_states, merge_conditions)
+            self._previous = self._previous.merge(state, [o._previous for o in others], other_states, merge_conditions)
+            return self
 
     # === Private API, also used by invariant inference ===
     # TODO sort out what's actually private and not; verif also uses stuff...
@@ -403,15 +405,14 @@ class Map:
         if _exclude_get == True and self._previous is None:
             return []
 
-        result = self._known_items.copy()
         if self._previous is not None:
             assert self._layer_item is not None
-            result = result + [
+            return self._known_items + [
                 MapItem(i.key, claripy.If(i.key == self._layer_item.key, self._layer_item.value, i.value), claripy.If(i.key == self._layer_item.key, self._layer_item.present, i.present))
                 for i in self._previous.known_items(_exclude_get=_exclude_get)
                 if not i.key.structurally_match(self._layer_item.key)
             ]
-        return result
+        return self._known_items
 
     def add_item(self, item):
         if self._previous is None:
@@ -561,7 +562,7 @@ class GhostMapsPlugin(SimStatePlugin):
 
     def merge(self, others, merge_conditions, common_ancestor=None):
         for (k, v) in self._maps.items():
-            v.merge(self.state, [o._maps[k] for o in others], [o.state for o in others], merge_conditions)
+            self._maps[k] = v.merge(self.state, [o._maps[k] for o in others], [o.state for o in others], merge_conditions)
         return True
 
 

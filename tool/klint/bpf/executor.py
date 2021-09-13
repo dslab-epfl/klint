@@ -35,7 +35,7 @@ def execute(code_path, calls_path, maps_path, maps_to_havoc, havoc_all):
     results = []
     for state in states:
         cc = angr.DEFAULT_CC[state.project.arch.name](state.project.arch)
-        result = cc.get_return_val(state, stack_base=state.regs.sp - cc.STACKARG_SP_DIFF)
+        result = state.casts.uint32_t(cc.get_return_val(state, stack_base=state.regs.sp - cc.STACKARG_SP_DIFF))
         results.append(result)
         # we're looking for result 3, XDP_TX
         const_result = utils.get_if_constant(state.solver, result)
