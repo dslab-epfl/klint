@@ -30,8 +30,9 @@ def create_blank_state(thing, arch='amd64'):
         # FAST_REGISTERS: see our __init__
         # SYMBOL_FILL_UNCONSTRAINED_*: it seems there's no way around enabling these, since code can access uninitialized variables (common in the "return bool, take in a pointer to the result" pattern)
         add_options=set([angr.sim_options.FAST_REGISTERS, angr.sim_options.SYMBOL_FILL_UNCONSTRAINED_MEMORY, angr.sim_options.SYMBOL_FILL_UNCONSTRAINED_REGISTERS]),
-        # Don't copy states when executing, we'll copy what we need
-        remove_options=set([angr.sim_options.COPY_STATES])
+        # COPY_STATES: Don't copy states when executing, we'll copy what we need
+        # TRACK_CONSTRAINT_ACTIONS: Not sure why angr does this by default, but we don't need to track constraints as history actions
+        remove_options=set([angr.sim_options.COPY_STATES, angr.sim_options.TRACK_CONSTRAINT_ACTIONS])
     )
     state.solver._stored_solver = KalmSolver()
     return state

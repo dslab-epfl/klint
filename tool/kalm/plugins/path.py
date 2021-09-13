@@ -49,9 +49,9 @@ class PathPlugin(SimStatePlugin):
             break
 
         merged_segments = self._segments[:divergence_index]
-        for i, path in enumerate([self] + others):
+        for path, cond in zip([self] + others, merge_conditions):
             for (n, a, r, c) in path._segments[divergence_index:]:
-                merged_segments.append((n, a, r, c & merge_conditions[i]))
+                merged_segments.append((n, a, r, c & cond))
 
         # Merging should never fail because of this, it's a debug thing
         self._segments = merged_segments

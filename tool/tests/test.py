@@ -398,36 +398,13 @@ class Tests(unittest.TestCase):
         map2 = copy.deepcopy(map1)
         return (state1, state2, map1, map2)
 
-    def test_merge_wrongkeysize(self):
-        state1 = empty_state()
-        state2 = empty_state()
-        map1 = Map.new(state1, KEY_SIZE, VALUE_SIZE, "map")
-        map2 = Map.new(state1, VALUE_SIZE, VALUE_SIZE, "map")
-        self.assertFalse(map1.can_merge([map2]))
-
-    def test_merge_wrongkeysize_many(self):
-        state1 = empty_state()
-        state2 = empty_state()
-        state3 = empty_state()
-        map1 = Map.new(state1, KEY_SIZE, VALUE_SIZE, "map")
-        map2 = Map.new(state1, KEY_SIZE, VALUE_SIZE, "map")
-        map3 = Map.new(state1, VALUE_SIZE, VALUE_SIZE, "map")
-        self.assertFalse(map1.can_merge([map2, map3]))
-
-    def test_merge_wrongvaluesize(self):
-        state1 = empty_state()
-        state2 = empty_state()
-        map1 = Map.new(state1, KEY_SIZE, VALUE_SIZE, "map")
-        map2 = Map.new(state1, KEY_SIZE, KEY_SIZE, "map")
-        self.assertFalse(map1.can_merge([map2]))
-
     def test_merge_empty(self):
         (state1, state2, map1, map2) = self.mergeSetup()
         self.assertTrue(map1.can_merge([map2]))
-        map1.merge(state1, [map2], [state2], [X == 0, X == 1])
-        self.assertEqual(map1.meta.key_size, KEY_SIZE)
-        self.assertEqual(map1.meta.value_size, VALUE_SIZE)
-        self.assertSolver(state1, map1.length() == 0)
+        mapm = map1.merge(state1, [map2], [state2], [X == 0, X == 1])
+        self.assertEqual(mapm.meta.key_size, KEY_SIZE)
+        self.assertEqual(mapm.meta.value_size, VALUE_SIZE)
+        self.assertSolver(state1, mapm.length() == 0)
 
     def test_merge_leftget(self):
         (state1, state2, map1, map2) = self.mergeSetup(_length=10, _invariants=[lambda i: claripy.true])
@@ -435,8 +412,8 @@ class Tests(unittest.TestCase):
         state1.solver.add(p1, v1 == 42)
         self.assertTrue(map1.can_merge([map2]))
         (statem, conds, _) = state1.merge(state2)
-        map1.merge(statem, [map2], [state2], conds)
-        (vm, pm) = map1.get(statem, K)
+        mapm = map1.merge(statem, [map2], [state2], conds)
+        (vm, pm) = mapm.get(statem, K)
         self.assertSolverUnknown(statem, pm & (vm == 42))
         self.assertSolver(statem, ~conds[0] | (pm & (vm == 42)))
 
@@ -449,8 +426,8 @@ class Tests(unittest.TestCase):
         state2.solver.add(p2, v2 == 42)
         self.assertTrue(map1.can_merge([map2]))
         (statem, conds, _) = state1.merge(state2)
-        map1.merge(statem, [map2], [state2], conds)
-        (vm, pm) = map1.get(statem, K)
+        mapm = map1.merge(statem, [map2], [state2], conds)
+        (vm, pm) = mapm.get(statem, K)
         self.assertSolverUnknown(statem, pm & (vm == 42))
         self.assertSolver(statem, ~conds[1] | (pm & (vm == 42)))
 

@@ -50,9 +50,9 @@ class KalmSolver(
                 divergence_index = divergence_index + 1
                 continue
             break
-        for i, solver in enumerate([self] + others):
+        for solver, cond in zip([self] + others, merge_conditions):
             for extra in solver.constraints[divergence_index:]:
-                merged.add(~merge_conditions[i] | extra)
+                merged.add(~cond | extra)
         merged.add(claripy.Or(*merge_conditions))
         return True, merged
 
