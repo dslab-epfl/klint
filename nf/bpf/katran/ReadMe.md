@@ -5,3 +5,4 @@ The original files are Copyright (c) Facebook, Inc. and its affiliates, and dist
 Changes:
 - Removed the use of the `lru_mapping` map, which requires custom BPF loading and which we do not model anyway (see `REMOVED:` in `balancer_maps.h` and `balancer_kern.c`)
 - Changed the `fallback_cache` map from `LRU_HASH` to `HASH`, as LRU requires extra modelling due to the way the Linux kernel inlines calls, which we do not have time to do right now
+- Replaced `jhash` by a version that returns a random number (sound, but not complete) as the hash result is way too complex for analysis otherwise (original is in `linux_includes/jhash.h.orig`)

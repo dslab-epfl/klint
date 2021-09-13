@@ -225,6 +225,11 @@ class Map:
         # Let P be get(M, K) != None
         (_, present) = self.get(state, key)
 
+        # Optimization: Avoid making the 'present' bit symbolic if we can help it, which makes later analysis easier
+        present_const = utils.get_if_constant(state.solver, present)
+        if present_const is not None:
+            present = present_const
+
         # Return a new map with:
         #   ITE(P, 0, 1) added to the map length.
         #   Each known item (K', V', P') updated to (K', ITE(K = K', V', V), ITE(K = K', true, P'))
@@ -286,19 +291,22 @@ class Map:
             #print("Different versions", self, [x.version() for x in [self] + others])
             return False
         if any(not utils.structural_eq(self._invariants, o._invariants) for o in others):
-            #print("Different invariants", self)
+            print("Different invariants", self)
             return False
         if any(not utils.structural_eq(self._length, o._length) for o in others):
-            #print("Different length", self)
+            print("Different length", self, [x._length for x in [self] + others])
             return False
         if any(not utils.structural_eq(self._unknown_item, o._unknown_item) for o in others):
-            #print("Different unknown item", self)
+            print("Different unknown item", self, [x._unknown_item for x in [self] + others])
             return False
-        if any(not utils.structural_eq(self._layer_item, o._layer_item) for o in others):
-            #print("Different layer item", self)
+        if self._layer_item is not None and any(not utils.structural_eq(self._layer_item.key, o._layer_item.key) for o in others):
+            print("Different layer item key", self, [x._layer_item.key for x in [self] + others])
             return False
+        #if any(not utils.structural_eq(self._layer_item, o._layer_item) for o in others):
+        #    print("Different layer item", self, [x._layer_item for x in [self] + others])
+        #    return False
         if self_ver > 0 and not self._previous.can_merge([o._previous for o in others]):
-            #print("Cannot merge previous", self)
+            print("Cannot merge previous", self)
             return False
         max_to_add = 0
         #all_to_add = []
@@ -306,7 +314,7 @@ class Map:
             (_, _, to_add) = utils.structural_diff(self._known_items, o._known_items)
             max_to_add = max(max_to_add, len(to_add))
             #all_to_add.append([i.key for i in to_add])
-        if max_to_add > 5:
+        if max_to_add > 6:
             #print("too many items to add", self, max_to_add, all_to_add)
             return False
         #print("merging, max_to_add=", max_to_add, " #known_items=", [len(x._known_items) for x in [self] + others])
@@ -316,20 +324,27 @@ class Map:
     def merge(self, state, others, other_states, merge_conditions):
         if all(utils.structural_eq(self, o) for o in others):
             return
-        for (o, mc) in zip(others, merge_conditions[1:]):
-            (only_left, both, only_right) = utils.structural_diff(self._known_items, o._known_items)
-            # Items that were only here are subject to the invariant if the merge condition holds
-            for i in only_left:
-                state.solver.add(*[Implies(mc, inv(state, i)) for inv in self.invariant_conjunctions()])
-            # Other items must be those of the other state if the merge condition holds
-            for i in both + only_right:
-                (v, p) = self.get(state, i.key)
-                state.solver.add(Implies(mc, (v == i.value) & (p == i.present)))
-        # Basic map invariants have to hold no matter what
-        for (n, it) in enumerate(self._known_items):
-            state.solver.add(*[Implies(i.key == oi.key, (i.value == oi.value) & (i.present == oi.present)) for oi in self._known_items[(n+1):] + [self._unknown_item]])
-        state.solver.add(self.is_not_overfull(state))
-        if self._previous is not None:
+        if self._previous is None:
+            for (o, mc) in zip(others, merge_conditions[1:]):
+                (only_left, both, only_right) = utils.structural_diff(self._known_items, o._known_items)
+                # Items that were only here are subject to the invariant if the merge condition holds
+                for i in only_left:
+                    state.solver.add(*[Implies(mc, inv(state, i)) for inv in self.invariant_conjunctions()])
+                # Other items must be those of the other state if the merge condition holds
+                for i in both + only_right:
+                    (v, p) = self.get(state, i.key)
+                    state.solver.add(Implies(mc, (v == i.value) & (p == i.present)))
+            # Basic map invariants have to hold no matter what
+            for (n, it) in enumerate(self._known_items):
+                state.solver.add(*[Implies(i.key == oi.key, (i.value == oi.value) & (i.present == oi.present)) for oi in self._known_items[(n+1):] + [self._unknown_item]])
+            state.solver.add(self.is_not_overfull(state))
+        else:
+            # we know lengths and layer item keys are the same due to can_merge
+            self._layer_item = MapItem(
+                self._layer_item.key,
+                claripy.ite_cases(zip(merge_conditions, [o._layer_item.value for o in others]), self._layer_item.value),
+                claripy.ite_cases(zip(merge_conditions, [o._layer_item.present for o in others]), self._layer_item.present)
+            )
             self._previous.merge(state, [o._previous for o in others], other_states, merge_conditions)
 
     # === Private API, also used by invariant inference ===
