@@ -10,7 +10,7 @@ from klint.ghostmaps import MapHas
 BpfMapDef = namedtuple('BpfMapDef', ['type', 'key_size', 'value_size', 'max_entries', 'flags'])
 BpfMap = namedtuple('BpfMap', ['map_def', 'values', 'items'])
 
-def align(n, val):
+def align(val, n):
     if not isinstance(val, int):
         if val.symbolic: raise Exception("nope")
         val = val.args[0]
@@ -157,7 +157,7 @@ class __htab_map_lookup_elem(angr.SimProcedure):
             # Figure this out by looking at a BPF dump that includes a call to __htab_map_lookup_elem :-/
             # Alternatively, try with the existing offset and see if it works or if it obviously needs a correction (e.g. the code is trying to access an item 1 off the target)
             if (linux_ver.startswith('5.4.0-81') or linux_ver.startswith('5.10.16.3')) and detection.is_64bit():
-                offset = 48 + align(8, bpfmap.map_def.key_size)
+                offset = 48 + align(bpfmap.map_def.key_size, 8)
             else:
                 raise("Sorry, you need to do some work here: " + __file__)
             return result - offset
