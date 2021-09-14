@@ -10,6 +10,13 @@ from klint.ghostmaps import MapHas
 BpfMapDef = namedtuple('BpfMapDef', ['type', 'key_size', 'value_size', 'max_entries', 'flags'])
 BpfMap = namedtuple('BpfMap', ['map_def', 'values', 'items'])
 
+def align(n, val):
+    if not isinstance(val, int):
+        if val.symbolic: raise Exception("nope")
+        val = val.args[0]
+    if val % n == 0:
+        return val
+    return val + (n - (val % n))
 
 # Not an external, called to mimic the kernel initializing a map
 def map_init(state, addr, map_def, havoc):
@@ -43,7 +50,7 @@ def map_init(state, addr, map_def, havoc):
             raise("Sorry, you need to do some work here: " + __file__)
 
         # The kernel rounds up the value size
-        value_size = 8 if map_def.value_size < 8 else map_def.value_size
+        value_size = align(map_def.value_size, 8)
         default = None
         if not havoc:
             default = claripy.BVV(0, value_size * 8)
@@ -51,7 +58,7 @@ def map_init(state, addr, map_def, havoc):
     elif map_def.type == 6:
         # Per-cpu array, like an array but accessed with explicit function calls
         # The kernel rounds up the value size
-        value_size = 8 if map_def.value_size < 8 else map_def.value_size
+        value_size = align(map_def.value_size, 8)
         default = None
         if not havoc:
             default = claripy.BVV(0, value_size * 8)
@@ -132,14 +139,6 @@ class percpu_array_map_lookup_elem(bpf_map_lookup_elem):
 #          because what it really returns is a pointer to the hash table entry, and the BPF code compensates to find the pointer to the value
 class __htab_map_lookup_elem(angr.SimProcedure):
     def run(self, map, key):
-        def align(n, val):
-            if not isinstance(val, int):
-                if val.symbolic: raise Exception("nope")
-                val = val.args[0]
-            if val % n == 0:
-                return val
-            return val + (n - (val % n))
-
         # Casts
         map = self.state.casts.ptr(map)
         key = self.state.casts.ptr(key)

@@ -2,7 +2,6 @@ from angr import SimProcedure
 from angr.state_plugins.plugin import SimStatePlugin
 from angr.state_plugins.sim_action import SimActionObject
 import claripy
-import copy
 import inspect
 
 from kalm import utils

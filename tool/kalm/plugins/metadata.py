@@ -63,4 +63,3 @@ class MetadataPlugin(SimStatePlugin):
         if len(matching) > 1:
             raise Exception("More than one match found for: " + str(keys))
         return (None, None)
-#        raise Exception("I don't remember if we actually need this, so not implementing it for now")

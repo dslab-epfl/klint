@@ -177,7 +177,8 @@ def base_index_offset(state, addr, meta_type, allow_failure=False):
                             if definitely_true(state.solver, (arg - k).ULT(v.size)):
                                 base = k
                                 meta = v
-                                addr = addr - arg + base # trick so the 'added' later works, let's not dirty the "clean" path
+                                addr = addr - base
+                                if any(a.structurally_match(base) for a in addr.args): raise("oops, my trick failed, need more complex handling") # as 'added' would exclude it later
                                 break
                     if base is not None:
                         break
