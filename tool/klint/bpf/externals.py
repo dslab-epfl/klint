@@ -65,8 +65,8 @@ def map_init(state, addr, map_def, havoc):
         map_def = BpfMapDef(map_def.type, map_def.key_size, value_size, map_def.max_entries, map_def.flags)
         values = state.heap.allocate(map_def.max_entries, map_def.value_size, default=default)
         state.metadata.append(addr, BpfMap(map_def, values, None))
-    elif map_def.type == 14:
-        # Dev map, only for redirect calls, we don't fully model those yet
+    elif map_def.type == 14 or map_def.type == 16:
+        # Dev or CPU map, only for redirect calls, we don't fully model those yet
         return
     else:
         raise Exception("Unsupported map type: " + str(map_def.type))
