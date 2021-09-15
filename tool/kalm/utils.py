@@ -124,18 +124,7 @@ def structural_diff(left, right):
             only_left.append(item)
     return (only_left, both, only_right)
 
-# Requires a 'meta_type' such that there is metadata on the type from pointers to a class with 'count' and 'size'
-# Guarantees that:
-# - Result is of the form (base, index, offset)
-# - 'base': BV, is a symbolic pointer
-# - 'index': BV, is a symbolic index
-# - 'offset': int, is an offset in bits, concrete
-def base_index_offset(state, addr, meta_type, allow_failure=False):
-#    if isinstance(addr, int):
-#        if allow_failure:
-#            return (None, None, None)
-#        raise Exception("B_I_O was given an int")
-
+def simplify(state, value, cond=claripy.true):
     def force_burrow_ite(value):
         # claripy's ite_burrowed except it's recursive
         # so that if(x, a + 1, if(y, a + 2, if(z, a + 3, a + 4))) turns into a + if(x, 1, if(y, 2, if(z, 3, 4)))
@@ -143,26 +132,51 @@ def base_index_offset(state, addr, meta_type, allow_failure=False):
             return value
         return claripy.If(value.args[0], force_burrow_ite(value.args[1]), force_burrow_ite(value.args[2])).ite_burrowed
 
-    def simplify(value):
-        # uggggh angr why do you do this to me? :( the case that inspired this is one that looks like ite_excavated/burrowed should easily work but it did not...
-        if value.op == '__add__':
-            return sum(simplify(a) for a in value.args)
-        # Sometimes we get an If or a Concat that fits our assumptions fine but only if we first excavate then burrow the ifs
-        # e.g. concat(If(X, a1, b1), If(X, a2, b2), ...) -> If(X, concat(a1, a2, ...), concat(b1, b2, ...))
+    # uggggh angr why do you do this to me? :( the case that inspired this is one that looks like ite_excavated/burrowed should easily work but it did not...
+    if value.op == '__add__':
+        return sum(simplify(state, a, cond=cond) for a in value.args)
+    # Sometimes we get an If or a Concat that fits our assumptions fine but only if we first excavate then burrow the ifs
+    # e.g. concat(If(X, a1, b1), If(X, a2, b2), ...) -> If(X, concat(a1, a2, ...), concat(b1, b2, ...))
+    value = value.ite_excavated
+    # Avoid ifs whose condition is constant
+    while value.op == 'If':
+        cond_const = get_if_constant(state.solver, cond & value.args[0])
+        if cond_const is True:
+            value = value.args[1]
+        elif cond_const is False:
+            value = value.args[2]
+        else:
+            value = claripy.If(value.args[0], simplify(state, value.args[1], cond=(cond & value.args[0])), simplify(state, value.args[2], cond=(cond & ~value.args[0])))
+            # just in case claripy simplified the if we just put
+            if value.op != 'If': break
+            # claripy should be doing this...
+            if value.args[1].op == '__add__' and value.args[2].op == '__add__':
+                # this is seriously ridiculous, the constant can be at the beginning or end so we have to handle all 4 cases
+                # both beginning:
+                if value.args[1].args[0].structurally_match(value.args[2].args[0]):
+                    value = value.args[1].args[0] + claripy.If(value.args[0], sum(value.args[1].args[1:], claripy.BVV(0, value.size())), sum(value.args[2].args[1:], claripy.BVV(0, value.size())))
+                # beginning, end
+                elif value.args[1].args[0].structurally_match(value.args[2].args[-1]):
+                    value = value.args[1].args[0] + claripy.If(value.args[0], sum(value.args[1].args[1:], claripy.BVV(0, value.size())), sum(value.args[2].args[:-1], claripy.BVV(0, value.size())))
+                # end, beginning
+                elif value.args[1].args[-1].structurally_match(value.args[2].args[0]):
+                    value = value.args[1].args[-1] + claripy.If(value.args[0], sum(value.args[1].args[:-1], claripy.BVV(0, value.size())), sum(value.args[2].args[1:], claripy.BVV(0, value.size())))
+                # both end:
+                elif value.args[1].args[-1].structurally_match(value.args[2].args[-1]):
+                    value = value.args[1].args[-1] + claripy.If(value.args[0], sum(value.args[1].args[:-1], claripy.BVV(0, value.size())), sum(value.args[2].args[:-1], claripy.BVV(0, value.size())))
+            break # no more simplification possible
         value = value.ite_excavated
-        # Avoid ifs whose condition is constant
-        while value.op == 'If':
-            cond_const = get_if_constant(state.solver, value.args[0])
-            if cond_const is True:
-                value = value.args[1]
-            elif cond_const is False:
-                value = value.args[2]
-            else:
-                break # no more simplification possible
-            value = value.ite_excavated
-        return state.solver.simplify(force_burrow_ite(value))
+    value = state.solver.simplify(force_burrow_ite(value))
+    return value
 
-    addr = simplify(addr)
+# Requires a 'meta_type' such that there is metadata on the type from pointers to a class with 'count' and 'size'
+# Guarantees that:
+# - Result is of the form (base, index, offset)
+# - 'base': BV, is a symbolic pointer
+# - 'index': BV, is a symbolic index
+# - 'offset': int, is an offset in bits, concrete
+def base_index_offset(state, addr, meta_type, allow_failure=False):
+    addr = simplify(state, addr)
 
     if addr.op == '__add__':
         (base, meta) = state.metadata.find(meta_type, addr.args)
@@ -187,7 +201,6 @@ def base_index_offset(state, addr, meta_type, allow_failure=False):
                 return (None, None, None)
             raise Exception("!= 1 candidate for base??? are you symbolically indexing a global variable or something?")
 
-        # 2nd parameter is 'start', but cannot be a named parameter before Python 3.8...
         added = sum((a for a in addr.args if not a.structurally_match(base)), claripy.BVV(0, addr.size()))
         offset = state.solver.eval_one(_modulo_simplify(state.solver, added, meta.size), cast_to=int)
         index = _div_simplify(state.solver, (added - offset), meta.size)
@@ -244,6 +257,15 @@ def _as_mult_add(ast):
                 return _as_mult_add(lone_sym)
             else:
                 return {e: m * con for (e, m) in _as_mult_add(lone_sym).items()}
+    if ast.op == 'If':
+        left = _as_mult_add(ast.args[1])
+        right = _as_mult_add(ast.args[2])
+        if len(left.keys()) == 1 and len(right.keys()) == 1:
+            left_k = next(iter(left))
+            right_k = next(iter(right))
+            print("left_k", left_k, left[left_k])
+            if left[left_k].structurally_match(right[right_k]):
+                return {claripy.If(ast.args[0], left_k.ast, right_k.ast).cache_key: left[left_k]}
     return {ast.cache_key: 1}
 
 # group things together, e.g. if we end up with '(0 .. x[62:0])' and 'x', group them iff x[63] == 0

@@ -431,5 +431,20 @@ class Tests(unittest.TestCase):
         self.assertSolverUnknown(statem, pm & (vm == 42))
         self.assertSolver(statem, ~conds[1] | (pm & (vm == 42)))
 
+    def test_simplify(self):
+        state = empty_state()
+        x = claripy.BVS("x", 64)
+        y = claripy.BVS("y", 64)
+        b = claripy.BoolS("b")
+        b2 = claripy.BoolS("b2")
+        state.solver.add(claripy.If(b, claripy.true, ~b2))
+        expr = claripy.If(b, x + 21, claripy.If(b2, 0, y + 10) + 11)
+        from kalm import utils
+        self.assertSolver(state, utils.simplify(state, expr).structurally_match(21 + claripy.If(b, x, y)))
+        z = claripy.BVS("z", 64)
+        expr2 = claripy.If(b, z + 8 * x, z + 8 * y)
+        self.assertSolver(state, utils.simplify(state, expr2).structurally_match(z + claripy.If(b, 8 * x, 8 * y)))
+
+
 if __name__ == '__main__':
     unittest.main()
