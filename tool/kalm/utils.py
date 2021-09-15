@@ -247,11 +247,12 @@ def _as_mult_add(ast):
                     break
                 lone_sym = arg
             else:
+                assert arg.op == 'BVV'
                 # Avoid introducing "1 * ..." terms
                 if con is None:
-                    con = arg
+                    con = arg.args[0]
                 else:
-                    con *= arg
+                    con *= arg.args[0]
         else:
             if con is None:
                 return _as_mult_add(lone_sym)
@@ -263,8 +264,7 @@ def _as_mult_add(ast):
         if len(left.keys()) == 1 and len(right.keys()) == 1:
             left_k = next(iter(left))
             right_k = next(iter(right))
-            print("left_k", left_k, left[left_k])
-            if left[left_k].structurally_match(right[right_k]):
+            if left[left_k] == right[right_k]:
                 return {claripy.If(ast.args[0], left_k.ast, right_k.ast).cache_key: left[left_k]}
     return {ast.cache_key: 1}
 
