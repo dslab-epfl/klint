@@ -5,22 +5,25 @@
 #include "structs/lpm.h"
 
 
+static device_t devices_count;
 static struct lpm* lpm;
 
-
-bool nf_init(device_t devices_count)
+bool nf_init(device_t _devices_count)
 {
-	(void) devices_count;
-
-	// TODO: Split allocation and fill-from-config
+	devices_count = _devices_count;
 	lpm = lpm_alloc();
-
 	return true;
 }
 
 
 void nf_handle(struct net_packet* packet)
 {
+	if (packet->device == devices_count - 1) {
+		// "Management" interface, obviously not practical but just to show it can be done
+		lpm_update_elem(lpm, ((uint32_t*) packet->data)[0], ((uint8_t*)packet->data)[4], ((uint16_t*)packet->data)[3]);
+		return;
+	}
+
 	struct net_ether_header* ether_header;
 	struct net_ipv4_header* ipv4_header;
 	if (!net_get_ether_header(packet, &ether_header) || !net_get_ipv4_header(ether_header, &ipv4_header)) {

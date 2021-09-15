@@ -10,6 +10,10 @@ def matches(route, ip):
 def spec(packet, config, transmitted_packet):
     table = Map(Route, Device)
 
+    if packet.device == config.devices_count - 1:
+        # TODO specify the behavior here?
+        return
+
     if (packet.ether is None) | (packet.ipv4 is None):
         assert transmitted_packet is None
         return

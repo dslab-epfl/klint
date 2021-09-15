@@ -45,6 +45,7 @@ structs_functions_externals = {
     'index_pool_used': klint.externals.structs.index_pool.index_pool_used,
     'cht_find_preferred_available_backend': klint.externals.structs.cht.ChtFindPreferredAvailableBackend,
     'lpm_lookup_elem': klint.externals.structs.lpm.LpmLookupElem,
+    'lpm_update_elem': klint.externals.structs.lpm.LpmUpdateElem
 }
 
 

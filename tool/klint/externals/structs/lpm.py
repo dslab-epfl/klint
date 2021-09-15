@@ -15,7 +15,7 @@ class LpmAlloc(angr.SimProcedure):
 
         # Postconditions
         result = claripy.BVS("lpm", self.state.sizes.ptr)
-        table = self.state.maps.new(IP_LEN + self.state.sizes.uint8_t, self.state.sizes.uint16_t, "lpm_table", _length=claripy.BVS("lpm_table_length", 64), _invariants=[lambda i: claripy.true])
+        table = self.state.maps.new(IP_LEN + self.state.sizes.uint8_t, self.state.sizes.uint16_t, "lpm_table")
         self.state.metadata.append(result, Lpm(table))
         print(f"!!! lpm_alloc -> {result}")
         return result
@@ -30,10 +30,15 @@ class LpmUpdateElem(angr.SimProcedure):
         print(  f"!!! lpm_update_elem [lpm: {lpm}, prefix: {prefix}, " 
                 f"prefixlen: {prefixlen}, value: {value}]")
 
-        # Postconditions
         lpmp = self.state.metadata.get(Lpm, lpm)
-        self.state.maps.set(lpmp.table, prefix.concat(prefixlen), value)
-        return claripy.BVV(1, self.state.sizes.bool)
+
+        # Postconditions
+        def case_true(state):
+            self.state.maps.set(lpmp.table, prefix.concat(prefixlen), value)
+            return claripy.BVV(1, self.state.sizes.bool)
+        def case_false(state):
+            return claripy.BVV(0, self.state.sizes.bool)
+        return utils.fork_guarded(self, self.state, claripy.BoolS("lpm_can_update"), case_true, case_false)
 
 # TODO: The issue right now is that there could be two routes (P,L) and (P',L) where (P >> L) == (P' >> L) but P != P'...
 class LpmLookupElem(angr.SimProcedure):
