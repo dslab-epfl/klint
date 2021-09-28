@@ -8,11 +8,17 @@
   - `linux` depends on the Linux kernel
   - `metal` depends on nothing and expects to run in kernel mode
   - `dpdk` depends on DPDK (does not support static linking)
-  - Add your own! Just create a `Makefile` within that folder that sets the `OS_SRCS` variable to a list of absolute paths of source files
+  - Add your own! Just create a `Makefile` within that folder that adds to the `OS_SRCS` variable a list of absolute paths of source files
 
 - `NET` is the network driver name
   - `tinynf` is an adaptation of the TinyNF driver (OSDI'20) for Intel 82599
   - `dpdk` is, well, DPDK
-  - Add your own! Just create a `Makefile` within that folder that sets the `NET_SRCS` variable to a list of absolute paths of source files
+  - `dpdk-inline` doesn't work, do not use (the goal was to use the DPDK driver but without DPDK itself)
+  - Add your own! Just create a `Makefile` within that folder that adds to the `NET_SRCS` variable a list of absolute paths of source files
 
-`make` can optionally be given `CC` and `CFLAGS` to override the compiler or add flags respectively.
+- `NF_CONFIG_FILENAME` and `OS_CONFIG_FILENAME` are self-explanatory, the NF one is NF-dependent, for the OS one it's just a list of PCI devices, e.g.
+
+```
+{ .bus = 0x83, .device = 0x00, .function = 0x0 },
+{ .bus = 0x85, .device = 0x00, .function = 0x0 },
+```
