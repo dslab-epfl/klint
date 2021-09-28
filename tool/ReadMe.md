@@ -6,6 +6,8 @@ Two layers:
 
 You'll need Python 3, with all the dependencies from `requirements.txt`; running `. setup.sh` will install them for you on Linux. Or use an IDE with virtualenv support.
 
-The intended entry point is `main.py`; compile the NF yourself (using `make -f ../Makefile.nf` in its folder, or ./load-and-dump.sh for the BPF ones) then set the last string in the last line to verify an NF.
+The intended entry point is `./klint.py`, use `--help` for usage instructions.
+
+Compile the NF yourself (using `make -f ../Makefile.nf` in its folder for "libnf" verif, or ./load-and-dump.sh for "bpf-jited" verif).
 
 Code structure: <TODO>
