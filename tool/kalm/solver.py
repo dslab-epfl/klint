@@ -57,11 +57,5 @@ class KalmSolver(
         return True, merged
 
     def simplify(self, **kwargs):
-        # TODO: Investigate this. There seems to be a bug in the simplification that drops constraints
+        # not sure why but if we allow simplifying, verification is like 50% slower :-/
         return self.constraints
-        """prev_cons = self.constraints.copy()
-        result = super().simplify(**kwargs)
-        if any("map_values_4_present" in str(c) and (c.op == 'BoolS' or c.op == 'Not') for c in prev_cons) and \
-           not any("map_values_4_present" in str(c) and (c.op == 'BoolS' or c.op == 'Not') for c in self.constraints):
-            print("what") # at this point the map present bit has 2 possible values!
-        return result"""

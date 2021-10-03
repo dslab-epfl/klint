@@ -1,6 +1,4 @@
-import angr
 import claripy
-import math
 
 def read_str(state, ptr):
     result = ""

@@ -1,13 +1,7 @@
 from angr.state_plugins.plugin import SimStatePlugin
 import claripy
 import copy
-import datetime
-import itertools
-import os
-import threading
-import queue
 from collections import namedtuple
-from enum import Enum
 
 from kalm import utils
 from klint import statistics
@@ -16,8 +10,13 @@ from klint import statistics
 #       (e.g., making solver calls that are unnecessary due to some other change)
 
 # TODO through deepcopy we should be able to refer directly to maps, right? without the obj indirection because the map would be the updated one after copy...
+#      it is weird that MapHas/MapGet take in an obj to pass to state.maps[...] instead of a map... can we fix this? might require major refactor of invariant inf
+#      Then we can take only the solver as parameter everywhere, not the entire state
+#      And maybe even move the solver optimizations part (constants and such) to the plugin itself instead of the maps?
 
-        # TODO: I wonder if it makes sense to refactor as "map" and "map layer" since the layer can only have stuff on known items?
+# TODO: I wonder if it makes sense to refactor as "map" and "map layer" since the layer can only have stuff on known items?
+
+# TODO: Any way we can remove ITEs completely here? out of curiosity...
 
 
 # Quick and dirty logging...
@@ -40,11 +39,6 @@ def Implies(a, b):
 MapMeta = namedtuple("MapMeta", ["name", "key_size", "value_size"]) # sizes are ints (not BVs!), in bits
 MapItem = namedtuple("MapItem", ["key", "value", "present"])
 
-# TODO it is weird that MapHas/MapGet take in an obj to pass to state.maps[...] instead of a map... can we fix this? might require major refactor of invariant inf
-#      Then we can take only the solver as parameter everywhere, not the entire state
-#      And maybe even move the solver optimizations part (constants and such) to the plugin itself instead of the maps?
-
-# TODO: Any way we can remove ITEs completely here? out of curiosity...
 
 # MapHas/MapGet *must* be used whenever doing anything inside of a forall... otherwise bad stuff might happen
 
