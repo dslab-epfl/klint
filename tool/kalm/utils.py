@@ -35,20 +35,6 @@ def get_if_constant(solver, expr, **kwargs):
     return None
 
 def get_exact_match(solver, item, candidates, assumption=claripy.true, selector=lambda i: i):
-    # at one point this exact pattern, even after calling solver.simplify, caused the solver to hang...
-    # but simplifying this way (which is correct; (0#4 .. x) * 0x10 / 0x10 == (0#4 .. x)) made it go through
-    # the structurally_match path, which is all good
-    # TODO check if this is still needed?
-    if item.op == "__floordiv__" and \
-       str(item.args[1]) == "<BV64 0x10>" and \
-       item.args[0].op == "__add__" and \
-       len(item.args[0].args) == 1 and \
-       item.args[0].args[0].op == "__mul__" and \
-       item.args[0].args[0].args[1] is item.args[1] and \
-       item.args[0].args[0].args[0].op == "ZeroExt" and \
-       item.args[0].args[0].args[0].args[0] == 4:
-        item = item.args[0].args[0].args[0]
-
     for cand in candidates:
         if item.structurally_match(selector(cand)):
             return cand
