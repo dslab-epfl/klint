@@ -26,6 +26,3 @@
 	path = experiments/baselines/tinynf/tinynf
 	url = https://github.com/dslab-epfl/tinynf
 	ignore = dirty
-[submodule "nf/bpf/libbpf"]
-	path = nf/bpf/libbpf
-	url = https://github.com/libbpf/libbpf
