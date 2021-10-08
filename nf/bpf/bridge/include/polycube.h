@@ -22,7 +22,7 @@ enum {
 // Nothing
 #define pcn_log(...)
 
-static inline int pcn_pkt_redirect(struct xdp_md* pkt, struct pkt_metadata* md, uint32_t out_port)
+static inline int pcn_pkt_redirect(struct xdp_md* pkt, struct pkt_metadata* md, unsigned out_port)
 {
 	(void) pkt;
 	(void) md;
@@ -30,7 +30,7 @@ static inline int pcn_pkt_redirect(struct xdp_md* pkt, struct pkt_metadata* md, 
 	return (int) out_port;
 }
 
-static inline int pcn_pkt_controller(struct xdp_md* pkt, struct pkt_metadata* md, uint16_t reason)
+static inline int pcn_pkt_controller(struct xdp_md* pkt, struct pkt_metadata* md, unsigned short reason)
 {
 	(void) pkt;
 	(void) md;

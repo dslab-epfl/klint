@@ -55,11 +55,8 @@ fi
 # Ensure kernel BPF JIT is enabled
 echo 1 | sudo tee '/proc/sys/net/core/bpf_jit_enable' >/dev/null
 
-# Ensure the libbpf submodule was cloned
-git submodule update --init --recursive
-
 # Compile
-clang -O3 -target bpf -I "$THIS_DIR/libbpf/include" -I '/tmp/linux/tools/lib' \
+clang -O3 -target bpf -I '/tmp/linux/tools/lib' \
       $EXTRA_BPF_CFLAGS \
       -D u8=__u8 -D u16=__u16 -D u32=__u32 -D u64=__u64 -D __wsum=__u32 -D __sum16=__u16 \
       -o 'bpf.obj' -c $@

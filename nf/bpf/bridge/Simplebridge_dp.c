@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-#include <polycube.h>
+// compat layer for Polycube
+#include "polycube.h"
 
 #ifndef FDB_TIMEOUT
 #define FDB_TIMEOUT 300
@@ -24,7 +25,7 @@
 #include <bcc/proto.h>
 
 #include <uapi/linux/bpf.h>
-#include <uapi/linux/filter.h>
+//#include <uapi/linux/filter.h>
 #include <uapi/linux/if_ether.h>
 #include <uapi/linux/if_packet.h>
 #include <uapi/linux/in.h>

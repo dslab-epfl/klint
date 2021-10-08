@@ -1,12 +1,13 @@
 #!/bin/sh
-
-# TODO this is awful, rewrite
+# Compiles all NFs.
 
 for dir in *; do
   if [ "$dir" = 'bpf' ]; then
     for dir2 in "$dir/"*; do
       if [ -d "$dir2" ]; then
-        make -C "$dir2" -f "$(pwd)/Makefile.nf"
+        cd "$dir2"
+          ./compile-bpf.sh
+        cd -
       fi
     done
   elif [ -d "$dir" ]; then
