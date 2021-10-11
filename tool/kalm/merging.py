@@ -94,26 +94,44 @@ class MergingExplorationTechnique(angr.exploration_techniques.ExplorationTechniq
     def __init__(self, deferred_stash='deferred'):
         super().__init__()
         self.deferred_stash = deferred_stash
+        self.state_graph_nodes = {}
         self.state_graph_edges = []
 
-    def record_fork(self, orig_id, forked_states):
-        # Increment all IDs so we can distinguish those states even if one is the same reference as the original state (i.e., no copy was made)
-        for st in forked_states:
+    def record_step(self, orig_id, new_states):
+        if len(new_states) == 0:
+            # end of path
+            self.state_graph_nodes[orig_id] = 'ret'
+            return
+        node_descr = new_states[0].history.recent_description
+        if len(new_states) == 1 and 'SimProcedure' not in node_descr:
+            # not interesting
+            return
+        # Increment IDs so we can distinguish those states even if one is the same reference as the original state (i.e., no copy was made)
+        for st in new_states:
             st.marker.increment_id()
-        # Find the first divergent constraint
+        # Try and get a proper label for the node
+        node_label = None
+        if node_descr.startswith("<IRSB"):
+            node_label = 'Branch: ' + node_descr.split(' ')[2][:-1] # remove the ':' at the end; format is '<IRSB from 0xaaaa: ...>'
+        elif node_descr.startswith("<SimProcedure"):
+            node_label = node_descr.split(' ')[1] # procedure name
+        if node_label is not None:
+            self.state_graph_nodes[orig_id] = node_label
+        # Find the first divergent constraint if we have >1 state
         # Note that in theory states could change their constraints beyond just appending, but in practice let's hope they don't...
-        divergence_index = 0
-        while all(s.solver.constraints[divergence_index] is forked_states[0].solver.constraints[divergence_index] for s in forked_states[1:]):
-            divergence_index = divergence_index + 1
-        # If we have 2 forked states and the constraint is ~C in state0 and C in state1, invert them, for readability
-        if len(forked_states) == 2 and forked_states[0].solver.constraints[divergence_index].op == 'Not' and \
-           forked_states[0].solver.constraints[divergence_index].args[0] is forked_states[1].solver.constraints[divergence_index]:
-            forked_states = [forked_states[1], forked_states[0]]
+        if len(new_states) > 1:
+            divergence_index = 0
+            while all(s.solver.constraints[divergence_index] is new_states[0].solver.constraints[divergence_index] for s in new_states[1:]):
+                divergence_index = divergence_index + 1
+            # If we have 2 forked states and the constraint is ~C in state0 and C in state1, invert them, for readability
+            if len(new_states) == 2 and new_states[0].solver.constraints[divergence_index].op == 'Not' and \
+               new_states[0].solver.constraints[divergence_index].args[0] is new_states[1].solver.constraints[divergence_index]:
+                new_states = [new_states[1], new_states[0]]
         # Record it all
-        for st in forked_states:
+        for st in new_states:
             label = ''
-            # Don't label the 2nd edge on a 2-state fork, it's obviously the opposite of the first edge
-            if len(forked_states) != 2 or st is forked_states[0]:
+            # Don't label if there's a single new state or if it's the 2nd edge on a 2-state fork (in the latter case, it's obviously the opposite of the first edge)
+            if len(new_states) != 1 and (len(new_states) != 2 or st is new_states[0]):
                 label = utils.pretty_print(st.solver.constraints[divergence_index])
             self.state_graph_edges.append((orig_id, st.marker.id, label))
 
@@ -125,15 +143,30 @@ class MergingExplorationTechnique(angr.exploration_techniques.ExplorationTechniq
             self.state_graph_edges.append((id, merged_state.marker.id, ''))
 
     def graph_as_dot(self):
+        # First, filter edges so we don't show nodes without labels; if we did everything right that's also the set of nodes with exactly 1 entry and 1 exit
+        edges = []
+        for (src, dst, label) in self.state_graph_edges:
+            if src not in self.state_graph_nodes:
+                assert len([s for (s,d,l) in self.state_graph_edges if src == d]) == 1
+                continue
+            if dst not in self.state_graph_nodes:
+                # Find where the edge should end instead
+                end = [d for (s,d,l) in self.state_graph_edges if dst == s]
+                assert len(end) == 1
+                dst = end[0]
+            edges.append((src, dst, label))
         # hardcoding line separators so the output is the same on all OSes
         result = 'digraph g {\n'
-        # First, edges
-        for (src, dst, label) in self.state_graph_edges:
+        # Print edges
+        for (src, dst, label) in edges:
             # use xlabel (Xternal label) so 'dot' will not put the label inbetween two edges which is confusing
             result = result + '    ' + str(src) + ' -> ' + str(dst) + ' [xlabel="' + label + '"]\n'
-        # Then, mark end states with a double border
-        for node in set(d for (s,d,l) in self.state_graph_edges) - set(s for (s,d,l) in self.state_graph_edges):
+        # Mark end states with a double border
+        for node in set(d for (s,d,l) in edges) - set(s for (s,d,l) in edges):
             result = result + '    ' + str(node) + ' [peripheries=2]\n'
+        # Mark nodes with their labels when available
+        for (n, l) in self.state_graph_nodes.items():
+            result = result + '    ' + str(n) + ' [label="' + l + '"]\n'
         result = result + '}\n'
         return result
 
@@ -148,15 +181,14 @@ class MergingExplorationTechnique(angr.exploration_techniques.ExplorationTechniq
         # Move all but one state to our deferred stash, so we can trivially know who the parent state of a fork is
         simgr.split(from_stash=stash, to_stash=self.deferred_stash, limit=1)
 
-        # Store the ID of the original state, and its number of constraints, in case it forks and we need it later
+        # Store the ID of the original state, and its number of constraints, for later recording
         orig_id = simgr.stashes[stash][0].marker.id
 
         # Step! This might fork.
         simgr = simgr.step(stash=stash, **kwargs)
 
-        # If we forked, record it
-        if len(simgr.stashes[stash]) > 1:
-            self.record_fork(orig_id, simgr.stashes[stash])
+        # Record the step
+        self.record_step(orig_id, simgr.stashes[stash])
 
         # Move all active states to our deferred stash
         simgr.stashes[self.deferred_stash].extend(simgr.stashes[stash])

@@ -13,12 +13,12 @@ class ExternalWrapper(SimProcedure):
         # fix args count (code copied from angr SimProcedure)
         run_spec = inspect.getfullargspec(self.wrapped.run)
         self.num_args = len(run_spec.args) - (len(run_spec.defaults) if run_spec.defaults is not None else 0) - 1
-        self.true_display_name = self.wrapped.display_name
+        self.display_name = self.wrapped.display_name
 
     def run(self, *args, **kwargs):
         self.wrapped.__dict__ = self.__dict__
 
-        self.state.path.begin_record(self.true_display_name, [a.ast if isinstance(a, SimActionObject) else a for a in args])
+        self.state.path.begin_record(self.display_name, [a.ast if isinstance(a, SimActionObject) else a for a in args])
         ret = self.wrapped.run(*args, **kwargs)
         # This will execute for the current state in case the procedure forked, not the other one;
         # to handle the other one, we explicitly deal with it in utils.fork
