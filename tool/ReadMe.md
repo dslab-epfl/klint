@@ -10,6 +10,6 @@ The intended entry point is `./klint.py`, use `--help` for usage instructions.
 
 Compile the NF yourself (using `make -f ../Makefile.nf` in its folder for "libnf" verif, or ./load-and-dump.sh for "bpf-jited" verif).
 
-With `--export-graphs`, use e.g. `for g in *.dot ; do dot -Tpng -o $g.png $g ; done` to convert .dot files to PNGs
+With `--export-graphs`, use e.g. `for g in graphs/*.dot ; do dot -Tpng -o $g.png $g ; done` to convert .dot files to PNGs
 
 Code structure: <TODO>

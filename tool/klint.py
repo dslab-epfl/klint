@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
 import argparse
+import os
+import shutil
 
 from klint import statistics
 import klint.bpf.analysis as bpf_analysis
@@ -18,8 +20,11 @@ import klint.verif.executor as verif_executor
 def export_graphs(args, graphs):
     if not args.export_graphs:
         return
+    if os.path.isdir('graphs'):
+        shutil.rmtree('graphs')
+    os.makedirs('graphs')
     for i, graph in enumerate(graphs):
-        with open('graph' + str(i) + '.dot', 'w') as file:
+        with open('graphs/' + str(i) + '.dot', 'w') as file:
             file.write(graph)
 
 def verif(data_path, spec_path):
