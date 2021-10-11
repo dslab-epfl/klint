@@ -4,4 +4,4 @@ def spec(packet, config, transmitted_packet):
     else:
         assert transmitted_packet.device == config['wan device']
 
-    assert transmitted_packet.data[:96] == packet.data[:96] # ignore MACs for now
+#    assert transmitted_packet.data[:96] == packet.data[:96] # ignore MACs for now
