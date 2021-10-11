@@ -57,7 +57,9 @@ def find_fixedpoint_states(states_data):
         result_states = []
         for (state, state_fun) in states_data:
             starting_state = state_fun(state.copy())
-            result_states += binary_executor.run_state(starting_state)
+            states, graph = binary_executor.run_state(starting_state)
+            result_states += states
+            # TODO: print graph
         statistics.work_end()
         print("Inferring invariants on", len(result_states), "states at", datetime.datetime.now())
         states = [s for (s, _) in states_data]
@@ -94,7 +96,8 @@ def get_libnf_inited_states(binary_path, devices_count):
     init_state = binary_executor.create_calling_state(blank_state, "nf_init", [devices_count.reversed], libnf_init_externals)
     init_state.solver.add(devices_count.UGT(0))
     statistics.work_start("symbex")
-    result_states = binary_executor.run_state(init_state)
+    # ignore the graph of states here, it's just init
+    result_states, _ = binary_executor.run_state(init_state)
     statistics.work_end()
     # Create handle states from all successful inits
     inited_states = []

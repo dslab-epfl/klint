@@ -282,16 +282,16 @@ class Map:
         assert all(o.meta.key_size == self.meta.key_size and o.meta.value_size == self.meta.value_size for o in others), "Different meta???"
         self_ver = self.version()
         if any(o.version() != self_ver for o in others):
-            print("Different versions", self, [x.version() for x in [self] + others])
+            #print("Different versions", self, [x.version() for x in [self] + others])
             return False
         if any(not utils.structural_eq(self._invariants, o._invariants) for o in others):
-            print("Different invariants", self)
+            #print("Different invariants", self)
             return False
         if any(not utils.structural_eq(self._length, o._length) for o in others):
-            print("Different length", self, [x._length for x in [self] + others])
+            #print("Different length", self, [x._length for x in [self] + others])
             return False
         if any(not utils.structural_eq(self._unknown_item, o._unknown_item) for o in others):
-            print("Different unknown item", self, [x._unknown_item for x in [self] + others])
+            #print("Different unknown item", self, [x._unknown_item for x in [self] + others])
             return False
         #if self._layer_item is not None and any(not utils.structural_eq(self._layer_item.key, o._layer_item.key) for o in others):
         #    print("Different layer item key", self, [x._layer_item.key for x in [self] + others])
@@ -300,7 +300,7 @@ class Map:
         #    print("Different layer item", self, [x._layer_item for x in [self] + others])
         #    return False
         if self_ver > 0 and not self._previous.can_merge([o._previous for o in others]):
-            print("Cannot merge previous", self)
+            #print("Cannot merge previous", self)
             return False
         max_to_add = 0
         #all_to_add = []
@@ -541,7 +541,7 @@ class GhostMapsPlugin(SimStatePlugin):
                     break
             else:
                 triaged.append([other])
-        print("triaged", [len(x) for x in triaged])
+        #print("triaged", [len(x) for x in triaged])
         return triaged
 
     def can_merge(self, others):

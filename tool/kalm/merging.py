@@ -2,6 +2,9 @@ import angr
 import claripy
 import math
 
+from kalm import utils
+
+
 def get_plugins(states):
     plugins = set()
     for state in states:
@@ -54,7 +57,7 @@ def merge_states(states, plugins):
         #print("Not bothering to try a merge with", len(states), "states")
         #return None
 
-    print("Trying to merge", len(states), "states at", states[0].regs.rip)
+    #print("Trying to merge", len(states), "states at", states[0].regs.rip)
 
     merge_flag = claripy.BVS("state_merge", math.ceil(math.log2(len(states))))
     merge_conds = [(merge_flag == n) for n in range(len(states))]
@@ -76,9 +79,9 @@ def merge_states(states, plugins):
             # Memory (of which registers is a kind) returns false if nothing was merged, but that just means the memory was untouched
             if plugin in ('memory', 'registers'):
                 continue
-            print("    failed because of", plugin)
+            #print("    failed because of", plugin)
             return None
-    print("    done")
+    #print("    done")
     return merged
 
 
@@ -91,6 +94,35 @@ class MergingExplorationTechnique(angr.exploration_techniques.ExplorationTechniq
     def __init__(self, deferred_stash='deferred'):
         super().__init__()
         self.deferred_stash = deferred_stash
+        self.state_graph_edges = []
+
+    def record_fork(self, orig_id, forked_states):
+        # Increment all IDs so we can distinguish those states even if one is the same reference as the original state (i.e., no copy was made)
+        for st in forked_states:
+            st.marker.increment_id()
+        # Find the first divergent constraint
+        # Note that in theory states could change their constraints beyond just appending, but in practice let's hope they don't...
+        divergence_index = 0
+        while all(s.solver.constraints[divergence_index] is forked_states[0].solver.constraints[divergence_index] for s in forked_states[1:]):
+            divergence_index = divergence_index + 1
+        # Record it all
+        for st in forked_states:
+            self.state_graph_edges.append((orig_id, st.marker.id, utils.pretty_print(st.solver.constraints[divergence_index])))
+
+    def record_merge(self, orig_ids, merged_state):
+        # Increment the ID of the merged state to distinguish it
+        merged_state.marker.increment_id()
+        # Record the merge (no label)
+        for id in orig_ids:
+            self.state_graph_edges.append((id, merged_state.marker.id, ''))
+
+    def graph_as_dot(self):
+        # hardcoding line separators so the output is the same on all OSes
+        result = 'digraph g {\n'
+        for (src, dst, label) in self.state_graph_edges:
+            result = result + '    ' + str(src) + ' -> ' + str(dst) + '[label="' + label + '"]\n'
+        result = result + '}\n'
+        return result
 
     def setup(self, simgr):
         if self.deferred_stash not in simgr.stashes:
@@ -100,7 +132,18 @@ class MergingExplorationTechnique(angr.exploration_techniques.ExplorationTechniq
         if stash != 'active':
             raise Exception("Sorry, haven't tested that")
 
+        # Move all but one state to our deferred stash, so we can trivially know who the parent state of a fork is
+        simgr.split(from_stash=stash, to_stash=self.deferred_stash, limit=1)
+
+        # Store the ID of the original state, and its number of constraints, in case it forks and we need it later
+        orig_id = simgr.stashes[stash][0].marker.id
+
+        # Step! This might fork.
         simgr = simgr.step(stash=stash, **kwargs)
+
+        # If we forked, record it
+        if len(simgr.stashes[stash]) > 1:
+            self.record_fork(orig_id, simgr.stashes[stash])
 
         # Move all active states to our deferred stash
         simgr.stashes[self.deferred_stash].extend(simgr.stashes[stash])
@@ -134,13 +177,18 @@ class MergingExplorationTechnique(angr.exploration_techniques.ExplorationTechniq
             plugins = get_plugins(lowest)
             # Then triage
             triaged_piles = triage_for_merge(lowest, plugins)
-            merged_states = []
             # Then merge individual piles
             for pile in triaged_piles:
+                # Store the IDs of the states to merge for later (one will be used as the base for the merged state, so we need to store IDs before merging)
+                orig_ids = [s.marker.id for s in pile]
+                # Merge! Well, try, anyway
                 merged = merge_states(pile, plugins)
                 if merged is None:
                     simgr.stashes[stash].extend(pile)
                 else:
+                    # Record the merge
+                    self.record_merge(orig_ids, merged)
+                    # Store the merged state for the next time
                     simgr.stashes[stash].append(merged)
 
         return simgr

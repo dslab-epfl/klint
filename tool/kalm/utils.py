@@ -34,6 +34,21 @@ def get_if_constant(solver, expr, **kwargs):
         return sols[0]
     return None
 
+
+def pretty_print(expr, nested=False):
+    if expr.op == 'BoolS':
+        if expr.args[0].endswith('_-1'):
+            return expr.args[0][:-3]
+        return expr.args[0]
+    if expr.op == 'And' or expr.op == 'Or':
+        sep = ' && ' if expr.op == 'And' else ' || '
+        return ('(' if nested else '') + sep.join(pretty_print(a, nested=True) for a in expr.args) + (')' if nested else '')
+    result = str(expr)
+    if result.startswith('<Bool'):
+        return result[6:-1]
+    return result
+
+
 def get_exact_match(solver, item, candidates, assumption=claripy.true, selector=lambda i: i):
     for cand in candidates:
         if item.structurally_match(selector(cand)):
