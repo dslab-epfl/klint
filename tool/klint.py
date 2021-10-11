@@ -15,6 +15,13 @@ import klint.verif.executor as verif_executor
 #tests.test.Tests().test_forall_subset() ; sys.exit(0)
 
 
+def export_graphs(args, graphs):
+    if not args.export_graphs:
+        return
+    for i, graph in enumerate(graphs):
+        with open('graph' + str(i) + '.dot', 'w') as file:
+            file.write(graph)
+
 def verif(data_path, spec_path):
     if spec_path is None:
         print("No specification. Not verifying.")
@@ -30,7 +37,8 @@ def verif(data_path, spec_path):
 def handle_libnf(args):
     cached_data_path = args.file + ".symbex-cache"
     if not args.use_cached_symbex:
-        states, devices_count = nf_executor.execute_libnf(args.file)
+        states, devices_count, graphs = nf_executor.execute_libnf(args.file)
+        export_graphs(args, graphs)
         verif_persist.dump_data(states, devices_count, cached_data_path)
     verif(cached_data_path, args.spec)
 
@@ -53,6 +61,7 @@ def handle_bpf(args):
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--use-cached-symbex', action='store_true', help='Verify only, using cached symbolic execution results')
+parser.add_argument('--export-graphs', action='store_true', help='Dump the state graphs resulting from each iteration of symbolic execution')
 
 subparsers = parser.add_subparsers(dest='command', required=True)
 

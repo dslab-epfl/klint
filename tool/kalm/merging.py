@@ -107,7 +107,11 @@ class MergingExplorationTechnique(angr.exploration_techniques.ExplorationTechniq
             divergence_index = divergence_index + 1
         # Record it all
         for st in forked_states:
-            self.state_graph_edges.append((orig_id, st.marker.id, utils.pretty_print(st.solver.constraints[divergence_index])))
+            label = ''
+            # Don't label the 2nd edge on a 2-state fork, it's obviously the opposite of the first edge
+            if len(forked_states) != 2 or st is forked_states[0]:
+                label = utils.pretty_print(st.solver.constraints[divergence_index])
+            self.state_graph_edges.append((orig_id, st.marker.id, label))
 
     def record_merge(self, orig_ids, merged_state):
         # Increment the ID of the merged state to distinguish it

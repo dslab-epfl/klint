@@ -40,6 +40,9 @@ def pretty_print(expr, nested=False):
         if expr.args[0].endswith('_-1'):
             return expr.args[0][:-3]
         return expr.args[0]
+    if expr.op == 'Not':
+        assert len(expr.args) == 1
+        return '!' + pretty_print(expr.args[0], nested=True)
     if expr.op == 'And' or expr.op == 'Or':
         sep = ' && ' if expr.op == 'And' else ' || '
         return ('(' if nested else '') + sep.join(pretty_print(a, nested=True) for a in expr.args) + (')' if nested else '')

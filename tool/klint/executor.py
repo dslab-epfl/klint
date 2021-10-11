@@ -51,6 +51,7 @@ structs_functions_externals = {
 
 def find_fixedpoint_states(states_data):
     inference_results = None
+    result_graphs = []
     while True:
         print("Running an iteration of the main loop at", datetime.datetime.now())
         statistics.work_start("symbex")
@@ -59,7 +60,7 @@ def find_fixedpoint_states(states_data):
             starting_state = state_fun(state.copy())
             states, graph = binary_executor.run_state(starting_state)
             result_states += states
-            # TODO: print graph
+            result_graphs.append(graph)
         statistics.work_end()
         print("Inferring invariants on", len(result_states), "states at", datetime.datetime.now())
         states = [s for (s, _) in states_data]
@@ -67,7 +68,7 @@ def find_fixedpoint_states(states_data):
         (states, inference_results, reached_fixpoint) = klint.ghostmaps.infer_invariants(states, result_states, inference_results)
         statistics.work_end()
         if reached_fixpoint:
-            return result_states
+            return (result_states, result_graphs)
         states_data = [(new_s, fun) for (new_s, (old_s, fun)) in zip(states, states_data)]
 
 
@@ -116,9 +117,9 @@ def execute_libnf(binary_path):
     print("libNF symbex starting at", datetime.datetime.now())
     devices_count = claripy.BVS('devices_count', 16) # TODO avoid the hardcoded 16 here
     inited_states = get_libnf_inited_states(binary_path, devices_count)
-    result_states = find_fixedpoint_states(inited_states)
+    result_states, result_graphs = find_fixedpoint_states(inited_states)
     print("libNF symbex done at", datetime.datetime.now())
-    return (result_states, devices_count) # TODO devices_count should be in metadata somewhere, not explicitly returned
+    return (result_states, devices_count, result_graphs) # TODO devices_count should be in metadata somewhere, not explicitly returned
 
 
 # === Full-stack ===
@@ -153,6 +154,6 @@ def execute_nf(binary_path):
     binary_executor.run_state(init_state, allow_trap=True) # this will fill nf_inited_states; we allow traps only here since that's how init can fail
     statistics.work_end()
     assert len(nf_inited_states) > 0
-    result_states = find_fixedpoint_states(nf_inited_states)
+    result_states, _ = find_fixedpoint_states(nf_inited_states)
     print("NF symbex done at", datetime.datetime.now())
     return (result_states, claripy.BVV(2, 16)) # TODO ouch hardcoding, same remark as in execute_libnf
