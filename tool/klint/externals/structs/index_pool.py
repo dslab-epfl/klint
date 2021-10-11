@@ -63,12 +63,12 @@ class index_pool_borrow(angr.SimProcedure):
         self.state.memory.load(out_used, self.state.sizes.bool // 8)
 
         # Postconditions
-        index = claripy.BVS("index", self.state.sizes.size_t)
-        used = claripy.BVS("used", self.state.sizes.bool)
+        index = claripy.BVS("pool_index", self.state.sizes.size_t)
+        used = claripy.BVS("pool_used", self.state.sizes.bool)
         self.state.memory.store(out_index, index, endness=self.state.arch.memory_endness)
         self.state.memory.store(out_used, used, endness=self.state.arch.memory_endness)
 
-        result = claripy.BVS("borrow_result", self.state.sizes.bool)
+        result = claripy.BVS("pool_borrowed", self.state.sizes.bool)
         self.state.solver.add(
             claripy.If(
                 self.state.maps.length(poolp.items) == poolp.size,

@@ -30,7 +30,7 @@ class HeapPlugin(SimStatePlugin):
             raise Exception("That's a huge block you want to allocate... let's just not: " + str(max_size))
 
         # Create a map
-        name = (name or "memory") + "_addr"
+        name = name or "memory"
         addr = self.state.maps.new_array(self.state.sizes.ptr, max_size * 8, count, name, obj=addr)
 
         # Set the default value if needed

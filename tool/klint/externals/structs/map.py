@@ -28,7 +28,7 @@ class map_alloc(angr.SimProcedure):
 
         # Postconditions
         result = claripy.BVS("map", self.state.sizes.ptr)
-        values = self.state.maps.new(key_size * 8, self.state.sizes.ptr, "map_values") # key_size is in bytes
+        values = self.state.maps.new(key_size * 8, self.state.sizes.ptr, "map") # key_size is in bytes
         addrs = self.state.maps.new(key_size * 8, self.state.sizes.ptr, "map_addrs") # key_size is in bytes
         self.state.metadata.append(result, Map(key_size, capacity, values, addrs))
         print("!!! map_alloc", key_size, capacity, "->", result)

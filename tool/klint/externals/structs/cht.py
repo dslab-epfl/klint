@@ -50,7 +50,7 @@ class ChtFindPreferredAvailableBackend(angr.SimProcedure):
         )
 
         # Postconditions
-        backend = claripy.BVS("backend", self.state.sizes.uint16_t)
+        backend = claripy.BVS("cht_backend", self.state.sizes.uint16_t)
         def case_true(state):
             print("!!! cht_find_preferred_available_backend: did not find available backend")
             return claripy.BVV(0, state.sizes.bool)

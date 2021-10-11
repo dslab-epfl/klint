@@ -178,7 +178,7 @@ class Map:
         # Optimization: If the map is empty, the answer is always false
         if self.is_definitely_empty():
             LOGEND(state)
-            return (claripy.BVS(self.meta.name + "_bad_value", self.meta.value_size), claripy.false)
+            return (claripy.BVS(self.meta.name + "_badvalue", self.meta.value_size), claripy.false)
 
         # If the map contains an item (K', V', P') such that K' = K, then return (V', P') [assuming the condition]
         known_items = self.known_items()
@@ -188,12 +188,12 @@ class Map:
             return (matching_item.value, matching_item.present)
 
         # Let V be a fresh symbolic value [using the hint]
-        value = claripy.BVS(self.meta.name + "_value", self.meta.value_size)
+        value = claripy.BVS(self.meta.name + "_v", self.meta.value_size)
         if conditioned_value is not None:
             state.solver.add(Implies(condition, value == conditioned_value))
 
         # Let P be a fresh symbolic presence bit
-        present = claripy.BoolS(self.meta.name + "_present")
+        present = claripy.BoolS(self.meta.name + "_p")
 
         # Let UK be And(K != K') for each key K' in the map's known items
         unknown = claripy.And(*[key != i.key for i in known_items])
@@ -238,7 +238,7 @@ class Map:
         (_, present) = self.get(state, key)
 
         # Create a fresh symbolic value V.
-        value = claripy.BVS(self.meta.name + "_bad_value", self.meta.value_size)
+        value = claripy.BVS(self.meta.name + "_badvalue", self.meta.value_size)
 
         # Return a new map with:
         #   ITE(P, -1, 0) added to the map length
@@ -357,9 +357,9 @@ class Map:
         self._previous = _previous
         if _unknown_item is None:
             _unknown_item = MapItem(
-                claripy.BVS(self.meta.name + "_unknown_key", self.meta.key_size),
-                claripy.BVS(self.meta.name + "_unknown_value", self.meta.value_size),
-                claripy.BoolS(self.meta.name + "_unknown_present")
+                claripy.BVS(self.meta.name + "_uk", self.meta.key_size),
+                claripy.BVS(self.meta.name + "_uv", self.meta.value_size),
+                claripy.BoolS(self.meta.name + "_up")
             )
         self._unknown_item = _unknown_item
         self._layer_item = _layer_item

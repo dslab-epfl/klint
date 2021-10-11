@@ -105,6 +105,10 @@ class MergingExplorationTechnique(angr.exploration_techniques.ExplorationTechniq
         divergence_index = 0
         while all(s.solver.constraints[divergence_index] is forked_states[0].solver.constraints[divergence_index] for s in forked_states[1:]):
             divergence_index = divergence_index + 1
+        # If we have 2 forked states and the constraint is ~C in state0 and C in state1, invert them, for readability
+        if len(forked_states) == 2 and forked_states[0].solver.constraints[divergence_index].op == 'Not' and \
+           forked_states[0].solver.constraints[divergence_index].args[0] is forked_states[1].solver.constraints[divergence_index]:
+            forked_states = [forked_states[1], forked_states[0]]
         # Record it all
         for st in forked_states:
             label = ''
@@ -123,8 +127,13 @@ class MergingExplorationTechnique(angr.exploration_techniques.ExplorationTechniq
     def graph_as_dot(self):
         # hardcoding line separators so the output is the same on all OSes
         result = 'digraph g {\n'
+        # First, edges
         for (src, dst, label) in self.state_graph_edges:
-            result = result + '    ' + str(src) + ' -> ' + str(dst) + '[label="' + label + '"]\n'
+            # use xlabel (Xternal label) so 'dot' will not put the label inbetween two edges which is confusing
+            result = result + '    ' + str(src) + ' -> ' + str(dst) + ' [xlabel="' + label + '"]\n'
+        # Then, mark end states with a double border
+        for node in set(d for (s,d,l) in self.state_graph_edges) - set(s for (s,d,l) in self.state_graph_edges):
+            result = result + '    ' + str(node) + ' [peripheries=2]\n'
         result = result + '}\n'
         return result
 

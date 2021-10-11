@@ -54,9 +54,9 @@ class LpmLookupElem(angr.SimProcedure):
 
         # Postconditions
         lpmp = self.state.metadata.get(Lpm, lpm)
-        out_value_bv = claripy.BVS("out_value", self.state.sizes.uint16_t)
-        out_prefix_bv = claripy.BVS("out_prefix", IP_LEN)
-        out_prefixlen_bv = claripy.BVS("out_prefixlen", self.state.sizes.uint8_t)
+        out_value_bv = claripy.BVS("lpm_out_value", self.state.sizes.uint16_t)
+        out_prefix_bv = claripy.BVS("lpm_out_prefix", IP_LEN)
+        out_prefixlen_bv = claripy.BVS("lpm_out_prefixlen", self.state.sizes.uint8_t)
         out_route = out_prefix_bv.concat(out_prefixlen_bv)
         self.state.memory.store(out_value, out_value_bv, endness=self.state.arch.memory_endness)
         self.state.memory.store(out_prefix, out_prefix_bv, endness=self.state.arch.memory_endness)
