@@ -211,7 +211,16 @@ class MergingExplorationTechnique(angr.exploration_techniques.ExplorationTechniq
                 simgr.stashes[self.deferred_stash].append(current)
                 break
 
-        if lowest[0].history.jumpkind == 'Ijk_Ret':
+        try:
+            lowest_block = lowest[0].project.factory.block(lowest[0].regs.rip.args[0])
+        except angr.errors.SimEngineError:
+            # rip points to an external call (using try here is kind of dirty though...)
+            lowest_block = None
+        if lowest_block and len(lowest_block.vex.constant_jump_targets) == 0:
+            # Do not merge if the very next block is a "return", otherwise we get very messy return values
+            # TODO might still be worth merging if the return value is the same (though we don't know how much of it, or even whether, it's used)
+            simgr.stashes[stash] = lowest
+        elif lowest[0].history.jumpkind == 'Ijk_Ret':
             # Do not try to merge states that have just returned from a function / external, it's pointless
             # They're usually split them for a reason (e.g. "in map"/"not in map")
             simgr.stashes[stash] = lowest
