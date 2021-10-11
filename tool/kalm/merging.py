@@ -11,7 +11,16 @@ def get_plugins(states):
         plugins = plugins | state.plugins.keys()
     return plugins
 
-def triage_for_merge(states, plugins):
+def get_ret_val(st, width):
+    cc = angr.DEFAULT_CC[st.project.arch.name](st.project.arch)
+    val = cc.get_return_val(st, stack_base=st.regs.sp - cc.STACKARG_SP_DIFF)
+    if width is not None:
+        if width == 0:
+            return claripy.BVV(0, 0)
+        val = val[width-1:0]
+    return val
+
+def triage_for_merge(states, plugins, triage_ret_width):
     # Triage the callstack first
     triaged = [[states[0]]]
     for state in states[1:]:
@@ -23,6 +32,16 @@ def triage_for_merge(states, plugins):
             triaged.append([state])
     # We guarantee it's literally the same among triaged piles, so no need to look at it further
     plugins.remove("callstack")
+    # Then triage based on the return value if needed
+    if triage_ret_width is not None:
+        ret_triaged = []
+        for pile in triaged:
+            groups = {}
+            for st in pile:
+                ret_val = get_ret_val(st, triage_ret_width).cache_key
+                groups.setdefault(ret_val, []).append(st)
+            ret_triaged += list(groups.values())
+        triaged = ret_triaged
     # Then triage using plugins
     def plugin_triage(piles, plugin):
         # Design note: this really screams for static methods on plugins instead...
@@ -91,8 +110,9 @@ def merge_states(states, plugins):
 # Has two stashes:
 # - 'deferred' for states it hasn't looked at yet
 class MergingExplorationTechnique(angr.exploration_techniques.ExplorationTechnique):
-    def __init__(self, deferred_stash='deferred'):
+    def __init__(self, ret_width=None, deferred_stash='deferred'):
         super().__init__()
+        self.ret_width = ret_width
         self.deferred_stash = deferred_stash
         self.state_graph_nodes = {}
         self.state_graph_edges = []
@@ -211,42 +231,47 @@ class MergingExplorationTechnique(angr.exploration_techniques.ExplorationTechniq
                 simgr.stashes[self.deferred_stash].append(current)
                 break
 
+        # Do not try to merge states that have just returned from a function / external, it's pointless
+        # They're usually split them for a reason (e.g. "in map"/"not in map")
+        # But do keep track of the returned value in case it's the last one
+        if lowest[0].history.jumpkind == 'Ijk_Ret':
+            simgr.stashes[stash] = lowest
+            st = lowest[0]
+            if self.ret_width == 0:
+                self.state.graph_nodes[st.marker.id] = 'ret'
+            else:
+                result = get_ret_val(st, self.ret_width)
+                self.state_graph_nodes[st.marker.id] = 'ret ' + utils.pretty_print(result)
+            return simgr
+
+        # Check whether we should triage based on the return value
+        triage_ret_width = None
         try:
             lowest_block = lowest[0].project.factory.block(lowest[0].regs.rip.args[0])
         except angr.errors.SimEngineError:
             # rip points to an external call (using try here is kind of dirty though...)
             lowest_block = None
         if lowest_block and len(lowest_block.vex.constant_jump_targets) == 0:
-            # Do not merge if the very next block is a "return", otherwise we get very messy return values
-            # TODO might still be worth merging if the return value is the same (though we don't know how much of it, or even whether, it's used)
-            simgr.stashes[stash] = lowest
-        elif lowest[0].history.jumpkind == 'Ijk_Ret':
-            # Do not try to merge states that have just returned from a function / external, it's pointless
-            # They're usually split them for a reason (e.g. "in map"/"not in map")
-            simgr.stashes[stash] = lowest
-            # But do keep track of the returned value in case it's the last one
-            st = lowest[0]
-            cc = angr.DEFAULT_CC[st.project.arch.name](st.project.arch)
-            result = cc.get_return_val(st, stack_base=st.regs.sp - cc.STACKARG_SP_DIFF)
-            self.state_graph_nodes[st.marker.id] = "ret " + utils.pretty_print(result)
-        else:
-            # Try and merge them
-            # Start by getting the plugins
-            plugins = get_plugins(lowest)
-            # Then triage
-            triaged_piles = triage_for_merge(lowest, plugins)
-            # Then merge individual piles
-            for pile in triaged_piles:
-                # Store the IDs of the states to merge for later (one will be used as the base for the merged state, so we need to store IDs before merging)
-                orig_ids = [s.marker.id for s in pile]
-                # Merge! Well, try, anyway
-                merged = merge_states(pile, plugins)
-                if merged is None:
-                    simgr.stashes[stash].extend(pile)
-                else:
-                    # Record the merge
-                    self.record_merge(orig_ids, merged)
-                    # Store the merged state for the next time
-                    simgr.stashes[stash].append(merged)
+            # if we didn't get a hint for the ret width, use the maximum
+            triage_ret_width = self.ret_width or lowest[0].arch.bits
+
+        # Try and merge them
+        # Start by getting the plugins
+        plugins = get_plugins(lowest)
+        # Then triage
+        triaged_piles = triage_for_merge(lowest, plugins, triage_ret_width)
+        # Then merge individual piles
+        for pile in triaged_piles:
+            # Store the IDs of the states to merge for later (one will be used as the base for the merged state, so we need to store IDs before merging)
+            orig_ids = [s.marker.id for s in pile]
+            # Merge! Well, try, anyway
+            merged = merge_states(pile, plugins)
+            if merged is None:
+                simgr.stashes[stash].extend(pile)
+            else:
+                # Record the merge
+                self.record_merge(orig_ids, merged)
+                # Store the merged state for the next time
+                simgr.stashes[stash].append(merged)
 
         return simgr
