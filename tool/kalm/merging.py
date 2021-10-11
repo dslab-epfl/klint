@@ -99,8 +99,7 @@ class MergingExplorationTechnique(angr.exploration_techniques.ExplorationTechniq
 
     def record_step(self, orig_id, new_states):
         if len(new_states) == 0:
-            # end of path
-            self.state_graph_nodes[orig_id] = 'ret'
+            # end of path, we've already set the ret when we knew it while stepping
             return
         node_descr = new_states[0].history.recent_description
         if len(new_states) == 1 and 'SimProcedure' not in node_descr:
@@ -114,7 +113,7 @@ class MergingExplorationTechnique(angr.exploration_techniques.ExplorationTechniq
         if node_descr.startswith("<IRSB"):
             node_label = 'Branch: ' + node_descr.split(' ')[2][:-1] # remove the ':' at the end; format is '<IRSB from 0xaaaa: ...>'
         elif node_descr.startswith("<SimProcedure"):
-            node_label = node_descr.split(' ')[1] # procedure name
+            node_label = node_descr.split(' ')[1] # procedure name else: print("???", node_descr)
         if node_label is not None:
             self.state_graph_nodes[orig_id] = node_label
         # Find the first divergent constraint if we have >1 state
@@ -147,13 +146,13 @@ class MergingExplorationTechnique(angr.exploration_techniques.ExplorationTechniq
         edges = []
         for (src, dst, label) in self.state_graph_edges:
             if src not in self.state_graph_nodes:
-                assert len([s for (s,d,l) in self.state_graph_edges if src == d]) == 1
-                continue
+                if len([s for (s,d,l) in self.state_graph_edges if src == d]) == 1:
+                    continue
             if dst not in self.state_graph_nodes:
                 # Find where the edge should end instead
                 end = [d for (s,d,l) in self.state_graph_edges if dst == s]
-                assert len(end) == 1
-                dst = end[0]
+                if len(end) == 1:
+                    dst = end[0]
             edges.append((src, dst, label))
         # hardcoding line separators so the output is the same on all OSes
         result = 'digraph g {\n'
@@ -216,6 +215,11 @@ class MergingExplorationTechnique(angr.exploration_techniques.ExplorationTechniq
             # Do not try to merge states that have just returned from a function / external, it's pointless
             # They're usually split them for a reason (e.g. "in map"/"not in map")
             simgr.stashes[stash] = lowest
+            # But do keep track of the returned value in case it's the last one
+            st = lowest[0]
+            cc = angr.DEFAULT_CC[st.project.arch.name](st.project.arch)
+            result = cc.get_return_val(st, stack_base=st.regs.sp - cc.STACKARG_SP_DIFF)
+            self.state_graph_nodes[st.marker.id] = "ret " + utils.pretty_print(result)
         else:
             # Try and merge them
             # Start by getting the plugins

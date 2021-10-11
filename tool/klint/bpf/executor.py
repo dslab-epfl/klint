@@ -29,7 +29,7 @@ def execute(code_path, calls_path, maps_path, maps_to_havoc, havoc_all):
 
     devices_count = claripy.BVS("devices_count", 32)
 
-    states = klint_executor.find_fixedpoint_states([(blank, lambda st: kalm_executor.create_calling_state(st, function, [packet.create(st, devices_count)], exts))])
+    states, graphs = klint_executor.find_fixedpoint_states([(blank, lambda st: kalm_executor.create_calling_state(st, function, [packet.create(st, devices_count)], exts))])
 
     final_states = []
     results = []
@@ -57,5 +57,5 @@ def execute(code_path, calls_path, maps_path, maps_to_havoc, havoc_all):
             # no flags; not flood; pretend it's TX'd to dev0; no excluded devs
             metadata.transmitted.append(klint_tx.TransmissionMetadata(data, data_end - data, 0, False, 0, None))
 
-    print("BPF results", results)
-    return final_states, devices_count
+    #print("BPF results", results)
+    return final_states, devices_count, graphs

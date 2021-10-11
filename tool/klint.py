@@ -60,7 +60,8 @@ def handle_bpf(args):
         bpf_detection.override_linux_version(args.override_linux_version)
     if args.override_64bit is not None:
         bpf_detection.override_64bit(args.override_64bit)
-    states, devices_count = bpf_executor.execute(args.binary, args.calls, args.maps, args.havoc, args.havoc_all)
+    states, devices_count, graphs = bpf_executor.execute(args.binary, args.calls, args.maps, args.havoc, args.havoc_all)
+    export_graphs(args, graphs)
     verif_persist.dump_data(states, devices_count, cached_data_path)
     verif(cached_data_path, args.spec)
 
