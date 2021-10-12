@@ -32,7 +32,7 @@ static inline __u16 csum_fold_helper(__u64 csum) {
   int i;
 #pragma unroll
   for (i = 0; i < 4; i ++) {
-    if (csum >> 16)
+//REMOVED (useless):    if (csum >> 16)
       csum = (csum & 0xffff) + (csum >> 16);
   }
   return ~csum;
