@@ -386,15 +386,6 @@ class Map:
         else:
             self._previous.add_invariant_conjunction(state, inv)
 
-    # TODO get rid of this, it's for BPF-compiled-as-x86, should use the BPF externals directly
-    def havoced(self, state, length, invs):
-        return Map(
-            self.meta,
-            length,
-            [MapInvariant.new(state, self.meta, inv) for inv in invs], # no invariants yet
-            [] # no known items
-        )
-
     def known_items(self, _exclude_get=False):
         if _exclude_get == True and self._previous is None:
             return []
@@ -503,11 +494,6 @@ class GhostMapsPlugin(SimStatePlugin):
 
     def forall(self, obj, pred):
         return self[obj].forall(self.state, pred)
-
-    # === Havocing, not meant for general use ===
-
-    def UNSAFE_havoc(self, obj, length, invs):
-        self[obj] = self[obj].havoced(self.state, length, invs)
 
     # === Import and Export ===
 

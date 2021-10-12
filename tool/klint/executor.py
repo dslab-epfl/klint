@@ -19,7 +19,6 @@ import klint.externals.structs.index_pool
 import klint.externals.structs.lpm
 import klint.externals.structs.map
 import klint.externals.verif.verif
-import klint.externals.havoc
 import klint.fullstack
 import klint.ghostmaps
 from klint import statistics
@@ -30,9 +29,6 @@ structs_alloc_externals = {
     'index_pool_alloc': klint.externals.structs.index_pool.index_pool_alloc,
     'cht_alloc': klint.externals.structs.cht.ChtAlloc,
     'lpm_alloc': klint.externals.structs.lpm.LpmAlloc,
-    # these are a hack for Katran, not something that should exist; anyway they're not in any header
-    'klint_havoc_array': klint.externals.havoc.klint_havoc_array,
-    'klint_havoc_hashmap': klint.externals.havoc.klint_havoc_hashmap
 }
 
 structs_functions_externals = {
