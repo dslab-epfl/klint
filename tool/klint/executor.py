@@ -49,7 +49,7 @@ structs_functions_externals = {
 }
 
 
-def find_fixedpoint_states(states_data):
+def find_fixedpoint_states(states_data, ret_width=None):
     inference_results = None
     result_graphs = []
     while True:
@@ -58,7 +58,7 @@ def find_fixedpoint_states(states_data):
         result_states = []
         for (state, state_fun) in states_data:
             starting_state = state_fun(state.copy())
-            states, graph = binary_executor.run_state(starting_state)
+            states, graph = binary_executor.run_state(starting_state, ret_width=ret_width)
             result_states += states
             result_graphs.append(graph)
         statistics.work_end()
@@ -103,9 +103,7 @@ def get_libnf_inited_states(binary_path, devices_count):
     # Create handle states from all successful inits
     inited_states = []
     for state in result_states:
-        # code to get the return value copied from angr's "Callable" implementation
-        cc = angr.DEFAULT_CC[state.project.arch.name](state.project.arch)
-        init_result = cc.get_return_val(state, stack_base=state.regs.sp - cc.STACKARG_SP_DIFF)
+        init_result = utils.get_ret_val(state, 1) # ret val is a bool so we only care about 1 bit
         state.solver.add(init_result != 0)
         if state.solver.satisfiable():
             state.path.clear() # less noise when debugging
@@ -117,7 +115,7 @@ def execute_libnf(binary_path):
     print("libNF symbex starting at", datetime.datetime.now())
     devices_count = claripy.BVS('devices_count', 16) # TODO avoid the hardcoded 16 here
     inited_states = get_libnf_inited_states(binary_path, devices_count)
-    result_states, result_graphs = find_fixedpoint_states(inited_states)
+    result_states, result_graphs = find_fixedpoint_states(inited_states, ret_width=0) # no return value in libnf's main
     print("libNF symbex done at", datetime.datetime.now())
     return (result_states, devices_count, result_graphs) # TODO devices_count should be in metadata somewhere, not explicitly returned
 

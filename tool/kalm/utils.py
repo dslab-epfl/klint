@@ -1,3 +1,4 @@
+import angr
 import claripy
 
 def read_str(state, ptr):
@@ -13,6 +14,16 @@ def read_str(state, ptr):
         ptr = ptr + 1
     return result
 
+
+def get_ret_val(state, width):
+    # these two lines copied from angr's "Callable" implementation
+    cc = angr.DEFAULT_CC[state.project.arch.name](state.project.arch)
+    val = cc.get_return_val(state, stack_base=state.regs.sp - cc.STACKARG_SP_DIFF)
+    if width is not None:
+        if width == 0:
+            return claripy.BVV(0, 0)
+        val = val[width-1:0]
+    return val
 
 def can_be_true(solver, cond):
     return solver.satisfiable(extra_constraints=[cond])

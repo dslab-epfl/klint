@@ -11,15 +11,6 @@ def get_plugins(states):
         plugins = plugins | state.plugins.keys()
     return plugins
 
-def get_ret_val(st, width):
-    cc = angr.DEFAULT_CC[st.project.arch.name](st.project.arch)
-    val = cc.get_return_val(st, stack_base=st.regs.sp - cc.STACKARG_SP_DIFF)
-    if width is not None:
-        if width == 0:
-            return claripy.BVV(0, 0)
-        val = val[width-1:0]
-    return val
-
 def triage_for_merge(states, plugins, triage_ret_width):
     # Triage the callstack first
     triaged = [[states[0]]]
@@ -38,7 +29,7 @@ def triage_for_merge(states, plugins, triage_ret_width):
         for pile in triaged:
             groups = {}
             for st in pile:
-                ret_val = get_ret_val(st, triage_ret_width).cache_key
+                ret_val = utils.get_ret_val(st, triage_ret_width).cache_key
                 groups.setdefault(ret_val, []).append(st)
             ret_triaged += list(groups.values())
         triaged = ret_triaged
@@ -238,9 +229,9 @@ class MergingExplorationTechnique(angr.exploration_techniques.ExplorationTechniq
             simgr.stashes[stash] = lowest
             st = lowest[0]
             if self.ret_width == 0:
-                self.state.graph_nodes[st.marker.id] = 'ret'
+                self.state_graph_nodes[st.marker.id] = 'ret'
             else:
-                result = get_ret_val(st, self.ret_width)
+                result = utils.get_ret_val(st, self.ret_width)
                 self.state_graph_nodes[st.marker.id] = 'ret ' + utils.pretty_print(result)
             return simgr
 

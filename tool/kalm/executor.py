@@ -60,11 +60,11 @@ def create_calling_state(state, function_thing, function_args, externals):
         function_addr = function_thing
     return new_proj.factory.call_state(function_addr, *function_args, base_state=state)
 
-def run_state(state, allow_trap=False):
+def run_state(state, ret_width=None, allow_trap=False):
     global trapped_states # see our custom engine
     trapped_states = []
     sm = state.project.factory.simulation_manager(state)
-    expl_tech = MergingExplorationTechnique()
+    expl_tech = MergingExplorationTechnique(ret_width=ret_width)
     sm.use_technique(expl_tech)
     sm.run()
     if len(sm.errored) > 0:
