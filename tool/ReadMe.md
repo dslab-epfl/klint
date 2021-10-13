@@ -6,7 +6,7 @@ Two layers:
 
 You'll need Python 3, with all the dependencies from `requirements.txt`; running `. setup.sh` will install them for you on Linux. Or use an IDE with virtualenv support.
 
-Compile the NF yourself: for `libnf` verif of the NFs under `../nf`, use `make -f ../Makefile.nf` in the NF's folder; for `bpf-jited` verif of the NFs under `../nf/bpf`, run `./load-and-dump.sh` in the NF's folder.
+Compile the NF yourself: for `libnf` verif of the NFs under `../nf`, use `make -f ../Makefile.nf` in the NF's folder; for `bpf-jited` verif of the NFs under `../nf/bpf`, run `./compile-bpf.sh` in the NF's folder.
 
 The intended entry point is `./klint.py`, use `--help` for usage instructions. Main args you'll be interested in:
 - `--export-graphs` (for any target) exports DOT graphs in the `graphs/` output folder corresponding to paths in the code.
