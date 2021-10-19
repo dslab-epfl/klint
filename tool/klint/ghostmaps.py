@@ -386,15 +386,15 @@ class Map:
         else:
             self._previous.add_invariant_conjunction(state, inv)
 
-    def known_items(self, _exclude_get=False):
-        if _exclude_get == True and self._previous is None:
+    def known_items(self, only_set=False): # only_set is used for optimizations, e.g., don't check the invariant on items from get where it holds by design
+        if only_set == True and self._previous is None:
             return []
 
         if self._previous is not None:
             assert self._layer_item is not None
             return self._known_items + [
                 MapItem(i.key, claripy.If(i.key == self._layer_item.key, self._layer_item.value, i.value), claripy.If(i.key == self._layer_item.key, self._layer_item.present, i.present))
-                for i in self._previous.known_items(_exclude_get=_exclude_get)
+                for i in self._previous.known_items(only_set=only_set)
                 if not i.key.structurally_match(self._layer_item.key)
             ]
         return self._known_items
@@ -588,8 +588,7 @@ def flatten_items(obj, states, ancestor_states, ancestor_variables):
     invariant_conjs = []
     for conjunction in ancestor_states[0].maps[obj].invariant_conjunctions():
         for state in states:
-            # TODO can we get rid of _exclude_get entirely?
-            for item in state.maps[obj].known_items(_exclude_get=True):
+            for item in state.maps[obj].known_items(only_set=True):
                 conj = conjunction.with_latest_map_versions(state)(state, item)
                 if utils.can_be_false(state.solver, Implies(item.present, conj)):
                     changed = True
@@ -628,7 +627,7 @@ def get_items_invariants(obj, relevant_objs, states, ancestor_states, ancestor_v
     # TODO remove this, replace with implies(present, ...)
     def filter_present(state, obj):
         present_items = set()
-        for i in state.maps[obj].known_items(_exclude_get=True):
+        for i in state.maps[obj].known_items(only_set=True):
             if utils.definitely_true(state.solver, claripy.And(i.present, *[i.key != pi.key for pi in present_items])):
                 present_items.add(i)
         return present_items
