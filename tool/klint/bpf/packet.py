@@ -50,7 +50,7 @@ def create(state, devices_count):
         buff_rxq_offset = 40
         rxq_dev_offset = 0
         dev_ifindex_offset = 264
-    elif linux_ver.startswith('5.10.16.3') and detection.is_64bit():
+    elif linux_ver.startswith('5.10') and detection.is_64bit():
         buff_data_offset = 0
         buff_dataend_offset = 8
         buff_rxq_offset = 32

@@ -19,6 +19,7 @@ def align(val, n):
     return val + (n - (val % n))
 
 # Not an external, called to mimic the kernel initializing a map
+# Returns None or a map containing existing invariant inference results, to make havocing efficient
 def map_init(state, addr, map_def, havoc):
     assert utils.definitely_true(state.solver, map_def.flags == 0) # no flags handled yet
 
@@ -26,7 +27,7 @@ def map_init(state, addr, map_def, havoc):
         # Hash map
         # NOTE: There's also type 9 LRU_HASH, but it needs to never fail on inserts due to LRU,
         #       and also there's some more complex inlining going on with a write to the map element's "lru node"... so it's not that simple
-        values = state.heap.allocate(map_def.max_entries, map_def.value_size, default_fraction=(None if havoc else 0))
+        values = state.heap.allocate(map_def.max_entries, map_def.value_size, default_fraction=(None if havoc else 0), name="bpf_values")
         values_fractions = state.heap.get_fractions(values)
         length = None
         invariants = None
@@ -36,6 +37,8 @@ def map_init(state, addr, map_def, havoc):
             invariants = [lambda i: ~i.present | MapHas(values_fractions, i.value, value=claripy.BVV(100, 8))]
         items = state.maps.new(map_def.key_size * 8, state.sizes.ptr, "bpf_map", _length=length, _invariants=invariants)
         state.metadata.append(addr, BpfMap(map_def, values, items))
+        # This holds by construction, let's not possibly waste an inference iteration discovering it
+        return {items.cache_key: [lambda st: st.maps.length(items) <= st.maps.length(values)]}
     elif map_def.type == 2:
         # Array, the code won't use functions to access it, just direct memory accesses, though there's an offset to the data
 
@@ -44,7 +47,7 @@ def map_init(state, addr, map_def, havoc):
         linux_ver = detection.get_linux_version()
         if linux_ver.startswith('5.4.0-81') and detection.is_64bit():
             offset = 0xD0
-        elif linux_ver.startswith('5.10.16.3') and detection.is_64bit():
+        elif linux_ver.startswith('5.10') and detection.is_64bit():
             offset = 0x110
         else:
             raise("Sorry, you need to do some work here: " + __file__)
@@ -54,7 +57,7 @@ def map_init(state, addr, map_def, havoc):
         default = None
         if not havoc:
             default = claripy.BVV(0, value_size * 8)
-        state.heap.allocate(map_def.max_entries, value_size, addr=addr+offset, default=default)
+        state.heap.allocate(map_def.max_entries, value_size, addr=addr+offset, default=default, name="bpf_array")
     elif map_def.type == 6:
         # Per-cpu array, like an array but accessed with explicit function calls
         # The kernel rounds up the value size
@@ -63,7 +66,7 @@ def map_init(state, addr, map_def, havoc):
         if not havoc:
             default = claripy.BVV(0, value_size * 8)
         map_def = BpfMapDef(map_def.type, map_def.key_size, value_size, map_def.max_entries, map_def.flags)
-        values = state.heap.allocate(map_def.max_entries, map_def.value_size, default=default)
+        values = state.heap.allocate(map_def.max_entries, map_def.value_size, default=default, name="bpf_percpuarray")
         state.metadata.append(addr, BpfMap(map_def, values, None))
     elif map_def.type == 14 or map_def.type == 16:
         # Dev or CPU map, only for redirect calls, we don't fully model those yet
@@ -156,7 +159,7 @@ class __htab_map_lookup_elem(angr.SimProcedure):
             # See bpf/packet.py for a detailed explanation
             # Figure this out by looking at a BPF dump that includes a call to __htab_map_lookup_elem :-/
             # Alternatively, try with the existing offset and see if it works or if it obviously needs a correction (e.g. the code is trying to access an item 1 off the target)
-            if (linux_ver.startswith('5.4.0-81') or linux_ver.startswith('5.10.16.3')) and detection.is_64bit():
+            if (linux_ver.startswith('5.4.0-81') or linux_ver.startswith('5.10')) and detection.is_64bit():
                 offset = 48 + align(bpfmap.map_def.key_size, 8)
             else:
                 raise("Sorry, you need to do some work here: " + __file__)

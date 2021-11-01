@@ -602,15 +602,17 @@ def flatten_items(obj, states, ancestor_states, ancestor_variables):
 
 # Get length-related invariants on a map
 def get_length_invariants(obj, relevant_objs, states, ancestor_states):
+    # Ignore maps that have not changed
     if all(utils.definitely_true(st.solver, st.maps.length(obj) == ancestor_states[0].maps.length(obj)) for st in states):
-        # No changes
         return None
     result = []
     for other_obj in relevant_objs:
         # Not the map itself
-        if other_obj is obj: continue
+        if other_obj is obj:
+            continue
         # Not maps that never changed in a state in which the map changed
-        if all(st.maps[obj].version() == ancestor_states[0].maps[obj].version() or st.maps[other_obj].version() == ancestor_states[0].maps[other_obj].version() for st in states): continue
+        if all(st.maps[obj].version() == ancestor_states[0].maps[obj].version() or st.maps[other_obj].version() == ancestor_states[0].maps[other_obj].version() for st in states):
+            continue
         # Try everything else for an <= length relationship
         inv = lambda st, obj=obj, other_obj=other_obj: st.maps.length(obj) <= st.maps.length(other_obj)
         if all(utils.definitely_true(st.solver, inv(st)) for st in states):
@@ -829,7 +831,7 @@ def infer_invariants(ancestor_states, states, previous_results=None):
     # Ignore maps that have not changed at all
     relevant_objs = [o for (o, m) in ancestor_states[0].maps.get_all() if any(st.maps[o].version() != ancestor_states[0].maps[o].version() for st in states)]
 
-    # Keep a copy of the states so we don't pollute them across attemps
+    # Keep a copy of the states so we don't pollute them across attempts
     orig_states = [st.copy() for st in states]
 
     changed = False
@@ -865,7 +867,7 @@ def infer_invariants(ancestor_states, states, previous_results=None):
                         break
                 else:
                     new_invs.append(inv)
-            # Note that if len_invs was empty then new_invs is also empty and changed was not set to True,
+            # Note that if len_invs was empty then new_invs is also empty and changed is not set to True,
             # which makes sense: there were no invariants so there are no changes, there are still no invariants (we gave up, in a sense)
             length_invariants[obj.cache_key] = new_invs
 

@@ -45,8 +45,9 @@ structs_functions_externals = {
 }
 
 
-def find_fixedpoint_states(states_data, ret_width=None):
-    inference_results = None
+def find_fixedpoint_states(states_data, ret_width=None, existing_results=None):
+    # HACK: Allow callers to pass existing_results, for BPF map havocing...
+    inference_results = existing_results
     result_graphs = []
     while True:
         print("Running an iteration of the main loop at", datetime.datetime.now())

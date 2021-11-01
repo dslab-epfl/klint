@@ -21,15 +21,21 @@ def execute(code_path, calls_path, maps_path, maps_to_havoc, havoc_all):
 
     blank = kalm_executor.create_blank_state(code)
 
+    existing_results = {}
     for (addr, name, map) in analysis.get_maps(maps_path, blank.sizes.ptr):
-        externals.map_init(blank, addr, map, havoc_all or (name in maps_to_havoc))
+        new_results = externals.map_init(blank, addr, map, havoc_all or (name in maps_to_havoc))
+        if new_results is not None:
+            existing_results.update(new_results)
 
     function = 0 # since our code is a single function
     exts = {a: get_external(n) for (a, n) in analysis.get_calls(calls_path)}
 
     devices_count = claripy.BVS("devices_count", 32)
 
-    states, graphs = klint_executor.find_fixedpoint_states([(blank, lambda st: kalm_executor.create_calling_state(st, function, [packet.create(st, devices_count)], exts))])
+    states, graphs = klint_executor.find_fixedpoint_states(
+        [(blank, lambda st: kalm_executor.create_calling_state(st, function, [packet.create(st, devices_count)], exts))],
+        existing_results=existing_results
+    )
 
     final_states = []
     results = []
