@@ -659,7 +659,8 @@ def get_items_invariants(obj, relevant_objs, states, ancestor_states, ancestor_v
                 return None
             elif len(items1) < len(items2):
                 # implementing backtracking in case a guess fails is hard :p and doesn't seem necessary for now
-                raise Exception("backtracking not implemented yet")
+                # so let's just find nothing
+                return None
 
             if candidate_func is None:
                 # No candidate yet (1st iteration), try and find one

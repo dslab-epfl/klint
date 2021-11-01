@@ -21,20 +21,22 @@ def align(val, n):
 # Not an external, called to mimic the kernel initializing a map
 # Returns None or a map containing existing invariant inference results, to make havocing efficient
 def map_init(state, addr, map_def, havoc):
+    # we use ephemeral maps because the kernel is just fine with overwriting content if others could still hold pointers to it
+    # (e.g., write to an element if a get returned a pointer to it)
+
     assert utils.definitely_true(state.solver, map_def.flags == 0) # no flags handled yet
 
     if map_def.type == 1:
         # Hash map
         # NOTE: There's also type 9 LRU_HASH, but it needs to never fail on inserts due to LRU,
         #       and also there's some more complex inlining going on with a write to the map element's "lru node"... so it's not that simple
-        values = state.heap.allocate(map_def.max_entries, map_def.value_size, default_fraction=(None if havoc else 0), name="bpf_values")
-        values_fractions = state.heap.get_fractions(values)
+        values = state.heap.allocate(map_def.max_entries, map_def.value_size, ephemeral=True, name="bpf_values")
         length = None
         invariants = None
         if havoc:
             length = claripy.BVS("havoced_length", state.sizes.ptr)
             state.solver.add(length.ULE(map_def.max_entries))
-            invariants = [lambda i: ~i.present | MapHas(values_fractions, i.value, value=claripy.BVV(100, 8))]
+            invariants = [lambda i: ~i.present | i.value.ULT(map_def.max_entries)]
         items = state.maps.new(map_def.key_size * 8, state.sizes.ptr, "bpf_map", _length=length, _invariants=invariants)
         state.metadata.append(addr, BpfMap(map_def, values, items))
         # This holds by construction, let's not possibly waste an inference iteration discovering it
@@ -57,7 +59,7 @@ def map_init(state, addr, map_def, havoc):
         default = None
         if not havoc:
             default = claripy.BVV(0, value_size * 8)
-        state.heap.allocate(map_def.max_entries, value_size, addr=addr+offset, default=default, name="bpf_array")
+        state.heap.allocate(map_def.max_entries, value_size, ephemeral=True, addr=addr+offset, default=default, name="bpf_array")
     elif map_def.type == 6:
         # Per-cpu array, like an array but accessed with explicit function calls
         # The kernel rounds up the value size
@@ -66,7 +68,7 @@ def map_init(state, addr, map_def, havoc):
         if not havoc:
             default = claripy.BVV(0, value_size * 8)
         map_def = BpfMapDef(map_def.type, map_def.key_size, value_size, map_def.max_entries, map_def.flags)
-        values = state.heap.allocate(map_def.max_entries, map_def.value_size, default=default, name="bpf_percpuarray")
+        values = state.heap.allocate(map_def.max_entries, map_def.value_size, ephemeral=True, default=default, name="bpf_percpuarray")
         state.metadata.append(addr, BpfMap(map_def, values, None))
     elif map_def.type == 14 or map_def.type == 16:
         # Dev or CPU map, only for redirect calls, we don't fully model those yet
@@ -201,10 +203,7 @@ class htab_map_update_elem(angr.SimProcedure):
 
         def case_has(state, i):
             value_ptr = bpfmap.values + i * bpfmap.map_def.value_size
-            old_frac = state.heap.take(None, value_ptr)
-            state.heap.give(100, value_ptr)
             state.memory.store(value_ptr, value_data, endness=state.arch.memory_endness)
-            state.heap.take(100 - old_frac, value_ptr)
             return claripy.BVV(0, 32)
         def case_not(state):
             def case_true(state):
@@ -213,9 +212,6 @@ class htab_map_update_elem(angr.SimProcedure):
                 i = claripy.BVS("i", state.sizes.ptr)
                 state.solver.add(i.UGE(0) & i.ULT(bpfmap.map_def.max_entries))
                 value_ptr = bpfmap.values + i * bpfmap.map_def.value_size
-                fraction = state.heap.take(None, value_ptr)
-                state.solver.add(fraction == 0)
-                state.heap.give(100, value_ptr)
                 state.memory.store(value_ptr, value_data, endness=state.arch.memory_endness)
                 state.maps.set(bpfmap.items, key_data, i)
                 return claripy.BVV(0, 32)
@@ -247,8 +243,6 @@ class htab_map_delete_elem(angr.SimProcedure):
         # Postconditions
         def case_has(state, i):
             state.maps.remove(bpfmap.items, i)
-            # It *feels* like this should be needed but the Linux kernel doesn't actually seem to do it
-            #state.heap.take(100, bpfmap.values + i * bpfmap.map_def.value_size)
             return claripy.BVV(0, 32)
         def case_not(state):
             return claripy.BVV(-1, 32)
