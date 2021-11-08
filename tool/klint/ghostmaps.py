@@ -293,14 +293,10 @@ class Map:
         if any(not utils.structural_eq(self._unknown_item, o._unknown_item) for o in others):
             #print("Different unknown item", self, [x._unknown_item for x in [self] + others])
             return False
-        #if self._layer_item is not None and any(not utils.structural_eq(self._layer_item.key, o._layer_item.key) for o in others):
-        #    print("Different layer item key", self, [x._layer_item.key for x in [self] + others])
-        #    return False
-        #if any(not utils.structural_eq(self._layer_item, o._layer_item) for o in others):
-        #    print("Different layer item", self, [x._layer_item for x in [self] + others])
-        #    return False
         if self_ver > 0 and not self._previous.can_merge([o._previous for o in others]):
             #print("Cannot merge previous", self)
+            return False
+        if self_ver != 0 and any(len(o._known_items) != len(self._known_items) for o in others):
             return False
         max_to_add = 0
         #all_to_add = []
@@ -329,24 +325,24 @@ class Map:
                     (v, p) = self.get(state, i.key)
                     state.solver.add(Implies(mc, (v == i.value) & (p == i.present)))
             # Basic map invariants have to hold no matter what
-            for (n, it) in enumerate(self._known_items):
+            for (n, i) in enumerate(self._known_items):
                 state.solver.add(*[Implies(i.key == oi.key, (i.value == oi.value) & (i.present == oi.present)) for oi in self._known_items[(n+1):] + [self._unknown_item]])
             state.solver.add(self.is_not_overfull(state))
             return self
         else:
             # we know lengths are the same due to can_merge
-            self._layer_item = MapItem(
-                claripy.ite_cases(zip(merge_conditions, [o._layer_item.key for o in others]), self._layer_item.key),
-                claripy.ite_cases(zip(merge_conditions, [o._layer_item.value for o in others]), self._layer_item.value),
-                claripy.ite_cases(zip(merge_conditions, [o._layer_item.present for o in others]), self._layer_item.present)
-            )
+            self._known_items = [MapItem(
+                claripy.ite_cases(zip(merge_conditions, [o._known_items[i].key for o in others]), self._known_items[i].key),
+                claripy.ite_cases(zip(merge_conditions, [o._known_items[i].value for o in others]), self._known_items[i].value),
+                claripy.ite_cases(zip(merge_conditions, [o._known_items[i].present for o in others]), self._known_items[i].present)
+            ) for i in range(len(self._known_items))]
             self._previous = self._previous.merge(state, [o._previous for o in others], other_states, merge_conditions)
             return self
 
     # === Private API, also used by invariant inference ===
     # TODO sort out what's actually private and not; verif also uses stuff...
 
-    def __init__(self, meta, length, invariants, known_items, _previous=None, _unknown_item=None, _layer_item=None):
+    def __init__(self, meta, length, invariants, known_items, _previous=None, _unknown_item=None):
         # "length" is symbolic, and may be larger than len(items) if there are items that are not exactly known
         # "invariants" is a list of conjunctions that represents unknown items: each is a lambda that takes (state, item) and returns a Boolean expression
         # "items" contains exactly known items, which do not have to obey the invariants
@@ -362,7 +358,7 @@ class Map:
                 claripy.BoolS(self.meta.name + "_up")
             )
         self._unknown_item = _unknown_item
-        self._layer_item = _layer_item
+        self._known_items_cache = (0, [])
 
     def version(self):
         if self._previous is None: return 0
@@ -391,12 +387,26 @@ class Map:
             return []
 
         if self._previous is not None:
-            assert self._layer_item is not None
-            return self._known_items + [
-                MapItem(i.key, claripy.If(i.key == self._layer_item.key, self._layer_item.value, i.value), claripy.If(i.key == self._layer_item.key, self._layer_item.present, i.present))
+            # 'count' increases any time a known item is added to any layer, so we can cache the result based on it
+            count = len(self._known_items)
+            count_current = self._previous
+            while count_current is not None:
+                count += len(count_current._known_items)
+                count_current = count_current._previous
+            if count == self._known_items_cache[0]:
+                return self._known_items_cache[1]
+
+            result = self._known_items + [
+                MapItem(
+                    i.key,
+                    claripy.ite_cases([(i.key == ki.key, ki.value) for ki in self._known_items], i.value),
+                    claripy.ite_cases([(i.key == ki.key, ki.present) for ki in self._known_items], i.present)
+                )
                 for i in self._previous.known_items(only_set=only_set)
-                if not i.key.structurally_match(self._layer_item.key)
+                if all(not i.key.structurally_match(ki.key) for ki in self._known_items)
             ]
+            self._known_items_cache = (count, result)
+            return result
         return self._known_items
 
     def add_item(self, item):
@@ -406,6 +416,17 @@ class Map:
             self._previous.add_item(item)
 
     def with_item_layer(self, item, length_change):
+        # Optimization: "Flatten" layers if it's safe to do so
+        if self._previous is not None:
+            if not item.key.symbolic and all(not i.key.symbolic and not i.key.structurally_match(item.key) for i in self._known_items):
+                return Map(
+                    self.meta,
+                    self._length + length_change,
+                    self._invariants,
+                    self._known_items + [item],
+                    _previous=self._previous,
+                    _unknown_item=self._unknown_item
+                )
         return Map(
             self.meta,
             self._length + length_change,
@@ -413,7 +434,6 @@ class Map:
             [item],
             _previous=self,
             _unknown_item=self._unknown_item,
-            _layer_item=item
         )
 
     def is_definitely_empty(self):
@@ -447,8 +467,7 @@ class Map:
             copy.copy(self._invariants), # contents are immutable
             copy.copy(self._known_items), # contents are immutable
             copy.deepcopy(self._previous, memo),
-            self._unknown_item, # immutable
-            self._layer_item # immutable
+            self._unknown_item # immutable
         )
         memo[id(self)] = result
         return result
@@ -457,7 +476,7 @@ class Map:
         return f"<Map {self.meta.name} v{self.version()}>"
 
     def _asdict(self): # pretend we are a namedtuple so functions that expect one will work (e.g. utils.structural_eq)
-        return {'meta': self.meta, '_length': self._length, '_invariants': self._invariants, '_known_items': self._known_items, '_previous': self._previous, '_unknown_item': self._unknown_item, '_layer_item': self._layer_item}
+        return {'meta': self.meta, '_length': self._length, '_invariants': self._invariants, '_known_items': self._known_items, '_previous': self._previous, '_unknown_item': self._unknown_item}
 
 
 class GhostMapsPlugin(SimStatePlugin):

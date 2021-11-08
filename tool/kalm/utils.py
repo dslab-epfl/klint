@@ -78,7 +78,6 @@ def get_exact_match(solver, item, candidates, assumption=claripy.true, selector=
 
     return None
 
-# TODO move to a subclass of SimProcedure?
 def fork_guarded(proc, state, guard, case_true, case_false):
     guard_value = get_if_constant(state.solver, guard)
     if guard_value is not None:
@@ -126,16 +125,16 @@ def structural_eq(a, b):
 def structural_diff(left, right):
     only_left = []
     both = []
-    only_right = right.copy()
+    right_found = {r: False for r in right}
     for item in left:
         for candidate in right:
             if structural_eq(item, candidate):
-                only_right.remove(item)
                 both.append(item)
+                right_found[item] = True
                 break
         else:
             only_left.append(item)
-    return (only_left, both, only_right)
+    return (only_left, both, [r for (r, b) in right_found.items() if not b])
 
 def simplify(state, value, cond=claripy.true):
     def force_burrow_ite(value):

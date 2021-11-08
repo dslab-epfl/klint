@@ -70,9 +70,6 @@ def run_state(state, ret_width=None, allow_trap=False):
     if len(sm.errored) > 0:
         print("Error, e.g. at", sm.errored[0].state.regs.rip)
         sm.errored[0].reraise()
-    # We do not ever expect unsat states; this could mean e.g. a precondition was not met
-    if len(sm.unsat) > 0:
-        raise Exception("There are unsat states! e.g. " + ", ".join([str(c) for c in sm.unsat[0].solver.constraints]))
     if len(trapped_states) > 0 and not allow_trap:
         raise Exception("There are trapped states! e.g. " + str(trapped_states[0].regs.rip))
     return (sm.deadended, expl_tech.graph_as_dot())
