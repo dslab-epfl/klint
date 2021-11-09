@@ -1,6 +1,7 @@
 import angr
 import claripy
 import math
+import time
 
 from kalm import utils
 
@@ -107,6 +108,7 @@ class MergingExplorationTechnique(angr.exploration_techniques.ExplorationTechniq
         self.deferred_stash = deferred_stash
         self.state_graph_nodes = {}
         self.state_graph_edges = []
+        self.init_time = time.time()
 
     def record_step(self, orig_id, new_states):
         if len(new_states) == 0:
@@ -120,13 +122,15 @@ class MergingExplorationTechnique(angr.exploration_techniques.ExplorationTechniq
         for st in new_states:
             st.marker.increment_id()
         # Try and get a proper label for the node
-        node_label = None
+        node_label = ''
         if node_descr.startswith("<IRSB"):
             node_label = 'Branch: ' + node_descr.split(' ')[2][:-1] # remove the ':' at the end; format is '<IRSB from 0xaaaa: ...>'
         elif node_descr.startswith("<SimProcedure"):
             node_label = node_descr.split(' ')[1] # procedure name else: print("???", node_descr)
-        if node_label is not None:
-            self.state_graph_nodes[orig_id] = node_label
+        if node_label != '':
+            node_label += '\n'
+        node_label += str(round(time.time() - self.init_time, 1)) + "s"
+        self.state_graph_nodes[orig_id] = node_label
         # Find the first divergent constraint if we have >1 state
         # Note that in theory states could change their constraints beyond just appending, but in practice let's hope they don't...
         if len(new_states) > 1:
