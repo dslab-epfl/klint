@@ -342,7 +342,7 @@ class Map:
     # === Private API, also used by invariant inference ===
     # TODO sort out what's actually private and not; verif also uses stuff...
 
-    def __init__(self, meta, length, invariants, known_items, _previous=None, _unknown_item=None):
+    def __init__(self, meta, length, invariants, known_items, _previous=None, _unknown_item=None, _known_items_cache=None):
         # "length" is symbolic, and may be larger than len(items) if there are items that are not exactly known
         # "invariants" is a list of conjunctions that represents unknown items: each is a lambda that takes (state, item) and returns a Boolean expression
         # "items" contains exactly known items, which do not have to obey the invariants
@@ -358,7 +358,7 @@ class Map:
                 claripy.BoolS(self.meta.name + "_up")
             )
         self._unknown_item = _unknown_item
-        self._known_items_cache = (0, [])
+        self._known_items_cache = _known_items_cache or (0, [])
 
     def version(self):
         if self._previous is None: return 0
@@ -383,31 +383,31 @@ class Map:
             self._previous.add_invariant_conjunction(state, inv)
 
     def known_items(self, only_set=False): # only_set is used for optimizations, e.g., don't check the invariant on items from get where it holds by design
-        if only_set == True and self._previous is None:
-            return []
-
-        if self._previous is not None:
-            # 'count' increases any time a known item is added to any layer, so we can cache the result based on it
-            count = len(self._known_items)
-            count_current = self._previous
-            while count_current is not None:
-                count += len(count_current._known_items)
-                count_current = count_current._previous
-            if count == self._known_items_cache[0]:
-                return self._known_items_cache[1]
-
-            result = self._known_items + [
+        def transform_previous(items):
+            return [
                 MapItem(
                     i.key,
                     claripy.ite_cases([(i.key == ki.key, ki.value) for ki in self._known_items], i.value),
                     claripy.ite_cases([(i.key == ki.key, ki.present) for ki in self._known_items], i.present)
                 )
-                for i in self._previous.known_items(only_set=only_set)
+                for i in items
                 if all(not i.key.structurally_match(ki.key) for ki in self._known_items)
             ]
-            self._known_items_cache = (count, result)
-            return result
-        return self._known_items
+        if only_set:
+            if self._previous is None:
+                return []
+            return self._known_items + transform_previous(self._previous.known_items(only_set=True))
+
+        if self._previous is None:
+            return self._known_items
+        # Optimization: Cache known items from previous layers and only do incremental updates, in case there are many
+        # 'count' increases any time a known item is added to any layer, so we can cache the result based on it
+        previous_items = self._previous.known_items()
+        (cached_count, cached_items) = self._known_items_cache
+        if len(previous_items) != cached_count:
+            extra_items = transform_previous(self._previous.known_items()[cached_count:])
+            self._known_items_cache = (len(previous_items), cached_items + extra_items)
+        return self._known_items + self._known_items_cache[1]
 
     def add_item(self, item):
         if self._previous is None:
@@ -425,7 +425,8 @@ class Map:
                     self._invariants,
                     self._known_items + [item],
                     _previous=self._previous,
-                    _unknown_item=self._unknown_item
+                    _unknown_item=self._unknown_item,
+                    _known_items_cache=self._known_items_cache
                 )
         return Map(
             self.meta,
@@ -467,7 +468,8 @@ class Map:
             copy.copy(self._invariants), # contents are immutable
             copy.copy(self._known_items), # contents are immutable
             copy.deepcopy(self._previous, memo),
-            self._unknown_item # immutable
+            self._unknown_item, # immutable
+            self._known_items_cache # immutable
         )
         memo[id(self)] = result
         return result
