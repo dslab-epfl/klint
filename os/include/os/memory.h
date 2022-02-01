@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
+// TODO this is only for the os_memory_alloc contract, should be shadow-included only if possible?
 #include "arch/cache.h"
 
 //@ #include <list.gh>
@@ -46,37 +47,11 @@ static inline bool os_memory_eq(const void* a, const void* b, size_t obj_size)
 	// Assume the correctness of the memory equality function, because VeriFast loses track of values when converting to/from chars/integers.
 	// Anyway, this function is fairly easy to audit, and run frequently enough that any crashes or other issues should be obvious.
 	//@ assume(false);
-	while (obj_size >= sizeof(uint64_t))
+	const char* ac = (const char*) a;
+	const char* bc = (const char*) b;
+	for (size_t n = 0; n < obj_size; n++)
 	{
-		if (*((const uint64_t*) a) != *((const uint64_t*) b))
-		{
-			return false;
-		}
-		obj_size = obj_size - sizeof(uint64_t);
-		a = (const uint64_t*) a + 1;
-		b = (const uint64_t*) b + 1;
-	}
-	if ((obj_size & sizeof(uint32_t)) != 0)
-	{
-		if (*((const uint32_t*) a) != *((const uint32_t*) b))
-		{
-			return false;
-		}
-		a = (const uint32_t*) a + 1;
-		b = (const uint32_t*) b + 1;
-	}
-	if ((obj_size & sizeof(uint16_t)) != 0)
-	{
-		if (*((const uint16_t*) a) != *((const uint16_t*) b))
-		{
-			return false;
-		}
-		a = (const uint16_t*) a + 1;
-		b = (const uint16_t*) b + 1;
-	}
-	if ((obj_size & sizeof(uint8_t)) != 0)
-	{
-		if (*((const uint8_t*) a) != *((const uint8_t*) b))
+		if (ac[n] != bc[n])
 		{
 			return false;
 		}
@@ -97,15 +72,13 @@ static inline hash_t os_memory_hash(const void* obj, size_t obj_size)
 	// Anyway, this function is obviously pure, it cannot modify its input due to the 'const' modifier, and it is run frequently enough that any crashes would be obvious.
 	//@ assume(false);
 	// Still, there's a leftover beginning of proof below.
-	// TODO: Move from uint*_t to unsigned/unsigned short/char since hash_t is an unsigned
-
 	// Without these two VeriFast loses track of the original obj and obj_size
 	//@ void* old_obj = obj;
 	//@ size_t old_obj_size = obj_size;
 
 	//@ size_t discarded_size = 0;
 	hash_t hash = 0;
-	while (obj_size >= sizeof(uint32_t))
+	while (obj_size >= sizeof(unsigned))
 	/*@ invariant [f]chars(obj - discarded_size, discarded_size, _) &*&
 	              [f]chars(obj, obj_size, _) &*&
 	              old_obj == obj - discarded_size &*&
@@ -114,28 +87,34 @@ static inline hash_t os_memory_hash(const void* obj, size_t obj_size)
 		//@ chars_limits(obj);
 		//@ chars_split(obj, 4);
 		//@ chars_to_integer_(obj, 4, false);
-		hash = (hash >> 5) + hash + *((const uint32_t*) obj);
+		unsigned value;
+		__builtin_memcpy(&value, obj, sizeof(unsigned));
+		hash = (hash >> 5) + hash + value;
 		//@ integer__to_chars(obj, 4, false);
 		//@ discarded_size += 4;
-		obj = (const uint32_t*) obj + 1;
-		obj_size -= sizeof(uint32_t);
+		obj = (const unsigned*) obj + 1;
+		obj_size -= sizeof(unsigned);
 	}
-	if ((obj_size & sizeof(uint16_t)) != 0)
+	if ((obj_size & sizeof(unsigned short)) != 0)
 	{
 		//@ chars_limits(obj);
 		//@ chars_split(obj, 2);
 		//@ chars_to_integer_(obj, 2, false);
-		hash = (hash >> 5) + hash + *((const uint16_t*) obj);
+		unsigned short value;
+		__builtin_memcpy(&value, obj, sizeof(unsigned short));
+		hash = (hash >> 5) + hash + value;
 		//@ integer__to_chars(obj, 2, false);
 		//@ discarded_size += 2;
-		obj = (const uint16_t*) obj + 1;
+		obj = (const unsigned short*) obj + 1;
 		//@ chars_join(obj - discarded_size);
 	}
-	if ((obj_size & sizeof(uint8_t)) != 0)
+	if ((obj_size & sizeof(unsigned char)) != 0)
 	{
 		//@ chars_split(obj, 1);
 		//@ chars_to_integer_(obj, 1, false);
-		hash = (hash >> 5) + hash + *((const uint8_t*) obj);
+		unsigned char value;
+		__builtin_memcpy(&value, obj, sizeof(unsigned char));
+		hash = (hash >> 5) + hash + value;
 		//@ integer__to_chars(obj, 1, false);
 		//@ discarded_size += 1;
 		//@ chars_join(obj + 1 - discarded_size);
@@ -143,8 +122,7 @@ static inline hash_t os_memory_hash(const void* obj, size_t obj_size)
 	return hash;
 }
 
-// TODO "void* restrict" for both src and dst ?
-static inline void os_memory_copy(const void* src, void* dst, size_t obj_size)
+static inline void os_memory_copy(const void* restrict src, void* restrict dst, size_t obj_size)
 //@ requires [?f]chars(src, obj_size, ?srccs) &*& chars(dst, obj_size, ?dstcs);
 //@ ensures [f]chars(src, obj_size, srccs) &*& chars(dst, obj_size, srccs);
 //@ terminates;
@@ -152,27 +130,10 @@ static inline void os_memory_copy(const void* src, void* dst, size_t obj_size)
 	// Assume the correctness of the memory copy function, because VeriFast loses track of values when converting to/from chars/integers.
 	// Anyway, this function is short, easily auditable, and run frequently enough that any crashes or other issues should be obvious.
 	//@ assume(false);
-	while (obj_size >= sizeof(uint64_t))
+	const char* restrict srcc = (const char* restrict) src;
+	char* restrict dstc = (char* restrict) dst;
+	for (size_t n = 0; n < obj_size; n++)
 	{
-		*((uint64_t*) dst) = *((const uint64_t*) src);
-		obj_size = obj_size - sizeof(uint64_t);
-		src = (const uint64_t*) src + 1;
-		dst = (uint64_t*) dst + 1;
-	}
-	if ((obj_size & sizeof(uint32_t)) != 0)
-	{
-		*((uint32_t*) dst) = *((const uint32_t*) src);
-		src = (const uint32_t*) src + 1;
-		dst = (uint32_t*) dst + 1;
-	}
-	if ((obj_size & sizeof(uint16_t)) != 0)
-	{
-		*((uint16_t*) dst) = *((const uint16_t*) src);
-		src = (const uint16_t*) src + 1;
-		dst = (uint16_t*) dst + 1;
-	}
-	if ((obj_size & sizeof(uint8_t)) != 0)
-	{
-		*((uint8_t*) dst) = *((const uint8_t*) src);
+		dstc[n] = srcc[n];
 	}
 }

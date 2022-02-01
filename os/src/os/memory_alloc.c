@@ -7,7 +7,7 @@
 //@ #include "proof/modulo.gh"
 
 
-extern int8_t* memory; // VeriFast behaves oddly if this is an uint8_t*...
+extern char* memory; // VeriFast behaves oddly if this is an uint8_t*...
 extern size_t memory_used_len;
 
 /*@
@@ -51,7 +51,7 @@ void* os_memory_alloc(size_t count, size_t size)
 	//@ assert memory |-> ?mem;
 	//@ assert memory_used_len |-> ?memlen;
 	//@ assert mem[memlen..OS_MEMORY_SIZE] |-> ?mem_bytes;
-	int8_t* target_addr = memory + memory_used_len;
+	char* target_addr = memory + memory_used_len;
 
 	// Aligning to the cache line size can make a huge positive performance difference sometimes, well worth the hassle
 	// (e.g. one time TinyNF accidentally regressed by 40% throughput because of misalignment...)
@@ -72,11 +72,11 @@ void* os_memory_alloc(size_t count, size_t size)
 	}
 
 	// Leak the alignment memory, i.e., fragment the heap, since we don't support any notion of freeing
-	//@ leak chars((int8_t*)target_addr, align_padding, _);
+	//@ leak chars((char*)target_addr, align_padding, _);
 	//@ all_eq_drop(mem_bytes, align_padding, 0);
 
 	//@ mod_compensate((size_t) target_addr, align_div);
-	int8_t* aligned_addr = target_addr + align_padding;
+	char* aligned_addr = target_addr + align_padding;
 
 	memory_used_len = memory_used_len + align_padding;
 	if (full_size > OS_MEMORY_SIZE - memory_used_len) {
@@ -84,7 +84,7 @@ void* os_memory_alloc(size_t count, size_t size)
 		halt();
 	}
 
-	//@ chars_split((int8_t*) memory + memlen + align_padding, full_size);
+	//@ chars_split((char*) memory + memlen + align_padding, full_size);
 	//@ chars_split(aligned_addr, full_size);
 	//@ all_eq_take(drop(align_padding, mem_bytes), full_size, 0);
 	//@ all_eq_drop(drop(align_padding, mem_bytes), full_size, 0);

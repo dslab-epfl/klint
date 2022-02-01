@@ -158,7 +158,7 @@ int main(int argc, char** argv)
 			uint16_t nb_rx = rte_eth_rx_burst(device, 0, bufs, BATCH_SIZE);
 			for (int16_t n = 0; n < nb_rx; n++) {
 				struct net_packet packet = {
-					.data = (uint8_t*) bufs[n]->buf_addr + bufs[n]->data_off,
+					.data = (char*) bufs[n]->buf_addr + bufs[n]->data_off,
 					.length = bufs[n]->data_len,
 					.time = os_clock_time_ns(),
 					.device = bufs[n]->port,

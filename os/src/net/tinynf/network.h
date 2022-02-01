@@ -35,7 +35,7 @@ struct tn_descriptor
 
 struct tn_agent
 {
-	uint8_t* buffer;
+	char* buffer;
 	volatile uint32_t* receive_tail_addr;
 	size_t processed_delimiter;
 	size_t outputs_count;
@@ -60,6 +60,6 @@ void tn_agent_init(size_t input_index, size_t devices_count, struct tn_device* d
 // ---------------------
 
 // Sets outputs[N] = length of the packet on device N, where 0 means drop (devices are in the order they were added)
-typedef void tn_packet_handler(size_t index, uint8_t* packet, size_t length, size_t* output_lengths);
+typedef void tn_packet_handler(size_t index, char* packet, size_t length, size_t* output_lengths);
 // Runs the agents forever using the given handler
 _Noreturn void tn_run(size_t agents_count, struct tn_agent* agents, tn_packet_handler* handler);

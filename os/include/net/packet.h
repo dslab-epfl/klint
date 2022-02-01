@@ -14,7 +14,7 @@ typedef uint16_t device_t;
 
 // Packet received on a device
 struct net_packet {
-	uint8_t* data;
+	char* data;
 	size_t length;
 	time_t time;
 	device_t device;
@@ -103,10 +103,10 @@ static inline void net_packet_checksum_update(struct net_ipv4_header* ipv4_heade
 	// Manual pointer addition to avoid "address of packed member" warnings
 
 	if (in_ip) {
-		net_checksum_update((uint8_t*) ipv4_header + 12, old_word, new_word);
+		net_checksum_update((char*) ipv4_header + 12, old_word, new_word);
 	}
 
-	uint8_t* l4_header = (uint8_t*) (ipv4_header + 1);
+	char* l4_header = (char*) (ipv4_header + 1);
 	if (ipv4_header->next_proto_id == IP_PROTOCOL_TCP) {
 		net_checksum_update(l4_header + 16, old_word, new_word);
 	} else if (ipv4_header->next_proto_id == IP_PROTOCOL_UDP) {

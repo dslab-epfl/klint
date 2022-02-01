@@ -412,7 +412,7 @@ static uint32_t find_first_set(uint32_t value)
 // Get the value of register 'reg' on NIC at address 'addr'
 static uint32_t reg_read(void* addr, uint32_t reg)
 {
-	uint32_t val_le = *((volatile uint32_t*)((uint8_t*) addr + reg));
+	uint32_t val_le = *((volatile uint32_t*)((char*) addr + reg));
 	uint32_t result = le_to_cpu32(val_le);
 	//os_debug("IXGBE read (addr %p): 0x%08" PRIx32 " -> 0x%08" PRIx32, addr, reg, result);
 	return result;
@@ -434,7 +434,7 @@ static void reg_write_raw(volatile uint32_t* reg_addr, uint32_t value)
 // Write 'value' to register 'reg' on NIC at address 'addr'
 static void reg_write(void* addr, uint32_t reg, uint32_t value)
 {
-	reg_write_raw((volatile uint32_t*) ((uint8_t*)addr + reg), value);
+	reg_write_raw((volatile uint32_t*) ((char*)addr + reg), value);
 	//os_debug("IXGBE write (addr %p): 0x%08" PRIx32 " := 0x%08" PRIx32, addr, reg, value);
 }
 // Write 'value' to the field 'field' (from the REG_... #defines) of register 'reg' on NIC at address 'addr'
@@ -1070,7 +1070,7 @@ static void tn_agent_add_output(struct tn_agent* const agent, struct tn_device* 
 	// "Note: The tail register of the queue (TDT) should not be bumped until the queue is enabled."
 	// Nothing to transmit yet, so leave TDT alone.
 
-	agent->transmit_tail_addrs[output_index] = (volatile uint32_t*) ((uint8_t*) device->addr + REG_TDT(queue_index));
+	agent->transmit_tail_addrs[output_index] = (volatile uint32_t*) ((char*) device->addr + REG_TDT(queue_index));
 }
 
 // ------------------------------------
@@ -1164,7 +1164,7 @@ static void tn_agent_set_input(struct tn_agent* const agent, struct tn_device* c
 	// Section 8.2.3.11.1 Rx DCA Control Register (DCA_RXCTRL[n]): Bit 12 == "Default 1b; Reserved. Must be set to 0."
 	reg_clear_field(device->addr, REG_DCARXCTRL(queue_index), REG_DCARXCTRL_UNKNOWN);
 
-	agent->receive_tail_addr = (volatile uint32_t*) ((uint8_t*) device->addr + REG_RDT(queue_index));
+	agent->receive_tail_addr = (volatile uint32_t*) ((char*) device->addr + REG_RDT(queue_index));
 }
 
 // -----------
@@ -1230,7 +1230,7 @@ static void tn_run_peragent(size_t index, void* state_)
 		// "Length Field (16-bit offset 0, 2nd line): The length indicated in this field covers the data written to a receive buffer."
 		uint16_t length = (uint16_t) (receive_metadata & 0xFFFFu);
 		// This cannot overflow because the packet is by definition in an allocated block of memory
-		uint8_t* packet = agent->buffer + (PACKET_BUFFER_SIZE * agent->processed_delimiter);
+		char* packet = agent->buffer + (PACKET_BUFFER_SIZE * agent->processed_delimiter);
 		state->handler(index, packet, length, agent->lengths);
 
 		// Section 7.2.3.2.2 Legacy Transmit Descriptor Format:

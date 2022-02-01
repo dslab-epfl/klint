@@ -59,7 +59,7 @@ void net_flood_except(struct net_packet* packet, bool* disabled_devices, enum ne
 }
 
 
-static void tinynf_packet_handler(size_t index, uint8_t* packet, size_t length, size_t* output_lengths)
+static void tinynf_packet_handler(size_t index, char* packet, size_t length, size_t* output_lengths)
 {
 	current_output_lengths = output_lengths;
 	struct net_packet pkt = {

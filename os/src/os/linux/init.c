@@ -27,7 +27,7 @@ uint64_t cpu_freq_numerator;
 uint64_t cpu_freq_denominator;
 
 // For the shared memory_alloc.c
-int8_t* memory;
+char* memory;
 size_t memory_used_len;
 
 

@@ -10,7 +10,7 @@ uint64_t cpu_freq_numerator;
 uint64_t cpu_freq_denominator;
 
 // For the shared memory allocator
-int8_t memory[OS_MEMORY_SIZE]; // zero-initialized
+char memory[OS_MEMORY_SIZE]; // zero-initialized
 size_t memory_used_len;
 
 
