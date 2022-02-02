@@ -10,6 +10,11 @@
 //@ #include <list.gh>
 //@ #include "proof/listexex.gh"
 
+#ifdef VERIFAST
+// VeriFast does not support 'restrict', let's verify without it (which is sound since restrict adds constraints so we're effectively dropping preconditions)
+#define restrict
+#endif
+
 // Amount of memory available to the program, in bytes (256 MB)
 #define OS_MEMORY_SIZE (256ull * 1024ull * 1024ull)
 

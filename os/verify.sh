@@ -1,34 +1,33 @@
 #!/bin/sh
 
-# this worked as of VeriFast commit 5d6271c82a82aff7536db91576e5f673ebf06182
-# (but building it from source requires a bunch of stuff, including ocaml/opam, so let's download it instead)
+# This worked as of VeriFast commit d08bdd3ec84dc3e6a1cc609527932e665759c884
+# But not on 21.04, the latest stable version, due to some missing stuff we added later
+# Building VeriFast from source requires a bunch of stuff, including ocaml & opam, so let's download it instead
+# unless the user sets VERIFAST_PATH in which case we use that
+
+# TODO: once there's a stable release newer than 21.04, use that instead of trickery to download a nightly
 
 if [ "$VERIFAST_PATH" = '' ]; then
   echo 'Using local VeriFast. If you want to use a custom one, set $VERIFAST_PATH to the root folder of a VeriFast distribution (which contains bin/verifast).\n'
+  VERIFAST_PATH="$(pwd)/verifast"
 
   if [ ! -d 'verifast' ]; then
     echo 'Local VeriFast not found, downloading...'
-    # we have to handle the redirect via a meta refresh manually...
-    # TODO replace by a named release when there's a new one with the latest changes (after 21.04)
-    wget -q 'https://storage.googleapis.com/verifast-nightlies/verifast-nightly-linux-latest.html'
-    VF_GZ="$(grep -F '<meta' verifast-nightly-linux-latest.html | sed 's|.*URL=latest/linux/\(.*\)".*|\1|')"
-    rm 'verifast-nightly-linux-latest.html'
-    wget -q "https://storage.googleapis.com/verifast-nightlies/latest/linux/$VF_GZ"
-    tar -xf "$VF_GZ"
-    rm "$VF_GZ"
-    mv "$(echo "$VF_GZ" | sed 's/.tar.gz//')" 'verifast'
+    VF_URL="$(wget 'https://github.com/verifast/verifast/releases/tag/nightly' -q -O - | grep -o '/verifast.*linux.tar.gz')"
+    wget "https://github.com$VF_URL" -q -O 'verifast.tar.gz'
+    mkdir "$VERIFAST_PATH"
+    tar --strip-components 1 -C "$VERIFAST_PATH" -xf 'verifast.tar.gz'
+    rm "verifast.tar.gz"
   fi
-  VERIFAST_PATH="$(pwd)/verifast"
 fi
 
-echo 'Verifying, this will take 10min, now is a great time to go make a cup of tea...'
-
-# TODO it'd be nice to have a proof that did not emit them anyway...
-echo '\nPlease note that "inconsistency in axioms" messages are false positives, see https://github.com/verifast/verifast/issues/32\n'
+echo '\nVerifying, this will take 10min, now is a great time to go make a cup of tea...'
+echo '  (please note that "inconsistency in axioms" messages are false positives, see https://github.com/verifast/verifast/issues/32)\n'
 
 VF_COMMAND="$VERIFAST_PATH/bin/verifast -allow_dead_code -D VERIFAST -I include/ -shared -emit_vfmanifest"
 
-# redux cannot prove bitopsutils and mod-pow2 but z3 can, and vice-versa for the others, so we use the right prover for the right file...
+# redux cannot prove bitopsutils and mod-pow2 but z3 can, and vice-versa for the others, so we use the "right" prover for the "right" file...
+# ideally we'd rewrite the proofs to all work on one prover but that means lots of effort for little benefit
 $VF_COMMAND -prover redux include/proof/arith.c \
                           include/proof/listutils-lemmas.c \
                           include/proof/modulo.c
@@ -48,5 +47,5 @@ $VF_COMMAND -prover redux -allow_assume \
                           src/structs/index_pool.c \
                           src/structs/map.c
 
-echo '\nAll good! Now we can grep for any assumptions in proofs...\n'
+echo '\nNow we grep for any assumptions in proofs...\n'
 grep -Fr --exclude=\*.vfmanifest -B 2 'assume' src/os/*.c src/structs/ include/

@@ -18,6 +18,8 @@
 
 - `NF_CONFIG_FILENAME` and `OS_CONFIG_FILENAME` are self-explanatory, the NF one is NF-dependent, for the OS one it's just a list of PCI devices, e.g.
 
+Example: `make NF=../nf/nop/libnf.so OS=linux NET=tinynf OS_CONFIG_FILENAME=./config NF_CONFIG_FILENAME=../nf/nop/config`
+
 ```
 { .bus = 0x83, .device = 0x00, .function = 0x0 },
 { .bus = 0x85, .device = 0x00, .function = 0x0 },
