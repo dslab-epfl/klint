@@ -5,6 +5,12 @@ from claripy import backends, SolverCompositeChild
 
 import kalm
 
+# Optimization 1: for some reason using the SMT tactic instead of the default is faster
+import z3; z3.set_param('tactic.default_tactic', 'smt')
+# Optimization 2: Using QF_ABV explicitly is faster, even though all our queries are QF_BV (see https://github.com/Z3Prover/z3/issues/5655)
+class KalmZ3Backend(claripy._backends_module.BackendZ3):
+    def solver(self, timeout=None):
+        return z3.SolverFor("QF_ABV", ctx=self._context)
 
 # Keep only what we need in the solver
 # We especially don't want ConstraintExpansionMixin, which adds constraints after an eval
@@ -22,8 +28,8 @@ class KalmSolver(
     CompositeFrontend # the actual frontend
 ):
     def __init__(self, template_solver=None, track=False, template_solver_string=None, **kwargs):
-        template_solver = template_solver or SolverCompositeChild(track=track)
-        template_solver_string = template_solver_string or SolverCompositeChild(track=track, backend=backends.z3)
+        template_solver = template_solver or SolverCompositeChild(track=track, backend=KalmZ3Backend())
+        # we do not override template_solver_string if it's None given our optimization to force QF_ABV, it wouldn't work with strings; but we don't use them anyway
         super().__init__(template_solver, template_solver_string, track=track, **kwargs)
 
     def add(self, constraints, **kwargs):
