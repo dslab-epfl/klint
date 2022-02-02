@@ -2,17 +2,18 @@ ifndef NF_DYNAMIC
 $(error Sorry, DPDK net only supports dynamic linking for now)
 endif
 
-# TODO make DPDK if not made
-
 # This makefile takes over everything because DPDK
 NO_DEFAULT_TARGETS := 1
 
 # Get current dir, see https://stackoverflow.com/a/8080530
 NET_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 
+# Run the setup script, in case it hasn't been run yet
+_IGNORED := $(shell cd $(NET_DIR); ./setup.sh 2>/dev/null)
+
 # Usual DPDK vars
 RTE_SDK := $(NET_DIR)/dpdk
-RTE_TARGET ?= x86_64-native-linuxapp-gcc
+RTE_TARGET := x86_64-native-linuxapp-gcc
 
 # Force the use of our own time_t by preventing the stdlib from defining it and forcefully including ours so it's available
 CFLAGS += -D__time_t_defined
