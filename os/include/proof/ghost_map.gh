@@ -1,7 +1,5 @@
 #pragma once
 
-// TODO: Remove unused lemmas if they're pointless or overly specific
-
 // -- Contract API --
 
 fixpoint option<v> ghostmap_get<k, v>(list<pair<k, v> > ghostmap, k key) {

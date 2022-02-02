@@ -9,7 +9,7 @@ _Noreturn static inline void halt(void)
 }
 
 #else
-// TODO VeriFast should know about __builtin_unreachable, and maybe even model __asm__ as a terminating ensures-false function...
+// TODO VeriFast should know about __builtin_unreachable; how to properly model __asm__ though? (probably in a very conservative "any asm could do anything" way)
 #include <stdlib.h>
 _Noreturn static inline void halt(void)
 //@ requires emp;
