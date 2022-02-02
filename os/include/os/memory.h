@@ -4,15 +4,16 @@
 #include <stdint.h>
 #include <stddef.h>
 
-// TODO this is only for the os_memory_alloc contract, should be shadow-included only if possible?
+// only for contracts
 #include "arch/cache.h"
 
 //@ #include <list.gh>
+//@ #include "proof/listexex.gh"
 
 // Amount of memory available to the program, in bytes (256 MB)
 #define OS_MEMORY_SIZE (256ull * 1024ull * 1024ull)
 
-// A larger hash type than this is generally not useful for data structure purposes
+// Type of hashes (a larger hash type than this is generally not useful for data structure purposes)
 typedef unsigned hash_t;
 
 
@@ -40,21 +41,25 @@ uintptr_t os_memory_virt_to_phys(const void* addr);
 
 
 static inline bool os_memory_eq(const void* a, const void* b, size_t obj_size)
-//@ requires [?f1]chars(a, obj_size, ?ac) &*& [?f2]chars(b, obj_size, ?bc);
-//@ ensures [f1]chars(a, obj_size, ac) &*& [f2]chars(b, obj_size, bc) &*& result == (ac == bc);
+//@ requires [?f1]chars(a, obj_size, ?acs) &*& [?f2]chars(b, obj_size, ?bcs);
+//@ ensures [f1]chars(a, obj_size, acs) &*& [f2]chars(b, obj_size, bcs) &*& result == (acs == bcs);
 //@ terminates;
 {
-	// Assume the correctness of the memory equality function, because VeriFast loses track of values when converting to/from chars/integers.
-	// Anyway, this function is fairly easy to audit, and run frequently enough that any crashes or other issues should be obvious.
-	//@ assume(false);
 	const char* ac = (const char*) a;
 	const char* bc = (const char*) b;
 	for (size_t n = 0; n < obj_size; n++)
+	/*@ invariant 0 <= n &*& n <= obj_size &*&
+	              [f1]chars(ac, obj_size, acs) &*&
+	              [f2]chars(bc, obj_size, bcs) &*&
+	              take(n, acs) == take(n, bcs); @*/
+	//@ decreases obj_size - n;
 	{
 		if (ac[n] != bc[n])
 		{
 			return false;
 		}
+		//@ append_take_nth_to_take(acs, n);
+		//@ append_take_nth_to_take(bcs, n);
 	}
 	return true;
 }
@@ -123,17 +128,23 @@ static inline hash_t os_memory_hash(const void* obj, size_t obj_size)
 }
 
 static inline void os_memory_copy(const void* restrict src, void* restrict dst, size_t obj_size)
-//@ requires [?f]chars(src, obj_size, ?srccs) &*& chars(dst, obj_size, ?dstcs);
+//@ requires [?f]chars(src, obj_size, ?srccs) &*& chars(dst, obj_size, _);
 //@ ensures [f]chars(src, obj_size, srccs) &*& chars(dst, obj_size, srccs);
 //@ terminates;
 {
-	// Assume the correctness of the memory copy function, because VeriFast loses track of values when converting to/from chars/integers.
-	// Anyway, this function is short, easily auditable, and run frequently enough that any crashes or other issues should be obvious.
-	//@ assume(false);
+	// This proof is essentially a copy of the memcpy one from VeriFast's tutorial.
 	const char* restrict srcc = (const char* restrict) src;
 	char* restrict dstc = (char* restrict) dst;
-	for (size_t n = 0; n < obj_size; n++)
+	for (size_t n = 0; ; n++)
+        //@ requires [f]srcc[n..obj_size] |-> ?srccs2 &*& dstc[n..obj_size] |-> _;
+        //@ ensures [f]srcc[old_n..obj_size] |-> srccs2 &*& dstc[old_n..obj_size] |-> srccs2;
+        //@ decreases obj_size - n;
 	{
+		//@ open chars(dstc + n, _, _);
+		//@ open chars(srcc + n, _, _);
+		if (n == obj_size) {
+			break;
+		}
 		dstc[n] = srcc[n];
 	}
 }
