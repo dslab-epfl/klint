@@ -1,4 +1,5 @@
 import angr
+from angr.sim_type import ALL_TYPES, SimTypeFunction, SimTypeTop
 import claripy
 
 from kalm import executor as kalm_executor
@@ -33,15 +34,14 @@ def execute(code_path, calls_path, maps_path, maps_to_havoc, havoc_all):
     devices_count = claripy.BVS("devices_count", 32)
 
     states, graphs = klint_executor.find_fixedpoint_states(
-        [(blank, lambda st: kalm_executor.create_calling_state(st, function, [packet.create(st, devices_count)], exts))],
+        [(blank, lambda st: kalm_executor.create_calling_state(st, function, SimTypeFunction([SimTypeTop()], ALL_TYPES['uint32_t']) [packet.create(st, devices_count)], exts))],
         existing_results=existing_results
     )
 
     final_states = []
     results = []
     for state in states:
-        cc = angr.DEFAULT_CC[state.project.arch.name](state.project.arch)
-        result = state.casts.uint32_t(cc.get_return_val(state, stack_base=state.regs.sp - cc.STACKARG_SP_DIFF))
+        result = utils.get_ret_val(state, 32)
         results.append(result)
         # we're looking for result 3, XDP_TX
         const_result = utils.get_if_constant(state.solver, result)

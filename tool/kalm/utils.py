@@ -15,15 +15,20 @@ def read_str(state, ptr):
     return result
 
 
+# easiest way to go from width to type is SimTypeTop; but it's not handled in some places, so we make a fake SimTypeInt instead
+# this code was originally written before the need for types in cc.return_val...
+class FakeSimType(angr.types.SimTypeInt):
+    def __init__(self, size):
+        super().__init__(False) # False = unsigned
+        self._size = size or 0
+    @property
+    def size(self):
+        return self._size
+
 def get_ret_val(state, width):
-    # these two lines copied from angr's "Callable" implementation
     cc = angr.DEFAULT_CC[state.project.arch.name](state.project.arch)
-    val = cc.get_return_val(state, stack_base=state.regs.sp - cc.STACKARG_SP_DIFF)
-    if width is not None:
-        if width == 0:
-            return claripy.BVV(0, 0)
-        val = val[width-1:0]
-    return val
+    loc = cc.return_val(FakeSimType(width))
+    return loc.get_value(state, stack_base=state.regs.sp - cc.STACKARG_SP_DIFF)
 
 def can_be_true(solver, cond):
     return solver.satisfiable(extra_constraints=[cond])
@@ -88,7 +93,7 @@ def fork_guarded(proc, state, guard, case_true, case_false):
     state_copy.solver.add(~guard)
     false_ret_expr = case_false(state_copy)
     state_copy.path.end_record(false_ret_expr) # hacky, see Path
-    false_ret_addr = proc.cc.teardown_callsite(state_copy, false_ret_expr, arg_types=[False]*proc.num_args if proc.cc.args is None else None)
+    false_ret_addr = proc.cc.teardown_callsite(state_copy, false_ret_expr, prototype=proc.prototype)
     proc.successors.add_successor(state_copy, false_ret_addr, claripy.true, 'Ijk_Ret')
     state.solver.add(guard)
     return case_true(state)

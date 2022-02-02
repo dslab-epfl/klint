@@ -26,6 +26,7 @@ def register_plugin(name, cls):
 # Register common angr plugins necessary for its proper functioning
 register_plugin('callstack', angr.state_plugins.callstack.CallStack)
 register_plugin('history', angr.state_plugins.history.SimStateHistory)
+register_plugin('inspect', angr.state_plugins.inspect.SimInspector)
 register_plugin('mem', angr.state_plugins.view.SimMemView)
 register_plugin('regs', angr.state_plugins.view.SimRegNameView)
 register_plugin('scratch', angr.state_plugins.scratch.SimStateScratch)

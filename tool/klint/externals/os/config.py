@@ -1,4 +1,5 @@
 import angr
+from angr.sim_type import *
 import claripy
 from collections import namedtuple
 
@@ -6,24 +7,29 @@ from kalm import utils
 
 ConfigMetadata = namedtuple('ConfigMetadata', ['items'])
 
-# TODO: also model failure case
-
 # bool os_config_try_get(const char* name, uint64_t* out_value);
 class os_config_try_get(angr.SimProcedure):
-    def run(self, name, out_value):
-        name = self.state.casts.ptr(name)
-        out_value = self.state.casts.ptr(out_value)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.prototype = SimTypeFunction([SimTypePointer(SimTypeChar()), SimTypePointer(SimTypeNum(64, False))], SimTypeBool(), arg_names=["name", "out_value"])
 
+    def run(self, name, out_value):
         if name.symbolic:
             raise Exception("name cannot be symbolic")
 
-        self.state.memory.load(out_value, self.state.sizes.uint64_t // 8)
-
+        # Precondition: name and out_value are accessible
         py_name = utils.read_str(self.state, name)
-        metadata = self.state.metadata.get(ConfigMetadata, None, default_init=lambda: ConfigMetadata({}))
-        if py_name not in metadata.items:
-            value = claripy.BVS(py_name, self.state.sizes.uint64_t)
-            metadata.items[py_name] = value
+        self.state.memory.load(out_value, 64 // 8)
 
-        self.state.memory.store(out_value, metadata.items[py_name], endness=self.state.arch.memory_endness)
-        return claripy.BVV(1, self.state.sizes.bool)
+        def case_true(state):
+            metadata = state.metadata.get(ConfigMetadata, None, default_init=lambda: ConfigMetadata({}))
+            if py_name not in metadata.items:
+                value = claripy.BVS(py_name, 64)
+                metadata.items[py_name] = value
+            state.memory.store(out_value, metadata.items[py_name], endness=state.arch.memory_endness)
+            return claripy.BVV(1, self.prototype.returnty.size)
+
+        def case_false(state):
+            return claripy.BVV(0, self.prototype.returnty.size)
+
+        return utils.fork_guarded(self, self.state, claripy.BoolS("config_has_" + py_name), case_true, case_false)

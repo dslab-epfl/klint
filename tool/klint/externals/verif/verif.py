@@ -1,4 +1,5 @@
 import angr
+from angr.sim_type import ALL_TYPES, SimTypeFunction, SimTypeTop
 import claripy
 
 from kalm import utils
@@ -83,7 +84,7 @@ class foreach_index_forever(angr.SimProcedure):
     @staticmethod
     def state_creator(st, index, func, func_st):
         nf_device.receive_packet_on_device(st, index)
-        return binary_executor.create_calling_state(st, func, [index, func_st], nf_executor.nf_handle_externals)
+        return binary_executor.create_calling_state(st, func, SimTypeFunction([ALL_TYPES['size_t'], SimTypeTop()], None), [index, func_st], nf_executor.nf_handle_externals)
 
     def run(self, length, func, func_st):
         length = self.state.casts.size_t(length)

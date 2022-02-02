@@ -35,9 +35,11 @@ def create_blank_state(thing, arch='amd64'):
         remove_options={angr.sim_options.COPY_STATES, angr.sim_options.TRACK_CONSTRAINT_ACTIONS}
     )
     state.solver._stored_solver = KalmSolver()
+    # Force init of the path plugin so it can record everything
+    ignored = state.path
     return state
 
-def create_calling_state(state, function_thing, function_args, externals):
+def create_calling_state(state, function_thing, function_prototype, function_args, externals):
     # Discard previous history, otherwise it might interact with the new execution in weird ways
     state.register_plugin('history', SimStateHistory())
     # Re-create a project, since we may need different externals than last time
@@ -52,13 +54,13 @@ def create_calling_state(state, function_thing, function_args, externals):
     # Add our externals
     for (sym, proc) in externals.items():
         if not isinstance(sym, str) or new_proj.loader.find_symbol(sym) is not None:
-            new_proj.hook_symbol(sym, PathPlugin.wrap(proc()))
+            new_proj.hook_symbol(sym, proc())
     # Create the state
     if isinstance(function_thing, str):
         function_addr = new_proj.loader.find_symbol(function_thing).rebased_addr
     else:
         function_addr = function_thing
-    return new_proj.factory.call_state(function_addr, *function_args, base_state=state)
+    return new_proj.factory.call_state(function_addr, *function_args, prototype=function_prototype, base_state=state)
 
 def run_state(state, ret_width=None, allow_trap=False):
     global trapped_states # see our custom engine
