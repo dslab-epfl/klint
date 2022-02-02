@@ -1,4 +1,4 @@
-These files, except `load-and-dump.sh`, were obtained from the Suricata project, commit ca760e305cd74933b685b1bd5be795b24a7d94a7 of github.com/OISF/suricata
+These files, except `compile-bpf.sh`, were obtained from the Suricata project, commit ca760e305cd74933b685b1bd5be795b24a7d94a7 of github.com/OISF/suricata
 They were originally in `ebpf/`.
 They are distributed under the GPLv2 licence.
 
