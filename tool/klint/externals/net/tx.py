@@ -39,7 +39,7 @@ class net_flood(angr.SimProcedure):
 class net_flood_except(angr.SimProcedure):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.prototype = SimTypeFunction([SimTypePointer(SimTypeBottom(label="void")), SimTypePointer(SimTypeBool), SimTypeInt(True)], None, arg_names=["packet", "disabled_devices", "flags"])
+        self.prototype = SimTypeFunction([SimTypePointer(SimTypeBottom(label="void")), SimTypePointer(SimTypeBool()), SimTypeInt(True)], None, arg_names=["packet", "disabled_devices", "flags"])
 
     def run(self, pkt, disabled_devices, flags):
         data_addr = packet.get_data_addr(self.state, pkt)
