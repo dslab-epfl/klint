@@ -317,7 +317,6 @@ class bpf_xdp_adjust_head(angr.SimProcedure):
         # TODO: should we randomly fail to mimic an allocation failure? can this ever happen in the kernel?
         return utils.fork_guarded(self, self.state, length.SGE(delta) & (length - delta).ULE(packet.PACKET_MTU), case_true, case_false)
 
-# NOTE: this ends as .reversed in constraints, why?
 rand_value = claripy.BVS("bpf_user_rnd_u32_result", 32)
 # u32 bpf_user_rnd_u32(void)
 class bpf_user_rnd_u32(angr.SimProcedure):

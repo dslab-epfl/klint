@@ -89,8 +89,7 @@ libnf_handle_externals.update(structs_functions_externals)
 def get_libnf_inited_states(binary_path, devices_count):
     blank_state = binary_executor.create_blank_state(binary_path)
     # Create and run an init state
-    # TODO Something very fishy in here, why do we need to reverse the arg? angr's endianness handling keeps puzzling me
-    init_state = binary_executor.create_calling_state(blank_state, "nf_init", SimTypeFunction([SimTypeNum(16, False)], SimTypeBool()), [devices_count.reversed], libnf_init_externals)
+    init_state = binary_executor.create_calling_state(blank_state, "nf_init", SimTypeFunction([SimTypeNum(16, False)], SimTypeBool()), [devices_count], libnf_init_externals)
     init_state.solver.add(devices_count.UGT(0))
     statistics.work_start("symbex")
     # ignore the graph of states here, it's just init
