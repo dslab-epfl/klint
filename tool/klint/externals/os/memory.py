@@ -22,7 +22,7 @@ class os_memory_alloc(angr.SimProcedure):
 
         # Preconditions
         assert utils.definitely_true(self.state.solver,
-            (count == 1) | (count * size <= (2 ** self.state.sizes.size_t - 1)) # TODO use count.size instead of size_t here?
+            (count == 1) | (count * size <= (2 ** self.state.sizes.size_t - 1))
         )
 
         # Postconditions
