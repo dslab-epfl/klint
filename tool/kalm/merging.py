@@ -90,6 +90,9 @@ def merge_states(states, plugins):
             # Memory (of which registers is a kind) returns false if nothing was merged, but that just means the memory was untouched
             if plugin in ('memory', 'registers'):
                 continue
+            # Inspect always returns false
+            if plugin == 'inspect':
+                continue
             #print("    failed because of", plugin)
             return None
     #print("    done")
