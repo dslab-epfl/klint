@@ -15,19 +15,12 @@ def read_str(state, ptr):
     return result
 
 
-# easiest way to go from width to type is SimTypeTop; but it's not handled in some places, so we make a fake SimTypeInt instead
-# this code was originally written before the need for types in cc.return_val...
-class FakeSimType(angr.types.SimTypeInt):
-    def __init__(self, size):
-        super().__init__(False) # False = unsigned
-        self._size = size or 0
-    @property
-    def size(self):
-        return self._size
 
 def get_ret_val(state, width):
     cc = angr.DEFAULT_CC[state.project.arch.name](state.project.arch)
-    loc = cc.return_val(FakeSimType(width))
+    # this code was originally written before the need for types in cc.return_val...
+    # nowadays it may make more sense to replace `width` with an actual type, but oh well
+    loc = cc.return_val(angr.sim_type.SimTypeNum(width or 0, False))
     return loc.get_value(state, stack_base=state.regs.sp - cc.STACKARG_SP_DIFF)
 
 def can_be_true(solver, cond):

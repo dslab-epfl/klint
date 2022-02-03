@@ -1,4 +1,5 @@
 import angr
+from angr.sim_type import *
 import claripy
 from collections import namedtuple
 
@@ -12,11 +13,11 @@ Map = namedtuple('mapp', ['key_size', 'capacity', 'values', 'addrs'])
 # requires capacity * 64 <= SIZE_MAX;
 # ensures mapp(result, key_size, capacity, nil, nil);
 class map_alloc(angr.SimProcedure):
-    def run(self, key_size, capacity):
-        # Casts
-        key_size = self.state.casts.size_t(key_size)
-        capacity = self.state.casts.size_t(capacity)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.prototype = SimTypeFunction([SimTypeLength(False), SimTypeLength(False)], SimTypePointer(SimTypeBottom(label="void")), arg_names=["key_size", "capacity"])
 
+    def run(self, key_size, capacity):
         # Symbolism assumptions
         if key_size.symbolic:
             raise Exception("key_size cannot be symbolic")
@@ -46,11 +47,11 @@ class map_alloc(angr.SimProcedure):
 #           case some(v): return result == true &*& *out_value |-> v;
 #         };
 class map_get(angr.SimProcedure):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.prototype = SimTypeFunction([SimTypePointer(SimTypeBottom(label="void")), SimTypePointer(SimTypeBottom(label="void")), SimTypePointer(SimTypeLength(False))], SimTypeBool(), arg_names=["map", "key_ptr", "out_value"])
+
     def run(self, map, key_ptr, out_value):
-        # Casts
-        map = self.state.casts.ptr(map)
-        key_ptr = self.state.casts.ptr(key_ptr)
-        out_value = self.state.casts.ptr(out_value)
         print("!!! map_get", map, key_ptr, out_value)
 
         # Preconditions
@@ -79,11 +80,11 @@ class map_get(angr.SimProcedure):
 #          ghostmap_get(addrs, key) == none;
 # ensures mapp(map, key_size, capacity, ghostmap_set(values, key, value), ghostmap_set(addrs, key, key_ptr));
 class map_set(angr.SimProcedure):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.prototype = SimTypeFunction([SimTypePointer(SimTypeBottom(label="void")), SimTypePointer(SimTypeBottom(label="void")), SimTypeLength(False)], None, arg_names=["map", "key_ptr", "value"])
+
     def run(self, map, key_ptr, value):
-        # Casts
-        map = self.state.casts.ptr(map)
-        key_ptr = self.state.casts.ptr(key_ptr)
-        value = self.state.casts.ptr(value)
         print("!!! map_set", map, key_ptr, value)
 
         # Preconditions
@@ -112,10 +113,11 @@ class map_set(angr.SimProcedure):
 # ensures mapp(map, key_size, capacity, ghostmap_remove(values, key), ghostmap_remove(addrs, key)) &*&
 #         [frac + 0.25]chars(key_ptr, key_size, key);
 class map_remove(angr.SimProcedure):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.prototype = SimTypeFunction([SimTypePointer(SimTypeBottom(label="void")), SimTypePointer(SimTypeBottom(label="void"))], None, arg_names=["map", "key_ptr"])
+
     def run(self, map, key_ptr):
-        # Casts
-        map = self.state.casts.ptr(map)
-        key_ptr = self.state.casts.ptr(key_ptr)
         print("!!! map_remove", map, key_ptr)
 
         # Preconditions

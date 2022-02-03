@@ -33,9 +33,8 @@ register_plugin('scratch', angr.state_plugins.scratch.SimStateScratch)
 register_plugin('solver', angr.state_plugins.solver.SimSolver)
 
 # Register the plugins we want
-from .plugins import CastsPlugin, MarkerPlugin, MetadataPlugin, PathPlugin, PciPlugin, SizesPlugin
+from .plugins import MarkerPlugin, MetadataPlugin, PathPlugin, PciPlugin, SizesPlugin
 from .memory import KalmMemory, KalmRegistersMemory
-register_plugin('casts', CastsPlugin)
 register_plugin('marker', MarkerPlugin)
 register_plugin('metadata', MetadataPlugin)
 register_plugin('path', PathPlugin)

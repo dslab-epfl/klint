@@ -1,4 +1,5 @@
 import angr
+from angr.sim_type import *
 import claripy
 from collections import namedtuple
 
@@ -46,9 +47,11 @@ def pci_write(state, address, value):
 
 # size_t os_pci_enumerate(struct os_pci_address** out_devices);
 class os_pci_enumerate(angr.SimProcedure):
-    def run(self, out_devices):
-        out_devices = self.state.casts.ptr(out_devices)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.prototype = SimTypeFunction([SimTypePointer(SimTypePointer(SimTypeBottom(label="void")))], SimTypeLength(False), arg_names=["out_devices"])
 
+    def run(self, out_devices):
         self.state.pci.set_handlers(pci_read, pci_write)
         count = claripy.BVV(2, self.state.sizes.size_t) #TODO: claripy.BVS("pci_devices_count", self.state.sizes.size_t), but then how do we ensure they're unique?
 

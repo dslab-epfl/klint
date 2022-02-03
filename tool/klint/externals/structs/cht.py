@@ -1,4 +1,5 @@
 import angr
+from angr.sim_type import *
 import claripy
 from collections import namedtuple
 
@@ -11,11 +12,11 @@ Cht = namedtuple("chtp", ["cht_height", "backend_capacity"])
 MAX_CHT_HEIGHT = 40000
 
 class ChtAlloc(angr.SimProcedure):
-    def run(self, cht_height, backend_capacity):
-        # Casts
-        cht_height = self.state.casts.uint16_t(cht_height)
-        backend_capacity = self.state.casts.uint16_t(backend_capacity)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.prototype = SimTypeFunction([SimTypeNum(16, False), SimTypeNum(16, False)], SimTypePointer(SimTypeBottom(label="void")), arg_names=["cht_height", "backend_capacity"])
 
+    def run(self, cht_height, backend_capacity):
         # Preconditions
         assert utils.definitely_true(self.state.solver, claripy.And(
             0 < cht_height, cht_height < MAX_CHT_HEIGHT,
@@ -30,14 +31,14 @@ class ChtAlloc(angr.SimProcedure):
 
 
 class ChtFindPreferredAvailableBackend(angr.SimProcedure):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.prototype = SimTypeFunction(
+            [SimTypePointer(SimTypeBottom(label="void")), SimTypePointer(SimTypeBottom(label="void")), SimTypeLength(False), SimTypePointer(SimTypeNum(16, False)), SimTypePointer(SimTypeNum(16, False)), SimTypeNum(64, False)],
+            SimTypeBool(),
+            arg_names=["cht", "obj", "obj_size", "active_backends", "chosen_backends", "time"])
+
     def run(self, cht, obj, obj_size, active_backends, chosen_backend, time):
-        # Casts
-        cht = self.state.casts.ptr(cht)
-        obj = self.state.casts.ptr(obj)
-        obj_size = self.state.casts.size_t(obj_size)
-        active_backends = self.state.casts.ptr(active_backends)
-        chosen_backend = self.state.casts.ptr(chosen_backend)
-        time = self.state.casts.uint64_t(time)
         print(  f"!!! cht_find_preferred_available_backend [obj: {obj}, obj_size: {obj_size}, " +
                 f"active_backends: {active_backends}, chosen_backend: {chosen_backend}]" )
 

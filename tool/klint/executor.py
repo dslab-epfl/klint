@@ -1,5 +1,5 @@
 import angr
-from angr.sim_type import ALL_TYPES, SimTypeFunction, SimTypeTop
+from angr.sim_type import *
 import claripy
 import datetime
 import subprocess
@@ -80,7 +80,6 @@ libnf_init_externals.update(structs_alloc_externals)
 
 libnf_handle_externals = {
     'os_debug': klint.externals.os.log.os_debug,
-    'os_debug2': klint.externals.os.log.os_debug2,
     'net_transmit': klint.externals.net.tx.net_transmit,
     'net_flood': klint.externals.net.tx.net_flood,
     'net_flood_except': klint.externals.net.tx.net_flood_except
@@ -91,7 +90,7 @@ def get_libnf_inited_states(binary_path, devices_count):
     blank_state = binary_executor.create_blank_state(binary_path)
     # Create and run an init state
     # TODO Something very fishy in here, why do we need to reverse the arg? angr's endianness handling keeps puzzling me
-    init_state = binary_executor.create_calling_state(blank_state, "nf_init", SimTypeFunction([ALL_TYPES['uint16_t']], ALL_TYPES['bool']), [devices_count.reversed], libnf_init_externals)
+    init_state = binary_executor.create_calling_state(blank_state, "nf_init", SimTypeFunction([SimTypeNum(16, False)], SimTypeBool()), [devices_count.reversed], libnf_init_externals)
     init_state.solver.add(devices_count.UGT(0))
     statistics.work_start("symbex")
     # ignore the graph of states here, it's just init
@@ -104,7 +103,7 @@ def get_libnf_inited_states(binary_path, devices_count):
         state.solver.add(init_result != 0)
         if state.solver.satisfiable():
             state.path.clear() # less noise when debugging
-            state_creator = lambda st: binary_executor.create_calling_state(st, "nf_handle", SimTypeFunction([SimTypeTop()], None), [klint.externals.net.packet.alloc(st, devices_count)], libnf_handle_externals)
+            state_creator = lambda st: binary_executor.create_calling_state(st, "nf_handle", SimTypeFunction([SimTypePointer(SimTypeBottom(label="void"))], None), [klint.externals.net.packet.alloc(st, devices_count)], libnf_handle_externals)
             inited_states.append((state, state_creator))
     return inited_states
 

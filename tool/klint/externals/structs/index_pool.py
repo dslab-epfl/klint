@@ -1,4 +1,5 @@
 import angr
+from angr.sim_type import *
 import claripy
 from collections import namedtuple
 
@@ -12,13 +13,13 @@ Pool = namedtuple('poolp', ['size', 'expiration_time', 'items'])
 # requires size * sizeof(time_t) <= SIZE_MAX;
 # ensures poolp(result, size, expiration_time, nil);
 class index_pool_alloc(angr.SimProcedure):
-    def run(self, size, expiration_time):
-        # Casts
-        size = self.state.casts.size_t(size)
-        expiration_time = self.state.casts.uint64_t(expiration_time)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.prototype = SimTypeFunction([SimTypeLength(False), SimTypeNum(64, False)], SimTypePointer(SimTypeBottom(label="void")), arg_names=["size", "expiration_time"])
 
+    def run(self, size, expiration_time):
         # Preconditions
-        assert utils.definitely_true(self.state.solver, 
+        assert utils.definitely_true(self.state.solver,
             ((size * self.state.sizes.uint64_t).ULE(2 ** self.state.sizes.size_t - 1))
         )
 
@@ -46,12 +47,14 @@ class index_pool_alloc(angr.SimProcedure):
 #                        : (ghostmap_get(items, index) == none))
 #                : poolp(pool, size, exp_time, items);
 class index_pool_borrow(angr.SimProcedure):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.prototype = SimTypeFunction(
+            [SimTypePointer(SimTypeBottom(label="void")), SimTypeNum(64, False), SimTypePointer(SimTypeLength(False)), SimTypePointer(SimTypeBool())],
+            SimTypeBool(),
+            arg_names=["pool", "time", "out_index", "out_used"])
+
     def run(self, pool, time, out_index, out_used):
-        # Casts
-        pool = self.state.casts.ptr(pool)
-        time = self.state.casts.uint64_t(time)
-        out_index = self.state.casts.ptr(out_index)
-        out_used = self.state.casts.ptr(out_used)
         print("!!! index_pool_borrow", pool, time, out_index, out_used)
 
         # Preconditions
@@ -105,11 +108,11 @@ class index_pool_borrow(angr.SimProcedure):
 #          index < size;
 # ensures poolp(pool, size, exp_time, ghostmap_set(items, index, time));
 class index_pool_refresh(angr.SimProcedure):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.prototype = SimTypeFunction([SimTypePointer(SimTypeBottom(label="void")), SimTypeLength(False), SimTypeLength(False)], None, arg_names=["pool", "time", "index"])
+
     def run(self, pool, time, index):
-        # Casts
-        pool = self.state.casts.ptr(pool)
-        time = self.state.casts.uint64_t(time)
-        index = self.state.casts.size_t(index)
         print("!!! index_pool_refresh", pool, time, index)
 
         # Preconditions
@@ -130,11 +133,11 @@ class index_pool_refresh(angr.SimProcedure):
 #           case some(t): return result == pool_young(time, exp_time, 0, t);
 #         };
 class index_pool_used(angr.SimProcedure):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.prototype = SimTypeFunction([SimTypePointer(SimTypeBottom(label="void")), SimTypeLength(False), SimTypeLength(False)], SimTypeBool(), arg_names=["pool", "time", "index"])
+
     def run(self, pool, time, index):
-        # Casts
-        pool = self.state.casts.ptr(pool)
-        time = self.state.casts.uint64_t(time)
-        index = self.state.casts.size_t(index)
         print("!!! index_pool_used", pool, index, time)
 
         # Preconditions
@@ -160,10 +163,11 @@ class index_pool_used(angr.SimProcedure):
 #          index < size;
 # ensures poolp(pool, size, exp_time, ghostmap_remove(items, index));
 class index_pool_return(angr.SimProcedure):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.prototype = SimTypeFunction([SimTypePointer(SimTypeBottom(label="void")), SimTypeLength(False)], None, arg_names=["pool", "index"])
+
     def run(self, pool, index):
-        # Casts
-        pool = self.state.casts.ptr(pool)
-        index = self.state.casts.size_t(index)
         print("!!! index_pool_return", pool, index)
 
         # Preconditions

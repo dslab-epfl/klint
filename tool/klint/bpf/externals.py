@@ -1,4 +1,5 @@
 import angr
+from angr.sim_type import *
 import claripy
 from collections import namedtuple
 
@@ -79,6 +80,10 @@ def map_init(state, addr, map_def, havoc):
 
 # void *bpf_map_lookup_elem(struct bpf_map *map, const void *key)
 class bpf_map_lookup_elem(angr.SimProcedure):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.prototype = SimTypeFunction([SimTypePointer(SimTypeBottom(label="void")), SimTypePointer(SimTypeBottom(label="void"))], SimTypePointer(SimTypeBottom(label="void")), arg_names=["map", "key"])
+
     def run(self, map, key):
         bpfmap = self.state.metadata.get(BpfMap, map)
         key_data = self.state.memory.load(key, bpfmap.map_def.key_size, endness=self.state.arch.memory_endness)
@@ -98,6 +103,10 @@ class bpf_map_lookup_elem(angr.SimProcedure):
 
 # long bpf_map_update_elem(struct bpf_map *map, const void *key, const void *value, u64 flags)
 class bpf_map_update_elem(angr.SimProcedure):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.prototype = SimTypeFunction([SimTypePointer(SimTypeBottom(label="void")), SimTypePointer(SimTypeBottom(label="void")), SimTypePointer(SimTypeBottom(label="void")), SimTypeNum(64, False)], SimTypeLong(True), arg_names=["map", "key", "value", "flags"])
+
     def run(self, map, key, value, flags):
         assert utils.definitely_true(self.state.solver, flags == 0)
 
@@ -121,6 +130,10 @@ class bpf_map_update_elem(angr.SimProcedure):
 
 # long bpf_map_delete_elem(struct bpf_map *map, const void *key)
 class bpf_map_delete_elem(angr.SimProcedure):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.prototype = SimTypeFunction([SimTypePointer(SimTypeBottom(label="void")), SimTypePointer(SimTypeBottom(label="void"))], SimTypeLong(True), arg_names=["map", "key"])
+
     def run(self, map, key):
         print("delete", map, key)
         print("map", self.state.metadata.get(BpfMap, map))
@@ -143,10 +156,11 @@ class percpu_array_map_lookup_elem(bpf_map_lookup_elem):
 # HOWEVER: if the result is non-NULL, it's negatively shifted by some amount
 #          because what it really returns is a pointer to the hash table entry, and the BPF code compensates to find the pointer to the value
 class __htab_map_lookup_elem(angr.SimProcedure):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.prototype = SimTypeFunction([SimTypePointer(SimTypeBottom(label="void")), SimTypePointer(SimTypeBottom(label="void"))], SimTypePointer(SimTypeBottom(label="void")), arg_names=["map", "key"])
+
     def run(self, map, key):
-        # Casts
-        map = self.state.casts.ptr(map)
-        key = self.state.casts.ptr(key)
         print("!!! __htab_map_lookup_elem", map, key)
 
         # Preconditions
@@ -177,7 +191,7 @@ class __htab_map_lookup_elem(angr.SimProcedure):
 #  requires bpfmap(map, ?def, ?values, ?items) &*&
 #           [?fk]chars(key, def.key_size, ?key_data) &*&
 #           [?fv]chars(value, def.value_size, ?value_data) &*&
-#           flags == BPF_ANY; // TODO remove this one
+#           flags == BPF_ANY; // TODO remove this one at some point
 #  ensures [fk]chars(key, def.key_size, key_data) &*&
 #          [fv]chars(value, def.value_size, value_data) &*&
 #          switch(ghostmap_get(items, key_data)) {
@@ -188,13 +202,11 @@ class __htab_map_lookup_elem(angr.SimProcedure):
 #                                                            [100]chars(values + i * def.value_size, def.value_size, value_data);
 #          };
 class htab_map_update_elem(angr.SimProcedure):
-    def run(self, map, key, value, flags):
-        # Casts
-        map = self.state.casts.ptr(map)
-        key = self.state.casts.ptr(key)
-        value = self.state.casts.ptr(value)
-        flags = self.state.casts.uint64_t(flags)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.prototype = SimTypeFunction([SimTypePointer(SimTypeBottom(label="void")), SimTypePointer(SimTypeBottom(label="void")), SimTypePointer(SimTypeBottom(label="void")), SimTypeNum(64, False)], SimTypeInt(True), arg_names=["map", "key", "value", "map_flags"])
 
+    def run(self, map, key, value, flags):
         # Preconditions
         bpfmap = self.state.metadata.get(BpfMap, map)
         key_data = self.state.memory.load(key, bpfmap.map_def.key_size, endness=self.state.arch.memory_endness)
@@ -231,11 +243,11 @@ class htab_lru_map_update_elem(htab_map_update_elem):
 #              case none: result == -1 &*& bpfmap(map, def, values, items);
 #          };
 class htab_map_delete_elem(angr.SimProcedure):
-    def run(self, map, key):
-        # Casts
-        map = self.state.casts.ptr(map)
-        key = self.state.casts.ptr(key)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.prototype = SimTypeFunction([SimTypePointer(SimTypeBottom(label="void")), SimTypePointer(SimTypeBottom(label="void"))], SimTypeInt(True), arg_names=["map", "key"])
 
+    def run(self, map, key):
         # Preconditions
         bpfmap = self.state.metadata.get(BpfMap, map)
         key_data = self.state.memory.load(key, bpfmap.map_def.key_size, endness=self.state.arch.memory_endness)
@@ -253,6 +265,10 @@ class htab_map_delete_elem(angr.SimProcedure):
 # The description makes it sound like the flags are not used for anything else, which a look at the source code confirms
 # For now let's just make it always succeed
 class bpf_redirect_map(angr.SimProcedure):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.prototype = SimTypeFunction([SimTypePointer(SimTypeBottom(label="void")), SimTypeNum(32, False), SimTypeNum(64, False)], SimTypeLong(True), arg_names=["map", "key", "flags"])
+
     def run(self, map, key, flags):
         return claripy.BVV(3, self.state.sizes.ptr) # XDP_TX
 
@@ -263,20 +279,34 @@ class bpf_xdp_redirect_map(bpf_redirect_map):
 
 # u64 bpf_ktime_get_ns(void)
 class bpf_ktime_get_ns(angr.SimProcedure):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.prototype = SimTypeFunction([], SimTypeNum(64, False))
+
     def run(self):
         return claripy.BVS("bpf_ktime_ns", 64)
 
 # s64 bpf_csum_diff(__be32 *from, u32 from_size, __be32 *to, u32 to_size, __wsum seed)
 class bpf_csum_diff(angr.SimProcedure):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.prototype = SimTypeFunction(
+            [SimTypePointer(SimTypeNum(32, False)), SimTypeNum(32, False), SimTypePointer(SimTypeNum(32, False)), SimTypeNum(32, False), SimTypeNum(32, False)],
+            SimTypeNum(64, True),
+            arg_names=["from", "from_size", "to", "to_size", "seed"])
+
     def run(self, fromm, from_size, to, to_size, seed):
-        # we don't really handle checksums for now, anyway this is just engineering
+        # TODO we don't really handle checksums for now, anyway this is just engineering
         return claripy.BVV(0, 64)
 
 # long bpf_xdp_adjust_head(struct xdp_buff *xdp_md, int delta)
 class bpf_xdp_adjust_head(angr.SimProcedure):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.prototype = SimTypeFunction([SimTypePointer(SimTypeBottom(label="void")), SimTypeInt(True)], SimTypeLong(True), arg_names=["xdp_md", "delta"])
+
     def run(self, xdp_md, delta):
-        xdp_md = self.state.casts.ptr(xdp_md)
-        delta = self.state.casts.uint32_t(delta).sign_extend(self.state.sizes.ptr - 32) # need to extend it so we can use it with pointer-sized stuff...
+        delta = delta.sign_extend(self.state.sizes.ptr - 32) # need to extend it so we can use it with pointer-sized stuff...
 
         length = packet.get_length(self.state, xdp_md)
         def case_true(state):
@@ -291,6 +321,10 @@ class bpf_xdp_adjust_head(angr.SimProcedure):
 rand_value = claripy.BVS("bpf_user_rnd_u32_result", 32)
 # u32 bpf_user_rnd_u32(void)
 class bpf_user_rnd_u32(angr.SimProcedure):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.prototype = SimTypeFunction([], SimTypeNum(32, False))
+
     def run(self):
         # TODO ensure this is sound by checking it's called at most once (otherwise we just need a global to hold all random vals and keep track of idx per state...)
         return rand_value

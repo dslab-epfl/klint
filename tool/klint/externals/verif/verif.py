@@ -1,5 +1,5 @@
 import angr
-from angr.sim_type import ALL_TYPES, SimTypeFunction, SimTypeTop
+from angr.sim_type import *
 import claripy
 
 from kalm import utils
@@ -49,9 +49,11 @@ def _custom_memory(memory_count, memory_size): # size in bits
 
 # uint64_t* descriptor_ring_alloc(size_t count);
 class descriptor_ring_alloc(angr.SimProcedure):
-    def run(self, count):
-        count = self.state.casts.size_t(count)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.prototype = SimTypeFunction([SimTypeLength(False)], SimTypePointer(SimTypeNum(64, False)), arg_names=["count"])
 
+    def run(self, count):
         concrete_count = utils.get_if_constant(self.state.solver, count)
         assert concrete_count is not None
 
@@ -62,10 +64,11 @@ class descriptor_ring_alloc(angr.SimProcedure):
 
 # void* agents_alloc(size_t count, size_t size);
 class agents_alloc(angr.SimProcedure):
-    def run(self, count, size):
-        count = self.state.casts.size_t(count)
-        size = self.state.casts.size_t(size)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.prototype = SimTypeFunction([SimTypeLength(False), SimTypeLength(False)], SimTypePointer(SimTypeBottom(label="void")), arg_names=["count", "size"])
 
+    def run(self, count, size):
         concrete_count = utils.get_if_constant(self.state.solver, count)
         assert concrete_count is not None
         concrete_size = utils.get_if_constant(self.state.solver, size)
@@ -81,16 +84,16 @@ class agents_alloc(angr.SimProcedure):
 class foreach_index_forever(angr.SimProcedure):
     NO_RET = True # magic angr variable
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.prototype = SimTypeFunction([SimTypeLength(False), SimTypePointer(SimTypeBottom(label="void")), SimTypePointer(SimTypeBottom(label="void"))], None, arg_names=["length", "func", "state"])
+
     @staticmethod
     def state_creator(st, index, func, func_st):
         nf_device.receive_packet_on_device(st, index)
-        return binary_executor.create_calling_state(st, func, SimTypeFunction([ALL_TYPES['size_t'], SimTypeTop()], None), [index, func_st], nf_executor.nf_handle_externals)
+        return binary_executor.create_calling_state(st, func, SimTypeFunction([SimTypeLength(False), SimTypePointer(SimTypeBottom(label="void"))], None), [index, func_st], nf_executor.nf_handle_externals)
 
     def run(self, length, func, func_st):
-        length = self.state.casts.size_t(length)
-        func = self.state.casts.ptr(func)
-        func_st = self.state.casts.ptr(func_st)
-
         if func.op != 'BVV':
             raise Exception("Function pointer cannot be symbolic")
         self.state.solver.add(length.UGT(0))

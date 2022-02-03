@@ -1,4 +1,5 @@
 import angr
+from angr.sim_type import *
 import claripy
 from collections import namedtuple
 
@@ -11,8 +12,11 @@ IP_LEN = 32
 
 # TODO: Split allocation and fill-from-config
 class LpmAlloc(angr.SimProcedure):
-    def run(self):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.prototype = SimTypeFunction([], SimTypePointer(SimTypeBottom(label="void")))
 
+    def run(self):
         # Postconditions
         result = claripy.BVS("lpm", self.state.sizes.ptr)
         table = self.state.maps.new(IP_LEN + self.state.sizes.uint8_t, self.state.sizes.uint16_t, "lpm_table")
@@ -21,12 +25,11 @@ class LpmAlloc(angr.SimProcedure):
         return result
 
 class LpmUpdateElem(angr.SimProcedure):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.prototype = SimTypeFunction([SimTypePointer(SimTypeBottom(label="void")), SimTypeNum(32, False), SimTypeNum(8, False), SimTypeNum(16, False)], SimTypeBool(), arg_names=["lpm", "prefix", "prefixlen", "value"])
+
     def run(self, lpm, prefix, prefixlen, value):
-        # Casts
-        lpm = self.state.casts.ptr(lpm)
-        prefix = self.state.casts.uint32_t(prefix)
-        prefixlen = self.state.casts.uint8_t(prefixlen)
-        value = self.state.casts.uint16_t(value)
         print(  f"!!! lpm_update_elem [lpm: {lpm}, prefix: {prefix}, " 
                 f"prefixlen: {prefixlen}, value: {value}]")
 
@@ -41,14 +44,16 @@ class LpmUpdateElem(angr.SimProcedure):
         return utils.fork_guarded(self, self.state, claripy.BoolS("lpm_can_update"), case_true, case_false)
 
 # TODO: The issue right now is that there could be two routes (P,L) and (P',L) where (P >> L) == (P' >> L) but P != P'...
+#       ^^^ I don't even remember why I wrote this, tbh, maybe it's still an "issue" ?
 class LpmLookupElem(angr.SimProcedure):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.prototype = SimTypeFunction(
+            [SimTypePointer(SimTypeBottom(label="void")), SimTypeNum(32, False), SimTypePointer(SimTypeNum(16, False)), SimTypePointer(SimTypeNum(32, False)), SimTypePointer(SimTypeNum(8, False))],
+            SimTypeBool(),
+            arg_names=["lpm", "key", "out_value", "out_prefix", "out_prefixlen"])
+
     def run(self, lpm, key, out_value, out_prefix, out_prefixlen):
-        # Casts
-        lpm = self.state.casts.ptr(lpm)
-        key = self.state.casts.uint32_t(key)
-        out_value = self.state.casts.ptr(out_value)
-        out_prefix = self.state.casts.ptr(out_prefix)
-        out_prefixlen = self.state.casts.ptr(out_prefixlen)
         print(  f"!!! lpm_lookup_elem [lpm: {lpm}, key: {key}, " +
                 f"out_value: {out_value}, out_prefix: {out_prefix}, out_prefixlen: {out_prefixlen}]")
 
@@ -66,7 +71,7 @@ class LpmLookupElem(angr.SimProcedure):
             prefix = route[39:8]
             length = route[7:0].zero_extend(24)
             return prefix.LShR(length) == key.LShR(length)
-        
+
         def case_none(state):
             print("!!! lpm_lookup_elem: none")
             return claripy.BVV(0, state.sizes.bool)

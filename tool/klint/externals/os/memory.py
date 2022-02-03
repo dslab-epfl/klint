@@ -1,4 +1,5 @@
 import angr
+from angr.sim_type import *
 import claripy
 
 from kalm import utils
@@ -10,18 +11,18 @@ import klint.fullstack.device as nf_device
 # ensures uchars(result, count * size, ?cs) &*& true == all_eq(cs, 0) &*& result + count * size <= (char*) UINTPTR_MAX &*&
 #         result != NULL &*& (size_t) result % (size + CACHE_LINE_SIZE - (size % CACHE_LINE_SIZE)) == 0;
 class os_memory_alloc(angr.SimProcedure):
-    def run(self, count, size):
-        # Casts
-        count = self.state.casts.size_t(count)
-        size = self.state.casts.size_t(size)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.prototype = SimTypeFunction([SimTypeLength(False), SimTypeLength(False)], SimTypePointer(SimTypeBottom(label="void")), arg_names=["count", "size"])
 
+    def run(self, count, size):
         # Symbolism assumptions
         if size.symbolic:
             raise Exception("size cannot be symbolic")
 
         # Preconditions
         assert utils.definitely_true(self.state.solver,
-            (count == 1) | (count * size <= (2 ** self.state.sizes.size_t - 1))
+            (count == 1) | (count * size <= (2 ** self.state.sizes.size_t - 1)) # TODO use count.size instead of size_t here?
         )
 
         # Postconditions
@@ -36,10 +37,11 @@ class os_memory_alloc(angr.SimProcedure):
 
 # void* os_memory_phys_to_virt(uintptr_t addr, size_t size);
 class os_memory_phys_to_virt(angr.SimProcedure):
-    def run(self, addr, size):
-        addr = self.state.casts.ptr(addr)
-        size = self.state.casts.size_t(size)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.prototype = SimTypeFunction([SimTypeLength(False), SimTypeLength(False)], SimTypePointer(SimTypeBottom(label="void")), arg_names=["addr", "size"])
 
+    def run(self, addr, size):
         assert len(addr.variables) == 1
         original_addr = claripy.BVS(next(iter(addr.variables)), addr.size(), explicit_name=True)
         if utils.can_be_false(self.state.solver, addr == original_addr):
@@ -56,6 +58,9 @@ class os_memory_phys_to_virt(angr.SimProcedure):
 
 # uintptr_t os_memory_virt_to_phys(const void* addr);
 class os_memory_virt_to_phys(angr.SimProcedure):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.prototype = SimTypeFunction([SimTypePointer(SimTypeBottom(label="void"))], SimTypeLength(False), arg_names=["addr"])
+
     def run(self, addr):
-        addr = self.state.casts.ptr(addr)
         return addr # TODO proper handling
