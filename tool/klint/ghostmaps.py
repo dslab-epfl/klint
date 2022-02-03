@@ -844,6 +844,9 @@ def get_items_invariants(obj, relevant_objs, states, ancestor_states, ancestor_v
 # reached_fixpoint is self-explanatory
 # Assumes all ancestor_states have the same maps
 def infer_invariants(ancestor_states, states, previous_results=None):
+    if len(states) == 0:
+        return ([], previous_results, True)
+
     if previous_results is None:
         previous_results = {}
 
