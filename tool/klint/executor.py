@@ -98,7 +98,7 @@ def get_libnf_inited_states(binary_path, devices_count):
     # Create handle states from all successful inits
     inited_states = []
     for state in result_states:
-        init_result = utils.get_ret_val(state, 1) # ret val is a bool so we only care about 1 bit
+        init_result = utils.get_ret_val(state, 8) # ret val is a bool so we only care about 1 byte
         state.solver.add(init_result != 0)
         if state.solver.satisfiable():
             state.path.clear() # less noise when debugging
