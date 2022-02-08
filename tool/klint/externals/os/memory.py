@@ -20,9 +20,9 @@ class os_memory_alloc(angr.SimProcedure):
         if size.symbolic:
             raise Exception("size cannot be symbolic")
 
-        # Preconditions
+        # Preconditions (zero-extend to check correctly for overflows)
         assert utils.definitely_true(self.state.solver,
-            (count == 1) | (count * size <= (2 ** self.state.sizes.size_t - 1))
+            (count == 1) | ((count.zero_extend(self.state.sizes.size_t) * size.zero_extend(self.state.sizes.size_t)) <= (2 ** self.state.sizes.size_t - 1))
         )
 
         # Postconditions
