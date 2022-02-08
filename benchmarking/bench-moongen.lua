@@ -303,6 +303,10 @@ function measureStandard(queuePairs, extraPair, args)
     end
 
     io.write("loss = " .. loss)
+    if loss == 1 then
+      io.write(", something is wrong!\n")
+      os.exit(1)
+    end
     if not increased and (lastLoss - loss) < -0.05 then
       io.write(", the loss went up significantly even though the rate went down, something is wrong!\n")
       os.exit(1)
