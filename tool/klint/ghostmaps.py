@@ -238,6 +238,7 @@ class Map:
         (_, present) = self.get(state, key)
 
         # Create a fresh symbolic value V.
+        # TODO: Jay Lorch pointed out this isn't necessary; should we just create a 0-valued BV here?
         value = claripy.BVS(self.meta.name + "_badvalue", self.meta.value_size)
 
         # Return a new map with:
