@@ -24,8 +24,8 @@ def get_color_label_marker(nf):
   if 'click' in nf:
     return ('#ED7D31', 'Click (unverified)', '^')
   if 'dpdk' in nf:
-    return ('#7D31ED', 'Ours on DPDK (unverified)', 'v')
-  return ('#70AD47', 'Ours on TinyNF (verified binary)', 'P') # P == filled plus
+    return ('#7D31ED', 'Klint on DPDK (unverified)', 'v')
+  return ('#70AD47', 'Klint on TinyNF (verified binary)', 'P') # P == filled plus
 
 # The max Y, so we don't waste space showing some extreme 95% percentile
 YLIM = 12 # us
