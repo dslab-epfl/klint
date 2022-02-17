@@ -34,7 +34,7 @@ def execute(code_path, calls_path, maps_path, maps_to_havoc, havoc_all):
     devices_count = claripy.BVS("devices_count", 32)
 
     states, graphs = klint_executor.find_fixedpoint_states(
-        [(blank, lambda st: kalm_executor.create_calling_state(st, function, SimTypeFunction([SimTypePointer(SimTypeBottom(label="void"))], SimTypeNum(32, False)) [packet.create(st, devices_count)], exts))],
+        [(blank, lambda st: kalm_executor.create_calling_state(st, function, SimTypeFunction([SimTypePointer(SimTypeBottom(label="void"))], SimTypeNum(32, False)), [packet.create(st, devices_count)], exts))],
         existing_results=existing_results
     )
 

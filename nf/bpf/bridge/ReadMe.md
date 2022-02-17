@@ -2,6 +2,8 @@ The `Simplebridge_dp.c` file was obtained from the Polycube project, commit 245e
 It was originally in src/services/pcn-simplebridge/src/. 
 The original file is Copyright 2018 The Polycube Authors, Licensed under the Apache License, Version 2.0.
 
+`include/bpf_helper_defs.h` is from Linux, commit `f71077a4d84bbe8c7b91b7db7c4ef815755ac5e3`.
+
 It was modified in the following ways:
 - Added an include for our `polycube.h` stub
 - Copied the necessary includes locally
