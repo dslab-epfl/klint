@@ -14,6 +14,9 @@ mpl.use('Agg') # avoid the need for an X server
 mpl.rcParams['axes.spines.right'] = False # no right spine
 mpl.rcParams['axes.spines.top'] = False # no top spine
 mpl.rc('font', **{'size': 11})
+# HotCRP says to do that to avoid problems with embedded fonts
+mpl.rcParams['pdf.fonttype'] = 42
+mpl.rcParams['ps.fonttype'] = 42
 
 # The labels/colors we'll use
 def get_color_label_marker(nf):
