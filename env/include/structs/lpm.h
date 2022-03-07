@@ -41,6 +41,7 @@ struct lpm
 
 /*@ predicate table(struct lpm* t, dir_24_8 dir); @*/
 
+// Allocates a Longest-Prefix-Match (LPM) table.
 struct lpm *lpm_alloc(void);
 //@ requires *lpm_out |-> ?old_lo;
 /*@ ensures result == 0 ?
@@ -49,6 +50,7 @@ struct lpm *lpm_alloc(void);
               table(new_lo, dir_init()) &*&
               result == 1; @*/
 
+// Updates an entry in the LPM.
 bool lpm_update_elem(struct lpm *_lpm, uint32_t prefix,
                      uint8_t prefixlen, uint16_t value);
 /*@ requires table(_lpm, ?dir) &*&
@@ -64,6 +66,7 @@ bool lpm_update_elem(struct lpm *_lpm, uint32_t prefix,
             :
               table(_lpm, dir); @*/
 
+// Looks up a prefix in the LPM, returning the value and the prefix+length if found.
 bool lpm_lookup_elem(struct lpm *_lpm, uint32_t prefix, uint16_t *out_value,
                      uint32_t *out_prefix, uint8_t *out_prefixlen);
 //@ requires table(_lpm, ?dir);

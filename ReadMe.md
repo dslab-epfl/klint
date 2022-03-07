@@ -20,6 +20,7 @@ Please see the `experiments` folder readme.
 
 Start from a copy of `nf/nop`, which is a no-op network function.
 Use the existing `nf/*` functions as inspiration.
+All environment interactions must use the abstractions in `env/`, especially memory allocations.
 
 To verify it, compile it as documented in `nf/` and use Klint on it as documented in `tool/`.
 
