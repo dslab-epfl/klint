@@ -1,5 +1,5 @@
-[submodule "os/src/net/dpdk/dpdk"]
-	path = os/src/net/dpdk/dpdk
+[submodule "env/src/net/dpdk/dpdk"]
+	path = env/src/net/dpdk/dpdk
 	url = https://github.com/DPDK/dpdk
 	ignore = dirty
 [submodule "experiments/baselines/fastclick/fastclick"]

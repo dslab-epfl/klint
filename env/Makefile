@@ -1,3 +1,10 @@
+# Define:
+# - NF to the full path to the NF binary
+# - OS to the name of the OS from the implementations in src/os
+# - NET to the name of the network driver from the implementations in src/net
+# - NF_CONFIG to the full path to the NF config
+# - OS_CONFIG to the full path to the OS config
+
 ifndef NF
 $(error Please define NF)
 endif
@@ -7,11 +14,11 @@ endif
 ifndef NET
 $(error Please define NET)
 endif
-ifndef NF_CONFIG_FILENAME
-$(error Please define NF_CONFIG_FILENAME)
+ifndef NF_CONFIG
+$(error Please define NF_CONFIG)
 endif
-ifndef OS_CONFIG_FILENAME
-$(error Please define OS_CONFIG_FILENAME)
+ifndef OS_CONFIG
+$(error Please define OS_CONFIG)
 endif
 
 OUTPUT := bin
@@ -26,8 +33,8 @@ include $(THIS_DIR)/../Makefile.base
 CFLAGS += -I$(THIS_DIR)/include
 
 # Config
-CFLAGS += '-D OS_CONFIG_DATA=$(shell cat $(OS_CONFIG_FILENAME))'
-CFLAGS += '-D NF_CONFIG_DATA=$(shell cat $(NF_CONFIG_FILENAME))'
+CFLAGS += '-D OS_CONFIG_DATA=$(shell cat $(OS_CONFIG))'
+CFLAGS += '-D NF_CONFIG_DATA=$(shell cat $(NF_CONFIG))'
 
 # Shared or static depending on what the libNF is (shared obj or obj)
 ifneq (,$(findstring .so,$(NF)))

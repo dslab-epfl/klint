@@ -33,4 +33,4 @@ The second machine is the "tester" machine, which runs the MoonGen packet genera
       (By default, the script measures latency from 0 to max throughput in 1 Gb/s increments)
     - `--acceptableloss X` where `X` is the fraction of loss that is acceptable in the throughput benchmark, `0.003` by default.
     - `--flows X` where `X` is the number of different flows the packets should belong to
-    - `--reverseheatup` for `standard-single` to also heat up in the other direction, useful for some NFs like a load balancer that gets heartbeat packets from backends
+    - `--maglev` for `standard-single` to also heat up in the other direction, useful for Maglev which gets heartbeat packets from backends

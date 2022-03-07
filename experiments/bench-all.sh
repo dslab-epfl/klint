@@ -1,5 +1,5 @@
 #!/bin/sh
-# TODO: document need for musl-gcc somewhere
+# This script is a bit messy, sorry...
 
 exp_dir=$(pwd)
 rm -rf "$exp_dir/results"
@@ -12,9 +12,9 @@ bridge_args='standard 2'
 echo '[!!!] Benchmarking bridges'
 while ! NF=bridge BATCH_SIZE=32 ./bench.sh "$exp_dir/baselines/fastclick" $bridge_args ; do sleep 5; done
 mv 'results' "$exp_dir/results/bridge-click"
-while ! NF=bridge OS=dpdk NET=dpdk BATCH_SIZE=32 ./bench.sh '..' $bridge_args ; do sleep 5; done
+while ! NF=bridge OS=dpdk NET=dpdk BATCH_SIZE=32 ./bench.sh '../env' $bridge_args ; do sleep 5; done
 mv 'results' "$exp_dir/results/bridge-dpdk"
-while ! NF=bridge NF_EXT=.o CC=musl-gcc OS=linux NET=tinynf ./bench.sh '..' $bridge_args ; do sleep 5; done
+while ! NF=bridge NF_EXT=.o CC=musl-gcc OS=linux NET=tinynf ./bench.sh '../env' $bridge_args ; do sleep 5; done
 mv 'results' "$exp_dir/results/bridge-ours"
 while ! NF=vigbridge ./bench.sh "$exp_dir/baselines/vigor" $bridge_args ; do sleep 5; done
 mv 'results' "$exp_dir/results/bridge-vigor-dpdk"
@@ -32,7 +32,7 @@ for nf in bridge firewall maglev nat policer; do
   if [ "$nf" = 'maglev' ]; then extra_arg='--maglev'; fi
 
   echo '[!!!] Benchmarking our NF: '"$nf"
-  while ! NF_EXT=.o CC=musl-gcc NF=$nf OS=linux NET=tinynf ./bench.sh '..' $extra_arg $singledir_args $layer ; do
+  while ! NF_EXT=.o CC=musl-gcc NF=$nf OS=linux NET=tinynf ./bench.sh '../env' $extra_arg $singledir_args $layer ; do
     sleep 5
   done
   mv 'results' "$exp_dir/results/singledir-ours-$nf"

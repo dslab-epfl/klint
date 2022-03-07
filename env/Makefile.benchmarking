@@ -1,0 +1,35 @@
+# Define NF to the folder of the NF, which must contain libnf.so
+# Optionally define NF_EXT to change the libNF extension (default .so)
+
+ifndef NF
+$(error Please define NF)
+endif
+
+NF_EXT ?= .so
+
+# Get current dir, see https://stackoverflow.com/a/8080530
+SELF_DIR := $(abspath $(dir $(lastword $(MAKEFILE_LIST))))
+
+build:
+	@sudo modprobe msr # necessary for the Linux clock impl
+	@make -C $(NF) -f $(SELF_DIR)/../nf/Makefile.nf
+	@echo '$(NF_ARGS)' | tr ' ' '\n' | tr ':.' ' ' | awk '{ print "{ .bus = 0x" $$1 ", .device = 0x" $$2 ", .function = 0x" $$3 " },"}' > $(SELF_DIR)/config
+	@NF=$(NF)/libnf$(NF_EXT) NF_CONFIG=$(NF)/config OS_CONFIG=$(SELF_DIR)/config make -C $(SELF_DIR)
+
+ifdef BENCHMARK_USE_DOCKER
+run:
+	@echo 'NOTE: Using Docker to run the NF'
+	@cp $(SELF_DIR)/bin $(SELF_DIR)/docker/.
+	@sudo docker run --privileged --cpuset-cpus $(DUT_CPUS) $$(sudo docker build --quiet $(SELF_DIR)/docker)
+else
+run:
+	@sudo $(SELF_DIR)/bin
+endif
+
+print-nf-name:
+	@echo bin
+
+ifeq ($(NET),dpdk)
+is-dpdk:
+	@# yes
+endif

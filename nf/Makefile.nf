@@ -11,7 +11,7 @@ CFLAGS += -nostdlib
 CFLAGS += -ffreestanding -nostdinc -isystem $(shell gcc -print-search-dirs | head -n 1 | cut -d ':' -f 2)/include
 
 # OS headers
-CFLAGS += -I$(SELF_DIR)/../os/include
+CFLAGS += -I$(SELF_DIR)/../env/include
 
 # NF source
 SRCS += $(shell echo *.c)
