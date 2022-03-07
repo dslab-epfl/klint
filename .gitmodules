@@ -1,7 +1,3 @@
-[submodule "env/src/net/dpdk/dpdk"]
-	path = env/src/net/dpdk/dpdk
-	url = https://github.com/DPDK/dpdk
-	ignore = dirty
 [submodule "experiments/baselines/fastclick/fastclick"]
 	path = experiments/baselines/fastclick/fastclick
 	url = https://github.com/tbarbette/fastclick
@@ -25,4 +21,8 @@
 [submodule "experiments/baselines/tinynf/tinynf"]
 	path = experiments/baselines/tinynf/tinynf
 	url = https://github.com/dslab-epfl/tinynf
+	ignore = dirty
+[submodule "env/src/net/dpdk/dpdk"]
+	path = env/src/net/dpdk/dpdk
+	url = https://github.com/DPDK/dpdk
 	ignore = dirty
