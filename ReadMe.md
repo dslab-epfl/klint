@@ -14,3 +14,14 @@ This is the artifact for the paper "Automated Verification of Network Function B
 ## Reproducing paper results
 
 Please see the `experiments` folder readme.
+
+
+## Writing and verifying your own network function
+
+Start from a copy of `nf/nop`, which is a no-op network function.
+Use the existing `nf/*` functions as inspiration.
+
+To verify it, compile it as documented in `nf/` and use Klint on it as documented in `tool/`.
+
+If you need new data structures, add them in `env/include/structs`, `env/src/structs`.
+Then add Klint contracts in `tool/klint/externals` and add them to the `*_externals` dictionaries in `tool/klint/executor.py`.
