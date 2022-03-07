@@ -1,6 +1,4 @@
-# Klint
-
-**This repo is not fully documented yet, we will improve it before the paper is officially published; feel free to ask questions or suggest improvements as issues.**
+This is the artifact for the paper "Automated Verification of Network Function Binaries" presented at NSDI'22.
 
 
 - `benchmarking` is the benchmarking scripts (copied from TinyNF with some "improvements" that should be double-checked)
