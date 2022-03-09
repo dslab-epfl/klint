@@ -10,6 +10,12 @@ This is the artifact for the paper "Automated Verification of Network Function B
 - `tool` contains the Klint tool
 - `Makefile.base` is the common Makefile for all C code
 
+Network functions get compiled in two steps.
+First, compiling the network function code against the environment interface leads to a static or dynamic library.
+This library can be verified with Klint, even without debugging symbols, since it must export symbols for linking with the environment.
+Second, compiling the library along with the environment implementation leads to a binary that can be run.
+Part of this binary can also be verified with Klint for "full-stack" verification, specifically the driver and the network function, if it is compiled in such a way that these symbols still exist.
+
 
 ## Reproducing paper results
 
