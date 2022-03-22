@@ -19,3 +19,5 @@ The intended entry point is `./klint.py`, use `--help` for usage instructions. M
 Klint is based on angr, so if you want to extend it the angr tutorial is a must: https://docs.angr.io/core-concepts
 
 Klint also has some basic unit tests, run `python -m unittests`
+
+Note that the "instruction limit" mentioned in the paper is not yet supported but should be trivial to add using angr's built-in features.
