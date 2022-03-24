@@ -4,6 +4,8 @@
 
 
 # === Typing ===
+# Specs should not need to directly refer to any of these.
+# This type and functions wrap and unwrap values for symbolic execution.
 
 class TypedWrapper(dict): # for convenience: use dict.item instead of dict['item']
     def __getattr__(self, item):
@@ -55,11 +57,14 @@ def type_unwrap(value, type):
 
 # === Spec 'built-in' functions ===
 
+# Get the type of 'value'
 def typeof(value):
     if isinstance(value, dict):
         return sum(typeof(v) for v in value.values())
     return value.size()
 
+# Existential quantifier, returns true iff there definitely exists a value that satisfies 'func'
+# 'func' is a lambda with one parameter returning a bool
 def exists(type, func):
     global __symbex__
     value = __symbex__.state.BVS("exists_value", type_size(type))
@@ -68,6 +73,13 @@ def exists(type, func):
 
 # === Maps ===
 
+# This is the key to abstracting data structures in specs.
+# Declare a Map(key_type, value_type) at the start of the spec, where value_type can be the literal '...' to mean you don't care
+# Then use the methods/properties
+# Verification will find one map in the implementation that corresponds to the specification map, or fail if there is no mapping such that the specification holds
+# Beware, because this is existential ("there exists a map such that..."), specs have to be written in a "positive" fashion, such as asserting that items are added to the map
+# If you write specs with only "negative" properties such as "if X then items are _not_ added to map M", this may hold for some map other than the specific one you had in mind,
+# and then verification will succeed...
 class Map:
     def __init__(self, key_type, value_type, _map=None):
         global __symbex__
@@ -90,15 +102,16 @@ class Map:
             obj = __choose__(list(map(lambda c: c[0], candidates)))
             _map = next(m for (o, m) in __symbex__.state.maps if o.structurally_match(obj))
             # Debug:
-            print(key_type, "->", value_type)
-            for (o, m) in candidates:
-                print("  ", m, m.meta.key_size, m.meta.value_size)
-            print(" ->", _map)
+            #print(key_type, "->", value_type)
+            #for (o, m) in candidates:
+            #    print("  ", m, m.meta.key_size, m.meta.value_size)
+            #print(" ->", _map)
 
         self._map = _map
         self._key_type = key_type
         self._value_type = None if value_type is ... else value_type
 
+    # This returns a Map representing the state of this Map before processing the current packet
     @property
     def old(self):
         return Map(self._key_type, self._value_type, _map=self._map.oldest_version())
@@ -115,6 +128,7 @@ class Map:
             raise Exception("Spec called get but element may not be there")
         return type_wrap(value, self._value_type)
 
+    # 'pred' is a lambda taking in key, value and returning bool
     def forall(self, pred):
         global __symbex__
         return self._map.forall(__symbex__.state, lambda k, v: pred(type_wrap(k, self._key_type), type_wrap(v, self._value_type)))
@@ -126,6 +140,7 @@ class Map:
 
 
 # Special case for a single-element map, commonly used to store state
+# Instead of declaring a Map(intptr_t, value_type), declare a Cell(value_type)
 class Cell:
     def __init__(self, value_type):
         global __symbex__
@@ -146,10 +161,10 @@ class Cell:
         self._map = next(m for (o, m) in __symbex__.state.maps if o.structurally_match(obj))
         self.value_type = value_type
         # Debug:
-        print("cell", value_type)
-        for (o, m) in candidates:
-            print("  ", m, m.meta.value_size)
-        print(" ->", self._map)
+        #print("cell", value_type)
+        #for (o, m) in candidates:
+        #    print("  ", m, m.meta.value_size)
+        #print(" ->", self._map)
 
     @property
     def value(self):
@@ -164,6 +179,7 @@ class Cell:
 
 # === Config ===
 
+# The config object passed to the spec, has the config parameters as dictionary values (e.g. `config["thing"]`) plus a "devices_count" property
 class _SpecConfig:
     def __init__(self, meta, devices_count):
         self._meta = meta
@@ -180,6 +196,7 @@ class _SpecConfig:
 
 
 # === Network devices ===
+# One of these two will be the `packet.device` value, you can use 'in' and `.length` on them
 
 class _SpecFloodedDevice:
     def __init__(self, orig_device, devices_count):
@@ -206,6 +223,7 @@ class _SpecSingleDevice:
 
 
 # === Network packet ===
+# See below for the exact properties, the idea is you can do e.g. `packet.ipv4 is None` or `packet.ether.dst` instead of writing the specific byte offsets
 
 class _SpecPacketHeader:
     def __init__(self, state, map, offset, attrs):
@@ -281,7 +299,7 @@ class _SpecPacket:
 
     @property
     def ipv4(self):
-        if self.ether.type == 0x0008: # TODO handle endness in spec
+        if self.ether.type == 0x0008: # TODO handle endianness in spec
             return _SpecPacketHeader(self.state, self.map, 48+48+16, {
                 'ihl': 4,
                 'version': 4,
@@ -316,7 +334,7 @@ class _SpecPacket:
 # === Network 'built-in' functions ===
 
 def ipv4_checksum(header):
-    return header.checksum # TODO
+    return header.checksum # TODO actuallx compute it instead :-)
 
 
 # === Spec wrapper ===
@@ -324,7 +342,7 @@ def ipv4_checksum(header):
 def _spec_wrapper(data):
     global __symbex__
     state = __symbex__.state
-    print("PATH", state._value.path._segments)
+    #print("PATH", state._value.path._segments)
 
     received_packet_map = state.maps[data.network.received_addr].oldest_version()
     received_packet = _SpecPacket(state, received_packet_map, data.network.received_length, data.time, _SpecSingleDevice(data.network.received_device))
