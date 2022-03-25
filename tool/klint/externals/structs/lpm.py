@@ -10,7 +10,6 @@ Lpm = namedtuple("lpmp", ["table"])
 
 IP_LEN = 32
 
-# TODO: Split allocation and fill-from-config
 class LpmAlloc(angr.SimProcedure):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
