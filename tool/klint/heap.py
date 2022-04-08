@@ -155,7 +155,9 @@ class HeapPlugin(SimStatePlugin):
             if meta.fractions is not None:
                 # Ensure we can actually write
                 fraction, present = state.maps.get(meta.fractions, index)
-                assert utils.definitely_true(state.solver, present & (fraction == 100))
+                assert utils.definitely_true(state.solver, present & (fraction == 100)), (
+                       "Illegal write on " + str(base) + ", index " + str(index) + ", offset " + str(offset) +
+                       " ; should be present&owned, presence can be " + str(state.solver.eval_upto(present, 2)) + " and ownership can be " + str(state.solver.eval_upto(fraction, 5)))
             # The rest may be smaller than the write size, need to account for that
             chunk = rest[min(rest.size(), write_size)-1:0]
             # If we have to write at an offset, which can only happen on the first chunk, we need to write less
