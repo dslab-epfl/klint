@@ -257,7 +257,10 @@ def _symbex(state_data):
                     branches[-1] = (branches[-1][0], False)
             # If we reached the end of the loop, we're all done!
             return ([cs[0] for cs in choices], results)
-        except:
+        except Exception as ex:
+            # Just throw for built-in exceptions, e.g., syntax errors
+            if ex.__class__.__module__ == 'builtins':
+                raise
             # Debug:
             print("A choice didn't work. Trying with a different one.")
             #failures = failures + 1
