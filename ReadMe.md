@@ -30,7 +30,7 @@ All environment interactions must use the abstractions in `env/`, especially mem
 
 To verify it, compile it as documented in `nf/` and use Klint on it as documented in `tool/`.
 
-To write a spec, look at the existing examples and check out the functions/types you can use in `tool/klint/verif/spec_*.py` files.
+To write a spec, look at the the documentation in `tool/`, and at existing specs in `nf/` folders.
 
 If you need new data structures, add them in `env/include/structs`, `env/src/structs`.
 Then add Klint contracts in `tool/klint/externals` and add them to the `*_externals` dictionaries in `tool/klint/executor.py`.
