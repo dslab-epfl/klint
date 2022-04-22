@@ -28,6 +28,9 @@ Note that the "instruction limit" mentioned in the paper is not yet supported bu
 Specs are Python files. The files are actually executed using the standard Python interpreter, so any Python works.
 Use the `assert` statement for assertions (though you can raise exceptions manually if that's your thing).
 
+Use `|`, `&` and `~` instead of `or`, `and`, and `not` respectively, this is a Python limitation unfortunately.
+(The custom objects we use must override this behavior, and only the operators can be overriden, not the keywords.)
+
 The way Klint interprets specs is by executing them in the interpreter passing special global variables (which you should not need to worry about),
 but first prepending `klint/verif/spec_prefix.py` (to define packets, maps, ...) and `klint/verif/spec_utils.py` (utilities that use the `prefix` stuff).
 
