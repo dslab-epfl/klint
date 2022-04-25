@@ -4,7 +4,8 @@ Route = {
 }
 
 def matches(route, ip):
-    return (route.dest >> route.length) == (ip >> route.length)
+    shift = 32 - route.length
+    return (route.dest >> shift) == (ip >> shift)
 
 # RFC 1812 "Requirements for IP Version 4 Routers"
 def spec(packet, config, transmitted_packet):
@@ -41,7 +42,6 @@ def spec(packet, config, transmitted_packet):
     if transmitted_packet is not None:
         assert transmitted_packet.ipv4 is not None
         assert transmitted_packet.ipv4.time_to_live > 0
-
 
     # === §5.2.4.3 Next Hop Address === #
     if transmitted_packet is None:
