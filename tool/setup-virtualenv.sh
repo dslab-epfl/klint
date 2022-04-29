@@ -3,6 +3,11 @@
 
 VIRTENV_NAME='angr'
 
+if [ ! -f 'requirements.txt' ]; then
+  echo 'Please source this script from the folder it resides in'
+  return
+fi
+
 if [ ! -d "$HOME/.virtualenvs/$VIRTENV_NAME" ]; then
   sudo apt install -y python3.8 python3-pip
   python3.8 -m pip install virtualenv virtualenvwrapper
@@ -18,5 +23,5 @@ if [ -d "$HOME/.virtualenvs/$VIRTENV_NAME" ]; then
   workon "$VIRTENV_NAME"
 else
   mkvirtualenv "$VIRTENV_NAME"
-  pip install -r requirements.txt
+  pip install -r 'requirements.txt'
 fi
