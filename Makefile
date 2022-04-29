@@ -19,3 +19,8 @@ build-%: compile-%
 verify-%: compile-%
 	@if ! which python >/dev/null; then echo 'No python found, perhaps you need to set up the virtualenv?'; exit 1; fi
 	@$(SELF_DIR)/tool/klint.py libnf $(SELF_DIR)/nf/$*/libnf.so $(SELF_DIR)/nf/$*/spec.py
+
+benchmark-%: compile-%
+	@if [ ! -f $(SELF_DIR)/benchmarking/config ]; then echo 'Please set the benchmarking config, see $(SELF_DIR)/benchmarking/ReadMe.md'; exit 1; fi
+	@if [ '$(NF_LAYER)' = '' ]; then echo 'Please set NF_LAYER to the layer of your NF, e.g., 2 for a bridge, 4 for a TCP/UDP firewall'; exit 1; fi
+	@NF=$(SELF_DIR)/nf/bridge OS=$(OS) NET=$(NET) $(SELF_DIR)/benchmarking/bench.sh '$(SELF_DIR)/env' standard $(NF_LAYER)

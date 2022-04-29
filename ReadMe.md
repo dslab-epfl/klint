@@ -18,7 +18,7 @@ Second, compiling the library along with the environment implementation leads to
 Part of this binary can also be verified with Klint for "full-stack" verification, specifically the driver and the network function, if it is compiled in such a way that these symbols still exist.
 
 An example of end-to-end usage is `Makefile`, which can `compile-X` (compile just nf/X), `build-X` (compile nf/X and link it with a compiled environment),
-and `verify-X` (using nf/X/spec.py), for an NF X in `nf/` such as `firewall`.
+`verify-X` (using nf/X/spec.py), and `benchmark-X` (basic benchmark of nf/X) for an NF X in `nf/` such as `firewall`.
 
 
 ## Reproducing paper results
