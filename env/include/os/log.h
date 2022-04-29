@@ -4,7 +4,6 @@
 #define DEBUG_LEVEL 0
 #endif
 
-void os_debug2(unsigned long long int value);
 #if DEBUG_LEVEL > 0
 // No pre/postconditions, this method needs not be verified
 void os_debug(const char* message);
