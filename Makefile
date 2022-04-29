@@ -24,3 +24,7 @@ benchmark-%: compile-%
 	@if [ ! -f $(SELF_DIR)/benchmarking/config ]; then echo 'Please set the benchmarking config, see $(SELF_DIR)/benchmarking/ReadMe.md'; exit 1; fi
 	@if [ '$(NF_LAYER)' = '' ]; then echo 'Please set NF_LAYER to the layer of your NF, e.g., 2 for a bridge, 4 for a TCP/UDP firewall'; exit 1; fi
 	@NF=$(SELF_DIR)/nf/bridge OS=$(OS) NET=$(NET) $(SELF_DIR)/benchmarking/bench.sh '$(SELF_DIR)/env' standard $(NF_LAYER)
+
+compile-all: dummy
+	@for d in $(SELF_DIR)/nf/* ; do if [ -d $$d ] && [ "$$(basename $$d)" != 'bpf' ]; then $(MAKE) -C $(SELF_DIR) compile-$$(basename $$d) >/dev/null ; fi ; done
+	@for d in $(SELF_DIR)/nf/bpf/*; do cd $$d && ./compile-bpf.sh ; done
