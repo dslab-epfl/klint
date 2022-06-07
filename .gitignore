@@ -11,3 +11,6 @@
 
 # VSCode config
 .vscode/
+
+# Symbolic execution graphs
+graphs/

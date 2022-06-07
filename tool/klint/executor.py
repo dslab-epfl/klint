@@ -46,10 +46,10 @@ structs_functions_externals = {
 }
 
 
-def find_fixedpoint_states(states_data, ret_width=None, existing_results=None):
+# graph_handler instead of returning graphs so we can get intermediary graphs even if there's later a crash or hang
+def find_fixedpoint_states(states_data, ret_width=None, existing_results=None, graph_handler=None):
     # HACK: Allow callers to pass existing_results, for BPF map havocing...
     inference_results = existing_results
-    result_graphs = []
     while True:
         print("Running an iteration of the main loop at", datetime.datetime.now())
         statistics.work_start("symbex")
@@ -58,7 +58,8 @@ def find_fixedpoint_states(states_data, ret_width=None, existing_results=None):
             starting_state = state_fun(state.copy())
             states, graph = binary_executor.run_state(starting_state, ret_width=ret_width)
             result_states += states
-            result_graphs.append(graph)
+            if graph_handler is not None:
+                graph_handler(graph)
         statistics.work_end()
         print("Inferring invariants on", len(result_states), "states at", datetime.datetime.now())
         states = [s for (s, _) in states_data]
@@ -66,7 +67,7 @@ def find_fixedpoint_states(states_data, ret_width=None, existing_results=None):
         (states, inference_results, reached_fixpoint) = klint.ghostmaps.infer_invariants(states, result_states, inference_results)
         statistics.work_end()
         if reached_fixpoint:
-            return (result_states, result_graphs)
+            return result_states
         states_data = [(new_s, fun) for (new_s, (old_s, fun)) in zip(states, states_data)]
 
 
@@ -92,7 +93,7 @@ def get_libnf_inited_states(binary_path, devices_count):
     init_state = binary_executor.create_calling_state(blank_state, "nf_init", SimTypeFunction([SimTypeNum(16, False)], SimTypeBool()), [devices_count], libnf_init_externals)
     init_state.solver.add(devices_count.UGT(0))
     statistics.work_start("symbex")
-    # ignore the graph of states here, it's just init
+    # ignore the graph here, not useful
     result_states, _ = binary_executor.run_state(init_state)
     statistics.work_end()
     # Create handle states from all successful inits
@@ -106,13 +107,13 @@ def get_libnf_inited_states(binary_path, devices_count):
             inited_states.append((state, state_creator))
     return inited_states
 
-def execute_libnf(binary_path):
+def execute_libnf(binary_path, graph_handler=None):
     print("libNF symbex starting at", datetime.datetime.now())
     devices_count = claripy.BVS('devices_count', 16) # TODO avoid the hardcoded 16 here
     inited_states = get_libnf_inited_states(binary_path, devices_count)
-    result_states, result_graphs = find_fixedpoint_states(inited_states, ret_width=0) # no return value in libnf's main
+    result_states = find_fixedpoint_states(inited_states, ret_width=0, graph_handler=graph_handler) # ret_width=0 cause no return value in libnf's main
     print("libNF symbex done at", datetime.datetime.now())
-    return (result_states, devices_count, result_graphs) # TODO devices_count should be in metadata somewhere, not explicitly returned
+    return (result_states, devices_count) # TODO devices_count should be in metadata somewhere, not explicitly returned
 
 
 # === Full-stack ===
@@ -147,6 +148,6 @@ def execute_nf(binary_path):
     binary_executor.run_state(init_state, allow_trap=True) # this will fill nf_inited_states; we allow traps only here since that's how init can fail
     statistics.work_end()
     assert len(nf_inited_states) > 0
-    result_states, _ = find_fixedpoint_states(nf_inited_states)
+    result_states = find_fixedpoint_states(nf_inited_states)
     print("NF symbex done at", datetime.datetime.now())
     return (result_states, claripy.BVV(2, 16)) # TODO ouch hardcoding, same remark as in execute_libnf

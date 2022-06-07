@@ -16,16 +16,13 @@ import klint.verif.executor as verif_executor
 #import tests.test ; import sys
 #tests.test.Tests().test_forall_subset() ; sys.exit(0)
 
-
-def export_graphs(args, graphs):
-    if not args.export_graphs:
+def handle_graph(graph):
+    global graph_counter
+    if graph_counter is None:
         return
-    if os.path.isdir('graphs'):
-        shutil.rmtree('graphs')
-    os.makedirs('graphs')
-    for i, graph in enumerate(graphs):
-        with open('graphs/' + str(i) + '.dot', 'w') as file:
-            file.write(graph)
+    with open('graphs/' + str(graph_counter) + '.dot', 'w') as file:
+        file.write(graph)
+    graph_counter = graph_counter + 1
 
 def verif(data_path, spec_path):
     if spec_path is None:
@@ -42,8 +39,7 @@ def verif(data_path, spec_path):
 def handle_libnf(args):
     cached_data_path = args.file + ".symbex-cache"
     if not args.use_cached_symbex:
-        states, devices_count, graphs = nf_executor.execute_libnf(args.file)
-        export_graphs(args, graphs)
+        states, devices_count = nf_executor.execute_libnf(args.file, graph_handler=handle_graph)
         verif_persist.dump_data(states, devices_count, cached_data_path)
     verif(cached_data_path, args.spec)
 
@@ -60,8 +56,7 @@ def handle_bpf(args):
         bpf_detection.override_linux_version(args.override_linux_version)
     if args.override_64bit is not None:
         bpf_detection.override_64bit(args.override_64bit)
-    states, devices_count, graphs = bpf_executor.execute(args.binary, args.calls, args.maps, args.havoc, args.havoc_all)
-    export_graphs(args, graphs)
+    states, devices_count = bpf_executor.execute(args.binary, args.calls, args.maps, args.havoc, args.havoc_all)
     verif_persist.dump_data(states, devices_count, cached_data_path)
     verif(cached_data_path, args.spec)
 
@@ -93,6 +88,16 @@ parser_bpf.add_argument('--havoc-all', action='store_true', help='Havoc all maps
 parser_bpf.set_defaults(func=handle_bpf)
 
 args = parser.parse_args()
+
+global graph_counter
+if args.export_graphs:
+    graph_counter = 0
+    if os.path.isdir('graphs'):
+        shutil.rmtree('graphs')
+    os.makedirs('graphs')
+else:
+    graph_counter = None
+
 #For debugging:
 #args = parser.parse_args(['--use-cached-symbex', 'libnf', 'D:/Projects/vigor-binary-experiments/nf/firewall/libnf.so', 'D:/Projects/vigor-binary-experiments/nf/firewall/spec.py'])
 args.func(args)
