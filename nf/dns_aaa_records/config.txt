@@ -1,0 +1,3 @@
+{"max number of dns records", 4000}
+{"command device", 1}
+{"regular device", 2}

@@ -63,12 +63,21 @@ def typeof(value):
         return sum(typeof(v) for v in value.values())
     return value.size()
 
+def if_then_else(cond, thn, els):
+    global __symbex__
+    return __symbex__.state.solver.If(cond, thn, els)
+
 # Existential quantifier, returns true iff there definitely exists a value that satisfies 'func'
 # 'func' is a lambda with one parameter returning a bool
 def exists(type, func):
     global __symbex__
     value = __symbex__.state.BVS("exists_value", type_size(type))
     return __symbex__.state.solver.satisfiable(extra_constraints=[func(type_wrap(value, type))])
+
+# Constant with the given value and type, occasionally necessary
+def constant(value, type):
+    global __symbex__
+    return __symbex__.state.BVV(value, type_size(type))
 
 
 # === Maps ===
@@ -233,15 +242,17 @@ class _SpecPacketHeader:
         self.attrs = attrs
 
     def __getattr__(self, attr):
+        if attr == 'as_value':
+            return super().__getattr__(attr)
         # Same logic as the heap plugin's read method
         # First find the attribute's offset and size
         offset = self.offset
         size = None
         for (name, sz) in self.attrs.items():
             if name == attr:
-                size = sz
+                size = type_size(sz)
                 break
-            offset += sz
+            offset += type_size(sz)
         if size is None:
             raise Exception("Unknown attribute: " + attr)
         # Convert the offset to index+offset
@@ -262,6 +273,14 @@ class _SpecPacketHeader:
         if result.size() > size:
             result = result[size-1:0]
         return result
+
+    def as_value(self):
+        result = None
+        for a in self.attrs:
+            val = getattr(self, a)
+            result = val if result is None else val.concat(result)
+        return result
+
 
 class _SpecPacketData:
     def __init__(self, state, map):
@@ -333,8 +352,11 @@ class _SpecPacket:
 
 # === Network 'built-in' functions ===
 
+def get_header(packet, header_type, offset=0):
+    return _SpecPacketHeader(packet.state, packet.map, offset, header_type)
+
 def ipv4_checksum(header):
-    return header.checksum # TODO actuallx compute it instead :-)
+    return header.checksum # TODO actually compute it instead :-)
 
 
 # === Spec wrapper ===
@@ -342,7 +364,7 @@ def ipv4_checksum(header):
 def _spec_wrapper(data):
     global __symbex__
     state = __symbex__.state
-    #print("PATH", state._value.path._segments)
+    print("PATH", state._value.path._segments)
 
     received_packet_map = state.maps[data.network.received_addr].oldest_version()
     received_packet = _SpecPacket(state, received_packet_map, data.network.received_length, data.time, _SpecSingleDevice(data.network.received_device))

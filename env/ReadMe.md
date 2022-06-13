@@ -43,3 +43,9 @@
 { .bus = 0x83, .device = 0x00, .function = 0x0 },
 { .bus = 0x85, .device = 0x00, .function = 0x0 },
 ```
+
+## Building the documentation
+In order to get the documentation for the klint environment C code library perform the following steps
+1. Go to this [website](https://www.doxygen.nl/manual/install.html) and install doxygen
+2. Run doxygen Doxyfile in `env`
+3. Open the `index.html` file in the `html` folder created

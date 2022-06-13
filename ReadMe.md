@@ -39,3 +39,22 @@ To write a spec, look at the the documentation in `tool/`, and at existing specs
 
 If you need new data structures, add them in `env/include/structs`, `env/src/structs`.
 Then add Klint contracts in `tool/klint/externals` and add them to the `*_externals` dictionaries in `tool/klint/executor.py`.
+
+
+## Quick start into the project (assumed there is a folder called gits in your home):
+```
+cd gits/klint/tool/ && source setup-virtualenv.sh
+
+cd gits/klint/nf/bridge
+make -f ../Makefile.nf
+
+cd gits/klint/tool
+./klint.py libnf ../nf/bridge/libnf.so ../nf/bridge/spec.py
+```
+Shortcut (executed from the location `klint/tool/`):
+```
+cd ../nf/ && bash make-one.sh iptables && cd ../tool/ && ./klint.py libnf ../nf/iptables/libnf.so ../nf/iptables/spec.py
+```
+
+## Writing documentation
+Documentation is made available using the Doxygen framework when making changes to the core `env` use the doxygen standard to comment your code.

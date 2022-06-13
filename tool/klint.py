@@ -38,14 +38,14 @@ def verif(data_path, spec_path):
 
 def handle_libnf(args):
     cached_data_path = args.file + ".symbex-cache"
-    if not args.use_cached_symbex:
+    if not args.use_cached_symbex or not os.path.isfile(cached_data_path):
         states, devices_count = nf_executor.execute_libnf(args.file, graph_handler=handle_graph)
         verif_persist.dump_data(states, devices_count, cached_data_path)
     verif(cached_data_path, args.spec)
 
 def handle_fullstack(args):
     cached_data_path = args.file + ".symbex-cache"
-    if not args.use_cached_symbex:
+    if not args.use_cached_symbex or not os.path.isfile(cached_data_path):
         states, devices_count = nf_executor.execute_nf(args.file)
         verif_persist.dump_data(states, devices_count, cached_data_path)
     verif(cached_data_path, args.spec)

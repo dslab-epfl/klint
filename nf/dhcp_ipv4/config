@@ -1,0 +1,7 @@
+{"max number dhcp connections", 10},
+{"server ether address", 2486397660560}
+    {"DCHP ipv4 address", 3221357310},
+    {"DHCP ipv4 mask", 4294967040},
+    {"gateway ipv4 address", 3221357057},
+    {"domain name server ip", 3221357058}
+    {"exipration time", 86400},

@@ -1,0 +1,4 @@
+{ "send device", 0 },
+{ "check device", 1 },
+{ "command device", 2},
+{ "capacity", 4000 },

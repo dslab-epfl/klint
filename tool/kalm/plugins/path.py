@@ -15,6 +15,8 @@ class PathPlugin(SimStatePlugin):
 
     @staticmethod
     def bp_before(state):
+        # Ignore this, we don't care
+        if state.inspect.simprocedure_name == 'CallReturn': return
         inst = state.inspect.simprocedure
         # the next 2 lines were copied from the SimProcedure code
         arg_session = inst.cc.arg_session(inst.prototype.returnty)
@@ -23,11 +25,14 @@ class PathPlugin(SimStatePlugin):
 
     @staticmethod
     def bp_after(state):
+        if state.inspect.simprocedure_name == 'CallReturn': return
         # This will execute for the current state in case the procedure forked, not the other one;
         # to handle the other one, we explicitly deal with it in utils.fork
         state.path.end_record(state.inspect.simprocedure_result)
 
     def set_state(self, state):
+        # IDK how else to not set breakpoints unnecessarily...
+        if len(state.inspect._breakpoints['simprocedure']) > 0: return
         state.inspect.b('simprocedure', when=angr.BP_BEFORE, action=PathPlugin.bp_before)
         state.inspect.b('simprocedure', when=angr.BP_AFTER, action=PathPlugin.bp_after)
 
