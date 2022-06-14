@@ -1,16 +1,14 @@
 #pragma once
 
-#include <stdbool.h>
-#include <stdint.h>
-
 #include "net/packet.h"
 #include "os/memory.h"
 #include "os/time.h"
 
+#include <stdbool.h>
+#include <stdint.h>
 
 // in reality should be based on the links
 #define LINK_COST 10
-
 
 // TODO would be nice if those could be in the stp_state;
 //      it's just a change to keep values that don't change within a map's lone item...
@@ -31,7 +29,6 @@ struct bpdu_packet {
 	uint32_t root_cost;
 	uint64_t sender;
 } __attribute__((packed));
-
 
 static inline struct stp_state* stp_init(device_t devices_count, uint64_t self_bid, time_t update_time_)
 {
@@ -56,8 +53,8 @@ static inline bool stp_handle(struct stp_state* state, struct net_ether_header* 
 		return true;
 	}
 
-	if (header->dst_addr.bytes[0] != 0x01 || header->dst_addr.bytes[1] != 0x80 || header->dst_addr.bytes[2] != 0xC2 ||
-	    header->dst_addr.bytes[3] != 0x00 || header->dst_addr.bytes[4] != 0x00 || header->dst_addr.bytes[5] != 0x00) {
+	if (header->dst_addr.bytes[0] != 0x01 || header->dst_addr.bytes[1] != 0x80 || header->dst_addr.bytes[2] != 0xC2 || header->dst_addr.bytes[3] != 0x00 || header->dst_addr.bytes[4] != 0x00 ||
+	    header->dst_addr.bytes[5] != 0x00) {
 		return false;
 	}
 
@@ -101,7 +98,4 @@ static inline bool stp_handle(struct stp_state* state, struct net_ether_header* 
 	return true;
 }
 
-static inline bool* stp_blocked_devices(void)
-{
-	return disabled_ports;
-}
+static inline bool* stp_blocked_devices(void) { return disabled_ports; }

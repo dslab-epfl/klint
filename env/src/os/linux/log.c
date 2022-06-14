@@ -1,6 +1,5 @@
 #include "os/log.h"
 
-
 #if DEBUG_LEVEL > 0
 #include <stdio.h>
 

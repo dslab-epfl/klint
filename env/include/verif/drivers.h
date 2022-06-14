@@ -3,7 +3,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-
 uint64_t* descriptor_ring_alloc(size_t count);
 
 void* agents_alloc(size_t count, size_t size);

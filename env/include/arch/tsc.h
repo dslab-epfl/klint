@@ -2,7 +2,6 @@
 
 #include <stdint.h>
 
-
 static inline uint64_t tsc_get(void)
 {
 	// Let's offload the work to the compiler on this one

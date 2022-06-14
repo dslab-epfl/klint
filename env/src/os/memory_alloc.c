@@ -1,23 +1,21 @@
-#include "os/memory.h"
-
 #include "arch/halt.h"
 #include "os/log.h"
+#include "os/memory.h"
 
 //@ #include "proof/listexex.gh"
 //@ #include "proof/modulo.gh"
-
 
 extern char* memory; // VeriFast behaves oddly if this is an uint8_t*...
 extern size_t memory_used_len;
 
 /*@
 predicate globals_invariant() =
-        memory |-> ?mem &*&
-        mem != NULL &*&
+	memory |-> ?mem &*&
+	mem != NULL &*&
 	memory_used_len |-> ?memlen &*&
-        mem + OS_MEMORY_SIZE <= (void*) UINTPTR_MAX &*&
-        mem[memlen..OS_MEMORY_SIZE] |-> ?mem_bytes &*&
-        true == all_eq(mem_bytes, 0);
+	mem + OS_MEMORY_SIZE <= (void*) UINTPTR_MAX &*&
+	mem[memlen..OS_MEMORY_SIZE] |-> ?mem_bytes &*&
+	true == all_eq(mem_bytes, 0);
 
 lemma void produce_memory_assumptions(void)
 requires emp;
@@ -36,11 +34,10 @@ ensures emp;
 }
 @*/
 
-
 void* os_memory_alloc(size_t count, size_t size)
 //@ requires count * size <= SIZE_MAX;
 /*@ ensures chars(result, count * size, ?cs) &*& true == all_eq(cs, 0) &*& result + count * size <= (char*) UINTPTR_MAX &*&
-            result != NULL &*& (size_t) result % (size + CACHE_LINE_SIZE - (size % CACHE_LINE_SIZE)) == 0; @*/
+	    result != NULL &*& (size_t) result % (size + CACHE_LINE_SIZE - (size % CACHE_LINE_SIZE)) == 0; @*/
 //@ terminates;
 {
 	//@ mul_nonnegative(count, size);
@@ -56,8 +53,8 @@ void* os_memory_alloc(size_t count, size_t size)
 	// Aligning to the cache line size can make a huge positive performance difference sometimes, well worth the hassle
 	// (e.g. one time TinyNF accidentally regressed by 40% throughput because of misalignment...)
 	if (SIZE_MAX - CACHE_LINE_SIZE < size) {
-	    os_debug("Object is too big to be alignable");
-	    halt();
+		os_debug("Object is too big to be alignable");
+		halt();
 	}
 
 	//@ div_rem_nonneg(size, CACHE_LINE_SIZE);

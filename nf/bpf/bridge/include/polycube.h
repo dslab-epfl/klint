@@ -1,9 +1,8 @@
 // Implements Polycube in terms of XDP.
 #pragma once
 
-#include <uapi/linux/bpf.h>
 #include <bpf/bpf_helpers.h>
-
+#include <uapi/linux/bpf.h>
 
 struct pkt_metadata {
 	int pcn_pkt_controller_flood;
@@ -12,11 +11,11 @@ struct pkt_metadata {
 #define CTXTYPE xdp_md
 
 enum {
-//	RX_OK,
-//	RX_REDIRECT,
+	//	RX_OK,
+	//	RX_REDIRECT,
 	RX_DROP,
-//	RX_RECIRCULATE,
-//	RX_ERROR,
+	//	RX_RECIRCULATE,
+	//	RX_ERROR,
 };
 
 // Nothing

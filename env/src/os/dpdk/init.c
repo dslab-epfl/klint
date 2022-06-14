@@ -3,7 +3,6 @@
 #include <rte_cycles.h>
 #include <rte_debug.h>
 
-
 // For clock.h
 uint64_t cpu_freq_numerator;
 uint64_t cpu_freq_denominator;

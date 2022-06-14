@@ -10,4 +10,4 @@
  * @return true
  * @return false
  */
-bool os_config_try_get_bytes(const char *name, void *out_value, size_t size);
+bool os_config_try_get_bytes(const char* name, void* out_value, size_t size);

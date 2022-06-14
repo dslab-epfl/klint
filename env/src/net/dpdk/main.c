@@ -1,6 +1,7 @@
+#include "net/skeleton.h"
 #include "net/tx.h"
-
-#include <stddef.h>
+#include "os/clock.h"
+#include "os/init.h"
 
 #include <rte_debug.h>
 #include <rte_eal.h>
@@ -9,11 +10,7 @@
 #include <rte_lcore.h>
 #include <rte_mbuf.h>
 #include <rte_mempool.h>
-
-#include "net/skeleton.h"
-#include "os/clock.h"
-#include "os/init.h"
-
+#include <stddef.h>
 
 // Just needs to be high enough to not run out of buffers
 #define MEMPOOL_BUFFER_COUNT 1024
@@ -69,15 +66,14 @@ static void device_init(device_t device, struct rte_mempool* mbuf_pool)
 	endpoint_addrs[device] = (struct rte_ether_addr){.addr_bytes = {device}};
 }
 
-
 static void handle_flags(struct net_packet* packet, device_t device, enum net_transmit_flags flags)
 {
 	struct net_ether_header* ether_header = (struct net_ether_header*) packet->data;
 	if ((flags & UPDATE_ETHER_ADDRS) != 0) {
 		ether_header->src_addr = *((struct net_ether_addr*) &(device_addrs[device]));
 		ether_header->dst_addr = *((struct net_ether_addr*) &(endpoint_addrs[device]));
-//		memcpy(&(ether_header->src_addr), &(device_addrs[device]), sizeof(struct rte_ether_addr));
-//		memcpy(&(ether_header->dst_addr), &(endpoint_addrs[device]), sizeof(struct rte_ether_addr));
+		//		memcpy(&(ether_header->src_addr), &(device_addrs[device]), sizeof(struct rte_ether_addr));
+		//		memcpy(&(ether_header->dst_addr), &(endpoint_addrs[device]), sizeof(struct rte_ether_addr));
 	}
 }
 
@@ -111,7 +107,6 @@ void net_flood_except(struct net_packet* packet, bool* disabled_devices, enum ne
 	}
 }
 
-
 int main(int argc, char** argv)
 {
 	// Initialize DPDK, and change argc/argv to look like nothing happened
@@ -132,13 +127,12 @@ int main(int argc, char** argv)
 		rte_panic("Too many devices, please increase MAX_DEVICES");
 	}
 
-	struct rte_mempool *mbuf_pool = rte_pktmbuf_pool_create(
-		"MEMPOOL", // name
-		MEMPOOL_BUFFER_COUNT * devices_count, // #elements
-		0, // cache size (per-lcore, not useful in a single-threaded app)
-		0, // application private area size
-		RTE_MBUF_DEFAULT_BUF_SIZE, // data buffer size
-		rte_socket_id() // socket ID
+	struct rte_mempool* mbuf_pool = rte_pktmbuf_pool_create("MEMPOOL",			      // name
+								MEMPOOL_BUFFER_COUNT * devices_count, // #elements
+								0,				      // cache size (per-lcore, not useful in a single-threaded app)
+								0,				      // application private area size
+								RTE_MBUF_DEFAULT_BUF_SIZE,	      // data buffer size
+								rte_socket_id()			      // socket ID
 	);
 	if (mbuf_pool == NULL) {
 		rte_panic("Cannot create DPDK pool");
@@ -152,18 +146,13 @@ int main(int argc, char** argv)
 		rte_panic("Initialization failed.");
 	}
 
-	while(1) {
+	while (1) {
 		for (device_t device = 0; device < devices_count; device++) {
 			struct rte_mbuf* bufs[BATCH_SIZE];
 			uint16_t nb_rx = rte_eth_rx_burst(device, 0, bufs, BATCH_SIZE);
 			for (int16_t n = 0; n < nb_rx; n++) {
 				struct net_packet packet = {
-					.data = (char*) bufs[n]->buf_addr + bufs[n]->data_off,
-					.length = bufs[n]->data_len,
-					.time = os_clock_time_ns(),
-					.device = bufs[n]->port,
-					.os_tag = bufs[n]
-				};
+				    .data = (char*) bufs[n]->buf_addr + bufs[n]->data_off, .length = bufs[n]->data_len, .time = os_clock_time_ns(), .device = bufs[n]->port, .os_tag = bufs[n]};
 				nf_handle(&packet);
 			}
 			for (device_t out_device = 0; out_device < devices_count; out_device++) {

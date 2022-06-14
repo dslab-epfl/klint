@@ -1,16 +1,12 @@
+#include "flow_table.h"
 #include "net/skeleton.h"
-
 #include "os/config.h"
 #include "os/log.h"
 #include "os/time.h"
 
-#include "flow_table.h"
-
-
 static uint32_t external_addr;
 static device_t wan_device;
 static struct flow_table* table;
-
 
 bool nf_init(device_t devices_count)
 {
@@ -21,15 +17,14 @@ bool nf_init(device_t devices_count)
 	size_t max_flows;
 	time_t expiration_time;
 	uint16_t start_port;
-	if (!os_config_get_u32("external addr", &external_addr) || !os_config_get_device("wan device", devices_count, &wan_device) ||
-	    !os_config_get_size("max flows", &max_flows) || !os_config_get_time("expiration time", &expiration_time) || !os_config_get_u16("start port", &start_port)) {
+	if (!os_config_get_u32("external addr", &external_addr) || !os_config_get_device("wan device", devices_count, &wan_device) || !os_config_get_size("max flows", &max_flows) ||
+	    !os_config_get_time("expiration time", &expiration_time) || !os_config_get_u16("start port", &start_port)) {
 		return false;
 	}
 
 	table = flow_table_alloc(start_port, expiration_time, max_flows);
 	return true;
 }
-
 
 void nf_handle(struct net_packet* packet)
 {
@@ -59,11 +54,11 @@ void nf_handle(struct net_packet* packet)
 		}
 	} else {
 		struct flow flow = {
-			.src_port = tcpudp_header->src_port,
-			.dst_port = tcpudp_header->dst_port,
-			.src_ip = ipv4_header->src_addr,
-			.dst_ip = ipv4_header->dst_addr,
-			.protocol = ipv4_header->next_proto_id,
+		    .src_port = tcpudp_header->src_port,
+		    .dst_port = tcpudp_header->dst_port,
+		    .src_ip = ipv4_header->src_addr,
+		    .dst_ip = ipv4_header->dst_addr,
+		    .protocol = ipv4_header->next_proto_id,
 		};
 
 		uint16_t external_port;

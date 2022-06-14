@@ -2,7 +2,6 @@
 
 #include <stdint.h>
 
-
 typedef uint64_t time_t;
 
 #define TIME_MAX UINT64_MAX

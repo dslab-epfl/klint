@@ -1,6 +1,5 @@
 #include "os/memory.h"
 
-
 void* os_memory_phys_to_virt(uintptr_t addr, size_t size)
 {
 	// phys == virt, no protections

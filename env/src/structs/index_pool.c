@@ -62,14 +62,14 @@ ensures forall_(int other; nth(other, xs) == nth(other, update(idx, x, xs)) || i
 
 lemma void truths_update_HACK(list<pair<size_t, time_t> > items, list<time_t> timestamps, size_t index)
 requires forall_(size_t k; ((idx_in_bounds(k, timestamps) && !nth_eq(k, timestamps, TIME_MAX)) == ghostmap_has(items, k)) || k == index) &*&
-         (idx_in_bounds(index, timestamps) && !nth_eq(index, timestamps, TIME_MAX)) == ghostmap_has(items, index);
+	 (idx_in_bounds(index, timestamps) && !nth_eq(index, timestamps, TIME_MAX)) == ghostmap_has(items, index);
 ensures forall_(size_t k; (idx_in_bounds(k, timestamps) && !nth_eq(k, timestamps, TIME_MAX)) == ghostmap_has(items, k));
 {
 	// For some reason VeriFast can figure it out on its own only when in a lemma.
 }
 lemma void truths_update(list<pair<size_t, time_t> > items, size_t index, time_t time)
 requires poolp_truths(?timestamps, items) &*&
-         true == idx_in_bounds(index, timestamps);
+	 true == idx_in_bounds(index, timestamps);
 ensures poolp_truths(update(index, time, timestamps), time == TIME_MAX ? ghostmap_remove(items, index) : ghostmap_set(items, index, time));
 {
 	open poolp_truths(timestamps, items);
@@ -80,7 +80,6 @@ ensures poolp_truths(update(index, time, timestamps), time == TIME_MAX ? ghostma
 	close poolp_truths(update(index, time, timestamps), result);
 }
 @*/
-
 
 struct index_pool* index_pool_alloc(size_t size, time_t expiration_time)
 /*@ requires size * sizeof(time_t) <= SIZE_MAX; @*/
@@ -94,10 +93,10 @@ struct index_pool* index_pool_alloc(size_t size, time_t expiration_time)
 	pool->expiration_time = expiration_time;
 
 	for (size_t n = size; n > 0; n--)
-	/*@ invariant pool->timestamps |-> ?raw_timestamps &*& 
-	              chars((char*) raw_timestamps, n * sizeof(time_t), _) &*&
-	              raw_timestamps[n..size] |-> ?timestamps &*&
-	              true == all_eq(timestamps, TIME_MAX); @*/
+	/*@ invariant pool->timestamps |-> ?raw_timestamps &*&
+		      chars((char*) raw_timestamps, n * sizeof(time_t), _) &*&
+		      raw_timestamps[n..size] |-> ?timestamps &*&
+		      true == all_eq(timestamps, TIME_MAX); @*/
 	//@ decreases n;
 	{
 		//@ chars_split((char*) raw_timestamps, (n - 1) * sizeof(time_t));
@@ -116,8 +115,8 @@ struct index_pool* index_pool_alloc(size_t size, time_t expiration_time)
 /*@
 lemma void pool_items_implication_tail(list<pair<size_t, time_t> > items, list<time_t> timestamps, time_t time, time_t exp_time)
 requires items == cons(?h, ?t) &*&
-         true == ghostmap_distinct(items) &*&
-         forall_(size_t k; !ghostmap_has(items, k) || (ghostmap_get(items, k) == some(nth(k, timestamps))));
+	 true == ghostmap_distinct(items) &*&
+	 forall_(size_t k; !ghostmap_has(items, k) || (ghostmap_get(items, k) == some(nth(k, timestamps))));
 ensures forall_(size_t k; !ghostmap_has(t, k) || (ghostmap_get(t, k) == some(nth(k, timestamps))));
 {
 	assert h == pair(?hk, ?hv);
@@ -126,8 +125,8 @@ ensures forall_(size_t k; !ghostmap_has(t, k) || (ghostmap_get(t, k) == some(nth
 
 lemma void pool_items_young_forall_to_ghostmap(list<pair<size_t, time_t> > items, list<time_t> timestamps, time_t time, time_t exp_time)
 requires true == ghostmap_distinct(items) &*&
-         forall_(size_t k; !ghostmap_has(items, k) || (ghostmap_get(items, k) == some(nth(k, timestamps)))) &*&
-         forall_(size_t k; !ghostmap_has(items, k) || (time < exp_time || time - exp_time <= nth(k, timestamps)));
+	 forall_(size_t k; !ghostmap_has(items, k) || (ghostmap_get(items, k) == some(nth(k, timestamps)))) &*&
+	 forall_(size_t k; !ghostmap_has(items, k) || (time < exp_time || time - exp_time <= nth(k, timestamps)));
 ensures true == ghostmap_forall(items, (pool_young)(time, exp_time));
 {
 	switch (items) {
@@ -143,20 +142,20 @@ ensures true == ghostmap_forall(items, (pool_young)(time, exp_time));
 
 bool index_pool_borrow(struct index_pool* pool, time_t time, size_t* out_index, bool* out_used)
 /*@ requires poolp(pool, ?size, ?exp_time, ?items) &*&
-             time != TIME_MAX &*&
-             *out_index |-> _ &*&
-             *out_used |-> _; @*/
+	     time != TIME_MAX &*&
+	     *out_index |-> _ &*&
+	     *out_used |-> _; @*/
 /*@ ensures *out_index |-> ?index &*&
-            *out_used |-> ?used &*&
-            (length(items) == size ? (ghostmap_forall(items, (pool_young)(time, exp_time)) ? result == false
-                                                                                           : (result == true &*& used == true))
-                                   : result == true) &*&
-            result ? poolp(pool, size, exp_time, ghostmap_set(items, index, time)) &*&
-                     index < size &*&
-                     (used ? (ghostmap_get(items, index) == some(?old) &*&
-                              false == pool_young(time, exp_time, index, old))
-                           : (ghostmap_get(items, index) == none))
-                   : poolp(pool, size, exp_time, items); @*/
+	    *out_used |-> ?used &*&
+	    (length(items) == size ? (ghostmap_forall(items, (pool_young)(time, exp_time)) ? result == false
+											   : (result == true &*& used == true))
+				   : result == true) &*&
+	    result ? poolp(pool, size, exp_time, ghostmap_set(items, index, time)) &*&
+		     index < size &*&
+		     (used ? (ghostmap_get(items, index) == some(?old) &*&
+			      false == pool_young(time, exp_time, index, old))
+			   : (ghostmap_get(items, index) == none))
+		   : poolp(pool, size, exp_time, items); @*/
 /*@ terminates; @*/
 {
 	// Optimization:
@@ -172,12 +171,12 @@ bool index_pool_borrow(struct index_pool* pool, time_t time, size_t* out_index, 
 	//@ assert poolp_raw(pool, size, exp_time, ?lbi, timestamps);
 	for (size_t n = pool->last_borrowed_index; n < pool->size; n++)
 	/*@ invariant poolp_raw(pool, size, exp_time, lbi, timestamps) &*&
-	              poolp_truths(timestamps, items) &*&
-	              *out_index |-> _ &*&
-	              *out_used |-> _ &*&
-	              lbi <= size &*&
-	              forall_(size_t k; !(lbi <= k && k < n) || !nth_eq(k, timestamps, TIME_MAX)) &*&
-	              forall_(size_t k; !(lbi <= k && k < n) || (time < exp_time || time - exp_time <= nth(k, timestamps))); @*/
+		      poolp_truths(timestamps, items) &*&
+		      *out_index |-> _ &*&
+		      *out_used |-> _ &*&
+		      lbi <= size &*&
+		      forall_(size_t k; !(lbi <= k && k < n) || !nth_eq(k, timestamps, TIME_MAX)) &*&
+		      forall_(size_t k; !(lbi <= k && k < n) || (time < exp_time || time - exp_time <= nth(k, timestamps))); @*/
 	//@ decreases size - n;
 	{
 		if (pool->timestamps[n] == TIME_MAX) {
@@ -203,11 +202,11 @@ bool index_pool_borrow(struct index_pool* pool, time_t time, size_t* out_index, 
 	}
 	for (size_t n = 0; n < pool->last_borrowed_index; n++)
 	/*@ invariant poolp_raw(pool, size, exp_time, lbi, timestamps) &*&
-	              poolp_truths(timestamps, items) &*&
-	              *out_index |-> _ &*&
-	              *out_used |-> _ &*&
-	              forall_(size_t k; !(0 <= k && k < n) || !nth_eq(k, timestamps, TIME_MAX)) &*&
-	              forall_(size_t k; !(0 <= k && k < n) || (time < exp_time || time - exp_time <= nth(k, timestamps))); @*/
+		      poolp_truths(timestamps, items) &*&
+		      *out_index |-> _ &*&
+		      *out_used |-> _ &*&
+		      forall_(size_t k; !(0 <= k && k < n) || !nth_eq(k, timestamps, TIME_MAX)) &*&
+		      forall_(size_t k; !(0 <= k && k < n) || (time < exp_time || time - exp_time <= nth(k, timestamps))); @*/
 	//@ decreases lbi - n;
 	{
 		if (pool->timestamps[n] == TIME_MAX) {
@@ -241,8 +240,8 @@ bool index_pool_borrow(struct index_pool* pool, time_t time, size_t* out_index, 
 
 void index_pool_refresh(struct index_pool* pool, time_t time, size_t index)
 /*@ requires poolp(pool, ?size, ?exp_time, ?items) &*&
-             time != TIME_MAX &*&
-             index < size; @*/
+	     time != TIME_MAX &*&
+	     index < size; @*/
 /*@ ensures poolp(pool, size, exp_time, ghostmap_set(items, index, time)); @*/
 /*@ terminates; @*/
 {
@@ -255,10 +254,10 @@ void index_pool_refresh(struct index_pool* pool, time_t time, size_t index)
 bool index_pool_used(struct index_pool* pool, time_t time, size_t index)
 /*@ requires poolp(pool, ?size, ?exp_time, ?items); @*/
 /*@ ensures poolp(pool, size, exp_time, items) &*&
-            switch (ghostmap_get(items, index)) {
-              case none: return result == false;
-              case some(t): return result == pool_young(time, exp_time, 0, t);
-            }; @*/
+	    switch (ghostmap_get(items, index)) {
+	      case none: return result == false;
+	      case some(t): return result == pool_young(time, exp_time, 0, t);
+	    }; @*/
 /*@ terminates; @*/
 {
 	//@ open poolp(pool, size, exp_time, items);
@@ -285,7 +284,7 @@ bool index_pool_used(struct index_pool* pool, time_t time, size_t index)
 
 void index_pool_return(struct index_pool* pool, size_t index)
 /*@ requires poolp(pool, ?size, ?exp_time, ?items) &*&
-             index < size; @*/
+	     index < size; @*/
 /*@ ensures poolp(pool, size, exp_time, ghostmap_remove(items, index)); @*/
 /*@ terminates; @*/
 {

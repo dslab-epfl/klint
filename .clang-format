@@ -1,0 +1,15 @@
+PointerAlignment: Left
+
+IndentWidth: 8
+UseTab: Always
+
+IncludeBlocks: Regroup
+
+ColumnLimit: 200
+ReflowComments: true
+
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterFunction: true
+
+SpaceAfterCStyleCast: true

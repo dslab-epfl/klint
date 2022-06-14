@@ -1,10 +1,7 @@
 #include "net/skeleton.h"
-
 #include "os/config.h"
 #include "os/log.h"
-
 #include "structs/lpm.h"
-
 
 static device_t devices_count;
 static struct lpm* lpm;
@@ -21,17 +18,16 @@ bool nf_init(device_t _devices_count)
 	return true;
 }
 
-
 void nf_handle(struct net_packet* packet)
 {
 	if (packet->device == devices_count - 1) {
 		// "Management" interface, obviously not practical but just to show it can be done
 		uint32_t key = *((uint32_t*) packet->data);
-		size_t width = *((size_t*)(packet->data + sizeof(uint32_t)));
+		size_t width = *((size_t*) (packet->data + sizeof(uint32_t)));
 		if (width > 32) {
 			return; // bad command
 		}
-		device_t value = *((device_t*)(packet->data + sizeof(uint32_t) + sizeof(size_t)));
+		device_t value = *((device_t*) (packet->data + sizeof(uint32_t) + sizeof(size_t)));
 		lpm_set(lpm, &key, width, &value);
 		return;
 	}

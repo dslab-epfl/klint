@@ -1,17 +1,15 @@
 #pragma once
 
+#include "os/memory.h"
+#include "os/time.h"
+#include "structs/index_pool.h"
+#include "structs/map.h"
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
-#include "os/time.h"
-#include "os/memory.h"
-#include "structs/index_pool.h"
-#include "structs/map.h"
-
-
-struct flow
-{
+struct flow {
 	uint32_t src_ip;
 	uint32_t dst_ip;
 	uint16_t src_port;
@@ -20,13 +18,11 @@ struct flow
 	uint8_t _padding[3];
 };
 
-struct flow_table
-{
+struct flow_table {
 	struct flow* flows;
 	struct map* flow_indexes;
 	struct index_pool* port_allocator;
 };
-
 
 static inline struct flow_table* flow_table_alloc(time_t expiration_time, size_t max_flows)
 {

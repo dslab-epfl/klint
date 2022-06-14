@@ -10,6 +10,7 @@ This is the artifact for the paper "Automated Verification of Network Function B
 - `tool` contains the Klint tool
 - `Makefile` contains some end-to-end targets, see below
 - `Makefile.base` is the common Makefile for all C code
+- `.clang-format` can be applied with `find . -regex '.*\.[ch]' -exec clang-format -i {} \;` to format all C code
 
 Network functions get compiled in two steps.
 First, compiling the network function code against the environment interface leads to a static or dynamic library.

@@ -1,10 +1,9 @@
 // All references in this file are to the Intel 82599 Data Sheet unless otherwise noted.
 // It can be found at https://www.intel.com/content/www/us/en/design/products-and-solutions/networking-and-io/82599-10-gigabit-ethernet-controller/technical-library.html
 
-#include "network.h"
-
 #include "arch/endian.h"
 #include "arch/halt.h"
+#include "network.h"
 #include "os/clock.h"
 #include "os/log.h"
 #include "os/memory.h"
@@ -12,7 +11,6 @@
 
 // Don't include <assert.h> since that's not allowed in freestanding implementations
 #define static_assert _Static_assert
-
 
 // ===============
 // Interpretations
@@ -25,7 +23,6 @@
 // MISSING: Data is missing, forcing us to make a guess.
 // POINTLESS: The data sheet asks to do something unambiguously pointless, such as writing 0 to a register already initialized.
 // TYPO: Obvious typo in the spec that is very unlikely to be ambiguous.
-
 
 // ===========
 // Assumptions
@@ -63,10 +60,6 @@
 // REPORT: We prefer more error reporting when faced with an explicit choice, but do not attempt to do extra configuration for this
 // TRUST: We trust the defaults for low-level hardware details
 // TXPAD: We want all sent frames to be at least 64 bytes
-
-
-
-
 
 // ====
 // Data
@@ -146,8 +139,7 @@
 // Section 9.3.7.1.5 PMCSR_BSE Bridge Support Extensions Register (8 bit, hardwired to 0)
 // Section 9.3.7.1.6 Data Register (8 bit, unused)
 #define PCIREG_PMCSR 0x44u
-#define PCIREG_PMCSR_POWER_STATE BITS(0,1)
-
+#define PCIREG_PMCSR_POWER_STATE BITS(0, 1)
 
 // Section 8.2.3.1.1 Device Control Register
 #define REG_CTRL 0x00000u
@@ -159,12 +151,12 @@
 #define REG_CTRLEXT_NSDIS BIT(16)
 
 // Section 8.2.3.11.1 Rx DCA Control Register
-#define REG_DCARXCTRL(n) ((n) <= 63u ? (0x0100Cu + 0x40u*(n)) : (0x0D00Cu + 0x40u*((n)-64u)))
+#define REG_DCARXCTRL(n) ((n) <= 63u ? (0x0100Cu + 0x40u * (n)) : (0x0D00Cu + 0x40u * ((n) -64u)))
 // This bit is reserved, has no name, but must be used anyway
 #define REG_DCARXCTRL_UNKNOWN BIT(12)
 
 // Section 8.2.3.11.2 Tx DCA Control Registers
-#define REG_DCATXCTRL(n) (0x0600Cu + 0x40u*(n))
+#define REG_DCATXCTRL(n) (0x0600Cu + 0x40u * (n))
 #define REG_DCATXCTRL_TX_DESC_WB_RO_EN BIT(11)
 
 // Section 8.2.3.9.2 DMA Tx Control
@@ -173,7 +165,7 @@
 
 // Section 8.2.3.9.1 DMA Tx TCP Max Allow Size Requests
 #define REG_DTXMXSZRQ 0x08100u
-#define REG_DTXMXSZRQ_MAX_BYTES_NUM_REQ BITS(0,11)
+#define REG_DTXMXSZRQ_MAX_BYTES_NUM_REQ BITS(0, 11)
 
 // Section 8.2.3.2.1 EEPROM/Flash Control Register
 #define REG_EEC 0x10010u
@@ -181,15 +173,15 @@
 #define REG_EEC_AUTO_RD BIT(9)
 
 // Section 8.2.3.5.9 Extended Interrupt Mask Clear Registers
-#define REG_EIMC(n) (n == 0 ? 0x00888u : (0x00AB0u + 4u*(n - 1u)))
+#define REG_EIMC(n) (n == 0 ? 0x00888u : (0x00AB0u + 4u * (n - 1u)))
 
 // Section 8.2.3.3.7 Flow Control Configuration
 #define REG_FCCFG 0x03D00u
-#define REG_FCCFG_TFCE BITS(3,4)
+#define REG_FCCFG_TFCE BITS(3, 4)
 
 // Section 8.2.3.3.4 Flow Control Receive Threshold High
-#define REG_FCRTH(n) (0x03260u + 4u*(n))
-#define REG_FCRTH_RTH BITS(5,18)
+#define REG_FCRTH(n) (0x03260u + 4u * (n))
+#define REG_FCRTH_RTH BITS(5, 18)
 
 // Section 8.2.3.7.1 Filter Control Register (FCTRL)
 #define REG_FCTRL 0x05080u
@@ -197,12 +189,12 @@
 #define REG_FCTRL_UPE BIT(9)
 
 // Section 8.2.3.7.19 Five tuple Queue Filter
-#define REG_FTQF(n) (0x0E600u + 4u*(n))
+#define REG_FTQF(n) (0x0E600u + 4u * (n))
 #define REG_FTQF_QUEUE_ENABLE BIT(31)
 
 // Section 8.2.3.4.10 Firmware Semaphore Register
 #define REG_FWSM 0x10148u
-#define REG_FWSM_EXT_ERR_IND BITS(19,24)
+#define REG_FWSM_EXT_ERR_IND BITS(19, 24)
 
 // Section 8.2.3.4.12 PCIe Control Extended Register
 #define REG_GCREXT 0x11050u
@@ -217,46 +209,46 @@
 #define REG_MFLCN_RFCE BIT(3)
 
 // Section 8.2.3.7.10 MAC Pool Select Array
-#define REG_MPSAR(n) (0x0A600u + 4u*(n))
+#define REG_MPSAR(n) (0x0A600u + 4u * (n))
 
 // Section 8.2.3.7.7 Multicast Table Array
-#define REG_MTA(n) (0x05200u + 4u*(n))
+#define REG_MTA(n) (0x05200u + 4u * (n))
 
 // Section 8.2.3.27.17 PF Unicast Table Array
-#define REG_PFUTA(n) (0x0F400u + 4u*(n))
+#define REG_PFUTA(n) (0x0F400u + 4u * (n))
 
 // Section 8.2.3.27.15 PF VM VLAN Pool Filter
-#define REG_PFVLVF(n) (0x0F100u + 4u*(n))
+#define REG_PFVLVF(n) (0x0F100u + 4u * (n))
 
 // Section 8.2.3.27.16 PF VM VLAN Pool Filter Bitmap
-#define REG_PFVLVFB(n) (0x0F200u + 4u*(n))
+#define REG_PFVLVFB(n) (0x0F200u + 4u * (n))
 
 // Section 8.2.3.7.9 Receive Address High
-#define REG_RAH(n) (0x0A204 + 8u*(n))
+#define REG_RAH(n) (0x0A204 + 8u * (n))
 
 // Section 8.2.3.7.8 Receive Address Low
-#define REG_RAL(n) (0x0A200 + 8u*(n))
+#define REG_RAL(n) (0x0A200 + 8u * (n))
 
 // Section 8.2.3.8.2 Receive Descriptor Base Address High
-#define REG_RDBAH(n) ((n) <= 63u ? (0x01004u + 0x40u*(n)) : (0x0D004u + 0x40u*((n)-64u)))
+#define REG_RDBAH(n) ((n) <= 63u ? (0x01004u + 0x40u * (n)) : (0x0D004u + 0x40u * ((n) -64u)))
 
 // Section 8.2.3.8.1 Receive Descriptor Base Address Low
-#define REG_RDBAL(n) ((n) <= 63u ? (0x01000u + 0x40u*(n)) : (0x0D000u + 0x40u*((n)-64u)))
+#define REG_RDBAL(n) ((n) <= 63u ? (0x01000u + 0x40u * (n)) : (0x0D000u + 0x40u * ((n) -64u)))
 
 // Section 8.2.3.8.3 Receive Descriptor Length
-#define REG_RDLEN(n) ((n) <= 63u ? (0x01008u + 0x40u*(n)) : (0x0D008u + 0x40u*((n)-64u)))
+#define REG_RDLEN(n) ((n) <= 63u ? (0x01008u + 0x40u * (n)) : (0x0D008u + 0x40u * ((n) -64u)))
 
 // Section 8.2.3.8.8 Receive DMA Control Register
 // INTERPRETATION-MISSING: Bit 0, which is not mentioned in the table, is reserved
 #define REG_RDRXCTL 0x02F00u
 #define REG_RDRXCTL_CRC_STRIP BIT(1)
 #define REG_RDRXCTL_DMAIDONE BIT(3)
-#define REG_RDRXCTL_RSCFRSTSIZE BITS(17,21)
+#define REG_RDRXCTL_RSCFRSTSIZE BITS(17, 21)
 #define REG_RDRXCTL_RSCACKC BIT(25)
 #define REG_RDRXCTL_FCOE_WRFIX BIT(26)
 
 // Section 8.2.3.8.5 Receive Descriptor Tail
-#define REG_RDT(n) ((n) <= 63u ? (0x01018u + 0x40u*(n)) : (0x0D018u + 0x40u*((n)-64u)))
+#define REG_RDT(n) ((n) <= 63u ? (0x01018u + 0x40u * (n)) : (0x0D018u + 0x40u * ((n) -64u)))
 
 // Section 8.2.3.10.2 DCB Transmit Descriptor Plane Control and Status
 #define REG_RTTDCS 0x04900u
@@ -273,11 +265,11 @@
 #define REG_RXCTRL_RXEN BIT(0)
 
 // Section 8.2.3.8.6 Receive Descriptor Control
-#define REG_RXDCTL(n) ((n) <= 63u ? (0x01028u + 0x40u*(n)) : (0x0D028u + 0x40u*((n)-64u)))
+#define REG_RXDCTL(n) ((n) <= 63u ? (0x01028u + 0x40u * (n)) : (0x0D028u + 0x40u * ((n) -64u)))
 #define REG_RXDCTL_ENABLE BIT(25)
 
 // Section 8.2.3.8.9 Receive Packet Buffer Size
-#define REG_RXPBSIZE(n) (0x03C00u + 4u*(n))
+#define REG_RXPBSIZE(n) (0x03C00u + 4u * (n))
 
 // Section 8.2.3.12.5 Security Rx Control
 #define REG_SECRXCTRL 0x08D00u
@@ -288,8 +280,8 @@
 #define REG_SECRXSTAT_SECRX_RDY BIT(0)
 
 // Section 8.2.3.8.7 Split Receive Control Registers
-#define REG_SRRCTL(n) ((n) <= 63u ? (0x01014u + 0x40u*(n)) : (0x0D014u + 0x40u*((n)-64u)))
-#define REG_SRRCTL_BSIZEPACKET BITS(0,4)
+#define REG_SRRCTL(n) ((n) <= 63u ? (0x01014u + 0x40u * (n)) : (0x0D014u + 0x40u * ((n) -64u)))
+#define REG_SRRCTL_BSIZEPACKET BITS(0, 4)
 #define REG_SRRCTL_DROP_EN BIT(28)
 
 // Section 8.2.3.1.2 Device Status Register
@@ -297,36 +289,35 @@
 #define REG_STATUS_PCIE_MASTER_ENABLE_STATUS BIT(19)
 
 // Section 8.2.3.9.6 Transmit Descriptor Base Address High
-#define REG_TDBAH(n) (0x06004u + 0x40u*(n))
+#define REG_TDBAH(n) (0x06004u + 0x40u * (n))
 
 // Section 8.2.3.9.5 Transmit Descriptor Base Address Low
-#define REG_TDBAL(n) (0x06000u + 0x40u*(n))
+#define REG_TDBAL(n) (0x06000u + 0x40u * (n))
 
 // Section 8.2.3.9.7 Transmit Descriptor Length
-#define REG_TDLEN(n) (0x06008u + 0x40u*(n))
+#define REG_TDLEN(n) (0x06008u + 0x40u * (n))
 
 // Section 8.2.3.9.9 Transmit Descriptor Tail
-#define REG_TDT(n) (0x06018u + 0x40u*(n))
+#define REG_TDT(n) (0x06018u + 0x40u * (n))
 
 // Section 8.2.3.9.11 Tx Descriptor Completion Write Back Address High
-#define REG_TDWBAH(n) (0x0603Cu + 0x40u*(n))
+#define REG_TDWBAH(n) (0x0603Cu + 0x40u * (n))
 
 // Section 8.2.3.9.11 Tx Descriptor Completion Write Back Address Low
-#define REG_TDWBAL(n) (0x06038u + 0x40u*(n))
+#define REG_TDWBAL(n) (0x06038u + 0x40u * (n))
 
 // Section 8.2.3.9.10 Transmit Descriptor Control
-#define REG_TXDCTL(n) (0x06028u + 0x40u*(n))
-#define REG_TXDCTL_PTHRESH BITS(0,6)
-#define REG_TXDCTL_HTHRESH BITS(8,14)
+#define REG_TXDCTL(n) (0x06028u + 0x40u * (n))
+#define REG_TXDCTL_PTHRESH BITS(0, 6)
+#define REG_TXDCTL_HTHRESH BITS(8, 14)
 #define REG_TXDCTL_ENABLE BIT(25)
 
 // Section 8.2.3.9.13 Transmit Packet Buffer Size
-#define REG_TXPBSIZE(n) (0x0CC00u + 4u*(n))
+#define REG_TXPBSIZE(n) (0x0CC00u + 4u * (n))
 
 // Section 8.2.3.9.16 Tx Packet Buffer Threshold
-#define REG_TXPBTHRESH(n) (0x04950u + 4u*(n))
-#define REG_TXPBTHRESH_THRESH BITS(0,9)
-
+#define REG_TXPBTHRESH(n) (0x04950u + 4u * (n))
+#define REG_TXPBTHRESH_THRESH BITS(0, 9)
 
 // ====
 // Code
@@ -364,7 +355,6 @@ static_assert(IXGBE_AGENT_RECYCLE_PERIOD >= 1, "Recycle period must be at least 
 static_assert(IXGBE_AGENT_RECYCLE_PERIOD < IXGBE_RING_SIZE, "Recycle period must be less than the ring size");
 static_assert((IXGBE_AGENT_RECYCLE_PERIOD & (IXGBE_AGENT_RECYCLE_PERIOD - 1)) == 0, "Recycle period must be a power of 2 for fast modulo");
 
-
 // ---------
 // Utilities
 // ---------
@@ -379,17 +369,17 @@ static _Noreturn void fatal(const char* message)
 // Like if(...) but polls with a timeout, and executes the body only if the condition is still true after the timeout
 // This is basically a way to emulate anonymous lambda functions in C (for 'condition')
 static bool timed_out;
-#define IF_AFTER_TIMEOUT(timeout_in_us, condition) \
-		timed_out = true; \
-		os_clock_sleep_ns((timeout_in_us) % 10 * 1000); \
-		for (size_t i = 0; i < 10; i++) { \
-			if (!(condition)) { \
-				timed_out = false; \
-				break; \
-			} \
-			os_clock_sleep_ns((timeout_in_us) / 10 * 1000); \
-		} \
-		if (timed_out)
+#define IF_AFTER_TIMEOUT(timeout_in_us, condition)                                                                                                                                                     \
+	timed_out = true;                                                                                                                                                                              \
+	os_clock_sleep_ns((timeout_in_us) % 10 * 1000);                                                                                                                                                \
+	for (size_t i = 0; i < 10; i++) {                                                                                                                                                              \
+		if (!(condition)) {                                                                                                                                                                    \
+			timed_out = false;                                                                                                                                                             \
+			break;                                                                                                                                                                         \
+		}                                                                                                                                                                                      \
+		os_clock_sleep_ns((timeout_in_us) / 10 * 1000);                                                                                                                                        \
+	}                                                                                                                                                                                              \
+	if (timed_out)
 
 // https://en.wikipedia.org/wiki/Find_first_set
 static uint32_t find_first_set(uint32_t value)
@@ -398,8 +388,7 @@ static uint32_t find_first_set(uint32_t value)
 		return 0;
 	}
 	uint32_t n = 0;
-	while (((value >> n) & 1) == 0)
-	{
+	while (((value >> n) & 1) == 0) {
 		n = n + 1;
 	}
 	return n;
@@ -412,9 +401,9 @@ static uint32_t find_first_set(uint32_t value)
 // Get the value of register 'reg' on NIC at address 'addr'
 static uint32_t reg_read(void* addr, uint32_t reg)
 {
-	uint32_t val_le = *((volatile uint32_t*)((char*) addr + reg));
+	uint32_t val_le = *((volatile uint32_t*) ((char*) addr + reg));
 	uint32_t result = le_to_cpu32(val_le);
-	//os_debug("IXGBE read (addr %p): 0x%08" PRIx32 " -> 0x%08" PRIx32, addr, reg, result);
+	// os_debug("IXGBE read (addr %p): 0x%08" PRIx32 " -> 0x%08" PRIx32, addr, reg, result);
 	return result;
 }
 // Get the value of field 'field' (from the REG_... macros) of register 'reg' on NIC at address 'addr'
@@ -426,16 +415,13 @@ static uint32_t reg_read_field(void* addr, uint32_t reg, uint32_t field)
 }
 
 // Write 'value' to the given register address 'reg_addr'; this is the sum of a NIC address and a register offset
-static void reg_write_raw(volatile uint32_t* reg_addr, uint32_t value)
-{
-	*reg_addr = cpu_to_le32(value);
-}
+static void reg_write_raw(volatile uint32_t* reg_addr, uint32_t value) { *reg_addr = cpu_to_le32(value); }
 
 // Write 'value' to register 'reg' on NIC at address 'addr'
 static void reg_write(void* addr, uint32_t reg, uint32_t value)
 {
-	reg_write_raw((volatile uint32_t*) ((char*)addr + reg), value);
-	//os_debug("IXGBE write (addr %p): 0x%08" PRIx32 " := 0x%08" PRIx32, addr, reg, value);
+	reg_write_raw((volatile uint32_t*) ((char*) addr + reg), value);
+	// os_debug("IXGBE write (addr %p): 0x%08" PRIx32 " := 0x%08" PRIx32, addr, reg, value);
 }
 // Write 'value' to the field 'field' (from the REG_... #defines) of register 'reg' on NIC at address 'addr'
 static void reg_write_field(void* addr, uint32_t reg, uint32_t field, uint32_t field_value)
@@ -447,15 +433,9 @@ static void reg_write_field(void* addr, uint32_t reg, uint32_t field, uint32_t f
 }
 
 // Clear (i.e., write all 0s) register 'reg' on NIC at address 'addr'
-static void reg_clear(void* addr, uint32_t reg)
-{
-	reg_write(addr, reg, 0);
-}
+static void reg_clear(void* addr, uint32_t reg) { reg_write(addr, reg, 0); }
 // Clear (i.e., write all 0s) the field 'field' (from the REG_... #defines) of register 'reg' on NIC at address 'addr'
-static void reg_clear_field(void* addr, uint32_t reg, uint32_t field)
-{
-	reg_write_field(addr, reg, field, 0);
-}
+static void reg_clear_field(void* addr, uint32_t reg, uint32_t field) { reg_write_field(addr, reg, field, 0); }
 
 // Set (i.e., write all 1s) the field 'field' (from the REG_... #defines) of register 'reg' on NIC at address 'addr'
 static void reg_set_field(void* addr, uint32_t reg, uint32_t field)
@@ -466,24 +446,18 @@ static void reg_set_field(void* addr, uint32_t reg, uint32_t field)
 }
 
 // Check if the field 'field' (from the REG_... #defines) of register 'reg' on NIC at address 'addr' is cleared (i.e., reads as all 0s)
-static bool reg_is_field_cleared(void* addr, uint32_t reg, uint32_t field)
-{
-	return reg_read_field(addr, reg, field) == 0;
-}
+static bool reg_is_field_cleared(void* addr, uint32_t reg, uint32_t field) { return reg_read_field(addr, reg, field) == 0; }
 
 // Get the value of PCI register 'reg' on the device at address 'addr'
 static uint32_t pcireg_read(const struct os_pci_address* addr, uint8_t reg)
 {
 	uint32_t value = os_pci_read(addr, reg);
-	//os_debug("IXGBE PCI read: 0x%02" PRIx8 " -> 0x%08" PRIx32, reg, value);
+	// os_debug("IXGBE PCI read: 0x%02" PRIx8 " -> 0x%08" PRIx32, reg, value);
 	return value;
 }
 
 // Check if the field 'field' (from the PCIREG_... #defines) of register 'reg' on the device at address 'addr' is cleared (i.e., reads as all 0s)
-static bool pcireg_is_field_cleared(const struct os_pci_address* addr, uint8_t reg, uint32_t field)
-{
-	return (pcireg_read(addr, reg) & field) == 0;
-}
+static bool pcireg_is_field_cleared(const struct os_pci_address* addr, uint8_t reg, uint32_t field) { return (pcireg_read(addr, reg) & field) == 0; }
 
 // Set (i.e., write all 1s) the field 'field' (from the PCIREG_... #defines) of register 'reg' on the device at address 'addr'
 static void pcireg_set_field(const struct os_pci_address* addr, uint8_t reg, uint32_t field)
@@ -491,7 +465,7 @@ static void pcireg_set_field(const struct os_pci_address* addr, uint8_t reg, uin
 	uint32_t old_value = pcireg_read(addr, reg);
 	uint32_t new_value = old_value | field;
 	os_pci_write(addr, reg, new_value);
-	//os_debug("IXGBE PCI write: 0x%02" PRIx8 " := 0x%08" PRIx32, reg, new_value);
+	// os_debug("IXGBE PCI write: 0x%02" PRIx8 " := 0x%08" PRIx32, reg, new_value);
 }
 
 // -------------------------------------
@@ -537,13 +511,13 @@ void tn_device_init(const struct os_pci_address* pci_address, struct tn_device* 
 
 	// Section 9.3.6.1 Memory and IO Base Address Registers:
 	// As indicated in Table 9-4, the low 4 bits are read-only and not part of the address
-	uintptr_t dev_phys_addr = (((uint64_t) pci_bar0high) << 32) | (pci_bar0low & ~BITS(0,3));
+	uintptr_t dev_phys_addr = (((uint64_t) pci_bar0high) << 32) | (pci_bar0low & ~BITS(0, 3));
 	// Section 8.1 Address Regions: "Region Size" of "Internal registers memories and Flash (memory BAR)" is "128 KB + Flash_Size"
 	// Thus we can ask for 128KB, since we don't know the flash size (and don't need it thus no need to actually check it)
 	device->addr = os_memory_phys_to_virt(dev_phys_addr, 128 * 1024);
 
 	// TODO either make os_debug support formatting or remove this
-	//os_debug("Device %02" PRIx8 ":%02" PRIx8 ".%" PRIx8 " mapped to %p", pci_address->bus, pci_address->device, pci_address->function, device->addr);
+	// os_debug("Device %02" PRIx8 ":%02" PRIx8 ".%" PRIx8 " mapped to %p", pci_address->bus, pci_address->device, pci_address->function, device->addr);
 
 	// "The following sequence of commands is typically issued to the device by the software device driver in order to initialize the 82599 for normal operation.
 	//  The major initialization steps are:"
@@ -570,9 +544,7 @@ void tn_device_init(const struct os_pci_address* pci_address, struct tn_device* 
 		// "The 82599 clears the RXDCTL.ENABLE bit only after all pending memory accesses to the descriptor ring are done.
 		//  The driver should poll this bit before releasing the memory allocated to this queue."
 		// INTERPRETATION-MISSING: There is no mention of what to do if the 82599 never clears the bit; 1s seems like a decent timeout
-		IF_AFTER_TIMEOUT(1000 * 1000, !reg_is_field_cleared(device->addr, REG_RXDCTL(queue), REG_RXDCTL_ENABLE)) {
-			fatal("RXDCTL.ENABLE did not clear, cannot disable receive to reset");
-		}
+		IF_AFTER_TIMEOUT(1000 * 1000, !reg_is_field_cleared(device->addr, REG_RXDCTL(queue), REG_RXDCTL_ENABLE)) { fatal("RXDCTL.ENABLE did not clear, cannot disable receive to reset"); }
 		// "Once the RXDCTL.ENABLE bit is cleared the driver should wait additional amount of time (~100 us) before releasing the memory allocated to this queue."
 		// We aren't releasing any memory, so no need to wait
 	}
@@ -583,7 +555,8 @@ void tn_device_init(const struct os_pci_address* pci_address, struct tn_device* 
 	//    Once the bit is cleared, it is guaranteed that no requests are pending from this function."
 	// INTERPRETATION-MISSING: The next sentence refers to "a given time"; let's say 1 second should be plenty...
 	//   "The driver might time out if the PCIe Master Enable Status bit is not cleared within a given time."
-	IF_AFTER_TIMEOUT(1000 * 1000, !reg_is_field_cleared(device->addr, REG_STATUS, REG_STATUS_PCIE_MASTER_ENABLE_STATUS)) {
+	IF_AFTER_TIMEOUT(1000 * 1000, !reg_is_field_cleared(device->addr, REG_STATUS, REG_STATUS_PCIE_MASTER_ENABLE_STATUS))
+	{
 		// "In these cases, the driver should check that the Transaction Pending bit (bit 5) in the Device Status register in the PCI config space is clear before proceeding.
 		//  In such cases the driver might need to initiate two consecutive software resets with a larger delay than 1 us between the two of them."
 		// INTERPRETATION-MISSING: Might? Let's say this is a must, and that we assume the software resets work...
@@ -649,8 +622,8 @@ void tn_device_init(const struct os_pci_address* pci_address, struct tn_device* 
 	//	"Bits 30:19; Reserved"
 	//	"FCEN: Bit 31; Transmit flow control enable for packet buffer n."
 	//	"This register contains the receive threshold used to determine when to send an XOFF packet and counts in units of bytes.
-	//	 This value must be at least eight bytes less than the maximum number of bytes allocated to the receive packet buffer and the lower four bits must be programmed to 0x0 (16-byte granularity).
-	//	 Each time the receive FIFO reaches the fullness indicated by RTH, hardware transmits a pause frame if the transmission of flow control frames is enabled."
+	//	 This value must be at least eight bytes less than the maximum number of bytes allocated to the receive packet buffer and the lower four bits must be programmed to 0x0 (16-byte
+	//granularity). 	 Each time the receive FIFO reaches the fullness indicated by RTH, hardware transmits a pause frame if the transmission of flow control frames is enabled."
 	// INTERPRETATION-CONTRADICTION: There is an obvious contradiction in the stated granularities (16 vs 32 bytes). We assume 32 is correct, since this also covers the 16 byte case.
 	// INTERPRETATION-MISSING: We assume that the "RXPBSIZE[n]-0x6000" calculation above refers to the RXPBSIZE in bytes (otherwise the size of FCRTH[n].RTH would be negative by default...)
 	// INTERPRETATION-CONTRADICTION: The granularity has to refer to the reserved bits, otherwise there is not enough space for meaningful values.
@@ -659,9 +632,7 @@ void tn_device_init(const struct os_pci_address* pci_address, struct tn_device* 
 	// "- Wait for EEPROM auto read completion."
 	// INTERPRETATION-MISSING: This refers to Section 8.2.3.2.1 EEPROM/Flash Control Register (EEC), Bit 9 "EEPROM Auto-Read Done"
 	// INTERPRETATION-MISSING: No timeout is mentioned, so we use 1s.
-	IF_AFTER_TIMEOUT(1000 * 1000, reg_is_field_cleared(device->addr, REG_EEC, REG_EEC_AUTO_RD)) {
-		fatal("EEPROM auto read timed out");
-	}
+	IF_AFTER_TIMEOUT(1000 * 1000, reg_is_field_cleared(device->addr, REG_EEC, REG_EEC_AUTO_RD)) { fatal("EEPROM auto read timed out"); }
 	// INTERPRETATION-MISSING: We also need to check bit 8 of the same register, "EEPROM Present", which indicates "EEPROM is present and has the correct signature field. This bit is read-only.",
 	//                 since bit 9 "is also set when the EEPROM is not present or whether its signature field is not valid."
 	// INTERPRETATION-MISSING: We also need to check whether the EEPROM has a valid checksum, using the FWSM's register EXT_ERR_IND, where "0x00 = No error"
@@ -670,9 +641,7 @@ void tn_device_init(const struct os_pci_address* pci_address, struct tn_device* 
 	}
 	// "- Wait for DMA initialization done (RDRXCTL.DMAIDONE)."
 	// INTERPRETATION-MISSING: Once again, no timeout mentioned, so we use 1s
-	IF_AFTER_TIMEOUT(1000 * 1000, reg_is_field_cleared(device->addr, REG_RDRXCTL, REG_RDRXCTL_DMAIDONE)) {
-		fatal("DMA init timed out");
-	}
+	IF_AFTER_TIMEOUT(1000 * 1000, reg_is_field_cleared(device->addr, REG_RDRXCTL, REG_RDRXCTL_DMAIDONE)) { fatal("DMA init timed out"); }
 	// "- Setup the PHY and the link (see Section 4.6.4)."
 	//	Section 8.2.3.22.19 Auto Negotiation Control Register (AUTOC):
 	//	"Also programmable via EEPROM." is applied to all fields except bit 0, "Force Link Up"
@@ -686,7 +655,8 @@ void tn_device_init(const struct os_pci_address* pci_address, struct tn_device* 
 	//	"Program the Receive Address register(s) (RAL[n], RAH[n]) per the station address
 	//	 This can come from the EEPROM or from any other means (for example, it could be stored anywhere in the EEPROM or even in the platform PROM for LOM design)."
 	//	Section 8.2.3.7.9 Receive Address High (RAH[n]):
-	//		"After reset, if the EEPROM is present, the first register (Receive Address Register 0) is loaded from the IA field in the EEPROM, its Address Select field is 00b, and its Address Valid field is 1b."
+	//		"After reset, if the EEPROM is present, the first register (Receive Address Register 0) is loaded from the IA field in the EEPROM, its Address Select field is 00b, and its
+	//Address Valid field is 1b."
 	// INTERPRETATION-POINTLESS: Since we checked that the EEPROM is present and valid, RAH[0] and RAL[0] are initialized from the EEPROM, thus we do not need to initialize them.
 	//	"- Receive Address High (RAH[n].VAL = 0b) for unused addresses."
 	//	Section 8.2.3.7.9 Receive Address High (RAH[n]):
@@ -743,9 +713,8 @@ void tn_device_init(const struct os_pci_address* pci_address, struct tn_device* 
 	//		 Each filter can be configured to recognize any arbitrary pattern within the first 128 bytes of the packet.
 	//		 To configure the flexible filter, software programs the required values into the Flexible Host Filter Table (FHFT).
 	//		 These contain separate values for each filter.
-	//		 Software must also enable the filter in the WUFC register, and enable the overall wake-up functionality must be enabled by setting the PME_En bit in the PMCSR or the WUC register."
-	//	Section 8.2.3.24.2 Wake Up Filter Control Register (WUFC):
-	//		"FLX{0-5}: Bits {16-21}; Init val 0b; Flexible Filter {0-5} Enable"
+	//		 Software must also enable the filter in the WUFC register, and enable the overall wake-up functionality must be enabled by setting the PME_En bit in the PMCSR or the WUC
+	//register." 	Section 8.2.3.24.2 Wake Up Filter Control Register (WUFC): 		"FLX{0-5}: Bits {16-21}; Init val 0b; Flexible Filter {0-5} Enable"
 	// INTERPRETATION-POINTLESS: Since WUFC.FLX{0-5} are disabled by default, and FHFT(n) only matters if the corresponding WUFC.FLX is enabled, we do not need to do anything by assumption NOWANT
 	//	"After all memories in the filter units previously indicated are initialized, enable ECC reporting by setting the RXFECCERR0.ECCFLT_EN bit."
 	//	Section 8.2.3.7.23 Rx Filter ECC Err Insertion 0 (RXFECCERR0):
@@ -753,7 +722,8 @@ void tn_device_init(const struct os_pci_address* pci_address, struct tn_device* 
 	//		 When set to 1b, enables the ECC-INT + the RXF-blocking during ECC-ERR in one of the Rx filter memories.
 	//		 At 0b, the ECC logic can still function overcoming only single errors while dual or multiple errors can be ignored silently."
 	// INTERPRETATION-POINTLESS: Since we do not want flexible filters, this step is not necessary.
-	//	"Program the different Rx filters and Rx offloads via registers FCTRL, VLNCTRL, MCSTCTRL, RXCSUM, RQTC, RFCTL, MPSAR, RSSRK, RETA, SAQF, DAQF, SDPQF, FTQF, SYNQF, ETQF, ETQS, RDRXCTL, RSCDBU."
+	//	"Program the different Rx filters and Rx offloads via registers FCTRL, VLNCTRL, MCSTCTRL, RXCSUM, RQTC, RFCTL, MPSAR, RSSRK, RETA, SAQF, DAQF, SDPQF, FTQF, SYNQF, ETQF, ETQS, RDRXCTL,
+	//RSCDBU."
 	// We do not touch FCTRL here, if the user wants promiscuous mode they will call the appropriate function.
 	//	Section 8.2.3.7.2 VLAN Control Register (VLNCTRL):
 	//		"Bit 30, VLAN Filter Enable, Init val 0b; 0b = Disabled."
@@ -826,7 +796,8 @@ void tn_device_init(const struct os_pci_address* pci_address, struct tn_device* 
 	//			"- Set MRQE to 0xxxb, with the three least significant bits set according to the RSS mode"
 	// 			Section 8.2.3.7.12 Multiple Receive Queues Command Register (MRQC): "MRQE, Init Val 0x0; 0000b = RSS disabled"
 	// Thus we do not need to modify MRQC.
-	//		(from 4.6.11.3.1) "Queue Drop Enable (PFQDE) - In SR-IO the QDE bit should be set to 1b in the PFQDE register for all queues. In VMDq mode, the QDE bit should be set to 0b for all queues."
+	//		(from 4.6.11.3.1) "Queue Drop Enable (PFQDE) - In SR-IO the QDE bit should be set to 1b in the PFQDE register for all queues. In VMDq mode, the QDE bit should be set to 0b for
+	//all queues."
 	// We do not need to change PFQDE by assumption NOWANT
 	//		"- Rx UP to TC (RTRUP2TC), UPnMAP=0b, n=0,...,7"
 	//		Section 8.2.3.10.4 DCB Receive User Priority to Traffic Class (RTRUP2TC): All init vals = 0
@@ -959,7 +930,8 @@ void tn_device_set_promiscuous(struct tn_device* const device)
 	}
 	// "Unicast packet filtering - Promiscuous unicast filtering is enabled (FCTRL.UPE=1b) or the packet passes unicast MAC filters (host or manageability)."
 	reg_set_field(device->addr, REG_FCTRL, REG_FCTRL_UPE);
-	// "Multicast packet filtering - Promiscuous multicast filtering is enabled by either the host or manageability (FCTRL.MPE=1b or MANC.MCST_PASS_L2 =1b) or the packet matches one of the multicast filters."
+	// "Multicast packet filtering - Promiscuous multicast filtering is enabled by either the host or manageability (FCTRL.MPE=1b or MANC.MCST_PASS_L2 =1b) or the packet matches one of the
+	// multicast filters."
 	reg_set_field(device->addr, REG_FCTRL, REG_FCTRL_MPE);
 	// "Broadcast packet filtering to host - Promiscuous multicast filtering is enabled (FCTRL.MPE=1b) or Broadcast Accept Mode is enabled (FCTRL.BAM = 1b)."
 	// INTERPRETATION-MISSING: Nothing to do here, since we just enabled MPE; but what is BAM for then?
@@ -1018,7 +990,7 @@ static void tn_agent_add_output(struct tn_agent* const agent, struct tn_device* 
 	// 	"The Transmit Descriptor Base Address must point to a 128 byte-aligned block of data."
 	// This alignment is guaranteed by the agent initialization
 	uintptr_t ring_phys_addr = os_memory_virt_to_phys((void*) agent->rings[output_index]);
-	reg_write(device->addr, REG_TDBAH(queue_index), (uint32_t) (ring_phys_addr >> 32));
+	reg_write(device->addr, REG_TDBAH(queue_index), (uint32_t)(ring_phys_addr >> 32));
 	reg_write(device->addr, REG_TDBAL(queue_index), (uint32_t) ring_phys_addr);
 	// "- Set the length register to the size of the descriptor ring (TDLEN)."
 	// 	Section 8.2.3.9.7 Transmit Descriptor Length (TDLEN[n]):
@@ -1050,7 +1022,7 @@ static void tn_agent_add_output(struct tn_agent* const agent, struct tn_device* 
 	//	Section 8.2.3.9.11 Tx Descriptor Completion Write Back Address Low (TDWBAL[n]):
 	//	"Head_WB_En, bit 0 [...] 1b = Head write-back is enabled."
 	//	"Reserved, bit 1"
-	reg_write(device->addr, REG_TDWBAH(queue_index), (uint32_t) (head_phys_addr >> 32));
+	reg_write(device->addr, REG_TDWBAH(queue_index), (uint32_t)(head_phys_addr >> 32));
 	reg_write(device->addr, REG_TDWBAL(queue_index), (uint32_t) head_phys_addr | 1u);
 	// INTERPRETATION-MISSING: We must disable relaxed ordering of head pointer write-back, since it could cause the head pointer to be updated backwards
 	reg_clear_field(device->addr, REG_DCATXCTRL(queue_index), REG_DCATXCTRL_TX_DESC_WB_RO_EN);
@@ -1064,9 +1036,7 @@ static void tn_agent_add_output(struct tn_agent* const agent, struct tn_device* 
 	//    Poll the TXDCTL register until the Enable bit is set."
 	// INTERPRETATION-MISSING: No timeout is mentioned here, let's say 1s to be safe.
 	reg_set_field(device->addr, REG_TXDCTL(queue_index), REG_TXDCTL_ENABLE);
-	IF_AFTER_TIMEOUT(1000 * 1000, reg_is_field_cleared(device->addr, REG_TXDCTL(queue_index), REG_TXDCTL_ENABLE)) {
-		fatal("TXDCTL.ENABLE did not set, cannot enable queue");
-	}
+	IF_AFTER_TIMEOUT(1000 * 1000, reg_is_field_cleared(device->addr, REG_TXDCTL(queue_index), REG_TXDCTL_ENABLE)) { fatal("TXDCTL.ENABLE did not set, cannot enable queue"); }
 	// "Note: The tail register of the queue (TDT) should not be bumped until the queue is enabled."
 	// Nothing to transmit yet, so leave TDT alone.
 
@@ -1107,7 +1077,7 @@ static void tn_agent_set_input(struct tn_agent* const agent, struct tn_device* c
 	// 	"The receive descriptor base address must point to a 128 byte-aligned block of data."
 	// This alignment is guaranteed by the agent initialization
 	uintptr_t ring_phys_addr = os_memory_virt_to_phys((void*) agent->rings[0]);
-	reg_write(device->addr, REG_RDBAH(queue_index), (uint32_t) (ring_phys_addr >> 32));
+	reg_write(device->addr, REG_RDBAH(queue_index), (uint32_t)(ring_phys_addr >> 32));
 	reg_write(device->addr, REG_RDBAL(queue_index), (uint32_t) ring_phys_addr);
 	// "- Set the length register to the size of the descriptor ring (register RDLEN)."
 	// Section 8.2.3.8.3 Receive DEscriptor Length (RDLEN[n]):
@@ -1130,9 +1100,7 @@ static void tn_agent_set_input(struct tn_agent* const agent, struct tn_device* c
 	reg_set_field(device->addr, REG_RXDCTL(queue_index), REG_RXDCTL_ENABLE);
 	// "- Poll the RXDCTL register until the Enable bit is set. The tail should not be bumped before this bit was read as 1b."
 	// INTERPRETATION-MISSING: No timeout is mentioned here, let's say 1s to be safe.
-	IF_AFTER_TIMEOUT(1000 * 1000, reg_is_field_cleared(device->addr, REG_RXDCTL(queue_index), REG_RXDCTL_ENABLE)) {
-		fatal("RXDCTL.ENABLE did not set, cannot enable queue");
-	}
+	IF_AFTER_TIMEOUT(1000 * 1000, reg_is_field_cleared(device->addr, REG_RXDCTL(queue_index), REG_RXDCTL_ENABLE)) { fatal("RXDCTL.ENABLE did not set, cannot enable queue"); }
 	// "- Bump the tail pointer (RDT) to enable descriptors fetching by setting it to the ring length minus one."
 	// 	Section 7.1.9 Receive Descriptor Queue Structure:
 	// 	"Software inserts receive descriptors by advancing the tail pointer(s) to refer to the address of the entry just beyond the last valid descriptor."
@@ -1144,9 +1112,7 @@ static void tn_agent_set_input(struct tn_agent* const agent, struct tn_device* c
 		reg_set_field(device->addr, REG_SECRXCTRL, REG_SECRXCTRL_RX_DIS);
 		//	"- Wait for the data paths to be emptied by HW. Poll the SECRXSTAT.SECRX_RDY bit until it is asserted by HW."
 		// INTERPRETATION-MISSING: Another undefined timeout, assuming 1s as usual
-		IF_AFTER_TIMEOUT(1000 * 1000, reg_is_field_cleared(device->addr, REG_SECRXSTAT, REG_SECRXSTAT_SECRX_RDY)) {
-			fatal("SECRXSTAT.SECRXRDY timed out, cannot start device");
-		}
+		IF_AFTER_TIMEOUT(1000 * 1000, reg_is_field_cleared(device->addr, REG_SECRXSTAT, REG_SECRXSTAT_SECRX_RDY)) { fatal("SECRXSTAT.SECRXRDY timed out, cannot start device"); }
 		//	"- Set RXCTRL.RXEN"
 		reg_set_field(device->addr, REG_RXCTRL, REG_RXCTRL_RXEN);
 		//	"- Clear the SECRXCTRL.SECRX_DIS bits to enable receive data path"
@@ -1205,8 +1171,7 @@ void tn_agent_init(size_t input_index, size_t devices_count, struct tn_device* d
 // High-level API
 // --------------
 
-struct tn_run_state
-{
+struct tn_run_state {
 	struct tn_agent* agents;
 	tn_packet_handler* handler;
 };
@@ -1228,7 +1193,7 @@ static void tn_run_peragent(size_t index, void* state_)
 		}
 
 		// "Length Field (16-bit offset 0, 2nd line): The length indicated in this field covers the data written to a receive buffer."
-		uint16_t length = (uint16_t) (receive_metadata & 0xFFFFu);
+		uint16_t length = (uint16_t)(receive_metadata & 0xFFFFu);
 		// This cannot overflow because the packet is by definition in an allocated block of memory
 		char* packet = agent->buffer + (PACKET_BUFFER_SIZE * agent->processed_delimiter);
 		state->handler(index, packet, length, agent->lengths);
@@ -1236,36 +1201,36 @@ static void tn_run_peragent(size_t index, void* state_)
 		// Section 7.2.3.2.2 Legacy Transmit Descriptor Format:
 		// "Buffer Address (64)", 1st line
 		// 2nd line:
-			// "Length", bits 0-15: "Length (TDESC.LENGTH) specifies the length in bytes to be fetched from the buffer address provided"
-				// "Note: Descriptors with zero length (null descriptors) transfer no data."
-			// "CSO", bits 16-23: "A Checksum Offset (TDESC.CSO) field indicates where, relative to the start of the packet, to insert a TCP checksum if this mode is enabled"
-				// All zero
-			// "CMD", bits 24-31:
-				// "RSV (bit 7) - Reserved"
-				// "VLE (bit 6) - VLAN Packet Enable"
-				// "DEXT (bit 5) - Descriptor extension (zero for legacy mode)"
-				// "RSV (bit 4) - Reserved"
-				// "RS (bit 3) - Report Status - RS signals hardware to report the DMA completion status indication [...]"
-				// "IC (bit 2) - Insert Checksum - Hardware inserts a checksum at the offset indicated by the CSO field if the Insert Checksum bit (IC) is set."
-				// "IFCS (bit 1) - Insert FCS":
-				//	"There are several cases in which software must set IFCS as follows: Transmitting a short packet while padding is enabled by the HLREG0.TXPADEN bit. [...]"
-				//      By assumption TXPAD we need this bit set.
-				// "EOP (bit 0) - End of Packet"
-			// "STA", bits 32-35: "DD (bit 0) - Descriptor Done. The other bits in the STA field are reserved."
-				// All zero
-			// "Rsvd", bits 36-39: "Reserved."
-				// All zero
-			// "CSS", bits 40-47: "A Checksum Start (TDESC.CSS) field indicates where to begin computing the checksum."
-				// All zero
-			// "VLAN", bits 48-63: "The VLAN field is used to provide the 802.1q/802.1ac tagging information."
-				// All zero
+		// "Length", bits 0-15: "Length (TDESC.LENGTH) specifies the length in bytes to be fetched from the buffer address provided"
+		// "Note: Descriptors with zero length (null descriptors) transfer no data."
+		// "CSO", bits 16-23: "A Checksum Offset (TDESC.CSO) field indicates where, relative to the start of the packet, to insert a TCP checksum if this mode is enabled"
+		// All zero
+		// "CMD", bits 24-31:
+		// "RSV (bit 7) - Reserved"
+		// "VLE (bit 6) - VLAN Packet Enable"
+		// "DEXT (bit 5) - Descriptor extension (zero for legacy mode)"
+		// "RSV (bit 4) - Reserved"
+		// "RS (bit 3) - Report Status - RS signals hardware to report the DMA completion status indication [...]"
+		// "IC (bit 2) - Insert Checksum - Hardware inserts a checksum at the offset indicated by the CSO field if the Insert Checksum bit (IC) is set."
+		// "IFCS (bit 1) - Insert FCS":
+		//	"There are several cases in which software must set IFCS as follows: Transmitting a short packet while padding is enabled by the HLREG0.TXPADEN bit. [...]"
+		//      By assumption TXPAD we need this bit set.
+		// "EOP (bit 0) - End of Packet"
+		// "STA", bits 32-35: "DD (bit 0) - Descriptor Done. The other bits in the STA field are reserved."
+		// All zero
+		// "Rsvd", bits 36-39: "Reserved."
+		// All zero
+		// "CSS", bits 40-47: "A Checksum Start (TDESC.CSS) field indicates where to begin computing the checksum."
+		// All zero
+		// "VLAN", bits 48-63: "The VLAN field is used to provide the 802.1q/802.1ac tagging information."
+		// All zero
 		// INTERPRETATION-INCORRECT: Despite being marked as "reserved", the buffer address does not get clobbered by write-back, so no need to set it again.
 		// This means all we have to do is set the length in the first 16 bits, then bits 0,1 of CMD, and bit 3 of CMD if we want write-back.
 		// Importantly, since bit 32 will stay at 0, and we share the receive ring and the first transmit ring, it will clear the Descriptor Done flag of the receive descriptor.
 		// Not setting the RS bit every time is a huge perf win in throughput (a few Gb/s) with no apparent impact on latency.
-		uint64_t rs_bit = (uint64_t) ((agent->processed_delimiter & (IXGBE_AGENT_RECYCLE_PERIOD - 1)) == (IXGBE_AGENT_RECYCLE_PERIOD - 1)) << (24+3);
+		uint64_t rs_bit = (uint64_t)((agent->processed_delimiter & (IXGBE_AGENT_RECYCLE_PERIOD - 1)) == (IXGBE_AGENT_RECYCLE_PERIOD - 1)) << (24 + 3);
 		for (size_t n = 0; n < agent->outputs_count; n++) {
-			agent->rings[n][agent->processed_delimiter].metadata = cpu_to_le64((uint64_t) agent->lengths[n] | rs_bit | BITL(24+1) | BITL(24));
+			agent->rings[n][agent->processed_delimiter].metadata = cpu_to_le64((uint64_t) agent->lengths[n] | rs_bit | BITL(24 + 1) | BITL(24));
 			agent->lengths[n] = 0;
 		}
 
@@ -1299,9 +1264,6 @@ static void tn_run_peragent(size_t index, void* state_)
 
 void tn_run(size_t agents_count, struct tn_agent* agents, tn_packet_handler* handler)
 {
-	struct tn_run_state state = {
-		.agents = agents,
-		.handler = handler
-	};
+	struct tn_run_state state = {.agents = agents, .handler = handler};
 	foreach_index_forever(agents_count, tn_run_peragent, &state);
 }

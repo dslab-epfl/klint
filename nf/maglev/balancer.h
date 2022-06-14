@@ -1,18 +1,16 @@
 #pragma once
 
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
-
-#include "os/time.h"
 #include "os/memory.h"
+#include "os/time.h"
 #include "structs/cht.h"
 #include "structs/index_pool.h"
 #include "structs/map.h"
 
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 
-struct flow
-{
+struct flow {
 	uint32_t src_ip;
 	uint32_t dst_ip;
 	uint16_t src_port;
@@ -21,8 +19,7 @@ struct flow
 	uint8_t _padding[3];
 };
 
-struct balancer
-{
+struct balancer {
 	struct map* flow_indices;
 	struct index_pool* flow_pool;
 	struct flow* flow_heap;
@@ -81,7 +78,4 @@ static inline bool balancer_get_backend(struct balancer* balancer, struct flow* 
 	return true;
 }
 
-static inline void balancer_process_heartbeat(struct balancer* balancer, device_t backend, time_t time)
-{
-	index_pool_refresh(balancer->backend_pool, time, backend);
-}
+static inline void balancer_process_heartbeat(struct balancer* balancer, device_t backend, time_t time) { index_pool_refresh(balancer->backend_pool, time, backend); }

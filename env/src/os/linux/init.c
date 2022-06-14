@@ -1,17 +1,16 @@
 #include "os/init.h"
 
-#include <assert.h>
-#include <fcntl.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <sys/io.h>
-#include <sys/mman.h>
-
 #include "arch/tsc.h"
 #include "os/log.h"
 #include "os/memory.h"
 #include "os/pci.h"
 
+#include <assert.h>
+#include <fcntl.h>
+#include <stdlib.h>
+#include <sys/io.h>
+#include <sys/mman.h>
+#include <unistd.h>
 
 // 1 GB hugepages
 #define HUGEPAGE_SIZE_POWER (10 + 10 + 10)
@@ -29,7 +28,6 @@ uint64_t cpu_freq_denominator;
 // For the shared memory_alloc.c
 char* memory;
 size_t memory_used_len;
-
 
 static uint64_t linux_msr_read(uint64_t index)
 {
@@ -55,7 +53,6 @@ static uint64_t linux_msr_read(uint64_t index)
 	return msr;
 }
 
-
 void os_init(void)
 {
 	// First, call ioperm to make sure future PCI accesses will work
@@ -76,21 +73,20 @@ void os_init(void)
 	// We use a single 1 GB page to serve everything, which is enough for the allocator
 	static_assert(HUGEPAGE_SIZE >= OS_MEMORY_SIZE);
 	memory = mmap(
-		// No specific address
-		NULL,
-		// Size of the mapping
-		HUGEPAGE_SIZE,
-		// R/W page
-		PROT_READ | PROT_WRITE,
-		// Hugepage, not backed by a file (and thus zero-initialized); note that without MAP_SHARED the call fails
-		// MAP_POPULATE means the page table will be populated already (without the need for a page fault later),
-		// which is required if the calling code tries to get the physical address of the page without accessing it first.
-		MAP_HUGETLB | (HUGEPAGE_SIZE_POWER << MAP_HUGE_SHIFT) | MAP_ANONYMOUS | MAP_SHARED | MAP_POPULATE,
-		// Required on MAP_ANONYMOUS
-		-1,
-		// Required on MAP_ANONYMOUS
-		0
-	);
+	    // No specific address
+	    NULL,
+	    // Size of the mapping
+	    HUGEPAGE_SIZE,
+	    // R/W page
+	    PROT_READ | PROT_WRITE,
+	    // Hugepage, not backed by a file (and thus zero-initialized); note that without MAP_SHARED the call fails
+	    // MAP_POPULATE means the page table will be populated already (without the need for a page fault later),
+	    // which is required if the calling code tries to get the physical address of the page without accessing it first.
+	    MAP_HUGETLB | (HUGEPAGE_SIZE_POWER << MAP_HUGE_SHIFT) | MAP_ANONYMOUS | MAP_SHARED | MAP_POPULATE,
+	    // Required on MAP_ANONYMOUS
+	    -1,
+	    // Required on MAP_ANONYMOUS
+	    0);
 	if (memory == MAP_FAILED) {
 		os_debug("Allocate mmap failed");
 		abort();

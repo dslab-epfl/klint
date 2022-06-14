@@ -1,17 +1,11 @@
 #include "os/config.h"
 
-
-struct config_item
-{
+struct config_item {
 	const char* name;
 	uint64_t value;
 };
 
-static struct config_item items[] =
-{
-	NF_CONFIG_DATA
-};
-
+static struct config_item items[] = {NF_CONFIG_DATA};
 
 static bool string_compare(const char* a, const char* b)
 //@ requires [?fa]string(a, ?csa) &*& [?fb]string(b, ?csb);
@@ -43,8 +37,7 @@ bool os_config_try_get(const char* name, uint64_t* out_value)
 	// VeriFast is missing features related to global variables (e.g. it doesn't understand sizeof of a global variable),
 	// so it cannot verify this 5-line function, but it can be easily audited.
 	//@ assume(false);
-	for (size_t n = 0; n < sizeof(items)/sizeof(struct config_item); n++)
-	{
+	for (size_t n = 0; n < sizeof(items) / sizeof(struct config_item); n++) {
 		if (string_compare(items[n].name, name)) {
 			*out_value = items[n].value;
 			return true;

@@ -9,9 +9,8 @@
 #include "util/log.h"
 
 #include <fcntl.h>
-#include <unistd.h>
-
 #include <sys/mman.h>
+#include <unistd.h>
 
 // We only support 2MB hugepages
 #define HUGEPAGE_SIZE_POWER (10 + 10 + 10)
@@ -41,21 +40,20 @@ bool tn_mem_allocate(const size_t size, void** out_addr)
 {
 	if (!page_allocated) {
 		page_addr = mmap(
-			// No specific address
-			NULL,
-			// Size of the mapping
-			HUGEPAGE_SIZE,
-			// R/W page
-			PROT_READ | PROT_WRITE,
-			// Hugepage, not backed by a file (and thus zero-initialized); note that without MAP_SHARED the call fails
-			// MAP_POPULATE means the page table will be populated already (without the need for a page fault later),
-			// which is required if the calling code tries to get the physical address of the page without accessing it first.
-			MAP_HUGETLB | (HUGEPAGE_SIZE_POWER << MAP_HUGE_SHIFT) | MAP_ANONYMOUS | MAP_SHARED | MAP_POPULATE,
-			// Required on MAP_ANONYMOUS
-			-1,
-			// Required on MAP_ANONYMOUS
-			0
-		);
+		    // No specific address
+		    NULL,
+		    // Size of the mapping
+		    HUGEPAGE_SIZE,
+		    // R/W page
+		    PROT_READ | PROT_WRITE,
+		    // Hugepage, not backed by a file (and thus zero-initialized); note that without MAP_SHARED the call fails
+		    // MAP_POPULATE means the page table will be populated already (without the need for a page fault later),
+		    // which is required if the calling code tries to get the physical address of the page without accessing it first.
+		    MAP_HUGETLB | (HUGEPAGE_SIZE_POWER << MAP_HUGE_SHIFT) | MAP_ANONYMOUS | MAP_SHARED | MAP_POPULATE,
+		    // Required on MAP_ANONYMOUS
+		    -1,
+		    // Required on MAP_ANONYMOUS
+		    0);
 		if (page_addr == MAP_FAILED) {
 			TN_DEBUG("Allocate mmap failed");
 			return false;
@@ -71,7 +69,7 @@ bool tn_mem_allocate(const size_t size, void** out_addr)
 	}
 
 	// Align as required by the contract
-	const size_t align_diff = (size_t) (page_addr + page_used_len) % size;
+	const size_t align_diff = (size_t)(page_addr + page_used_len) % size;
 	if (align_diff != 0) {
 		page_used_len = page_used_len + (size - align_diff);
 	}
@@ -86,14 +84,11 @@ bool tn_mem_allocate(const size_t size, void** out_addr)
 	return true;
 }
 
-void tn_mem_free(void* const addr)
-{
-	munmap(addr, HUGEPAGE_SIZE);
-}
+void tn_mem_free(void* const addr) { munmap(addr, HUGEPAGE_SIZE); }
 
 bool tn_mem_phys_to_virt(const uintptr_t addr, const size_t size, void** out_virt_addr)
 {
-	if (addr != (uintptr_t) (off_t) addr) {
+	if (addr != (uintptr_t)(off_t) addr) {
 		TN_DEBUG("Cannot phys-to-virt an addr that does not roundtrip to off_t");
 		return false;
 	}
@@ -105,19 +100,18 @@ bool tn_mem_phys_to_virt(const uintptr_t addr, const size_t size, void** out_vir
 	}
 
 	void* mapped = mmap(
-		// No specific address
-		NULL,
-		// Size of the mapping
-		size,
-		// R/W page
-		PROT_READ | PROT_WRITE,
-		// Send updates to the underlying "file"
-		MAP_SHARED,
-		// /dev/mem
-		mem_fd,
-		// Offset is the address (cast OK because we checked above)
-		(off_t) addr
-	);
+	    // No specific address
+	    NULL,
+	    // Size of the mapping
+	    size,
+	    // R/W page
+	    PROT_READ | PROT_WRITE,
+	    // Send updates to the underlying "file"
+	    MAP_SHARED,
+	    // /dev/mem
+	    mem_fd,
+	    // Offset is the address (cast OK because we checked above)
+	    (off_t) addr);
 
 	// nothing we can do if this fails, since we didn't write don't even bother checking
 	close(mem_fd);
@@ -142,7 +136,7 @@ bool tn_mem_virt_to_phys(void* const addr, uintptr_t* out_phys_addr)
 
 	const uintptr_t page = (uintptr_t) addr / page_size;
 	const uintptr_t map_offset = page * sizeof(uint64_t);
-	if (map_offset != (uintptr_t) (off_t) map_offset) {
+	if (map_offset != (uintptr_t)(off_t) map_offset) {
 		TN_DEBUG("Cannot virt-to-phys with an offset that does not roundtrip to off_t");
 		return false;
 	}

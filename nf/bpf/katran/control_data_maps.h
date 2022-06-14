@@ -22,22 +22,21 @@
  * information about encapsulation / decapsulation
  */
 
-#include "bpf.h"
-#include "bpf_helpers.h"
-
 #include "balancer_consts.h"
 #include "balancer_structs.h"
+#include "bpf.h"
+#include "bpf_helpers.h"
 
 // control array. contains metadata such as default router mac
 // and/or interfaces ifindexes
 // indexes:
 // 0 - default's mac
 struct bpf_map_def SEC("maps") ctl_array = {
-  .type = BPF_MAP_TYPE_ARRAY,
-  .key_size = sizeof(__u32),
-  .value_size = sizeof(struct ctl_value),
-  .max_entries = CTL_MAP_SIZE,
-  .map_flags = NO_FLAGS,
+    .type = BPF_MAP_TYPE_ARRAY,
+    .key_size = sizeof(__u32),
+    .value_size = sizeof(struct ctl_value),
+    .max_entries = CTL_MAP_SIZE,
+    .map_flags = NO_FLAGS,
 };
 BPF_ANNOTATE_KV_PAIR(ctl_array, __u32, struct ctl_value);
 

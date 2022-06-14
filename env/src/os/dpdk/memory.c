@@ -4,7 +4,6 @@
 #include <rte_debug.h>
 #include <rte_malloc.h>
 
-
 void* os_memory_alloc(const size_t count, const size_t size)
 {
 	// Align must "obviously" be a power of 2 and at least 64, says DPDK doc

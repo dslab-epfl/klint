@@ -1,17 +1,14 @@
 #include "net/skeleton.h"
-
 #include "os/config.h"
 #include "os/memory.h"
 #include "os/time.h"
 #include "structs/index_pool.h"
 #include "structs/map.h"
 
-
 struct policer_bucket {
 	uint64_t size;
 	time_t time;
 };
-
 
 static device_t wan_device;
 static uint64_t rate;
@@ -28,7 +25,8 @@ bool nf_init(device_t devices_count)
 	}
 
 	size_t max_flows;
-	if (!os_config_get_device("wan device", devices_count, &wan_device) || !os_config_get_u64("rate", &rate) || !os_config_get_u64("burst", &burst) || !os_config_get_size("max flows", &max_flows)) {
+	if (!os_config_get_device("wan device", devices_count, &wan_device) || !os_config_get_u64("rate", &rate) || !os_config_get_u64("burst", &burst) ||
+	    !os_config_get_size("max flows", &max_flows)) {
 		return false;
 	}
 

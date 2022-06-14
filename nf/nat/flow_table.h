@@ -1,17 +1,15 @@
 #pragma once
 
+#include "os/memory.h"
+#include "os/time.h"
+#include "structs/index_pool.h"
+#include "structs/map.h"
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
-#include "os/time.h"
-#include "os/memory.h"
-#include "structs/index_pool.h"
-#include "structs/map.h"
-
-
-struct flow
-{
+struct flow {
 	uint32_t src_ip;
 	uint32_t dst_ip;
 	uint16_t src_port;
@@ -20,8 +18,7 @@ struct flow
 	uint8_t _padding[3];
 };
 
-struct flow_table
-{
+struct flow_table {
 	struct flow* flows;
 	struct map* flow_indexes;
 	struct index_pool* port_allocator;
@@ -29,7 +26,6 @@ struct flow_table
 	uint16_t start_port;
 	uint8_t _padding[6];
 };
-
 
 static inline struct flow_table* flow_table_alloc(uint16_t start_port, time_t expiration_time, size_t max_flows)
 {
@@ -67,7 +63,7 @@ static inline bool flow_table_get_internal(struct flow_table* table, time_t time
 
 static inline bool flow_table_get_external(struct flow_table* table, time_t time, uint16_t port, struct flow* out_flow)
 {
-	size_t index = (uint16_t) (port - table->start_port);
+	size_t index = (uint16_t)(port - table->start_port);
 	if (!index_pool_used(table->port_allocator, time, index)) {
 		return false;
 	}

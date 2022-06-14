@@ -1,15 +1,11 @@
+#include "flow_table.h"
 #include "net/skeleton.h"
-
 #include "os/config.h"
 #include "os/log.h"
 #include "os/time.h"
 
-#include "flow_table.h"
-
-
 static device_t external_device;
 static struct flow_table* table;
-
 
 bool nf_init(device_t devices_count)
 {
@@ -27,7 +23,6 @@ bool nf_init(device_t devices_count)
 	return true;
 }
 
-
 void nf_handle(struct net_packet* packet)
 {
 	struct net_ether_header* ether_header;
@@ -39,24 +34,23 @@ void nf_handle(struct net_packet* packet)
 	}
 
 	if (packet->device == external_device) {
-		struct flow flow = { // inverted!
-			.src_ip = ipv4_header->dst_addr,
-			.dst_ip = ipv4_header->src_addr,
-			.src_port = tcpudp_header->dst_port,
-			.dst_port = tcpudp_header->src_port,
-			.protocol = ipv4_header->next_proto_id
-		};
+		struct flow flow = {// inverted!
+				    .src_ip = ipv4_header->dst_addr,
+				    .dst_ip = ipv4_header->src_addr,
+				    .src_port = tcpudp_header->dst_port,
+				    .dst_port = tcpudp_header->src_port,
+				    .protocol = ipv4_header->next_proto_id};
 		if (!flow_table_has_external(table, packet->time, &flow)) {
 			os_debug("Unknown flow");
 			return;
 		}
 	} else {
 		struct flow flow = {
-			.src_ip = ipv4_header->src_addr,
-			.dst_ip = ipv4_header->dst_addr,
-			.src_port = tcpudp_header->src_port,
-			.dst_port = tcpudp_header->dst_port,
-			.protocol = ipv4_header->next_proto_id,
+		    .src_ip = ipv4_header->src_addr,
+		    .dst_ip = ipv4_header->dst_addr,
+		    .src_port = tcpudp_header->src_port,
+		    .dst_port = tcpudp_header->dst_port,
+		    .protocol = ipv4_header->next_proto_id,
 		};
 
 		flow_table_learn_internal(table, packet->time, &flow);

@@ -1,15 +1,13 @@
 #pragma once
 
-#include <stddef.h>
-#include <stdint.h>
-
 #include "arch/io.h"
 
+#include <stddef.h>
+#include <stdint.h>
 
 // Physical addresses at which we can talk to PCI via geographical addressing
 #define PCI_CONFIG_ADDR 0xCF8
 #define PCI_CONFIG_DATA 0xCFC
-
 
 struct os_pci_address {
 	uint8_t bus;
@@ -18,10 +16,8 @@ struct os_pci_address {
 	uint8_t _padding[5];
 };
 
-
 // Returns the number of devices
 size_t os_pci_enumerate(struct os_pci_address** out_addresses);
-
 
 // Reads the given register of the device at the given address and return its value.
 static inline uint32_t os_pci_read(const struct os_pci_address* address, const uint8_t reg)

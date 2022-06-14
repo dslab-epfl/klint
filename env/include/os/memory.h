@@ -1,8 +1,8 @@
 #pragma once
 
 #include <stdbool.h>
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 
 // only for contracts
 #include "arch/cache.h"
@@ -34,20 +34,20 @@ typedef unsigned hash_t;
  * @param size size of one entry
  * @return void* pointer to the start of the array
  */
-void *os_memory_alloc(size_t count, size_t size);
+void* os_memory_alloc(size_t count, size_t size);
 //@ requires count * size <= SIZE_MAX;
 /*@ ensures chars(result, count * size, ?cs) &*& true == all_eq(cs, 0) &*& result + count * size <= (char*) UINTPTR_MAX &*&
 						result != NULL &*& (size_t) result % (size + CACHE_LINE_SIZE - (size % CACHE_LINE_SIZE)) == 0; @*/
 //@ terminates;
 
 // Maps the region of physical address memory defined by (address, size) into virtual memory.
-void *os_memory_phys_to_virt(uintptr_t addr, size_t size);
+void* os_memory_phys_to_virt(uintptr_t addr, size_t size);
 //@ requires emp;
 //@ ensures emp;
 //@ terminates;
 
 // Gets the physical address corresponding to the given virtual address.
-uintptr_t os_memory_virt_to_phys(const void *addr);
+uintptr_t os_memory_virt_to_phys(const void* addr);
 //@ requires emp;
 //@ ensures emp;
 //@ terminates;
@@ -60,13 +60,13 @@ uintptr_t os_memory_virt_to_phys(const void *addr);
  * @return true
  * @return false
  */
-static inline bool os_memory_eq(const void *a, const void *b, size_t obj_size)
+static inline bool os_memory_eq(const void* a, const void* b, size_t obj_size)
 //@ requires [?f1]chars(a, obj_size, ?acs) &*& [?f2]chars(b, obj_size, ?bcs);
 //@ ensures [f1]chars(a, obj_size, acs) &*& [f2]chars(b, obj_size, bcs) &*& result == (acs == bcs);
 //@ terminates;
 {
-	const char *ac = (const char *)a;
-	const char *bc = (const char *)b;
+	const char* ac = (const char*) a;
+	const char* bc = (const char*) b;
 	for (size_t n = 0; n < obj_size; n++)
 	/*@ invariant 0 <= n &*& n <= obj_size &*&
 								[f1]chars(ac, obj_size, acs) &*&
@@ -74,8 +74,7 @@ static inline bool os_memory_eq(const void *a, const void *b, size_t obj_size)
 								take(n, acs) == take(n, bcs); @*/
 	//@ decreases obj_size - n;
 	{
-		if (ac[n] != bc[n])
-		{
+		if (ac[n] != bc[n]) {
 			return false;
 		}
 		//@ append_take_nth_to_take(acs, n);
@@ -92,7 +91,7 @@ static inline bool os_memory_eq(const void *a, const void *b, size_t obj_size)
  * @param obj_size size of the memory to be hashed
  * @return hash_t hash value
  */
-static inline hash_t os_memory_hash(const void *obj, size_t obj_size)
+static inline hash_t os_memory_hash(const void* obj, size_t obj_size)
 //@ requires [?f]chars(obj, obj_size, ?value);
 /*@ ensures [f]chars(obj, obj_size, value) &*&
 						result == hash_fp(value); @*/
@@ -122,11 +121,10 @@ static inline hash_t os_memory_hash(const void *obj, size_t obj_size)
 		hash = (hash >> 5) + hash + value;
 		//@ integer__to_chars(obj, 4, false);
 		//@ discarded_size += 4;
-		obj = (const unsigned *)obj + 1;
+		obj = (const unsigned*) obj + 1;
 		obj_size -= sizeof(unsigned);
 	}
-	if ((obj_size & sizeof(unsigned short)) != 0)
-	{
+	if ((obj_size & sizeof(unsigned short)) != 0) {
 		//@ chars_limits(obj);
 		//@ chars_split(obj, 2);
 		//@ chars_to_integer_(obj, 2, false);
@@ -135,11 +133,10 @@ static inline hash_t os_memory_hash(const void *obj, size_t obj_size)
 		hash = (hash >> 5) + hash + value;
 		//@ integer__to_chars(obj, 2, false);
 		//@ discarded_size += 2;
-		obj = (const unsigned short *)obj + 1;
+		obj = (const unsigned short*) obj + 1;
 		//@ chars_join(obj - discarded_size);
 	}
-	if ((obj_size & sizeof(unsigned char)) != 0)
-	{
+	if ((obj_size & sizeof(unsigned char)) != 0) {
 		//@ chars_split(obj, 1);
 		//@ chars_to_integer_(obj, 1, false);
 		unsigned char value;
@@ -159,14 +156,14 @@ static inline hash_t os_memory_hash(const void *obj, size_t obj_size)
  * @param dst destination pointer
  * @param obj_size size of the memory to be copied
  */
-static inline void os_memory_copy(const void *restrict src, void *restrict dst, size_t obj_size)
+static inline void os_memory_copy(const void* restrict src, void* restrict dst, size_t obj_size)
 //@ requires [?f]chars(src, obj_size, ?srccs) &*& chars(dst, obj_size, _);
 //@ ensures [f]chars(src, obj_size, srccs) &*& chars(dst, obj_size, srccs);
 //@ terminates;
 {
 	// This proof is essentially a copy of the memcpy one from VeriFast's tutorial.
-	const char *restrict srcc = (const char *restrict)src;
-	char *restrict dstc = (char *restrict)dst;
+	const char* restrict srcc = (const char* restrict) src;
+	char* restrict dstc = (char* restrict) dst;
 	for (size_t n = 0;; n++)
 	//@ requires [f]srcc[n..obj_size] |-> ?srccs2 &*& dstc[n..obj_size] |-> _;
 	//@ ensures [f]srcc[old_n..obj_size] |-> srccs2 &*& dstc[old_n..obj_size] |-> srccs2;
@@ -174,8 +171,7 @@ static inline void os_memory_copy(const void *restrict src, void *restrict dst, 
 	{
 		//@ open chars(dstc + n, _, _);
 		//@ open chars(srcc + n, _, _);
-		if (n == obj_size)
-		{
+		if (n == obj_size) {
 			break;
 		}
 		dstc[n] = srcc[n];

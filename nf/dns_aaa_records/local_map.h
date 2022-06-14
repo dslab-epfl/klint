@@ -15,7 +15,7 @@ struct map;
  * @param capacity
  * @return struct map*
  */
-struct map *map_alloc(size_t key_size, size_t value_size, size_t capacity);
+struct map* map_alloc(size_t key_size, size_t value_size, size_t capacity);
 
 /**
  * @brief Tries to get the value associated with the given key
@@ -26,7 +26,7 @@ struct map *map_alloc(size_t key_size, size_t value_size, size_t capacity);
  * @return true when key is found
  * @return false when key is not found
  */
-bool map_get(struct map *map, void *key_ptr, void *out_value);
+bool map_get(struct map* map, void* key_ptr, void* out_value);
 
 /**
  * @brief Sets the value associated with the given key in the map.
@@ -41,7 +41,7 @@ bool map_get(struct map *map, void *key_ptr, void *out_value);
  * @param key_ptr
  * @param value
  */
-void map_set(struct map *map, void *key_ptr, void *value);
+void map_set(struct map* map, void* key_ptr, void* value);
 
 /**
  * @brief attempts to remove a given key from the map if that key is present in the map
@@ -53,4 +53,4 @@ void map_set(struct map *map, void *key_ptr, void *value);
  * @return true the key was in the map and was removed
  * @return false the key was not in the map
  */
-bool map_remove(struct map *map, void *key_ptr);
+bool map_remove(struct map* map, void* key_ptr);

@@ -20,7 +20,7 @@ struct map;
  * @param capacity argument that defines the maximum number of key,pair value the map can take
  * @return struct map*
  */
-struct map *map_alloc(size_t key_size, size_t capacity);
+struct map* map_alloc(size_t key_size, size_t capacity);
 /*@ requires capacity * 64 <= SIZE_MAX; @*/
 /*@ ensures mapp(result, key_size, capacity, nil, nil); @*/
 //@ terminates;
@@ -36,17 +36,17 @@ struct map *map_alloc(size_t key_size, size_t capacity);
  * @return true key was found
  * @return false key was not found
  */
-bool map_get(struct map *map, void *key_ptr, size_t *out_value);
+bool map_get(struct map* map, void* key_ptr, size_t* out_value);
 /*@ requires mapp(map, ?key_size, ?capacity, ?values, ?addrs) &*&
-             key_ptr != NULL &*&
-             [?frac]chars(key_ptr, key_size, ?key) &*&
-             *out_value |-> _; @*/
+	     key_ptr != NULL &*&
+	     [?frac]chars(key_ptr, key_size, ?key) &*&
+	     *out_value |-> _; @*/
 /*@ ensures mapp(map, key_size, capacity, values, addrs) &*&
-            [frac]chars(key_ptr, key_size, key) &*&
-            switch(ghostmap_get(values, key)) {
-              case none: return result == false &*& *out_value |-> _;
-              case some(v): return result == true &*& *out_value |-> v;
-            }; @*/
+	    [frac]chars(key_ptr, key_size, key) &*&
+	    switch(ghostmap_get(values, key)) {
+	      case none: return result == false &*& *out_value |-> _;
+	      case some(v): return result == true &*& *out_value |-> v;
+	    }; @*/
 //@ terminates;
 
 /**
@@ -62,13 +62,13 @@ bool map_get(struct map *map, void *key_ptr, size_t *out_value);
  * @param key_ptr pointer to the key that will be added to the map
  * @param value value that will be associated with the key added to the map
  */
-void map_set(struct map *map, void *key_ptr, size_t value);
+void map_set(struct map* map, void* key_ptr, size_t value);
 /*@ requires mapp(map, ?key_size, ?capacity, ?values, ?addrs) &*&
-             key_ptr != NULL &*&
-             [0.25]chars(key_ptr, key_size, ?key) &*&
-             length(values) < capacity &*&
-             ghostmap_get(values, key) == none &*&
-             ghostmap_get(addrs, key) == none; @*/
+	     key_ptr != NULL &*&
+	     [0.25]chars(key_ptr, key_size, ?key) &*&
+	     length(values) < capacity &*&
+	     ghostmap_get(values, key) == none &*&
+	     ghostmap_get(addrs, key) == none; @*/
 /*@ ensures mapp(map, key_size, capacity, ghostmap_set(values, key, value), ghostmap_set(addrs, key, key_ptr)); @*/
 //@ terminates;
 
@@ -83,13 +83,13 @@ void map_set(struct map *map, void *key_ptr, size_t value);
  * @param map pointer to the map
  * @param key_ptr key to be removed from the map
  */
-void map_remove(struct map *map, void *key_ptr);
+void map_remove(struct map* map, void* key_ptr);
 /*@ requires mapp(map, ?key_size, ?capacity, ?values, ?addrs) &*&
-             key_ptr != NULL &*&
-             [?frac]chars(key_ptr, key_size, ?key) &*&
-             frac != 0.0 &*&
-             ghostmap_get(values, key) != none &*&
-             ghostmap_get(addrs, key) == some(key_ptr); @*/
+	     key_ptr != NULL &*&
+	     [?frac]chars(key_ptr, key_size, ?key) &*&
+	     frac != 0.0 &*&
+	     ghostmap_get(values, key) != none &*&
+	     ghostmap_get(addrs, key) == some(key_ptr); @*/
 /*@ ensures mapp(map, key_size, capacity, ghostmap_remove(values, key), ghostmap_remove(addrs, key)) &*&
-            [frac + 0.25]chars(key_ptr, key_size, key); @*/
+	    [frac + 0.25]chars(key_ptr, key_size, key); @*/
 //@ terminates;

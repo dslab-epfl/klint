@@ -1,20 +1,16 @@
 #include "net/skeleton.h"
-
 #include "os/config.h"
 #include "os/memory.h"
 #include "os/time.h"
+#include "spanning_tree.h"
 #include "structs/index_pool.h"
 #include "structs/map.h"
-
-#include "spanning_tree.h"
-
 
 static struct stp_state* stp_state;
 static struct net_ether_addr* addresses;
 static device_t* devices;
 static struct map* map;
 static struct index_pool* allocator;
-
 
 bool nf_init(device_t devices_count)
 {
@@ -26,8 +22,8 @@ bool nf_init(device_t devices_count)
 	time_t expiration_time;
 	size_t capacity;
 	time_t stp_update_time;
-	if (!os_config_get_u64("bid", &self_bid) || !os_config_get_time("expiration time", &expiration_time) ||
-	    !os_config_get_size("capacity", &capacity) || !os_config_get_time("stp update time", &stp_update_time)) {
+	if (!os_config_get_u64("bid", &self_bid) || !os_config_get_time("expiration time", &expiration_time) || !os_config_get_size("capacity", &capacity) ||
+	    !os_config_get_time("stp update time", &stp_update_time)) {
 		return false;
 	}
 

@@ -1,11 +1,11 @@
 #pragma once
 
-#include <stdbool.h>
-#include <stdint.h>
-
-#include "os/config.h"
 #include "net/packet.h"
 #include "net/tx.h" // transitive include as convenience for implementers
+#include "os/config.h"
+
+#include <stdbool.h>
+#include <stdint.h>
 
 /**
  * @interface nf
@@ -42,7 +42,7 @@ bool nf_init(device_t devices_count);
  *
  * @param packet
  */
-void nf_handle(struct net_packet *packet);
+void nf_handle(struct net_packet* packet);
 //@ requires *packet |-> _;
 //@ ensures *packet |-> _;
 
@@ -56,13 +56,12 @@ void nf_handle(struct net_packet *packet);
  * @return true device id was read successfully
  * @return false device id was not read successfully
  */
-static inline bool os_config_get_device(const char *name, device_t devices_count, device_t *out_value)
+static inline bool os_config_get_device(const char* name, device_t devices_count, device_t* out_value)
 {
 	uint64_t value;
-	if (!os_config_get(name, 0, devices_count - 1, &value))
-	{ // the max param is inclusive
+	if (!os_config_get(name, 0, devices_count - 1, &value)) { // the max param is inclusive
 		return false;
 	}
-	*out_value = (device_t)value;
+	*out_value = (device_t) value;
 	return true;
 }

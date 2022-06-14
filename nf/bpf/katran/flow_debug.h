@@ -33,7 +33,9 @@
 #else
 
 // Flow debug disabled, define helpers to be noop
-#define RECORD_GUE_ROUTE(...) {}
+#define RECORD_GUE_ROUTE(...)                                                                                                                                                                          \
+	{                                                                                                                                                                                              \
+	}
 
 #endif // of RECORD_FLOW_INFO
 
