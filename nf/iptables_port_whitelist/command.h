@@ -1,6 +1,3 @@
-//
-// Created by elvric on 2022-03-20.
-//
 #include <stdint.h>
 #include "net/packet.h"
 typedef uint32_t net_ipv4_addr_t;

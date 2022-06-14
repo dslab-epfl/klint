@@ -1,6 +1,3 @@
-//
-// Created by elvric on 2022-03-20.
-//
 #include "net/skeleton.h"
 
 #include "os/config.h"
