@@ -9,20 +9,17 @@
 #define IP_PROTOCOL_TCP 6
 #define IP_PROTOCOL_UDP 17
 
-/** @brief represents the device/interface */
+// Represents a device/interface ID
 typedef uint16_t device_t;
 
-/**
- * @struct net_packet
- * @brief Packet received on a device
- */
+// Packet received on a device
 struct net_packet {
 	char* data;
 	size_t length;
 	time_t time;
 	device_t device;
 	uint8_t _padding[6];
-	/** NFs must not touch this */
+	// NFs must not touch this
 	void* os_tag;
 };
 
@@ -59,14 +56,7 @@ struct net_tcpudp_header {
 	uint16_t dst_port;
 } __attribute__((__packed__));
 
-/**
- * @brief Get a packet's ethernet header
- *
- * @param packet
- * @param out_ether_header
- * @return true
- * @return false
- */
+// Get a packet's ethernet header
 static inline bool net_get_ether_header(struct net_packet* packet, struct net_ether_header** out_ether_header)
 {
 	// For now we only support Ethernet packets, so this cannot fail.

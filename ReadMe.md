@@ -42,20 +42,8 @@ If you need new data structures, add them in `env/include/structs`, `env/src/str
 Then add Klint contracts in `tool/klint/externals` and add them to the `*_externals` dictionaries in `tool/klint/executor.py`.
 
 
-## Quick start into the project (assumed there is a folder called gits in your home):
-```
-cd gits/klint/tool/ && source setup-virtualenv.sh
+## Quick start
 
-cd gits/klint/nf/bridge
-make -f ../Makefile.nf
+`cd` to this directory, then `cd` into `tool` and `. setup-virtualenv.sh` to set up the required Python virtualenv
 
-cd gits/klint/tool
-./klint.py libnf ../nf/bridge/libnf.so ../nf/bridge/spec.py
-```
-Shortcut (executed from the location `klint/tool/`):
-```
-cd ../nf/ && bash make-one.sh iptables && cd ../tool/ && ./klint.py libnf ../nf/iptables/libnf.so ../nf/iptables/spec.py
-```
-
-## Writing documentation
-Documentation is made available using the Doxygen framework when making changes to the core `env` use the doxygen standard to comment your code.
+Then you can use the Makefile to e.g. `make verify-bridge`

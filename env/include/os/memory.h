@@ -15,29 +15,20 @@
 #define restrict
 #endif
 
-/** @brief Amount of memory available to the program, in bytes (256 MB) */
+// Amount of memory available to the program, in bytes (256 MB)
 #define OS_MEMORY_SIZE (256ull * 1024ull * 1024ull)
 
-/** @brief Type of hashes (a larger hash type than this is generally not useful for data structure purposes) */
+// Type of hashes (a larger hash type than this is generally not useful for data structure purposes)
 typedef unsigned hash_t;
 
-/**
- * @brief Allocates a pinned, zero-initialized, contiguous memory block of the given length (size * count), aligned to the length rounded up to the cache line size.
- *
- * "Pinned" here means "the virtual-to-physical mapping will never change", not just that it will always be in memory. \n
- * This allows the allocated memory's physical address to be given to a device for DMA. \n
- * For simplicity, never fails; if there is not enough memory available, crashes the program.
- *
- * @pre count + size <= SIZE_MAX
- *
- * @param count total number of entries the array will hold
- * @param size size of one entry
- * @return void* pointer to the start of the array
- */
+// Allocates a pinned, zero-initialized, contiguous memory block of the given length (size * count), aligned to the length rounded up to the cache line size.
+// "Pinned" here means "the virtual-to-physical mapping will never change", not just that it will always be in memory.
+// This allows the allocated memory's physical address to be given to a device for DMA.
+// For simplicity, never fails; if there is not enough memory available, crashes the program.
 void* os_memory_alloc(size_t count, size_t size);
 //@ requires count * size <= SIZE_MAX;
 /*@ ensures chars(result, count * size, ?cs) &*& true == all_eq(cs, 0) &*& result + count * size <= (char*) UINTPTR_MAX &*&
-						result != NULL &*& (size_t) result % (size + CACHE_LINE_SIZE - (size % CACHE_LINE_SIZE)) == 0; @*/
+	    result != NULL &*& (size_t) result % (size + CACHE_LINE_SIZE - (size % CACHE_LINE_SIZE)) == 0; @*/
 //@ terminates;
 
 // Maps the region of physical address memory defined by (address, size) into virtual memory.
@@ -51,15 +42,8 @@ uintptr_t os_memory_virt_to_phys(const void* addr);
 //@ requires emp;
 //@ ensures emp;
 //@ terminates;
-/**
- * @brief checks if two pointers have equal memory values for given length
- *
- * @param a first pointer
- * @param b second pointer
- * @param obj_size size of memory to be checked for equality
- * @return true
- * @return false
- */
+
+// Checks if two pointers have equal memory values for the given length
 static inline bool os_memory_eq(const void* a, const void* b, size_t obj_size)
 //@ requires [?f1]chars(a, obj_size, ?acs) &*& [?f2]chars(b, obj_size, ?bcs);
 //@ ensures [f1]chars(a, obj_size, acs) &*& [f2]chars(b, obj_size, bcs) &*& result == (acs == bcs);
@@ -84,17 +68,10 @@ static inline bool os_memory_eq(const void* a, const void* b, size_t obj_size)
 }
 
 //@ fixpoint hash_t hash_fp(list<char> value);
-/**
- * @brief provides the hash of a memory value over the specified length
- *
- * @param obj pointer to the memory to be hashed
- * @param obj_size size of the memory to be hashed
- * @return hash_t hash value
- */
+// Computes the hash of a memory value over the given length
 static inline hash_t os_memory_hash(const void* obj, size_t obj_size)
 //@ requires [?f]chars(obj, obj_size, ?value);
-/*@ ensures [f]chars(obj, obj_size, value) &*&
-						result == hash_fp(value); @*/
+/*@ ensures [f]chars(obj, obj_size, value) &*& result == hash_fp(value); @*/
 //@ terminates;
 {
 	// Assume the hashing function is correct, because VeriFast doesn't support treating unsigned overflow as well-defined (without also losing checks for signed overflow).
@@ -149,13 +126,7 @@ static inline hash_t os_memory_hash(const void* obj, size_t obj_size)
 	return hash;
 }
 
-/**
- * @brief copies the memory content from one pointer to the other over a specified length
- *
- * @param src source pointer
- * @param dst destination pointer
- * @param obj_size size of the memory to be copied
- */
+// Copies the memory content from one pointer to the other over the given length
 static inline void os_memory_copy(const void* restrict src, void* restrict dst, size_t obj_size)
 //@ requires [?f]chars(src, obj_size, ?srccs) &*& chars(dst, obj_size, _);
 //@ ensures [f]chars(src, obj_size, srccs) &*& chars(dst, obj_size, srccs);
