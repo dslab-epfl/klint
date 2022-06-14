@@ -31,7 +31,7 @@ def is_not_in_lpm(key, rule):
 
 def spec(packet, config, transmitted_packet):
     rules = Map(MapKey,...)
-   
+
     # check that the devices all are different
     assert config['send device'] != config['command device'] \
         and config['command device'] != config['check device'] \

@@ -117,7 +117,6 @@ bool nf_init(device_t devices_count)
     return false;
   }
 
-  // iptable_lpm = lpm_alloc(sizeof(struct ipv4_address_rule), 1, capacity);
   iptable_lpm = lpm_alloc(sizeof(struct ipv4_address_rule), sizeof(bool), capacity);
 
   return true;

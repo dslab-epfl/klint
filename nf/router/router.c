@@ -1,5 +1,6 @@
 #include "net/skeleton.h"
 
+#include "os/config.h"
 #include "os/log.h"
 
 #include "structs/lpm.h"
@@ -10,8 +11,13 @@ static struct lpm* lpm;
 
 bool nf_init(device_t _devices_count)
 {
+	size_t capacity;
+	if (!os_config_get_size("capacity", &capacity)) {
+		return false;
+	}
+
 	devices_count = _devices_count;
-	lpm = lpm_alloc();
+	lpm = lpm_alloc(sizeof(uint32_t), sizeof(device_t), capacity);
 	return true;
 }
 
@@ -20,7 +26,13 @@ void nf_handle(struct net_packet* packet)
 {
 	if (packet->device == devices_count - 1) {
 		// "Management" interface, obviously not practical but just to show it can be done
-		lpm_update_elem(lpm, ((uint32_t*) packet->data)[0], ((uint8_t*)packet->data)[4], ((uint16_t*)packet->data)[3]);
+		uint32_t key = *((uint32_t*) packet->data);
+		size_t width = *((size_t*)(packet->data + sizeof(uint32_t)));
+		if (width > 32) {
+			return; // bad command
+		}
+		device_t value = *((device_t*)(packet->data + sizeof(uint32_t) + sizeof(size_t)));
+		lpm_set(lpm, &key, width, &value);
 		return;
 	}
 
@@ -57,9 +69,7 @@ void nf_handle(struct net_packet* packet)
 	}
 
 	device_t dst_device;
-	uint32_t out_prefix;
-	uint8_t out_prefixlen;
-	if (lpm_lookup_elem(lpm, ipv4_header->dst_addr, &dst_device, &out_prefix, &out_prefixlen)) {
+	if (lpm_search(lpm, &(ipv4_header->dst_addr), &dst_device)) {
 		net_transmit(packet, dst_device, UPDATE_ETHER_ADDRS);
 	}
 }
