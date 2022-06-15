@@ -1,5 +1,7 @@
 This is the artifact for the paper "Automated Verification of Network Function Binaries" presented at NSDI'22.
 
+Paper and talk video: https://www.usenix.org/conference/nsdi22/presentation/pirelli
+
 
 ## Repository structure
 
@@ -40,6 +42,8 @@ To write a spec, look at the the documentation in `tool/`, and at existing specs
 
 If you need new data structures, add them in `env/include/structs`, `env/src/structs`.
 Then add Klint contracts in `tool/klint/externals` and add them to the `*_externals` dictionaries in `tool/klint/executor.py`.
+
+You may be interested in a [project report](docs/report-elvric-patrice.pdf) written by undergrads who wrote and verified network functions with Klint.
 
 
 ## Quick start
