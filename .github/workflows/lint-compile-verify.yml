@@ -1,0 +1,112 @@
+name: lint, compile and build
+on:
+  push:
+    branches: main
+  pull_request:
+
+jobs:
+  lint-env-and-nf:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: jidicula/clang-format-action@v4.9.0
+        with:
+          # TODO rm BPF
+          exclude-regex: "nf/bpf/.*/linux"
+
+  # TODO lint-tool
+
+  # TODO document-env
+
+  compile-nf:
+    needs: lint-env-and-nf
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # keep list in sync with build-nf
+        nf:
+          - bpf
+          - bridge
+          - dhcp_ipv4
+          - dns_aaa_records
+          - firewall
+          - iptables
+          - iptables_blacklist
+          - iptables_port_whitelist
+          - iptables_whitelist
+          - maglev
+          - nat
+          - nop
+          - policer
+          - router
+          - rust-policer
+        exclude:
+          # TODO rm BPF
+          - nf: bpf
+          - nf: rust-policer
+    steps:
+      - uses: actions/checkout@v3
+      - run: make compile-${{ matrix.nf }}
+
+  build-nf:
+    needs: compile-nf
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # keep list in sync with compile-nf
+        nf:
+          - bpf
+          - bridge
+          - dhcp_ipv4
+          - dns_aaa_records
+          - firewall
+          - iptables
+          - iptables_blacklist
+          - iptables_port_whitelist
+          - iptables_whitelist
+          - maglev
+          - nat
+          - nop
+          - policer
+          - router
+          - rust-policer
+        os: [linux, metal, dpdk]
+        net: [tinynf, dpdk]
+        exclude:
+          - os: dpdk
+            net: tinynf
+          # TODO rm BPF
+          - nf: bpf
+          - nf: rust-policer
+          # TODO need lpm_*
+          - nf: router
+          - nf: iptables
+          - nf: iptables_blacklist
+          - nf: iptables_port_whitelist
+          - nf: iptables_whitelist
+          # TODO bad includes
+          - net: dpdk
+    steps:
+      - uses: actions/checkout@v3
+      - name: create dummy OS config
+        run: echo '{.bus = 0x00, .device = 0x00, .function = 0x0}' > env/config
+      - run: make OS=${{ matrix.os }} NET=${{ matrix.net }} build-${{ matrix.nf }}
+
+  # TODO test-tool
+
+  verify-nf:
+    needs: build-nf
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # many nf take too much time to execute, selecting a few
+        # TODO why each one are so slow?
+        nf:
+          - nop
+    steps:
+      - uses: actions/checkout@v3
+      - run: |
+          cd tool && . ./setup-virtualenv.sh && cd ..
+          make verify-${{ matrix.nf }}
+        env:
+          CFLAGS: -mno-avx512f -mno-avx512vl # angr>vex doesn't support some avx512
