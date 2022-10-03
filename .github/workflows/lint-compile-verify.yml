@@ -105,8 +105,6 @@ jobs:
           - nop
     steps:
       - uses: actions/checkout@v3
-      - run: |
-          cd tool && . ./setup-virtualenv.sh && cd ..
-          make verify-${{ matrix.nf }}
+      - run: make verify-${{ matrix.nf }}
         env:
           CFLAGS: -mno-avx512f -mno-avx512vl # angr>vex doesn't support some avx512

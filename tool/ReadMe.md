@@ -1,7 +1,6 @@
 # Klint
 
-You'll need Python 3, with all the dependencies from `requirements.txt`; running `. setup.sh` will install them for you on Ubuntu.
-Or use an IDE with virtualenv support.
+You'll need Python 3, the root Makefile takes care of creating a venv for you.
 
 Two layers:
 - `kalm` adapts angr to perform exhaustive symbolic execution, and adds some features we need
