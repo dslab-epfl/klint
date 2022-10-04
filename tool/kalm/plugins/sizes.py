@@ -3,10 +3,15 @@ from angr.state_plugins.plugin import SimStatePlugin
 
 # Convenience plugin to resolve the size of specific types
 
+
 class SizesPlugin(SimStatePlugin):
     def set_state(self, state):
-        for (n, t) in angr.sim_type.ALL_TYPES.items():
-            setattr(self, n, t.with_arch(state.arch).size)
+        for (n, t) in angr.types.ALL_TYPES.items():
+            try:
+                setattr(self, n, t.with_arch(state.arch).size)
+            except ValueError:
+                # skip failing types, angr/angr#3551
+                pass
         return super().set_state(state)
 
     # shorthand
