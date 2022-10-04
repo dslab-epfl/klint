@@ -3,6 +3,7 @@
 You'll need Python 3, the root Makefile takes care of creating a venv for you.
 
 Two layers:
+
 - `kalm` adapts angr to perform exhaustive symbolic execution, and adds some features we need
 - `klint` is the actual tool
 
@@ -10,6 +11,7 @@ Compile the NF yourself: for `libnf` verif of the NFs under `../nf`, use `make -
 for `bpf-jited` verif of the NFs under `../nf/bpf`, run `./compile-bpf.sh` in the NF's folder.
 
 The intended entry point is `./klint.py`, use `--help` for usage instructions. Main args you'll be interested in:
+
 - `--export-graphs` (for any target) exports DOT graphs in the `graphs/` output folder corresponding to paths in the code.
   There's one graph per iteration of symbex until a fixed-point is found.
   To visualize, use e.g. `for g in graphs/*.dot ; do dot -Tpng -o $g.png $g ; done` to convert .dot files to PNGs.
@@ -17,10 +19,9 @@ The intended entry point is `./klint.py`, use `--help` for usage instructions. M
 
 Klint is based on angr, so if you want to extend it the angr tutorial is a must: https://docs.angr.io/core-concepts
 
-Klint also has some basic unit tests, run `python -m unittests`
+Klint also has some basic unit tests, run `python -m unittests`, or use `make tool-test` at the root of the repo.
 
 Note that the "instruction limit" mentioned in the paper is not yet supported but should be trivial to add using angr's built-in features.
-
 
 ## Writing a specification
 
@@ -67,7 +68,6 @@ You can also state things like "if key K was in the old version of the map, then
 Tip: Values from the packet data are in the format `pkt_data_v_XXX_8` where `XXX` is an unique ID (irrelevant to their index in the packet data), each is 8 bits.
 So if you have a 32-bit value you extract from the packet you will see 4 of those concatenated. Beware of the order in which you declare your things in the specs/contracts compared to the code!
 
-
 ## Writing contracts
 
 Contracts are a bit messier than the paper suggests, though making them "nice" is just engineering work.
@@ -77,6 +77,7 @@ They are in `klint/externals/`, typically you'll want `structs/`. You will also 
 Look at the existing contracts to get an idea of what to do, and at `klint/ghostmaps.py` for the API of `state.maps`.
 
 Some tips:
+
 - When declaring the function to angr in the procedure init function, it's simpler to pretend the `struct xyz*` pointers are `void*` rather than detailing the struct to angr
 - Access the state using `self.state`, unless you are in a `utils.fork_*` callback in which case the state is a parameter (do not use `self.state` in these!)
 - Start with preconditions, including using `state.metadata.get` to get the metadata associated with a data structure pointer, as well as any "X must be concrete" preconditions (e.g., sizes in constructor functions)

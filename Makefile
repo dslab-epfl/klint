@@ -27,6 +27,11 @@ $(TOOL_VENV_DIR)/.env-done: $(SELF_DIR)/tool/requirements.txt | $(TOOL_VENV_DIR)
 		pip install -r $<
 	touch $@
 
+.PHONY: tool-test
+tool-test: | tool-venv
+	. $(TOOL_VENV_DIR)/bin/activate && \
+		python -m unittest discover --start-directory $(SELF_DIR)/tool
+
 ## others
 
 compile-%: dummy

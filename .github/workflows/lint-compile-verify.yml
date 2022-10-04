@@ -92,10 +92,14 @@ jobs:
         run: echo '{.bus = 0x00, .device = 0x00, .function = 0x0}' > env/config
       - run: make OS=${{ matrix.os }} NET=${{ matrix.net }} build-${{ matrix.nf }}
 
-  # TODO test-tool
+  test-tool:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - run: make tool-test
 
   verify-nf:
-    needs: build-nf
+    needs: [build-nf, test-tool]
     runs-on: ubuntu-latest
     strategy:
       matrix:
