@@ -43,9 +43,13 @@ jobs:
         exclude:
           # TODO rm BPF
           - nf: bpf
-          - nf: rust-policer
     steps:
       - uses: actions/checkout@v3
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        if: matrix.nf == 'rust-policer'
+        with:
+          toolchain: nightly
+          components: rust-src
       - run: make compile-${{ matrix.nf }}
 
   build-nf:
@@ -77,7 +81,6 @@ jobs:
             net: tinynf
           # TODO rm BPF
           - nf: bpf
-          - nf: rust-policer
           # TODO need lpm_*
           - nf: router
           - nf: iptables
@@ -88,6 +91,11 @@ jobs:
           - net: dpdk
     steps:
       - uses: actions/checkout@v3
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        if: matrix.nf == 'rust-policer'
+        with:
+          toolchain: nightly
+          components: rust-src
       - name: create dummy OS config
         run: echo '{.bus = 0x00, .device = 0x00, .function = 0x0}' > env/config
       - run: make OS=${{ matrix.os }} NET=${{ matrix.net }} build-${{ matrix.nf }}
