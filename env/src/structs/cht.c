@@ -10,10 +10,10 @@ struct cht* cht_alloc(uint16_t cht_height, uint16_t backend_capacity)
 	struct cht* cht = os_memory_alloc(1, sizeof(struct cht));
 	cht->height = cht_height;
 	cht->backend_capacity = backend_capacity;
-	cht->data = os_memory_alloc((size_t)(cht_height * backend_capacity), sizeof(uint16_t));
+	cht->data = os_memory_alloc((size_t) (cht_height * backend_capacity), sizeof(uint16_t));
 
 	// Create permutations
-	uint16_t* permutations = os_memory_alloc((size_t)(cht_height * backend_capacity), sizeof(uint16_t));
+	uint16_t* permutations = os_memory_alloc((size_t) (cht_height * backend_capacity), sizeof(uint16_t));
 	for (size_t i = 0; i < backend_capacity; ++i) {
 		size_t offset = loop(i * 31, cht_height);
 		size_t shift = loop(i, cht_height - 1) + 1;
@@ -24,13 +24,13 @@ struct cht* cht_alloc(uint16_t cht_height, uint16_t backend_capacity)
 	}
 
 	// Fill the CHT
-	size_t* next = os_memory_alloc((size_t)(cht_height), sizeof(size_t));
+	size_t* next = os_memory_alloc((size_t) (cht_height), sizeof(size_t));
 	for (size_t i = 0; i < cht_height; ++i) {
 		for (size_t j = 0; j < backend_capacity; ++j) {
 			size_t bucket_id = permutations[j * cht_height + i];
 			size_t priority = next[bucket_id];
 			next[bucket_id] += 1;
-			cht->data[(size_t)(backend_capacity * bucket_id + priority)] = (uint16_t) j;
+			cht->data[(size_t) (backend_capacity * bucket_id + priority)] = (uint16_t) j;
 		}
 	}
 

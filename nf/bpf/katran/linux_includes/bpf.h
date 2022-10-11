@@ -45,18 +45,19 @@
 #define BPF_EXIT 0x90 /* function return */
 
 /* Register numbers */
-enum { BPF_REG_0 = 0,
-       BPF_REG_1,
-       BPF_REG_2,
-       BPF_REG_3,
-       BPF_REG_4,
-       BPF_REG_5,
-       BPF_REG_6,
-       BPF_REG_7,
-       BPF_REG_8,
-       BPF_REG_9,
-       BPF_REG_10,
-       __MAX_BPF_REG,
+enum {
+	BPF_REG_0 = 0,
+	BPF_REG_1,
+	BPF_REG_2,
+	BPF_REG_3,
+	BPF_REG_4,
+	BPF_REG_5,
+	BPF_REG_6,
+	BPF_REG_7,
+	BPF_REG_8,
+	BPF_REG_9,
+	BPF_REG_10,
+	__MAX_BPF_REG,
 };
 
 /* BPF has 10 general purpose 64-bit registers and stack frame. */
@@ -3340,55 +3341,56 @@ struct bpf_sock_ops {
 /* List of known BPF sock_ops operators.
  * New entries can only be added at the end
  */
-enum { BPF_SOCK_OPS_VOID,
-       BPF_SOCK_OPS_TIMEOUT_INIT,	    /* Should return SYN-RTO value to use or
-					     * -1 if default value should be used
-					     */
-       BPF_SOCK_OPS_RWND_INIT,		    /* Should return initial advertized
-					     * window (in packets) or -1 if default
-					     * value should be used
-					     */
-       BPF_SOCK_OPS_TCP_CONNECT_CB,	    /* Calls BPF program right before an
-					     * active connection is initialized
-					     */
-       BPF_SOCK_OPS_ACTIVE_ESTABLISHED_CB,  /* Calls BPF program when an
-					     * active connection is
-					     * established
-					     */
-       BPF_SOCK_OPS_PASSIVE_ESTABLISHED_CB, /* Calls BPF program when a
-					     * passive connection is
-					     * established
-					     */
-       BPF_SOCK_OPS_NEEDS_ECN,		    /* If connection's congestion control
-					     * needs ECN
-					     */
-       BPF_SOCK_OPS_BASE_RTT,		    /* Get base RTT. The correct value is
-					     * based on the path and may be
-					     * dependent on the congestion control
-					     * algorithm. In general it indicates
-					     * a congestion threshold. RTTs above
-					     * this indicate congestion
-					     */
-       BPF_SOCK_OPS_RTO_CB,		    /* Called when an RTO has triggered.
-					     * Arg1: value of icsk_retransmits
-					     * Arg2: value of icsk_rto
-					     * Arg3: whether RTO has expired
-					     */
-       BPF_SOCK_OPS_RETRANS_CB,		    /* Called when skb is retransmitted.
-					     * Arg1: sequence number of 1st byte
-					     * Arg2: # segments
-					     * Arg3: return value of
-					     *       tcp_transmit_skb (0 => success)
-					     */
-       BPF_SOCK_OPS_STATE_CB,		    /* Called when TCP changes state.
-					     * Arg1: old_state
-					     * Arg2: new_state
-					     */
-       BPF_SOCK_OPS_TCP_LISTEN_CB,	    /* Called on listen(2), right after
-					     * socket transition to LISTEN state.
-					     */
-       BPF_SOCK_OPS_RTT_CB,		    /* Called on every RTT.
-					     */
+enum {
+	BPF_SOCK_OPS_VOID,
+	BPF_SOCK_OPS_TIMEOUT_INIT,	     /* Should return SYN-RTO value to use or
+					      * -1 if default value should be used
+					      */
+	BPF_SOCK_OPS_RWND_INIT,		     /* Should return initial advertized
+					      * window (in packets) or -1 if default
+					      * value should be used
+					      */
+	BPF_SOCK_OPS_TCP_CONNECT_CB,	     /* Calls BPF program right before an
+					      * active connection is initialized
+					      */
+	BPF_SOCK_OPS_ACTIVE_ESTABLISHED_CB,  /* Calls BPF program when an
+					      * active connection is
+					      * established
+					      */
+	BPF_SOCK_OPS_PASSIVE_ESTABLISHED_CB, /* Calls BPF program when a
+					      * passive connection is
+					      * established
+					      */
+	BPF_SOCK_OPS_NEEDS_ECN,		     /* If connection's congestion control
+					      * needs ECN
+					      */
+	BPF_SOCK_OPS_BASE_RTT,		     /* Get base RTT. The correct value is
+					      * based on the path and may be
+					      * dependent on the congestion control
+					      * algorithm. In general it indicates
+					      * a congestion threshold. RTTs above
+					      * this indicate congestion
+					      */
+	BPF_SOCK_OPS_RTO_CB,		     /* Called when an RTO has triggered.
+					      * Arg1: value of icsk_retransmits
+					      * Arg2: value of icsk_rto
+					      * Arg3: whether RTO has expired
+					      */
+	BPF_SOCK_OPS_RETRANS_CB,	     /* Called when skb is retransmitted.
+					      * Arg1: sequence number of 1st byte
+					      * Arg2: # segments
+					      * Arg3: return value of
+					      *       tcp_transmit_skb (0 => success)
+					      */
+	BPF_SOCK_OPS_STATE_CB,		     /* Called when TCP changes state.
+					      * Arg1: old_state
+					      * Arg2: new_state
+					      */
+	BPF_SOCK_OPS_TCP_LISTEN_CB,	     /* Called on listen(2), right after
+					      * socket transition to LISTEN state.
+					      */
+	BPF_SOCK_OPS_RTT_CB,		     /* Called on every RTT.
+					      */
 };
 
 /* List of TCP states. There is a build check in net/ipv4/tcp.c to detect
@@ -3396,20 +3398,21 @@ enum { BPF_SOCK_OPS_VOID,
  * If it does, we need to add code to convert them before calling
  * the BPF sock_ops function.
  */
-enum { BPF_TCP_ESTABLISHED = 1,
-       BPF_TCP_SYN_SENT,
-       BPF_TCP_SYN_RECV,
-       BPF_TCP_FIN_WAIT1,
-       BPF_TCP_FIN_WAIT2,
-       BPF_TCP_TIME_WAIT,
-       BPF_TCP_CLOSE,
-       BPF_TCP_CLOSE_WAIT,
-       BPF_TCP_LAST_ACK,
-       BPF_TCP_LISTEN,
-       BPF_TCP_CLOSING, /* Now a valid state */
-       BPF_TCP_NEW_SYN_RECV,
+enum {
+	BPF_TCP_ESTABLISHED = 1,
+	BPF_TCP_SYN_SENT,
+	BPF_TCP_SYN_RECV,
+	BPF_TCP_FIN_WAIT1,
+	BPF_TCP_FIN_WAIT2,
+	BPF_TCP_TIME_WAIT,
+	BPF_TCP_CLOSE,
+	BPF_TCP_CLOSE_WAIT,
+	BPF_TCP_LAST_ACK,
+	BPF_TCP_LISTEN,
+	BPF_TCP_CLOSING, /* Now a valid state */
+	BPF_TCP_NEW_SYN_RECV,
 
-       BPF_TCP_MAX_STATES /* Leave at the end! */
+	BPF_TCP_MAX_STATES /* Leave at the end! */
 };
 
 #define TCP_BPF_IW 1001		   /* Set TCP initial congestion window */
@@ -3445,15 +3448,16 @@ struct bpf_raw_tracepoint_args {
 #define BPF_FIB_LOOKUP_DIRECT (1U << 0)
 #define BPF_FIB_LOOKUP_OUTPUT (1U << 1)
 
-enum { BPF_FIB_LKUP_RET_SUCCESS,      /* lookup successful */
-       BPF_FIB_LKUP_RET_BLACKHOLE,    /* dest is blackholed; can be dropped */
-       BPF_FIB_LKUP_RET_UNREACHABLE,  /* dest is unreachable; can be dropped */
-       BPF_FIB_LKUP_RET_PROHIBIT,     /* dest not allowed; can be dropped */
-       BPF_FIB_LKUP_RET_NOT_FWDED,    /* packet is not forwarded */
-       BPF_FIB_LKUP_RET_FWD_DISABLED, /* fwding is not enabled on ingress */
-       BPF_FIB_LKUP_RET_UNSUPP_LWT,   /* fwd requires encapsulation */
-       BPF_FIB_LKUP_RET_NO_NEIGH,     /* no neighbor entry for nh */
-       BPF_FIB_LKUP_RET_FRAG_NEEDED,  /* fragmentation required to fwd */
+enum {
+	BPF_FIB_LKUP_RET_SUCCESS,      /* lookup successful */
+	BPF_FIB_LKUP_RET_BLACKHOLE,    /* dest is blackholed; can be dropped */
+	BPF_FIB_LKUP_RET_UNREACHABLE,  /* dest is unreachable; can be dropped */
+	BPF_FIB_LKUP_RET_PROHIBIT,     /* dest not allowed; can be dropped */
+	BPF_FIB_LKUP_RET_NOT_FWDED,    /* packet is not forwarded */
+	BPF_FIB_LKUP_RET_FWD_DISABLED, /* fwding is not enabled on ingress */
+	BPF_FIB_LKUP_RET_UNSUPP_LWT,   /* fwd requires encapsulation */
+	BPF_FIB_LKUP_RET_NO_NEIGH,     /* no neighbor entry for nh */
+	BPF_FIB_LKUP_RET_FRAG_NEEDED,  /* fragmentation required to fwd */
 };
 
 struct bpf_fib_lookup {
