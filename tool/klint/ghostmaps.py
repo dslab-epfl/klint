@@ -598,15 +598,16 @@ def find_constraints(state, expr, replacement, ancestor_variables):
         if not constr.replace(expr, replacement).structurally_match(constr) and constr_vars.difference(expr_vars).issubset(ancestor_variables):
             results.append(constr.replace(expr, replacement))
 
+    # TODO: this has too many false positives and causes problems with the original NFs, disabling for now
     # Check some subsets of the expr, for now starting from 0 because that's what iptables needs
     # but using a single byte yields too many useless results, so let's do 2 at a time
-    sub = 16
-    while sub <= expr.size():
-        expr_slice = expr[sub-1:]
-        matching = [c for c in state.solver.constraints if any(a is expr_slice for a in c.children_asts())]
-        for m in matching:
-            results.append(m.replace(expr_slice, replacement[sub-1:]))
-        sub += 16
+    #sub = 16
+    #while sub <= expr.size():
+    #    expr_slice = expr[sub-1:]
+    #    matching = [c for c in state.solver.constraints if any(a is expr_slice for a in c.children_asts())]
+    #    for m in matching:
+    #        results.append(m.replace(expr_slice, replacement[sub-1:]))
+    #    sub += 16
 
     # Also, if the item is always 0 in places, remember that.
     # Or at least remember the beginning, that's enough for a prototype.
