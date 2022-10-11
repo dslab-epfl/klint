@@ -79,6 +79,8 @@ jobs:
         exclude:
           - os: dpdk
             net: tinynf
+          - os: metal
+            net: dpdk
           # TODO rm BPF
           - nf: bpf
           # TODO need lpm_*
@@ -87,8 +89,6 @@ jobs:
           - nf: iptables_blacklist
           - nf: iptables_port_whitelist
           - nf: iptables_whitelist
-          # TODO bad includes
-          - net: dpdk
     steps:
       - uses: actions/checkout@v3
       - uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -96,6 +96,11 @@ jobs:
         with:
           toolchain: nightly
           components: rust-src
+      - name: install DPDK deps
+        if: matrix.net == 'dpdk'
+        run: |
+          sudo apt update
+          sudo apt install libnuma-dev
       - name: create dummy OS config
         run: echo '{.bus = 0x00, .device = 0x00, .function = 0x0}' > env/config
       - run: make OS=${{ matrix.os }} NET=${{ matrix.net }} build-${{ matrix.nf }}
