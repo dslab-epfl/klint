@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        # keep list in sync with build-nf
+        # keep list in sync with *-nf
         nf:
           - bpf
           - bridge
@@ -57,7 +57,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        # keep list in sync with compile-nf
+        # keep list in sync with *-nf
         nf:
           - bpf
           - bridge
@@ -116,12 +116,43 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        # many nf take too much time to execute, selecting a few
-        # TODO why each one are so slow?
+        # keep list in sync with *-nf
         nf:
+          - bpf
+          - bridge
+          - dhcp_ipv4
+          - dns_aaa_records
+          - firewall
+          - iptables
+          - iptables_blacklist
+          - iptables_port_whitelist
+          - iptables_whitelist
+          - maglev
+          - nat
           - nop
+          - policer
+          - router
+          - rust-policer
+        exclude:
+          # TODO rm BPF
+          - nf: bpf
+          # TODO inf recursion?
+          - nf: dhcp_ipv4
+          # TODO borrow from ephemeral location?
+          - nf: dns_aaa_records
+          # TODO neg shift count, angr/claripy#271
+          # and some other weird crashes
+          - nf: iptables
+          - nf: iptables_blacklist
+          - nf: iptables_port_whitelist
+          - nf: iptables_whitelist
     steps:
       - uses: actions/checkout@v3
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        if: matrix.nf == 'rust-policer'
+        with:
+          toolchain: nightly
+          components: rust-src
       - run: make verify-${{ matrix.nf }}
         env:
           CFLAGS: -mno-avx512f -mno-avx512vl # angr>vex doesn't support some avx512
