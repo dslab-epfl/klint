@@ -5,6 +5,23 @@ on:
   pull_request:
 
 jobs:
+  list-nfs:
+    runs-on: ubuntu-latest
+    outputs:
+      nfs: ${{ steps.list-nfs.outputs.nfs }}
+    steps:
+      - uses: actions/checkout@v3
+      - id: list-nfs
+        name: list nfs
+        run: |
+          nfs_json=$(
+            find nf -mindepth 1 -maxdepth 1 -type d |
+              cut -d/ -f2 |
+              xargs |
+              sed 's/ /","/g'
+          )
+          echo "nfs=[\"$nfs_json\"]" >> $GITHUB_OUTPUT
+
   lint-env-and-nf:
     runs-on: ubuntu-latest
     steps:
@@ -19,27 +36,11 @@ jobs:
   # TODO document-env
 
   compile-nf:
-    needs: lint-env-and-nf
+    needs: [list-nfs, lint-env-and-nf]
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        # keep list in sync with *-nf
-        nf:
-          - bpf
-          - bridge
-          - dhcp_ipv4
-          - dns_aaa_records
-          - firewall
-          - iptables
-          - iptables_blacklist
-          - iptables_port_whitelist
-          - iptables_whitelist
-          - maglev
-          - nat
-          - nop
-          - policer
-          - router
-          - rust-policer
+        nf: ${{ fromJSON(needs.list-nfs.outputs.nfs) }}
         exclude:
           # TODO rm BPF
           - nf: bpf
@@ -53,27 +54,11 @@ jobs:
       - run: make compile-${{ matrix.nf }}
 
   build-nf:
-    needs: compile-nf
+    needs: [list-nfs, compile-nf]
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        # keep list in sync with *-nf
-        nf:
-          - bpf
-          - bridge
-          - dhcp_ipv4
-          - dns_aaa_records
-          - firewall
-          - iptables
-          - iptables_blacklist
-          - iptables_port_whitelist
-          - iptables_whitelist
-          - maglev
-          - nat
-          - nop
-          - policer
-          - router
-          - rust-policer
+        nf: ${{ fromJSON(needs.list-nfs.outputs.nfs) }}
         os: [linux, metal, dpdk]
         net: [tinynf, dpdk]
         exclude:
@@ -112,27 +97,11 @@ jobs:
       - run: make tool-test
 
   verify-nf:
-    needs: [build-nf, test-tool]
+    needs: [list-nfs, build-nf, test-tool]
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        # keep list in sync with *-nf
-        nf:
-          - bpf
-          - bridge
-          - dhcp_ipv4
-          - dns_aaa_records
-          - firewall
-          - iptables
-          - iptables_blacklist
-          - iptables_port_whitelist
-          - iptables_whitelist
-          - maglev
-          - nat
-          - nop
-          - policer
-          - router
-          - rust-policer
+        nf: ${{ fromJSON(needs.list-nfs.outputs.nfs) }}
         exclude:
           # TODO rm BPF
           - nf: bpf
