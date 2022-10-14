@@ -1,3 +1,0 @@
-"""
-BPF-related stuff.
-"""

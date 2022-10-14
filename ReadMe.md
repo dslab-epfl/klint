@@ -1,12 +1,6 @@
-This is the artifact for the paper "Automated Verification of Network Function Binaries" presented at NSDI'22.
-
-Paper and talk video: https://www.usenix.org/conference/nsdi22/presentation/pirelli
-
-
 ## Repository structure
 
 - `benchmarking` contains the scripts for benchmarks (building upon those from the TinyNF artifact) 
-- `experiments` contains the scripts to reproduce the results in the paper
 - `nf` contains the network functions we wrote or adapted
 - `env` contains the environment abstractions for network functions and implementations of these abstractions
 - `tool` contains the Klint tool
@@ -23,11 +17,6 @@ Part of this binary can also be verified with Klint for "full-stack" verificatio
 An example of end-to-end usage is `Makefile`, which can `compile-X` (compile just nf/X), `build-X` (compile nf/X and link it with a compiled environment),
 `verify-X` (using nf/X/spec.py), and `benchmark-X` (basic benchmark of nf/X) for an NF X in `nf/` such as `firewall`.
 There's also `compile-all` to just compile all NFs, useful when making changes to the environment interface or the build infrastructure.
-
-
-## Reproducing paper results
-
-Please see the `experiments` folder readme.
 
 
 ## Writing and verifying your own network function
@@ -51,3 +40,9 @@ You may be interested in a [project report](docs/report-elvric-patrice.pdf) writ
 `cd` to this directory, then `cd` into `tool` and `. setup-virtualenv.sh` to set up the required Python virtualenv
 
 Then you can use the Makefile to e.g. `make verify-bridge`
+
+
+## Reproducing paper results
+
+This project is based on the paper [Automated Verification of Network Function Binaries](https://infoscience.epfl.ch/record/294788) [presented at NSDI'22](https://www.usenix.org/conference/nsdi22/presentation/pirelli).
+You can find its paper state tagged as [`paper`](../../tree/paper).
