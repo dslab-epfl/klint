@@ -111,6 +111,7 @@ jobs:
           - nf: dns_aaa_records
           # TODO neg shift count, angr/claripy#271
           # and some other weird crashes
+          - nf: router
           - nf: iptables
           - nf: iptables_blacklist
           - nf: iptables_port_whitelist
