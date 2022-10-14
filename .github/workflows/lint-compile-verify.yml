@@ -107,11 +107,9 @@ jobs:
           - nf: bpf
           # TODO inf recursion?
           - nf: dhcp_ipv4
-          # TODO borrow from ephemeral location?
+          # TODO borrow from ephemeral location? #6
           - nf: dns_aaa_records
-          # TODO neg shift count, angr/claripy#271
-          # and some other weird crashes
-          - nf: router
+          # TODO rule should no longer be in the map? #7
           - nf: iptables
           - nf: iptables_blacklist
           - nf: iptables_port_whitelist
