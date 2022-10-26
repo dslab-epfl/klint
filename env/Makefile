@@ -74,20 +74,20 @@ ifndef NO_DEFAULT_TARGETS
 default: clean $(OUTPUT)
 
 $(OUTPUT): $(NF_OBJ) $(SPLIT_OBJ) $(NF_DYNAMIC)
-	@$(CC) $(CFLAGS) $(NO_LTO_FLAG) -o $@ $^
+	$(CC) $(CFLAGS) $(NO_LTO_FLAG) -o $@ $^
 
 # Strip the NF object, to mimic realistic conditions in which the NF is compiled along with networking code by a developer and given to an operator, without any symbols
 $(NF_OBJ): $(subst .c,.o,$(NET_SRCS)) $(NF_STATIC)
-	@$(LD) -s -r $^ -o $@
+	$(LD) -s -r $^ -o $@
 
 $(SPLIT_OBJ): $(subst .c,.o,$(SPLIT_SRCS))
-	@$(LD) -r $^ -o $@
+	$(LD) -r $^ -o $@
 
 %.o: %.c
-	@$(CC) $(CFLAGS) -c -o $@ $<
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 
 .PHONY: clean
 clean:
-	@rm -f **/*.o $(NF_OBJ) $(SPLIT_OBJ) $(OUTPUT)
+	rm -f **/*.o $(NF_OBJ) $(SPLIT_OBJ) $(OUTPUT)
 endif

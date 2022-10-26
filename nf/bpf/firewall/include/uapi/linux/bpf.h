@@ -50,18 +50,19 @@
 #define BPF_CMPXCHG (0xf0 | BPF_FETCH) /* atomic compare-and-write */
 
 /* Register numbers */
-enum { BPF_REG_0 = 0,
-       BPF_REG_1,
-       BPF_REG_2,
-       BPF_REG_3,
-       BPF_REG_4,
-       BPF_REG_5,
-       BPF_REG_6,
-       BPF_REG_7,
-       BPF_REG_8,
-       BPF_REG_9,
-       BPF_REG_10,
-       __MAX_BPF_REG,
+enum {
+	BPF_REG_0 = 0,
+	BPF_REG_1,
+	BPF_REG_2,
+	BPF_REG_3,
+	BPF_REG_4,
+	BPF_REG_5,
+	BPF_REG_6,
+	BPF_REG_7,
+	BPF_REG_8,
+	BPF_REG_9,
+	BPF_REG_10,
+	__MAX_BPF_REG,
 };
 
 /* BPF has 10 general purpose 64-bit registers and stack frame. */
@@ -1164,49 +1165,51 @@ enum bpf_link_type {
 #define BPF_PSEUDO_KFUNC_CALL 2
 
 /* flags for BPF_MAP_UPDATE_ELEM command */
-enum { BPF_ANY = 0,	/* create new element or update existing */
-       BPF_NOEXIST = 1, /* create new element if it didn't exist */
-       BPF_EXIST = 2,	/* update existing element */
-       BPF_F_LOCK = 4,	/* spin_lock-ed map_lookup/map_update */
+enum {
+	BPF_ANY = 0,	 /* create new element or update existing */
+	BPF_NOEXIST = 1, /* create new element if it didn't exist */
+	BPF_EXIST = 2,	 /* update existing element */
+	BPF_F_LOCK = 4,	 /* spin_lock-ed map_lookup/map_update */
 };
 
 /* flags for BPF_MAP_CREATE command */
-enum { BPF_F_NO_PREALLOC = (1U << 0),
-       /* Instead of having one common LRU list in the
-	* BPF_MAP_TYPE_LRU_[PERCPU_]HASH map, use a percpu LRU list
-	* which can scale and perform better.
-	* Note, the LRU nodes (including free nodes) cannot be moved
-	* across different LRU lists.
-	*/
-       BPF_F_NO_COMMON_LRU = (1U << 1),
-       /* Specify numa node during map creation */
-       BPF_F_NUMA_NODE = (1U << 2),
+enum {
+	BPF_F_NO_PREALLOC = (1U << 0),
+	/* Instead of having one common LRU list in the
+	 * BPF_MAP_TYPE_LRU_[PERCPU_]HASH map, use a percpu LRU list
+	 * which can scale and perform better.
+	 * Note, the LRU nodes (including free nodes) cannot be moved
+	 * across different LRU lists.
+	 */
+	BPF_F_NO_COMMON_LRU = (1U << 1),
+	/* Specify numa node during map creation */
+	BPF_F_NUMA_NODE = (1U << 2),
 
-       /* Flags for accessing BPF object from syscall side. */
-       BPF_F_RDONLY = (1U << 3),
-       BPF_F_WRONLY = (1U << 4),
+	/* Flags for accessing BPF object from syscall side. */
+	BPF_F_RDONLY = (1U << 3),
+	BPF_F_WRONLY = (1U << 4),
 
-       /* Flag for stack_map, store build_id+offset instead of pointer */
-       BPF_F_STACK_BUILD_ID = (1U << 5),
+	/* Flag for stack_map, store build_id+offset instead of pointer */
+	BPF_F_STACK_BUILD_ID = (1U << 5),
 
-       /* Zero-initialize hash function seed. This should only be used for testing. */
-       BPF_F_ZERO_SEED = (1U << 6),
+	/* Zero-initialize hash function seed. This should only be used for testing. */
+	BPF_F_ZERO_SEED = (1U << 6),
 
-       /* Flags for accessing BPF object from program side. */
-       BPF_F_RDONLY_PROG = (1U << 7),
-       BPF_F_WRONLY_PROG = (1U << 8),
+	/* Flags for accessing BPF object from program side. */
+	BPF_F_RDONLY_PROG = (1U << 7),
+	BPF_F_WRONLY_PROG = (1U << 8),
 
-       /* Clone map from listener for newly accepted socket */
-       BPF_F_CLONE = (1U << 9),
+	/* Clone map from listener for newly accepted socket */
+	BPF_F_CLONE = (1U << 9),
 
-       /* Enable memory-mapping BPF map */
-       BPF_F_MMAPABLE = (1U << 10),
+	/* Enable memory-mapping BPF map */
+	BPF_F_MMAPABLE = (1U << 10),
 
-       /* Share perf_event among processes */
-       BPF_F_PRESERVE_ELEMS = (1U << 11),
+	/* Share perf_event among processes */
+	BPF_F_PRESERVE_ELEMS = (1U << 11),
 
-       /* Create a map that is suitable to be an inner map with dynamic max entries */
-       BPF_F_INNER_MAP = (1U << 12),
+	/* Create a map that is suitable to be an inner map with dynamic max entries */
+	BPF_F_INNER_MAP = (1U << 12),
 };
 
 /* Flags for BPF_PROG_QUERY. */
@@ -4904,121 +4907,140 @@ enum bpf_func_id {
 /* All flags used by eBPF helper functions, placed here. */
 
 /* BPF_FUNC_skb_store_bytes flags. */
-enum { BPF_F_RECOMPUTE_CSUM = (1ULL << 0),
-       BPF_F_INVALIDATE_HASH = (1ULL << 1),
+enum {
+	BPF_F_RECOMPUTE_CSUM = (1ULL << 0),
+	BPF_F_INVALIDATE_HASH = (1ULL << 1),
 };
 
 /* BPF_FUNC_l3_csum_replace and BPF_FUNC_l4_csum_replace flags.
  * First 4 bits are for passing the header field size.
  */
-enum { BPF_F_HDR_FIELD_MASK = 0xfULL,
+enum {
+	BPF_F_HDR_FIELD_MASK = 0xfULL,
 };
 
 /* BPF_FUNC_l4_csum_replace flags. */
-enum { BPF_F_PSEUDO_HDR = (1ULL << 4),
-       BPF_F_MARK_MANGLED_0 = (1ULL << 5),
-       BPF_F_MARK_ENFORCE = (1ULL << 6),
+enum {
+	BPF_F_PSEUDO_HDR = (1ULL << 4),
+	BPF_F_MARK_MANGLED_0 = (1ULL << 5),
+	BPF_F_MARK_ENFORCE = (1ULL << 6),
 };
 
 /* BPF_FUNC_clone_redirect and BPF_FUNC_redirect flags. */
-enum { BPF_F_INGRESS = (1ULL << 0),
+enum {
+	BPF_F_INGRESS = (1ULL << 0),
 };
 
 /* BPF_FUNC_skb_set_tunnel_key and BPF_FUNC_skb_get_tunnel_key flags. */
-enum { BPF_F_TUNINFO_IPV6 = (1ULL << 0),
+enum {
+	BPF_F_TUNINFO_IPV6 = (1ULL << 0),
 };
 
 /* flags for both BPF_FUNC_get_stackid and BPF_FUNC_get_stack. */
-enum { BPF_F_SKIP_FIELD_MASK = 0xffULL,
-       BPF_F_USER_STACK = (1ULL << 8),
-       /* flags used by BPF_FUNC_get_stackid only. */
-       BPF_F_FAST_STACK_CMP = (1ULL << 9),
-       BPF_F_REUSE_STACKID = (1ULL << 10),
-       /* flags used by BPF_FUNC_get_stack only. */
-       BPF_F_USER_BUILD_ID = (1ULL << 11),
+enum {
+	BPF_F_SKIP_FIELD_MASK = 0xffULL,
+	BPF_F_USER_STACK = (1ULL << 8),
+	/* flags used by BPF_FUNC_get_stackid only. */
+	BPF_F_FAST_STACK_CMP = (1ULL << 9),
+	BPF_F_REUSE_STACKID = (1ULL << 10),
+	/* flags used by BPF_FUNC_get_stack only. */
+	BPF_F_USER_BUILD_ID = (1ULL << 11),
 };
 
 /* BPF_FUNC_skb_set_tunnel_key flags. */
-enum { BPF_F_ZERO_CSUM_TX = (1ULL << 1),
-       BPF_F_DONT_FRAGMENT = (1ULL << 2),
-       BPF_F_SEQ_NUMBER = (1ULL << 3),
+enum {
+	BPF_F_ZERO_CSUM_TX = (1ULL << 1),
+	BPF_F_DONT_FRAGMENT = (1ULL << 2),
+	BPF_F_SEQ_NUMBER = (1ULL << 3),
 };
 
 /* BPF_FUNC_perf_event_output, BPF_FUNC_perf_event_read and
  * BPF_FUNC_perf_event_read_value flags.
  */
-enum { BPF_F_INDEX_MASK = 0xffffffffULL,
-       BPF_F_CURRENT_CPU = BPF_F_INDEX_MASK,
-       /* BPF_FUNC_perf_event_output for sk_buff input context. */
-       BPF_F_CTXLEN_MASK = (0xfffffULL << 32),
+enum {
+	BPF_F_INDEX_MASK = 0xffffffffULL,
+	BPF_F_CURRENT_CPU = BPF_F_INDEX_MASK,
+	/* BPF_FUNC_perf_event_output for sk_buff input context. */
+	BPF_F_CTXLEN_MASK = (0xfffffULL << 32),
 };
 
 /* Current network namespace */
-enum { BPF_F_CURRENT_NETNS = (-1L),
+enum {
+	BPF_F_CURRENT_NETNS = (-1L),
 };
 
 /* BPF_FUNC_csum_level level values. */
-enum { BPF_CSUM_LEVEL_QUERY,
-       BPF_CSUM_LEVEL_INC,
-       BPF_CSUM_LEVEL_DEC,
-       BPF_CSUM_LEVEL_RESET,
+enum {
+	BPF_CSUM_LEVEL_QUERY,
+	BPF_CSUM_LEVEL_INC,
+	BPF_CSUM_LEVEL_DEC,
+	BPF_CSUM_LEVEL_RESET,
 };
 
 /* BPF_FUNC_skb_adjust_room flags. */
-enum { BPF_F_ADJ_ROOM_FIXED_GSO = (1ULL << 0),
-       BPF_F_ADJ_ROOM_ENCAP_L3_IPV4 = (1ULL << 1),
-       BPF_F_ADJ_ROOM_ENCAP_L3_IPV6 = (1ULL << 2),
-       BPF_F_ADJ_ROOM_ENCAP_L4_GRE = (1ULL << 3),
-       BPF_F_ADJ_ROOM_ENCAP_L4_UDP = (1ULL << 4),
-       BPF_F_ADJ_ROOM_NO_CSUM_RESET = (1ULL << 5),
-       BPF_F_ADJ_ROOM_ENCAP_L2_ETH = (1ULL << 6),
+enum {
+	BPF_F_ADJ_ROOM_FIXED_GSO = (1ULL << 0),
+	BPF_F_ADJ_ROOM_ENCAP_L3_IPV4 = (1ULL << 1),
+	BPF_F_ADJ_ROOM_ENCAP_L3_IPV6 = (1ULL << 2),
+	BPF_F_ADJ_ROOM_ENCAP_L4_GRE = (1ULL << 3),
+	BPF_F_ADJ_ROOM_ENCAP_L4_UDP = (1ULL << 4),
+	BPF_F_ADJ_ROOM_NO_CSUM_RESET = (1ULL << 5),
+	BPF_F_ADJ_ROOM_ENCAP_L2_ETH = (1ULL << 6),
 };
 
-enum { BPF_ADJ_ROOM_ENCAP_L2_MASK = 0xff,
-       BPF_ADJ_ROOM_ENCAP_L2_SHIFT = 56,
+enum {
+	BPF_ADJ_ROOM_ENCAP_L2_MASK = 0xff,
+	BPF_ADJ_ROOM_ENCAP_L2_SHIFT = 56,
 };
 
 #define BPF_F_ADJ_ROOM_ENCAP_L2(len) (((__u64) len & BPF_ADJ_ROOM_ENCAP_L2_MASK) << BPF_ADJ_ROOM_ENCAP_L2_SHIFT)
 
 /* BPF_FUNC_sysctl_get_name flags. */
-enum { BPF_F_SYSCTL_BASE_NAME = (1ULL << 0),
+enum {
+	BPF_F_SYSCTL_BASE_NAME = (1ULL << 0),
 };
 
 /* BPF_FUNC_<kernel_obj>_storage_get flags */
-enum { BPF_LOCAL_STORAGE_GET_F_CREATE = (1ULL << 0),
-       /* BPF_SK_STORAGE_GET_F_CREATE is only kept for backward compatibility
-	* and BPF_LOCAL_STORAGE_GET_F_CREATE must be used instead.
-	*/
-       BPF_SK_STORAGE_GET_F_CREATE = BPF_LOCAL_STORAGE_GET_F_CREATE,
+enum {
+	BPF_LOCAL_STORAGE_GET_F_CREATE = (1ULL << 0),
+	/* BPF_SK_STORAGE_GET_F_CREATE is only kept for backward compatibility
+	 * and BPF_LOCAL_STORAGE_GET_F_CREATE must be used instead.
+	 */
+	BPF_SK_STORAGE_GET_F_CREATE = BPF_LOCAL_STORAGE_GET_F_CREATE,
 };
 
 /* BPF_FUNC_read_branch_records flags. */
-enum { BPF_F_GET_BRANCH_RECORDS_SIZE = (1ULL << 0),
+enum {
+	BPF_F_GET_BRANCH_RECORDS_SIZE = (1ULL << 0),
 };
 
 /* BPF_FUNC_bpf_ringbuf_commit, BPF_FUNC_bpf_ringbuf_discard, and
  * BPF_FUNC_bpf_ringbuf_output flags.
  */
-enum { BPF_RB_NO_WAKEUP = (1ULL << 0),
-       BPF_RB_FORCE_WAKEUP = (1ULL << 1),
+enum {
+	BPF_RB_NO_WAKEUP = (1ULL << 0),
+	BPF_RB_FORCE_WAKEUP = (1ULL << 1),
 };
 
 /* BPF_FUNC_bpf_ringbuf_query flags */
-enum { BPF_RB_AVAIL_DATA = 0,
-       BPF_RB_RING_SIZE = 1,
-       BPF_RB_CONS_POS = 2,
-       BPF_RB_PROD_POS = 3,
+enum {
+	BPF_RB_AVAIL_DATA = 0,
+	BPF_RB_RING_SIZE = 1,
+	BPF_RB_CONS_POS = 2,
+	BPF_RB_PROD_POS = 3,
 };
 
 /* BPF ring buffer constants */
-enum { BPF_RINGBUF_BUSY_BIT = (1U << 31),
-       BPF_RINGBUF_DISCARD_BIT = (1U << 30),
-       BPF_RINGBUF_HDR_SZ = 8,
+enum {
+	BPF_RINGBUF_BUSY_BIT = (1U << 31),
+	BPF_RINGBUF_DISCARD_BIT = (1U << 30),
+	BPF_RINGBUF_HDR_SZ = 8,
 };
 
 /* BPF_FUNC_sk_assign flags in bpf_sk_lookup context. */
-enum { BPF_SK_LOOKUP_F_REPLACE = (1ULL << 0),
-       BPF_SK_LOOKUP_F_NO_REUSEPORT = (1ULL << 1),
+enum {
+	BPF_SK_LOOKUP_F_REPLACE = (1ULL << 0),
+	BPF_SK_LOOKUP_F_NO_REUSEPORT = (1ULL << 1),
 };
 
 /* Mode for BPF_FUNC_skb_adjust_room helper. */
@@ -5041,12 +5063,14 @@ enum bpf_lwt_encap_mode {
 };
 
 /* Flags for bpf_bprm_opts_set helper */
-enum { BPF_F_BPRM_SECUREEXEC = (1ULL << 0),
+enum {
+	BPF_F_BPRM_SECUREEXEC = (1ULL << 0),
 };
 
 /* Flags for bpf_redirect_map helper */
-enum { BPF_F_BROADCAST = (1ULL << 3),
-       BPF_F_EXCLUDE_INGRESS = (1ULL << 4),
+enum {
+	BPF_F_BROADCAST = (1ULL << 3),
+	BPF_F_EXCLUDE_INGRESS = (1ULL << 4),
 };
 
 #define __bpf_md_ptr(type, name)                                                                                                                                                                       \
@@ -5563,166 +5587,168 @@ struct bpf_sock_ops {
 };
 
 /* Definitions for bpf_sock_ops_cb_flags */
-enum { BPF_SOCK_OPS_RTO_CB_FLAG = (1 << 0),
-       BPF_SOCK_OPS_RETRANS_CB_FLAG = (1 << 1),
-       BPF_SOCK_OPS_STATE_CB_FLAG = (1 << 2),
-       BPF_SOCK_OPS_RTT_CB_FLAG = (1 << 3),
-       /* Call bpf for all received TCP headers.  The bpf prog will be
-	* called under sock_ops->op == BPF_SOCK_OPS_PARSE_HDR_OPT_CB
-	*
-	* Please refer to the comment in BPF_SOCK_OPS_PARSE_HDR_OPT_CB
-	* for the header option related helpers that will be useful
-	* to the bpf programs.
-	*
-	* It could be used at the client/active side (i.e. connect() side)
-	* when the server told it that the server was in syncookie
-	* mode and required the active side to resend the bpf-written
-	* options.  The active side can keep writing the bpf-options until
-	* it received a valid packet from the server side to confirm
-	* the earlier packet (and options) has been received.  The later
-	* example patch is using it like this at the active side when the
-	* server is in syncookie mode.
-	*
-	* The bpf prog will usually turn this off in the common cases.
-	*/
-       BPF_SOCK_OPS_PARSE_ALL_HDR_OPT_CB_FLAG = (1 << 4),
-       /* Call bpf when kernel has received a header option that
-	* the kernel cannot handle.  The bpf prog will be called under
-	* sock_ops->op == BPF_SOCK_OPS_PARSE_HDR_OPT_CB.
-	*
-	* Please refer to the comment in BPF_SOCK_OPS_PARSE_HDR_OPT_CB
-	* for the header option related helpers that will be useful
-	* to the bpf programs.
-	*/
-       BPF_SOCK_OPS_PARSE_UNKNOWN_HDR_OPT_CB_FLAG = (1 << 5),
-       /* Call bpf when the kernel is writing header options for the
-	* outgoing packet.  The bpf prog will first be called
-	* to reserve space in a skb under
-	* sock_ops->op == BPF_SOCK_OPS_HDR_OPT_LEN_CB.  Then
-	* the bpf prog will be called to write the header option(s)
-	* under sock_ops->op == BPF_SOCK_OPS_WRITE_HDR_OPT_CB.
-	*
-	* Please refer to the comment in BPF_SOCK_OPS_HDR_OPT_LEN_CB
-	* and BPF_SOCK_OPS_WRITE_HDR_OPT_CB for the header option
-	* related helpers that will be useful to the bpf programs.
-	*
-	* The kernel gets its chance to reserve space and write
-	* options first before the BPF program does.
-	*/
-       BPF_SOCK_OPS_WRITE_HDR_OPT_CB_FLAG = (1 << 6),
-       /* Mask of all currently supported cb flags */
-       BPF_SOCK_OPS_ALL_CB_FLAGS = 0x7F,
+enum {
+	BPF_SOCK_OPS_RTO_CB_FLAG = (1 << 0),
+	BPF_SOCK_OPS_RETRANS_CB_FLAG = (1 << 1),
+	BPF_SOCK_OPS_STATE_CB_FLAG = (1 << 2),
+	BPF_SOCK_OPS_RTT_CB_FLAG = (1 << 3),
+	/* Call bpf for all received TCP headers.  The bpf prog will be
+	 * called under sock_ops->op == BPF_SOCK_OPS_PARSE_HDR_OPT_CB
+	 *
+	 * Please refer to the comment in BPF_SOCK_OPS_PARSE_HDR_OPT_CB
+	 * for the header option related helpers that will be useful
+	 * to the bpf programs.
+	 *
+	 * It could be used at the client/active side (i.e. connect() side)
+	 * when the server told it that the server was in syncookie
+	 * mode and required the active side to resend the bpf-written
+	 * options.  The active side can keep writing the bpf-options until
+	 * it received a valid packet from the server side to confirm
+	 * the earlier packet (and options) has been received.  The later
+	 * example patch is using it like this at the active side when the
+	 * server is in syncookie mode.
+	 *
+	 * The bpf prog will usually turn this off in the common cases.
+	 */
+	BPF_SOCK_OPS_PARSE_ALL_HDR_OPT_CB_FLAG = (1 << 4),
+	/* Call bpf when kernel has received a header option that
+	 * the kernel cannot handle.  The bpf prog will be called under
+	 * sock_ops->op == BPF_SOCK_OPS_PARSE_HDR_OPT_CB.
+	 *
+	 * Please refer to the comment in BPF_SOCK_OPS_PARSE_HDR_OPT_CB
+	 * for the header option related helpers that will be useful
+	 * to the bpf programs.
+	 */
+	BPF_SOCK_OPS_PARSE_UNKNOWN_HDR_OPT_CB_FLAG = (1 << 5),
+	/* Call bpf when the kernel is writing header options for the
+	 * outgoing packet.  The bpf prog will first be called
+	 * to reserve space in a skb under
+	 * sock_ops->op == BPF_SOCK_OPS_HDR_OPT_LEN_CB.  Then
+	 * the bpf prog will be called to write the header option(s)
+	 * under sock_ops->op == BPF_SOCK_OPS_WRITE_HDR_OPT_CB.
+	 *
+	 * Please refer to the comment in BPF_SOCK_OPS_HDR_OPT_LEN_CB
+	 * and BPF_SOCK_OPS_WRITE_HDR_OPT_CB for the header option
+	 * related helpers that will be useful to the bpf programs.
+	 *
+	 * The kernel gets its chance to reserve space and write
+	 * options first before the BPF program does.
+	 */
+	BPF_SOCK_OPS_WRITE_HDR_OPT_CB_FLAG = (1 << 6),
+	/* Mask of all currently supported cb flags */
+	BPF_SOCK_OPS_ALL_CB_FLAGS = 0x7F,
 };
 
 /* List of known BPF sock_ops operators.
  * New entries can only be added at the end
  */
-enum { BPF_SOCK_OPS_VOID,
-       BPF_SOCK_OPS_TIMEOUT_INIT,	    /* Should return SYN-RTO value to use or
-					     * -1 if default value should be used
-					     */
-       BPF_SOCK_OPS_RWND_INIT,		    /* Should return initial advertized
-					     * window (in packets) or -1 if default
-					     * value should be used
-					     */
-       BPF_SOCK_OPS_TCP_CONNECT_CB,	    /* Calls BPF program right before an
-					     * active connection is initialized
-					     */
-       BPF_SOCK_OPS_ACTIVE_ESTABLISHED_CB,  /* Calls BPF program when an
-					     * active connection is
-					     * established
-					     */
-       BPF_SOCK_OPS_PASSIVE_ESTABLISHED_CB, /* Calls BPF program when a
-					     * passive connection is
-					     * established
-					     */
-       BPF_SOCK_OPS_NEEDS_ECN,		    /* If connection's congestion control
-					     * needs ECN
-					     */
-       BPF_SOCK_OPS_BASE_RTT,		    /* Get base RTT. The correct value is
-					     * based on the path and may be
-					     * dependent on the congestion control
-					     * algorithm. In general it indicates
-					     * a congestion threshold. RTTs above
-					     * this indicate congestion
-					     */
-       BPF_SOCK_OPS_RTO_CB,		    /* Called when an RTO has triggered.
-					     * Arg1: value of icsk_retransmits
-					     * Arg2: value of icsk_rto
-					     * Arg3: whether RTO has expired
-					     */
-       BPF_SOCK_OPS_RETRANS_CB,		    /* Called when skb is retransmitted.
-					     * Arg1: sequence number of 1st byte
-					     * Arg2: # segments
-					     * Arg3: return value of
-					     *       tcp_transmit_skb (0 => success)
-					     */
-       BPF_SOCK_OPS_STATE_CB,		    /* Called when TCP changes state.
-					     * Arg1: old_state
-					     * Arg2: new_state
-					     */
-       BPF_SOCK_OPS_TCP_LISTEN_CB,	    /* Called on listen(2), right after
-					     * socket transition to LISTEN state.
-					     */
-       BPF_SOCK_OPS_RTT_CB,		    /* Called on every RTT.
-					     */
-       BPF_SOCK_OPS_PARSE_HDR_OPT_CB,	    /* Parse the header option.
-					     * It will be called to handle
-					     * the packets received at
-					     * an already established
-					     * connection.
-					     *
-					     * sock_ops->skb_data:
-					     * Referring to the received skb.
-					     * It covers the TCP header only.
-					     *
-					     * bpf_load_hdr_opt() can also
-					     * be used to search for a
-					     * particular option.
-					     */
-       BPF_SOCK_OPS_HDR_OPT_LEN_CB,	    /* Reserve space for writing the
-					     * header option later in
-					     * BPF_SOCK_OPS_WRITE_HDR_OPT_CB.
-					     * Arg1: bool want_cookie. (in
-					     *       writing SYNACK only)
-					     *
-					     * sock_ops->skb_data:
-					     * Not available because no header has
-					     * been	written yet.
-					     *
-					     * sock_ops->skb_tcp_flags:
-					     * The tcp_flags of the
-					     * outgoing skb. (e.g. SYN, ACK, FIN).
-					     *
-					     * bpf_reserve_hdr_opt() should
-					     * be used to reserve space.
-					     */
-       BPF_SOCK_OPS_WRITE_HDR_OPT_CB,	    /* Write the header options
-					     * Arg1: bool want_cookie. (in
-					     *       writing SYNACK only)
-					     *
-					     * sock_ops->skb_data:
-					     * Referring to the outgoing skb.
-					     * It covers the TCP header
-					     * that has already been written
-					     * by the kernel and the
-					     * earlier bpf-progs.
-					     *
-					     * sock_ops->skb_tcp_flags:
-					     * The tcp_flags of the outgoing
-					     * skb. (e.g. SYN, ACK, FIN).
-					     *
-					     * bpf_store_hdr_opt() should
-					     * be used to write the
-					     * option.
-					     *
-					     * bpf_load_hdr_opt() can also
-					     * be used to search for a
-					     * particular option that
-					     * has already been written
-					     * by the kernel or the
-					     * earlier bpf-progs.
-					     */
+enum {
+	BPF_SOCK_OPS_VOID,
+	BPF_SOCK_OPS_TIMEOUT_INIT,	     /* Should return SYN-RTO value to use or
+					      * -1 if default value should be used
+					      */
+	BPF_SOCK_OPS_RWND_INIT,		     /* Should return initial advertized
+					      * window (in packets) or -1 if default
+					      * value should be used
+					      */
+	BPF_SOCK_OPS_TCP_CONNECT_CB,	     /* Calls BPF program right before an
+					      * active connection is initialized
+					      */
+	BPF_SOCK_OPS_ACTIVE_ESTABLISHED_CB,  /* Calls BPF program when an
+					      * active connection is
+					      * established
+					      */
+	BPF_SOCK_OPS_PASSIVE_ESTABLISHED_CB, /* Calls BPF program when a
+					      * passive connection is
+					      * established
+					      */
+	BPF_SOCK_OPS_NEEDS_ECN,		     /* If connection's congestion control
+					      * needs ECN
+					      */
+	BPF_SOCK_OPS_BASE_RTT,		     /* Get base RTT. The correct value is
+					      * based on the path and may be
+					      * dependent on the congestion control
+					      * algorithm. In general it indicates
+					      * a congestion threshold. RTTs above
+					      * this indicate congestion
+					      */
+	BPF_SOCK_OPS_RTO_CB,		     /* Called when an RTO has triggered.
+					      * Arg1: value of icsk_retransmits
+					      * Arg2: value of icsk_rto
+					      * Arg3: whether RTO has expired
+					      */
+	BPF_SOCK_OPS_RETRANS_CB,	     /* Called when skb is retransmitted.
+					      * Arg1: sequence number of 1st byte
+					      * Arg2: # segments
+					      * Arg3: return value of
+					      *       tcp_transmit_skb (0 => success)
+					      */
+	BPF_SOCK_OPS_STATE_CB,		     /* Called when TCP changes state.
+					      * Arg1: old_state
+					      * Arg2: new_state
+					      */
+	BPF_SOCK_OPS_TCP_LISTEN_CB,	     /* Called on listen(2), right after
+					      * socket transition to LISTEN state.
+					      */
+	BPF_SOCK_OPS_RTT_CB,		     /* Called on every RTT.
+					      */
+	BPF_SOCK_OPS_PARSE_HDR_OPT_CB,	     /* Parse the header option.
+					      * It will be called to handle
+					      * the packets received at
+					      * an already established
+					      * connection.
+					      *
+					      * sock_ops->skb_data:
+					      * Referring to the received skb.
+					      * It covers the TCP header only.
+					      *
+					      * bpf_load_hdr_opt() can also
+					      * be used to search for a
+					      * particular option.
+					      */
+	BPF_SOCK_OPS_HDR_OPT_LEN_CB,	     /* Reserve space for writing the
+					      * header option later in
+					      * BPF_SOCK_OPS_WRITE_HDR_OPT_CB.
+					      * Arg1: bool want_cookie. (in
+					      *       writing SYNACK only)
+					      *
+					      * sock_ops->skb_data:
+					      * Not available because no header has
+					      * been	written yet.
+					      *
+					      * sock_ops->skb_tcp_flags:
+					      * The tcp_flags of the
+					      * outgoing skb. (e.g. SYN, ACK, FIN).
+					      *
+					      * bpf_reserve_hdr_opt() should
+					      * be used to reserve space.
+					      */
+	BPF_SOCK_OPS_WRITE_HDR_OPT_CB,	     /* Write the header options
+					      * Arg1: bool want_cookie. (in
+					      *       writing SYNACK only)
+					      *
+					      * sock_ops->skb_data:
+					      * Referring to the outgoing skb.
+					      * It covers the TCP header
+					      * that has already been written
+					      * by the kernel and the
+					      * earlier bpf-progs.
+					      *
+					      * sock_ops->skb_tcp_flags:
+					      * The tcp_flags of the outgoing
+					      * skb. (e.g. SYN, ACK, FIN).
+					      *
+					      * bpf_store_hdr_opt() should
+					      * be used to write the
+					      * option.
+					      *
+					      * bpf_load_hdr_opt() can also
+					      * be used to search for a
+					      * particular option that
+					      * has already been written
+					      * by the kernel or the
+					      * earlier bpf-progs.
+					      */
 };
 
 /* List of TCP states. There is a build check in net/ipv4/tcp.c to detect
@@ -5730,79 +5756,83 @@ enum { BPF_SOCK_OPS_VOID,
  * If it does, we need to add code to convert them before calling
  * the BPF sock_ops function.
  */
-enum { BPF_TCP_ESTABLISHED = 1,
-       BPF_TCP_SYN_SENT,
-       BPF_TCP_SYN_RECV,
-       BPF_TCP_FIN_WAIT1,
-       BPF_TCP_FIN_WAIT2,
-       BPF_TCP_TIME_WAIT,
-       BPF_TCP_CLOSE,
-       BPF_TCP_CLOSE_WAIT,
-       BPF_TCP_LAST_ACK,
-       BPF_TCP_LISTEN,
-       BPF_TCP_CLOSING, /* Now a valid state */
-       BPF_TCP_NEW_SYN_RECV,
+enum {
+	BPF_TCP_ESTABLISHED = 1,
+	BPF_TCP_SYN_SENT,
+	BPF_TCP_SYN_RECV,
+	BPF_TCP_FIN_WAIT1,
+	BPF_TCP_FIN_WAIT2,
+	BPF_TCP_TIME_WAIT,
+	BPF_TCP_CLOSE,
+	BPF_TCP_CLOSE_WAIT,
+	BPF_TCP_LAST_ACK,
+	BPF_TCP_LISTEN,
+	BPF_TCP_CLOSING, /* Now a valid state */
+	BPF_TCP_NEW_SYN_RECV,
 
-       BPF_TCP_MAX_STATES /* Leave at the end! */
+	BPF_TCP_MAX_STATES /* Leave at the end! */
 };
 
-enum { TCP_BPF_IW = 1001,	     /* Set TCP initial congestion window */
-       TCP_BPF_SNDCWND_CLAMP = 1002, /* Set sndcwnd_clamp */
-       TCP_BPF_DELACK_MAX = 1003,    /* Max delay ack in usecs */
-       TCP_BPF_RTO_MIN = 1004,	     /* Min delay ack in usecs */
-       /* Copy the SYN pkt to optval
-	*
-	* BPF_PROG_TYPE_SOCK_OPS only.  It is similar to the
-	* bpf_getsockopt(TCP_SAVED_SYN) but it does not limit
-	* to only getting from the saved_syn.  It can either get the
-	* syn packet from:
-	*
-	* 1. the just-received SYN packet (only available when writing the
-	*    SYNACK).  It will be useful when it is not necessary to
-	*    save the SYN packet for latter use.  It is also the only way
-	*    to get the SYN during syncookie mode because the syn
-	*    packet cannot be saved during syncookie.
-	*
-	* OR
-	*
-	* 2. the earlier saved syn which was done by
-	*    bpf_setsockopt(TCP_SAVE_SYN).
-	*
-	* The bpf_getsockopt(TCP_BPF_SYN*) option will hide where the
-	* SYN packet is obtained.
-	*
-	* If the bpf-prog does not need the IP[46] header,  the
-	* bpf-prog can avoid parsing the IP header by using
-	* TCP_BPF_SYN.  Otherwise, the bpf-prog can get both
-	* IP[46] and TCP header by using TCP_BPF_SYN_IP.
-	*
-	*      >0: Total number of bytes copied
-	* -ENOSPC: Not enough space in optval. Only optlen number of
-	*          bytes is copied.
-	* -ENOENT: The SYN skb is not available now and the earlier SYN pkt
-	*	    is not saved by setsockopt(TCP_SAVE_SYN).
-	*/
-       TCP_BPF_SYN = 1005,     /* Copy the TCP header */
-       TCP_BPF_SYN_IP = 1006,  /* Copy the IP[46] and TCP header */
-       TCP_BPF_SYN_MAC = 1007, /* Copy the MAC, IP[46], and TCP header */
+enum {
+	TCP_BPF_IW = 1001,	      /* Set TCP initial congestion window */
+	TCP_BPF_SNDCWND_CLAMP = 1002, /* Set sndcwnd_clamp */
+	TCP_BPF_DELACK_MAX = 1003,    /* Max delay ack in usecs */
+	TCP_BPF_RTO_MIN = 1004,	      /* Min delay ack in usecs */
+	/* Copy the SYN pkt to optval
+	 *
+	 * BPF_PROG_TYPE_SOCK_OPS only.  It is similar to the
+	 * bpf_getsockopt(TCP_SAVED_SYN) but it does not limit
+	 * to only getting from the saved_syn.  It can either get the
+	 * syn packet from:
+	 *
+	 * 1. the just-received SYN packet (only available when writing the
+	 *    SYNACK).  It will be useful when it is not necessary to
+	 *    save the SYN packet for latter use.  It is also the only way
+	 *    to get the SYN during syncookie mode because the syn
+	 *    packet cannot be saved during syncookie.
+	 *
+	 * OR
+	 *
+	 * 2. the earlier saved syn which was done by
+	 *    bpf_setsockopt(TCP_SAVE_SYN).
+	 *
+	 * The bpf_getsockopt(TCP_BPF_SYN*) option will hide where the
+	 * SYN packet is obtained.
+	 *
+	 * If the bpf-prog does not need the IP[46] header,  the
+	 * bpf-prog can avoid parsing the IP header by using
+	 * TCP_BPF_SYN.  Otherwise, the bpf-prog can get both
+	 * IP[46] and TCP header by using TCP_BPF_SYN_IP.
+	 *
+	 *      >0: Total number of bytes copied
+	 * -ENOSPC: Not enough space in optval. Only optlen number of
+	 *          bytes is copied.
+	 * -ENOENT: The SYN skb is not available now and the earlier SYN pkt
+	 *	    is not saved by setsockopt(TCP_SAVE_SYN).
+	 */
+	TCP_BPF_SYN = 1005,	/* Copy the TCP header */
+	TCP_BPF_SYN_IP = 1006,	/* Copy the IP[46] and TCP header */
+	TCP_BPF_SYN_MAC = 1007, /* Copy the MAC, IP[46], and TCP header */
 };
 
-enum { BPF_LOAD_HDR_OPT_TCP_SYN = (1ULL << 0),
+enum {
+	BPF_LOAD_HDR_OPT_TCP_SYN = (1ULL << 0),
 };
 
 /* args[0] value during BPF_SOCK_OPS_HDR_OPT_LEN_CB and
  * BPF_SOCK_OPS_WRITE_HDR_OPT_CB.
  */
-enum { BPF_WRITE_HDR_TCP_CURRENT_MSS = 1,   /* Kernel is finding the
-					     * total option spaces
-					     * required for an established
-					     * sk in order to calculate the
-					     * MSS.  No skb is actually
-					     * sent.
-					     */
-       BPF_WRITE_HDR_TCP_SYNACK_COOKIE = 2, /* Kernel is in syncookie mode
-					     * when sending a SYN.
-					     */
+enum {
+	BPF_WRITE_HDR_TCP_CURRENT_MSS = 1,   /* Kernel is finding the
+					      * total option spaces
+					      * required for an established
+					      * sk in order to calculate the
+					      * MSS.  No skb is actually
+					      * sent.
+					      */
+	BPF_WRITE_HDR_TCP_SYNACK_COOKIE = 2, /* Kernel is in syncookie mode
+					      * when sending a SYN.
+					      */
 };
 
 struct bpf_perf_event_value {
@@ -5811,13 +5841,15 @@ struct bpf_perf_event_value {
 	__u64 running;
 };
 
-enum { BPF_DEVCG_ACC_MKNOD = (1ULL << 0),
-       BPF_DEVCG_ACC_READ = (1ULL << 1),
-       BPF_DEVCG_ACC_WRITE = (1ULL << 2),
+enum {
+	BPF_DEVCG_ACC_MKNOD = (1ULL << 0),
+	BPF_DEVCG_ACC_READ = (1ULL << 1),
+	BPF_DEVCG_ACC_WRITE = (1ULL << 2),
 };
 
-enum { BPF_DEVCG_DEV_BLOCK = (1ULL << 0),
-       BPF_DEVCG_DEV_CHAR = (1ULL << 1),
+enum {
+	BPF_DEVCG_DEV_BLOCK = (1ULL << 0),
+	BPF_DEVCG_DEV_CHAR = (1ULL << 1),
 };
 
 struct bpf_cgroup_dev_ctx {
@@ -5834,19 +5866,21 @@ struct bpf_raw_tracepoint_args {
 /* DIRECT:  Skip the FIB rules and go to FIB table associated with device
  * OUTPUT:  Do lookup from egress perspective; default is ingress
  */
-enum { BPF_FIB_LOOKUP_DIRECT = (1U << 0),
-       BPF_FIB_LOOKUP_OUTPUT = (1U << 1),
+enum {
+	BPF_FIB_LOOKUP_DIRECT = (1U << 0),
+	BPF_FIB_LOOKUP_OUTPUT = (1U << 1),
 };
 
-enum { BPF_FIB_LKUP_RET_SUCCESS,      /* lookup successful */
-       BPF_FIB_LKUP_RET_BLACKHOLE,    /* dest is blackholed; can be dropped */
-       BPF_FIB_LKUP_RET_UNREACHABLE,  /* dest is unreachable; can be dropped */
-       BPF_FIB_LKUP_RET_PROHIBIT,     /* dest not allowed; can be dropped */
-       BPF_FIB_LKUP_RET_NOT_FWDED,    /* packet is not forwarded */
-       BPF_FIB_LKUP_RET_FWD_DISABLED, /* fwding is not enabled on ingress */
-       BPF_FIB_LKUP_RET_UNSUPP_LWT,   /* fwd requires encapsulation */
-       BPF_FIB_LKUP_RET_NO_NEIGH,     /* no neighbor entry for nh */
-       BPF_FIB_LKUP_RET_FRAG_NEEDED,  /* fragmentation required to fwd */
+enum {
+	BPF_FIB_LKUP_RET_SUCCESS,      /* lookup successful */
+	BPF_FIB_LKUP_RET_BLACKHOLE,    /* dest is blackholed; can be dropped */
+	BPF_FIB_LKUP_RET_UNREACHABLE,  /* dest is unreachable; can be dropped */
+	BPF_FIB_LKUP_RET_PROHIBIT,     /* dest not allowed; can be dropped */
+	BPF_FIB_LKUP_RET_NOT_FWDED,    /* packet is not forwarded */
+	BPF_FIB_LKUP_RET_FWD_DISABLED, /* fwding is not enabled on ingress */
+	BPF_FIB_LKUP_RET_UNSUPP_LWT,   /* fwd requires encapsulation */
+	BPF_FIB_LKUP_RET_NO_NEIGH,     /* no neighbor entry for nh */
+	BPF_FIB_LKUP_RET_FRAG_NEEDED,  /* fragmentation required to fwd */
 };
 
 struct bpf_fib_lookup {
@@ -5932,9 +5966,10 @@ enum bpf_task_fd_type {
 	BPF_FD_TYPE_URETPROBE,	    /* filename + offset */
 };
 
-enum { BPF_FLOW_DISSECTOR_F_PARSE_1ST_FRAG = (1U << 0),
-       BPF_FLOW_DISSECTOR_F_STOP_AT_FLOW_LABEL = (1U << 1),
-       BPF_FLOW_DISSECTOR_F_STOP_AT_ENCAP = (1U << 2),
+enum {
+	BPF_FLOW_DISSECTOR_F_PARSE_1ST_FRAG = (1U << 0),
+	BPF_FLOW_DISSECTOR_F_STOP_AT_FLOW_LABEL = (1U << 1),
+	BPF_FLOW_DISSECTOR_F_STOP_AT_ENCAP = (1U << 2),
 };
 
 struct bpf_flow_keys {
@@ -6051,10 +6086,11 @@ struct btf_ptr {
  *     - BTF_F_ZERO: show zero-valued struct/union members; they
  *       are not displayed by default
  */
-enum { BTF_F_COMPACT = (1ULL << 0),
-       BTF_F_NONAME = (1ULL << 1),
-       BTF_F_PTR_RAW = (1ULL << 2),
-       BTF_F_ZERO = (1ULL << 3),
+enum {
+	BTF_F_COMPACT = (1ULL << 0),
+	BTF_F_NONAME = (1ULL << 1),
+	BTF_F_PTR_RAW = (1ULL << 2),
+	BTF_F_ZERO = (1ULL << 3),
 };
 
 #endif /* _UAPI__LINUX_BPF_H__ */

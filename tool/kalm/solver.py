@@ -1,15 +1,16 @@
 import claripy
 import claripy.frontend_mixins as cfms
 from claripy.frontends import CompositeFrontend
-from claripy import backends, SolverCompositeChild
+from claripy import SolverCompositeChild
+from claripy.backends import BackendZ3
 
 import kalm
 
 # Optimization 1: for some reason using the SMT tactic instead of the default is faster
 import z3; z3.set_param('tactic.default_tactic', 'smt')
 # Optimization 2: Using QF_ABV explicitly is faster, even though all our queries are QF_BV (see https://github.com/Z3Prover/z3/issues/5655)
-class KalmZ3Backend(claripy._backends_module.BackendZ3):
-    def solver(self, timeout=None):
+class KalmZ3Backend(BackendZ3):
+    def solver(self, timeout=None, max_memory=None):
         return z3.SolverFor("QF_ABV", ctx=self._context)
 
 # Keep only what we need in the solver

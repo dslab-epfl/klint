@@ -63,7 +63,7 @@ static inline bool flow_table_get_internal(struct flow_table* table, time_t time
 
 static inline bool flow_table_get_external(struct flow_table* table, time_t time, uint16_t port, struct flow* out_flow)
 {
-	size_t index = (uint16_t)(port - table->start_port);
+	size_t index = (uint16_t) (port - table->start_port);
 	if (!index_pool_used(table->port_allocator, time, index)) {
 		return false;
 	}

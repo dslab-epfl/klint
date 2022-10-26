@@ -1,5 +1,6 @@
 #pragma once
 
+#include "net/packet.h"
 #include "os/memory.h"
 #include "os/time.h"
 #include "structs/cht.h"

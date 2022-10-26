@@ -1592,7 +1592,7 @@ void map_set(struct map* map, void* key_ptr, size_t value)
 		//@ close buckets_keys_insync_Xchain(real_capacity, ?new_chains_lst, buckets, start, index, key_opts);
 		//@ close mapp_core(key_size, real_capacity, kaddrs_lst, hashes_lst, values_lst, key_opts, map_values, map_addrs);
 		//@ map_item new_item = map_item(map_item_key_addr_(nth(index, the_items)), map_item_value_(nth(index, the_items)), 1 + map_item_chain_(nth(index, the_items)),
-		//map_item_key_hash_(nth(index, the_items)));
+		// map_item_key_hash_(nth(index, the_items)));
 		//@ take_update_unrelevant(index, index, new_item, the_items);
 		//@ drop_update_unrelevant(index + 1, index, new_item, the_items);
 		//@ map_preserves_length(map_item_key_addr_, update(index, new_item, the_items));
@@ -1855,7 +1855,7 @@ void map_remove(struct map* map, void* key_ptr)
 				//@ ghostmap_remove_preserves_distinct(map_values, key);
 				//@ ghostmap_remove_preserves_distinct(map_addrs, key);
 				//@ close mapp_core(key_size, real_capacity, update(index, NULL, kaddrs_lst), hashes_lst, values_lst, update(index, none, key_opts), ghostmap_remove(map_values, key),
-				//ghostmap_remove(map_addrs, key));
+				// ghostmap_remove(map_addrs, key));
 				//@ map_item new_item = map_item(NULL, map_item_value_(nth(index, the_items)), map_item_chain_(nth(index, the_items)), map_item_key_hash_(nth(index, the_items)));
 				//@ take_update_unrelevant(index, index, new_item, the_items);
 				//@ drop_update_unrelevant(index + 1, index, new_item, the_items);
@@ -1901,14 +1901,14 @@ void map_remove(struct map* map, void* key_ptr)
 		//@ loop_fixp(start + i, real_capacity);
 		//@ buckets_ok_get_chain_bounded(buckets, key, start);
 		//@ remove_one_cell_from_partial_chain(chains_lst, loop_fp(start + i, real_capacity), buckets_get_chain_fp(buckets, key, start) - i, buckets_get_chns_fp(buckets_remove_key_fp(buckets,
-		//key)), real_capacity);
+		// key)), real_capacity);
 		//@ inc_modulo_loop(start + i, real_capacity);
 		//@ assert loop_fp(loop_fp(start + i, real_capacity) + 1, real_capacity) == loop_fp(start + i + 1, real_capacity);
 		//@ chains_lst = add_partial_chain_fp(loop_fp(start + i + 1, real_capacity), buckets_get_chain_fp(buckets, key, start) - i - 1, buckets_get_chns_fp(buckets_remove_key_fp(buckets,
-		//key)));
+		// key)));
 		//@ close mapp_core(key_size, real_capacity, kaddrs_lst, hashes_lst, values_lst, key_opts, map_values, map_addrs);
 		//@ map_item new_item = map_item(map_item_key_addr_(nth(index, the_items)), map_item_value_(nth(index, the_items)), map_item_chain_(nth(index, the_items)) - 1,
-		//map_item_key_hash_(nth(index, the_items)));
+		// map_item_key_hash_(nth(index, the_items)));
 		//@ take_update_unrelevant(index, index, new_item, the_items);
 		//@ drop_update_unrelevant(index + 1, index, new_item, the_items);
 		//@ map_preserves_length(map_item_key_addr_, update(index, new_item, the_items));

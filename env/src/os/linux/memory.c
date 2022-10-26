@@ -29,7 +29,7 @@ static size_t os_memory_pagesize(void)
 
 void* os_memory_phys_to_virt(const uintptr_t addr, const size_t size)
 {
-	if (addr != (uintptr_t)(off_t) addr) {
+	if (addr != (uintptr_t) (off_t) addr) {
 		os_debug("Cannot phys-to-virt an addr that does not roundtrip to off_t");
 		abort();
 	}
@@ -71,7 +71,7 @@ uintptr_t os_memory_virt_to_phys(const void* const addr)
 	const size_t page_size = os_memory_pagesize();
 	const uintptr_t page = (uintptr_t) addr / page_size;
 	const uintptr_t map_offset = page * sizeof(uint64_t);
-	if (map_offset != (uintptr_t)(off_t) map_offset) {
+	if (map_offset != (uintptr_t) (off_t) map_offset) {
 		os_debug("Cannot virt-to-phys with an offset that does not roundtrip to off_t");
 		abort();
 	}

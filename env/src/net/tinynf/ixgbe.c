@@ -623,7 +623,7 @@ void tn_device_init(const struct os_pci_address* pci_address, struct tn_device* 
 	//	"FCEN: Bit 31; Transmit flow control enable for packet buffer n."
 	//	"This register contains the receive threshold used to determine when to send an XOFF packet and counts in units of bytes.
 	//	 This value must be at least eight bytes less than the maximum number of bytes allocated to the receive packet buffer and the lower four bits must be programmed to 0x0 (16-byte
-	//granularity). 	 Each time the receive FIFO reaches the fullness indicated by RTH, hardware transmits a pause frame if the transmission of flow control frames is enabled."
+	// granularity). 	 Each time the receive FIFO reaches the fullness indicated by RTH, hardware transmits a pause frame if the transmission of flow control frames is enabled."
 	// INTERPRETATION-CONTRADICTION: There is an obvious contradiction in the stated granularities (16 vs 32 bytes). We assume 32 is correct, since this also covers the 16 byte case.
 	// INTERPRETATION-MISSING: We assume that the "RXPBSIZE[n]-0x6000" calculation above refers to the RXPBSIZE in bytes (otherwise the size of FCRTH[n].RTH would be negative by default...)
 	// INTERPRETATION-CONTRADICTION: The granularity has to refer to the reserved bits, otherwise there is not enough space for meaningful values.
@@ -656,7 +656,7 @@ void tn_device_init(const struct os_pci_address* pci_address, struct tn_device* 
 	//	 This can come from the EEPROM or from any other means (for example, it could be stored anywhere in the EEPROM or even in the platform PROM for LOM design)."
 	//	Section 8.2.3.7.9 Receive Address High (RAH[n]):
 	//		"After reset, if the EEPROM is present, the first register (Receive Address Register 0) is loaded from the IA field in the EEPROM, its Address Select field is 00b, and its
-	//Address Valid field is 1b."
+	// Address Valid field is 1b."
 	// INTERPRETATION-POINTLESS: Since we checked that the EEPROM is present and valid, RAH[0] and RAL[0] are initialized from the EEPROM, thus we do not need to initialize them.
 	//	"- Receive Address High (RAH[n].VAL = 0b) for unused addresses."
 	//	Section 8.2.3.7.9 Receive Address High (RAH[n]):
@@ -714,7 +714,7 @@ void tn_device_init(const struct os_pci_address* pci_address, struct tn_device* 
 	//		 To configure the flexible filter, software programs the required values into the Flexible Host Filter Table (FHFT).
 	//		 These contain separate values for each filter.
 	//		 Software must also enable the filter in the WUFC register, and enable the overall wake-up functionality must be enabled by setting the PME_En bit in the PMCSR or the WUC
-	//register." 	Section 8.2.3.24.2 Wake Up Filter Control Register (WUFC): 		"FLX{0-5}: Bits {16-21}; Init val 0b; Flexible Filter {0-5} Enable"
+	// register." 	Section 8.2.3.24.2 Wake Up Filter Control Register (WUFC): 		"FLX{0-5}: Bits {16-21}; Init val 0b; Flexible Filter {0-5} Enable"
 	// INTERPRETATION-POINTLESS: Since WUFC.FLX{0-5} are disabled by default, and FHFT(n) only matters if the corresponding WUFC.FLX is enabled, we do not need to do anything by assumption NOWANT
 	//	"After all memories in the filter units previously indicated are initialized, enable ECC reporting by setting the RXFECCERR0.ECCFLT_EN bit."
 	//	Section 8.2.3.7.23 Rx Filter ECC Err Insertion 0 (RXFECCERR0):
@@ -723,7 +723,7 @@ void tn_device_init(const struct os_pci_address* pci_address, struct tn_device* 
 	//		 At 0b, the ECC logic can still function overcoming only single errors while dual or multiple errors can be ignored silently."
 	// INTERPRETATION-POINTLESS: Since we do not want flexible filters, this step is not necessary.
 	//	"Program the different Rx filters and Rx offloads via registers FCTRL, VLNCTRL, MCSTCTRL, RXCSUM, RQTC, RFCTL, MPSAR, RSSRK, RETA, SAQF, DAQF, SDPQF, FTQF, SYNQF, ETQF, ETQS, RDRXCTL,
-	//RSCDBU."
+	// RSCDBU."
 	// We do not touch FCTRL here, if the user wants promiscuous mode they will call the appropriate function.
 	//	Section 8.2.3.7.2 VLAN Control Register (VLNCTRL):
 	//		"Bit 30, VLAN Filter Enable, Init val 0b; 0b = Disabled."
@@ -797,7 +797,7 @@ void tn_device_init(const struct os_pci_address* pci_address, struct tn_device* 
 	// 			Section 8.2.3.7.12 Multiple Receive Queues Command Register (MRQC): "MRQE, Init Val 0x0; 0000b = RSS disabled"
 	// Thus we do not need to modify MRQC.
 	//		(from 4.6.11.3.1) "Queue Drop Enable (PFQDE) - In SR-IO the QDE bit should be set to 1b in the PFQDE register for all queues. In VMDq mode, the QDE bit should be set to 0b for
-	//all queues."
+	// all queues."
 	// We do not need to change PFQDE by assumption NOWANT
 	//		"- Rx UP to TC (RTRUP2TC), UPnMAP=0b, n=0,...,7"
 	//		Section 8.2.3.10.4 DCB Receive User Priority to Traffic Class (RTRUP2TC): All init vals = 0
@@ -990,7 +990,7 @@ static void tn_agent_add_output(struct tn_agent* const agent, struct tn_device* 
 	// 	"The Transmit Descriptor Base Address must point to a 128 byte-aligned block of data."
 	// This alignment is guaranteed by the agent initialization
 	uintptr_t ring_phys_addr = os_memory_virt_to_phys((void*) agent->rings[output_index]);
-	reg_write(device->addr, REG_TDBAH(queue_index), (uint32_t)(ring_phys_addr >> 32));
+	reg_write(device->addr, REG_TDBAH(queue_index), (uint32_t) (ring_phys_addr >> 32));
 	reg_write(device->addr, REG_TDBAL(queue_index), (uint32_t) ring_phys_addr);
 	// "- Set the length register to the size of the descriptor ring (TDLEN)."
 	// 	Section 8.2.3.9.7 Transmit Descriptor Length (TDLEN[n]):
@@ -1022,7 +1022,7 @@ static void tn_agent_add_output(struct tn_agent* const agent, struct tn_device* 
 	//	Section 8.2.3.9.11 Tx Descriptor Completion Write Back Address Low (TDWBAL[n]):
 	//	"Head_WB_En, bit 0 [...] 1b = Head write-back is enabled."
 	//	"Reserved, bit 1"
-	reg_write(device->addr, REG_TDWBAH(queue_index), (uint32_t)(head_phys_addr >> 32));
+	reg_write(device->addr, REG_TDWBAH(queue_index), (uint32_t) (head_phys_addr >> 32));
 	reg_write(device->addr, REG_TDWBAL(queue_index), (uint32_t) head_phys_addr | 1u);
 	// INTERPRETATION-MISSING: We must disable relaxed ordering of head pointer write-back, since it could cause the head pointer to be updated backwards
 	reg_clear_field(device->addr, REG_DCATXCTRL(queue_index), REG_DCATXCTRL_TX_DESC_WB_RO_EN);
@@ -1077,7 +1077,7 @@ static void tn_agent_set_input(struct tn_agent* const agent, struct tn_device* c
 	// 	"The receive descriptor base address must point to a 128 byte-aligned block of data."
 	// This alignment is guaranteed by the agent initialization
 	uintptr_t ring_phys_addr = os_memory_virt_to_phys((void*) agent->rings[0]);
-	reg_write(device->addr, REG_RDBAH(queue_index), (uint32_t)(ring_phys_addr >> 32));
+	reg_write(device->addr, REG_RDBAH(queue_index), (uint32_t) (ring_phys_addr >> 32));
 	reg_write(device->addr, REG_RDBAL(queue_index), (uint32_t) ring_phys_addr);
 	// "- Set the length register to the size of the descriptor ring (register RDLEN)."
 	// Section 8.2.3.8.3 Receive DEscriptor Length (RDLEN[n]):
@@ -1193,7 +1193,7 @@ static void tn_run_peragent(size_t index, void* state_)
 		}
 
 		// "Length Field (16-bit offset 0, 2nd line): The length indicated in this field covers the data written to a receive buffer."
-		uint16_t length = (uint16_t)(receive_metadata & 0xFFFFu);
+		uint16_t length = (uint16_t) (receive_metadata & 0xFFFFu);
 		// This cannot overflow because the packet is by definition in an allocated block of memory
 		char* packet = agent->buffer + (PACKET_BUFFER_SIZE * agent->processed_delimiter);
 		state->handler(index, packet, length, agent->lengths);
@@ -1228,7 +1228,7 @@ static void tn_run_peragent(size_t index, void* state_)
 		// This means all we have to do is set the length in the first 16 bits, then bits 0,1 of CMD, and bit 3 of CMD if we want write-back.
 		// Importantly, since bit 32 will stay at 0, and we share the receive ring and the first transmit ring, it will clear the Descriptor Done flag of the receive descriptor.
 		// Not setting the RS bit every time is a huge perf win in throughput (a few Gb/s) with no apparent impact on latency.
-		uint64_t rs_bit = (uint64_t)((agent->processed_delimiter & (IXGBE_AGENT_RECYCLE_PERIOD - 1)) == (IXGBE_AGENT_RECYCLE_PERIOD - 1)) << (24 + 3);
+		uint64_t rs_bit = (uint64_t) ((agent->processed_delimiter & (IXGBE_AGENT_RECYCLE_PERIOD - 1)) == (IXGBE_AGENT_RECYCLE_PERIOD - 1)) << (24 + 3);
 		for (size_t n = 0; n < agent->outputs_count; n++) {
 			agent->rings[n][agent->processed_delimiter].metadata = cpu_to_le64((uint64_t) agent->lengths[n] | rs_bit | BITL(24 + 1) | BITL(24));
 			agent->lengths[n] = 0;

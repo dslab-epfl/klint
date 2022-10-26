@@ -1,0 +1,126 @@
+name: lint, compile and build
+on:
+  push:
+    branches: main
+  pull_request:
+
+jobs:
+  list-nfs:
+    runs-on: ubuntu-latest
+    outputs:
+      nfs: ${{ steps.list-nfs.outputs.nfs }}
+    steps:
+      - uses: actions/checkout@v3
+      - id: list-nfs
+        name: list nfs
+        run: |
+          nfs_json=$(
+            find nf -mindepth 1 -maxdepth 1 -type d |
+              cut -d/ -f2 |
+              xargs |
+              sed 's/ /","/g'
+          )
+          echo "nfs=[\"$nfs_json\"]" >> $GITHUB_OUTPUT
+
+  lint-env-and-nf:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: jidicula/clang-format-action@v4.9.0
+        with:
+          # TODO rm BPF
+          exclude-regex: "nf/bpf/.*/linux"
+
+  # TODO lint-tool
+
+  # TODO document-env
+
+  compile-nf:
+    needs: [list-nfs, lint-env-and-nf]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        nf: ${{ fromJSON(needs.list-nfs.outputs.nfs) }}
+        exclude:
+          # TODO rm BPF
+          - nf: bpf
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        if: matrix.nf == 'rust-policer'
+        with:
+          toolchain: nightly
+          components: rust-src
+      - run: make compile-${{ matrix.nf }}
+
+  build-nf:
+    needs: [list-nfs, compile-nf]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        nf: ${{ fromJSON(needs.list-nfs.outputs.nfs) }}
+        os: [linux, metal, dpdk]
+        net: [tinynf, dpdk]
+        exclude:
+          - os: dpdk
+            net: tinynf
+          - os: metal
+            net: dpdk
+          # TODO rm BPF
+          - nf: bpf
+          # TODO need lpm_*
+          - nf: router
+          - nf: iptables
+          - nf: iptables_blacklist
+          - nf: iptables_port_whitelist
+          - nf: iptables_whitelist
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        if: matrix.nf == 'rust-policer'
+        with:
+          toolchain: nightly
+          components: rust-src
+      - name: install DPDK deps
+        if: matrix.net == 'dpdk'
+        run: |
+          sudo apt update
+          sudo apt install libnuma-dev
+      - name: create dummy OS config
+        run: echo '{.bus = 0x00, .device = 0x00, .function = 0x0}' > env/config
+      - run: make OS=${{ matrix.os }} NET=${{ matrix.net }} build-${{ matrix.nf }}
+
+  test-tool:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - run: make tool-test
+
+  verify-nf:
+    needs: [list-nfs, build-nf, test-tool]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        nf: ${{ fromJSON(needs.list-nfs.outputs.nfs) }}
+        exclude:
+          # TODO rm BPF
+          - nf: bpf
+          # TODO inf recursion?
+          - nf: dhcp_ipv4
+          # TODO borrow from ephemeral location? #6
+          - nf: dns_aaa_records
+          # TODO rule should no longer be in the map? #7
+          - nf: iptables
+          - nf: iptables_blacklist
+          - nf: iptables_port_whitelist
+          - nf: iptables_whitelist
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        if: matrix.nf == 'rust-policer'
+        with:
+          toolchain: nightly
+          components: rust-src
+      - run: make verify-${{ matrix.nf }}
+        env:
+          CFLAGS: -mno-avx512f -mno-avx512vl # angr>vex doesn't support some avx512

@@ -19,7 +19,7 @@ logging.getLogger('angr.project').setLevel('ERROR')
 angr.SimState.register_default("sizes", SizesPlugin)
 
 # Can't find another way to create an empty state...
-def empty_state():
+def empty_state() -> angr.sim_state.SimState:
     state = kalm_executor.create_blank_state(os.path.dirname(os.path.realpath(__file__)) + "/empty_binary")
     state.maps = GhostMapsPlugin()
     state.maps.set_state(state)
@@ -35,6 +35,10 @@ V = claripy.BVS("V", VALUE_SIZE)
 X = claripy.BVS("X", VALUE_SIZE)
 Y = claripy.BVS("Y", VALUE_SIZE)
 
+class IncompleteButSound(AssertionError):
+    def __init__(self) -> None:
+        super().__init__("Incomplete, but sound")
+
 # TODO add "forking" tests, i.e. M1 -> M2 and M1 -> M3 then assert stuff on M2 and M3
 
 # TODO fix the naming of these tests...
@@ -42,13 +46,13 @@ Y = claripy.BVS("Y", VALUE_SIZE)
 # TODO this is a good way to prototype a better API for the ghost maps in code...
 
 class Tests(unittest.TestCase):
-    def assertSolver(self, state, cond):
+    def assertSolver(self, state: angr.sim_state.SimState, cond) -> None:
         result = state.solver.eval_upto(cond, 2)
         if result == [True]:
             return # Good!
         if result == [False]:
             raise Exception("UNSOUND! VERY BAD! FIX ASAP!!!!!")
-        raise AssertionError("Incomplete, but sound")
+        raise IncompleteButSound()
 
     def assertSolverUnknown(self, state, cond):
         result = state.solver.eval_upto(cond, 2)
@@ -199,14 +203,16 @@ class Tests(unittest.TestCase):
         map = Map.new_array(state, KEY_SIZE, VALUE_SIZE, 10, "test")
         lt_x = map.forall(state, lambda k, v: v < X)
         gt_y = map.forall(state, lambda k, v: v > Y)
-        self.assertSolver(state, ~(lt_x & (X < Y)) | ~gt_y)
+        with self.assertRaises(IncompleteButSound):
+            self.assertSolver(state, ~(lt_x & (X < Y)) | ~gt_y)
 
     def test_forall_implies_not_2(self):
         state = empty_state()
         map = Map.new_array(state, KEY_SIZE, VALUE_SIZE, 10, "test")
         lt_x = map.forall(state, lambda k, v: v < X)
         gt_y = map.forall(state, lambda k, v: v > Y)
-        self.assertSolver(state, ~(gt_y & (Y > X)) | ~lt_x)
+        with self.assertRaises(IncompleteButSound):
+            self.assertSolver(state, ~(gt_y & (Y > X)) | ~lt_x)
 
     def test_forall_time_travels_future_true(self):
         state = empty_state()
@@ -259,7 +265,8 @@ class Tests(unittest.TestCase):
         state = empty_state()
         map1 = Map.new_array(state, KEY_SIZE, VALUE_SIZE, 10, "test1")
         map2 = Map.new_array(state, KEY_SIZE, VALUE_SIZE, 100, "test2")
-        self.assertSolver(state, ~map2.forall(state, lambda k, v: map1.get(state, k)[1]))
+        with self.assertRaises(IncompleteButSound):
+            self.assertSolver(state, ~map2.forall(state, lambda k, v: map1.get(state, k)[1]))
 
     def test_forall_split(self):
         state = empty_state()
@@ -364,7 +371,8 @@ class Tests(unittest.TestCase):
         state.solver.add(p)
         state.maps.remove(o1, K)
         state.maps.set(o2, v, 0)
-        self.assertSolver(state, state.maps.forall(o1, lambda k, v: MapHas(o2, v, 1)))
+        with self.assertRaises(IncompleteButSound):
+            self.assertSolver(state, state.maps.forall(o1, lambda k, v: MapHas(o2, v, 1)))
 
 
     def test_forall_subset(self):

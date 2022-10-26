@@ -69,7 +69,7 @@ bool tn_mem_allocate(const size_t size, void** out_addr)
 	}
 
 	// Align as required by the contract
-	const size_t align_diff = (size_t)(page_addr + page_used_len) % size;
+	const size_t align_diff = (size_t) (page_addr + page_used_len) % size;
 	if (align_diff != 0) {
 		page_used_len = page_used_len + (size - align_diff);
 	}
@@ -88,7 +88,7 @@ void tn_mem_free(void* const addr) { munmap(addr, HUGEPAGE_SIZE); }
 
 bool tn_mem_phys_to_virt(const uintptr_t addr, const size_t size, void** out_virt_addr)
 {
-	if (addr != (uintptr_t)(off_t) addr) {
+	if (addr != (uintptr_t) (off_t) addr) {
 		TN_DEBUG("Cannot phys-to-virt an addr that does not roundtrip to off_t");
 		return false;
 	}
@@ -136,7 +136,7 @@ bool tn_mem_virt_to_phys(void* const addr, uintptr_t* out_phys_addr)
 
 	const uintptr_t page = (uintptr_t) addr / page_size;
 	const uintptr_t map_offset = page * sizeof(uint64_t);
-	if (map_offset != (uintptr_t)(off_t) map_offset) {
+	if (map_offset != (uintptr_t) (off_t) map_offset) {
 		TN_DEBUG("Cannot virt-to-phys with an offset that does not roundtrip to off_t");
 		return false;
 	}

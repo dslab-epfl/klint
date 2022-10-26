@@ -11,8 +11,8 @@
 void os_clock_sleep_ns(uint64_t ns)
 {
 	struct timespec request;
-	request.tv_sec = (int64_t)(ns / 1000000000ull);
-	request.tv_nsec = (int64_t)(ns % 1000000000ull);
+	request.tv_sec = (int64_t) (ns / 1000000000ull);
+	request.tv_nsec = (int64_t) (ns % 1000000000ull);
 
 	struct timespec remain;
 	int ret = nanosleep(&request, &remain);

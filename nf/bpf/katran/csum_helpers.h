@@ -50,7 +50,7 @@ __attribute__((__always_inline__)) static inline void ipv4_csum_inline(void* iph
 {
 	__u16* next_iph_u16 = (__u16*) iph;
 #pragma clang loop unroll(full)
-	for (int i = 0; i<sizeof(struct iphdr)> > 1; i++) {
+	for (int i = 0; i < sizeof(struct iphdr) >> 1; i++) {
 		*csum += *next_iph_u16++;
 	}
 	*csum = csum_fold_helper(*csum);
@@ -61,9 +61,9 @@ __attribute__((__always_inline__)) static inline void ipv4_l4_csum(void* data_st
 	__u32 tmp = 0;
 	*csum = bpf_csum_diff(0, 0, &iph->saddr, sizeof(__be32), *csum);
 	*csum = bpf_csum_diff(0, 0, &iph->daddr, sizeof(__be32), *csum);
-	tmp = __builtin_bswap32((__u32)(iph->protocol));
+	tmp = __builtin_bswap32((__u32) (iph->protocol));
 	*csum = bpf_csum_diff(0, 0, &tmp, sizeof(__u32), *csum);
-	tmp = __builtin_bswap32((__u32)(data_size));
+	tmp = __builtin_bswap32((__u32) (data_size));
 	*csum = bpf_csum_diff(0, 0, &tmp, sizeof(__u32), *csum);
 	*csum = bpf_csum_diff(0, 0, data_start, data_size, *csum);
 	*csum = csum_fold_helper(*csum);
@@ -75,9 +75,9 @@ __attribute__((__always_inline__)) static inline void ipv6_csum(void* data_start
 	__u32 tmp = 0;
 	*csum = bpf_csum_diff(0, 0, &ip6h->saddr, sizeof(struct in6_addr), *csum);
 	*csum = bpf_csum_diff(0, 0, &ip6h->daddr, sizeof(struct in6_addr), *csum);
-	tmp = __builtin_bswap32((__u32)(data_size));
+	tmp = __builtin_bswap32((__u32) (data_size));
 	*csum = bpf_csum_diff(0, 0, &tmp, sizeof(__u32), *csum);
-	tmp = __builtin_bswap32((__u32)(ip6h->nexthdr));
+	tmp = __builtin_bswap32((__u32) (ip6h->nexthdr));
 	*csum = bpf_csum_diff(0, 0, &tmp, sizeof(__u32), *csum);
 	// sum over payload
 	*csum = bpf_csum_diff(0, 0, data_start, data_size, *csum);
@@ -113,7 +113,7 @@ __attribute__((__always_inline__)) static inline __s64 add_pseudo_ipv6_header(st
 		return ret;
 	}
 	*csum = ret;
-	tmp = __builtin_bswap32((__u32)(ip6h->nexthdr));
+	tmp = __builtin_bswap32((__u32) (ip6h->nexthdr));
 	ret = bpf_csum_diff(0, 0, &tmp, sizeof(__u32), *csum);
 	if (ret < 0) {
 		return ret;
@@ -143,7 +143,7 @@ __attribute__((__always_inline__)) static inline __s64 rem_pseudo_ipv6_header(st
 		return ret;
 	}
 	*csum = ret;
-	tmp = __builtin_bswap32((__u32)(ip6h->nexthdr));
+	tmp = __builtin_bswap32((__u32) (ip6h->nexthdr));
 	ret = bpf_csum_diff(&tmp, sizeof(__u32), 0, 0, *csum);
 	if (ret < 0) {
 		return ret;
@@ -173,7 +173,7 @@ __attribute__((__always_inline__)) static inline __s64 add_pseudo_ipv4_header(st
 		return ret;
 	}
 	*csum = ret;
-	tmp = __builtin_bswap32((__u32)(iph->protocol));
+	tmp = __builtin_bswap32((__u32) (iph->protocol));
 	ret = bpf_csum_diff(0, 0, &tmp, sizeof(__u32), *csum);
 	if (ret < 0) {
 		return ret;
@@ -203,7 +203,7 @@ __attribute__((__always_inline__)) static inline __s64 rem_pseudo_ipv4_header(st
 		return ret;
 	}
 	*csum = ret;
-	tmp = __builtin_bswap32((__u32)(iph->protocol));
+	tmp = __builtin_bswap32((__u32) (iph->protocol));
 	ret = bpf_csum_diff(&tmp, sizeof(__u32), 0, 0, *csum);
 	if (ret < 0) {
 		return ret;

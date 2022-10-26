@@ -126,5 +126,5 @@ static inline void net_packet_checksum_update(struct net_ipv4_header* ipv4_heade
 static inline void net_packet_checksum_update_32(struct net_ipv4_header* ipv4_header, uint32_t old_word, uint32_t new_word, bool in_ip)
 {
 	net_packet_checksum_update(ipv4_header, (uint16_t) old_word, (uint16_t) new_word, in_ip);
-	net_packet_checksum_update(ipv4_header, (uint16_t)(old_word >> 16), (uint16_t)(new_word >> 16), in_ip);
+	net_packet_checksum_update(ipv4_header, (uint16_t) (old_word >> 16), (uint16_t) (new_word >> 16), in_ip);
 }
