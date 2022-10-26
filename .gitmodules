@@ -1,27 +1,3 @@
-[submodule "experiments/baselines/fastclick/fastclick"]
-	path = experiments/baselines/fastclick/fastclick
-	url = https://github.com/tbarbette/fastclick
-	ignore = dirty
-[submodule "experiments/baselines/fastclick/dpdk"]
-	path = experiments/baselines/fastclick/dpdk
-	url = https://github.com/DPDK/dpdk
-	ignore = dirty
-[submodule "experiments/baselines/vigor/vigor"]
-	path = experiments/baselines/vigor/vigor
-	url = https://github.com/vigor-nf/vigor
-	ignore = dirty
-[submodule "experiments/baselines/vigor/dpdk"]
-	path = experiments/baselines/vigor/dpdk
-	url = https://github.com/dpdk/dpdk
-	ignore = dirty
-[submodule "experiments/baselines/dpdk/dpdk"]
-	path = experiments/baselines/dpdk/dpdk
-	url = https://github.com/dpdk/dpdk
-	ignore = dirty
-[submodule "experiments/baselines/tinynf/tinynf"]
-	path = experiments/baselines/tinynf/tinynf
-	url = https://github.com/dslab-epfl/tinynf
-	ignore = dirty
 [submodule "env/src/net/dpdk/dpdk"]
 	path = env/src/net/dpdk/dpdk
 	url = https://github.com/DPDK/dpdk

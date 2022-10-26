@@ -1,5 +1,0 @@
-{ "send device", 0 },
-{ "check device", 1 },
-{ "command device", 2},
-{ "capacity", 4000 },
-{ "expiration time", 4000ull * 1000ull * 1000ull },

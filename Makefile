@@ -51,5 +51,4 @@ benchmark-%: compile-%
 	NF=$(SELF_DIR)/nf/$* OS=$(OS) NET=$(NET) $(SELF_DIR)/benchmarking/bench.sh '$(SELF_DIR)/env' standard $(NF_LAYER)
 
 compile-all: dummy
-	@for d in $(SELF_DIR)/nf/* ; do if [ -d $$d ] && [ "$$(basename $$d)" != 'bpf' ]; then $(MAKE) -C $(SELF_DIR) compile-$$(basename $$d); fi ; done
-	@for d in $(SELF_DIR)/nf/bpf/*; do cd $$d && ./compile-bpf.sh ; done
+	@for d in $(SELF_DIR)/nf/* ; do if [ -d $$d ]; then $(MAKE) -C $(SELF_DIR) compile-$$(basename $$d); fi ; done

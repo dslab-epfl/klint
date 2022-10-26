@@ -27,9 +27,6 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - uses: jidicula/clang-format-action@v4.9.0
-        with:
-          # TODO rm BPF
-          exclude-regex: "nf/bpf/.*/linux"
 
   # TODO lint-tool
 
@@ -41,9 +38,6 @@ jobs:
     strategy:
       matrix:
         nf: ${{ fromJSON(needs.list-nfs.outputs.nfs) }}
-        exclude:
-          # TODO rm BPF
-          - nf: bpf
     steps:
       - uses: actions/checkout@v3
       - uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -66,8 +60,6 @@ jobs:
             net: tinynf
           - os: metal
             net: dpdk
-          # TODO rm BPF
-          - nf: bpf
           # TODO need lpm_*
           - nf: router
           - nf: iptables
@@ -103,8 +95,6 @@ jobs:
       matrix:
         nf: ${{ fromJSON(needs.list-nfs.outputs.nfs) }}
         exclude:
-          # TODO rm BPF
-          - nf: bpf
           # TODO inf recursion?
           - nf: dhcp_ipv4
           # TODO borrow from ephemeral location? #6
