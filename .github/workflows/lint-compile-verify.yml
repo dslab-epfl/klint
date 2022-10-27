@@ -62,10 +62,6 @@ jobs:
             net: dpdk
           # TODO need lpm_*
           - nf: router
-          - nf: iptables
-          - nf: iptables_blacklist
-          - nf: iptables_port_whitelist
-          - nf: iptables_whitelist
     steps:
       - uses: actions/checkout@v3
       - uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -97,13 +93,6 @@ jobs:
         exclude:
           # TODO inf recursion?
           - nf: dhcp_ipv4
-          # TODO borrow from ephemeral location? #6
-          - nf: dns_aaa_records
-          # TODO rule should no longer be in the map? #7
-          - nf: iptables
-          - nf: iptables_blacklist
-          - nf: iptables_port_whitelist
-          - nf: iptables_whitelist
     steps:
       - uses: actions/checkout@v3
       - uses: actions-rust-lang/setup-rust-toolchain@v1
