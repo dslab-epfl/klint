@@ -7,13 +7,13 @@ import itertools
 import os
 from pathlib import Path
 
-from kalm import utils
 from kalm.plugins.sizes import SizesPlugin
 from kalm.solver import KalmSolver
 
 from klint import ghostmaps
 from klint import statistics
 from klint.verif import symbex
+from klint.verif.persistence import StateData
 
 
 class _VerifMaps:
@@ -54,7 +54,7 @@ class _VerifState:
         return _VerifState(self.solver.constraints.copy(), copy.deepcopy(self.maps._maps), copy.deepcopy(self.path))
 
 
-def verify(all_data, spec):
+def verify(all_data: list[StateData], spec: str) -> None:
     claripy.ast.base.var_counter = itertools.count(1000000)
 
     this_folder = Path(__file__).parent.absolute()

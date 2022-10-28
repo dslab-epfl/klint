@@ -105,7 +105,7 @@ def merge_states(states, plugins):
 # Has two stashes:
 # - 'deferred' for states it hasn't looked at yet
 class MergingExplorationTechnique(angr.exploration_techniques.ExplorationTechnique):
-    def __init__(self, ret_width=None, deferred_stash='deferred'):
+    def __init__(self, ret_width: int | None = None, deferred_stash="deferred"):
         super().__init__()
         self.ret_width = ret_width
         self.deferred_stash = deferred_stash

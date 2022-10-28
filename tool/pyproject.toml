@@ -8,6 +8,7 @@ version = "0.0.0"
 description = "Formally verify network functions"
 readme = "ReadMe.md"
 license = { text = "MIT" }
+requires-python = ">=3.10"
 
 dependencies = ["angr", "claripy", "pyvex", "z3"]
 

@@ -2,18 +2,22 @@
 # It contains core verification-related concepts, including the "_spec_wrapper" that is called by the verification engine.
 # It communicates with the outside world via the global __symbex__ variable.
 
+from typing import Any, Mapping, TypeVar
 
 # === Typing ===
 # Specs should not need to directly refer to any of these.
 # This type and functions wrap and unwrap values for symbolic execution.
 
-class TypedWrapper(dict): # for convenience: use dict.item instead of dict['item']
-    def __getattr__(self, item):
+K = TypeVar('K')
+V = TypeVar('V')
+
+class TypedWrapper(dict[str, V]): # for convenience: use dict.item instead of dict['item']
+    def __getattr__(self, item: str) -> V:
         return self[item]
-    def __setattr__(self, item, value):
+    def __setattr__(self, item: str, value: V) -> None:
         self[item] = value
 
-def type_size(type):
+def type_size(type: Any) -> int:
     if isinstance(type, dict):
         return sum(type_size(v) for v in type.values())
     if isinstance(type, str):
@@ -44,7 +48,6 @@ def type_unwrap(value, type):
     assert len(value) != 0, "please don't use empty dicts"
     # almost a proxy, let's handle it here...
     result = None
-    total_size = 0
     for v in value.values():
         if result is None:
             result = v
@@ -58,7 +61,7 @@ def type_unwrap(value, type):
 # === Spec 'built-in' functions ===
 
 # Get the type of 'value'
-def typeof(value):
+def typeof(value) -> int:
     if isinstance(value, dict):
         return sum(typeof(v) for v in value.values())
     return value.size()
@@ -190,12 +193,12 @@ class Cell:
 
 # The config object passed to the spec, has the config parameters as dictionary values (e.g. `config["thing"]`) plus a "devices_count" property
 class _SpecConfig:
-    def __init__(self, meta, devices_count):
+    def __init__(self, meta: Mapping[Any, Any], devices_count: int):
         self._meta = meta
         self._devices_count = devices_count
 
     @property
-    def devices_count(self):
+    def devices_count(self) -> int:
         return self._devices_count
 
     def __getitem__(self, index):
@@ -346,7 +349,7 @@ class _SpecPacket:
         return None
 
     @property
-    def data(self):
+    def data(self) -> _SpecPacketData:
         return _SpecPacketData(self.state, self.map)
 
 

@@ -1,7 +1,9 @@
-from angr.state_plugins.plugin import SimStatePlugin
-import claripy
 import copy
 from collections import namedtuple
+
+from angr.sim_state import SimState
+from angr.state_plugins.plugin import SimStatePlugin
+import claripy
 
 from kalm import utils
 from klint import statistics

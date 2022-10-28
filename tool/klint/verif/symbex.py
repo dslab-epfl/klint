@@ -1,4 +1,9 @@
+from collections.abc import Callable, Iterable
+from typing import Any, Generic, TypeVar
+
+from angr.sim_state import SimState
 import claripy
+from klint.verif.persistence import StateData
 
 """
 The original peer symbex approach from https://hoheinzollern.files.wordpress.com/2008/04/seer1.pdf works for exhaustive symbex of all boolean conditions.
@@ -8,6 +13,8 @@ This provides a form of existential quantification to the code under symbex, sim
 The code under verification can call the '__choose__(choices)' function, which returns a choice, to use existential quantification.
 """
 
+T = TypeVar('T')
+
 # TODO: The 'choices' logic makes too many assumptions without checking them;
 #       we need to make sure the requested choices are the same in all paths
 
@@ -15,15 +22,15 @@ The code under verification can call the '__choose__(choices)' function, which r
 class _SymbexData:
     def __init__(self):
         # list of (formula, bool) tuples, where the formula is the branch condition and the bool is its assignment for the path
-        self.branches = None
+        self.branches: list[tuple[Any, bool]] = list()
         # the index in `__branches__`
         self.branch_index = 0
         # list of lists, where the first item is the one that is used and the remaining are the alternatives
-        self.choices = None
+        self.choices: list[Any] = list()
         # the index in `__choices__`
         self.choice_index = 0
         # the current state
-        self.state = None
+        self.state: ValueProxy | None = None
         # Both branches and choices can be pre-populated to force a specific path prefix, and will contain the entirety of the path at the end
 
 
@@ -44,15 +51,15 @@ def symbex_builtin_choose(choices):
     return result
 
 
-class ValueProxy:
+class ValueProxy(Generic[T]):
     @staticmethod
-    def wrap(value):
+    def wrap(value: T) -> 'ValueProxy[T]':
         if callable(value):
             return lambda *args, **kwargs: ValueProxy.wrap(value(*[ValueProxy.unwrap(arg) for arg in args], **{k: ValueProxy.unwrap(v) for (k, v) in kwargs.items()}))
         return ValueProxy(value)
 
     @staticmethod
-    def unwrap(value):
+    def unwrap(value: 'ValueProxy[T]') -> T:
         if callable(value):
             return lambda *args, **kwargs: ValueProxy.unwrap(value(*[ValueProxy.wrap(arg) for arg in args], **{k: ValueProxy.wrap(v) for (k, v) in kwargs.items()}))
         if isinstance(value, list):
@@ -224,7 +231,7 @@ class ValueProxy:
         return self._op(other, "__lshift__")
 
 
-def _symbex_one(state, func, branches, choices):
+def _symbex_one(state, func, branches: list[tuple[Any, bool]], choices: list[Any]) -> tuple[list[tuple[Any, bool]], list[Any]]:
     global __symbex__
     __symbex__.branches = branches
     __symbex__.branch_index = 0
@@ -234,8 +241,7 @@ def _symbex_one(state, func, branches, choices):
     func()
     return __symbex__.branches, __symbex__.choices
 
-def _symbex(state_data):
-    failures = 0
+def _symbex(state_data: Iterable[tuple[SimState, Callable[[], None]]]) -> tuple[list[Any], list[Any]]:
     choices = []
     while True:
         try:
@@ -263,8 +269,6 @@ def _symbex(state_data):
                 raise
             # Debug:
             print("A choice didn't work. Trying with a different one.")
-            #failures = failures + 1
-            #if failures == 1: raise
             # Prune choice sets that were fully explored
             while len(choices) > 0 and len(choices[-1]) == 1: choices.pop()
             # If all choices were explored, we failed

@@ -1,6 +1,10 @@
+from typing import Any, Callable
+
 import angr
+from angr.knowledge_plugins.cfg.cfg_node import CFGNode
 from angr.sim_type import *
 import claripy
+import claripy.ast
 import datetime
 import subprocess
 import os
@@ -48,16 +52,23 @@ structs_functions_externals = {
 
 
 # graph_handler instead of returning graphs so we can get intermediary graphs even if there's later a crash or hang
-def find_fixedpoint_states(states_data, ret_width=None, existing_results=None, graph_handler=None):
+def find_fixedpoint_states(
+    states_data,
+    ret_width: Optional[int] = None,
+    existing_results=None,
+    graph_handler: Optional[Callable[[str], None]] = None,
+) -> list[SimState]:
     # HACK: Allow callers to pass existing_results, for BPF map havocing...
     inference_results = existing_results
     while True:
         print("Running an iteration of the main loop at", datetime.datetime.now())
         statistics.work_start("symbex")
-        result_states = []
+        result_states: list[CFGNode] = []
         for (state, state_fun) in states_data:
             starting_state = state_fun(state.copy())
-            states, graph = binary_executor.run_state(starting_state, ret_width=ret_width)
+            states, graph = binary_executor.run_state(
+                starting_state, ret_width=ret_width
+            )
             result_states += states
             if graph_handler is not None:
                 graph_handler(graph)
@@ -88,7 +99,8 @@ libnf_handle_externals = {
 }
 libnf_handle_externals.update(structs_functions_externals)
 
-def get_libnf_inited_states(binary_path, devices_count):
+
+def get_libnf_inited_states(binary_path: str, devices_count) -> list[tuple[CFGNode]]:
     blank_state = binary_executor.create_blank_state(binary_path)
     # Create and run an init state
     init_state = binary_executor.create_calling_state(blank_state, "nf_init", SimTypeFunction([SimTypeNum(16, False)], SimTypeBool()), [devices_count], libnf_init_externals)
@@ -108,7 +120,10 @@ def get_libnf_inited_states(binary_path, devices_count):
             inited_states.append((state, state_creator))
     return inited_states
 
-def execute_libnf(binary_path, graph_handler=None):
+
+def execute_libnf(
+    binary_path: str, graph_handler: Optional[Callable[[str], None]] = None
+) -> tuple[list[SimState], claripy.ast.bv.BV]:
     print("libNF symbex starting at", datetime.datetime.now())
     devices_count = claripy.BVS('devices_count', 16) # TODO avoid the hardcoded 16 here
     inited_states = get_libnf_inited_states(binary_path, devices_count)
@@ -134,8 +149,10 @@ nf_init_externals.update(structs_alloc_externals)
 
 nf_handle_externals = structs_functions_externals
 
-nf_inited_states = [] # "global" for use in externals/verif/verif.py
-def execute_nf(binary_path):
+nf_inited_states = []  # "global" for use in externals/verif/verif.py
+
+
+def execute_nf(binary_path: str) -> Tuple[list[SimState], claripy.ast.bv.BV]:
     print("NF symbex starting at", datetime.datetime.now())
     klint.fullstack.spec_reg.validate_registers(klint.fullstack.spec_reg.registers)
     klint.fullstack.spec_reg.validate_registers(klint.fullstack.spec_reg.pci_regs)

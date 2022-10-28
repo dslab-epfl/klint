@@ -13,7 +13,7 @@ import klint.verif.executor as verif_executor
 #import tests.test ; import sys
 #tests.test.Tests().test_forall_subset() ; sys.exit(0)
 
-def handle_graph(graph):
+def handle_graph(graph: str) -> None:
     global graph_counter
     if graph_counter is None:
         return
