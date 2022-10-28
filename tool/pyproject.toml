@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "klint"
+version = "0.0.0"
+description = "Formally verify network functions"
+readme = "ReadMe.md"
+license = { text = "MIT" }
+
+dependencies = ["angr", "claripy", "pyvex", "z3"]
+
+[project.scripts]
+klint = "klint.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["kalm*", "klint*"]

@@ -19,12 +19,15 @@ tool: | tool-venv
 .PHONY: tool-venv
 tool-venv: $(TOOL_VENV_DIR)/.env-done
 
+TOOL_MODS := $(dir $(wildcard $(SELF_DIR)/tool/*/__init__.py))
+TOOL_SRCS := $(shell find $(TOOL_MODS) -type f -name '*.py')
+
 $(TOOL_VENV_DIR)/.venv-created:
 	python3 -m venv $(TOOL_VENV_DIR)
 	touch $@
-$(TOOL_VENV_DIR)/.env-done: $(SELF_DIR)/tool/requirements.txt | $(TOOL_VENV_DIR)/.venv-created
+$(TOOL_VENV_DIR)/.env-done: $(TOOL_SRCS) | $(TOOL_VENV_DIR)/.venv-created
 	. $(TOOL_VENV_DIR)/bin/activate && \
-		pip install -r $<
+		pip install $(SELF_DIR)/tool
 	touch $@
 
 .PHONY: tool-test
@@ -41,9 +44,9 @@ build-%: compile-%
 	@if [ ! -f $(OS_CONFIG) ]; then echo 'Please write an OS config file in $(OS_CONFIG), see $(SELF_DIR)/env/ReadMe.md'; exit 1; fi
 	$(MAKE) -C $(SELF_DIR)/env NF=$(SELF_DIR)/nf/$*/libnf.so OS=$(OS) NET=$(NET) OS_CONFIG=$(OS_CONFIG) NF_CONFIG=$(SELF_DIR)/nf/$*/config
 
-verify-%: compile-% | $(TOOL_VENV_DIR)/.env-done
+verify-%: compile-% | tool-venv
 	. $(TOOL_VENV_DIR)/bin/activate && \
-		$(SELF_DIR)/tool/klint.py libnf $(SELF_DIR)/nf/$*/libnf.so $(SELF_DIR)/nf/$*/spec.py
+		klint libnf $(SELF_DIR)/nf/$*/libnf.so $(SELF_DIR)/nf/$*/spec.py
 
 benchmark-%: compile-%
 	@if [ ! -f $(SELF_DIR)/benchmarking/config ]; then echo 'Please set the benchmarking config, see $(SELF_DIR)/benchmarking/ReadMe.md'; exit 1; fi

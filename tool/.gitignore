@@ -5,3 +5,5 @@ env/
 
 # generated
 /venv/
+/build/
+/klint.egg-info/
