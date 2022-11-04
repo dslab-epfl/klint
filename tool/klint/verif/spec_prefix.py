@@ -1,8 +1,11 @@
 # This file is prefixed to all specifications.
 # It contains core verification-related concepts, including the "_spec_wrapper" that is called by the verification engine.
-# It communicates with the outside world via the global __symbex__ variable.
+# It communicates with the outside world via get/set_symbex.
 
 from typing import Any, Mapping, TypeVar
+
+from klint.verif.value_proxy import ValueProxy
+from klint.verif.symbex_data import get_symbex
 
 # === Typing ===
 # Specs should not need to directly refer to any of these.
@@ -21,8 +24,7 @@ def type_size(type: Any) -> int:
     if isinstance(type, dict):
         return sum(type_size(v) for v in type.values())
     if isinstance(type, str):
-        global __symbex__
-        return int(getattr(__symbex__.state.sizes, type))
+        return int(getattr(get_symbex().state.sizes, type))
     return int(type)
 
 def type_wrap(value, type):
@@ -67,20 +69,18 @@ def typeof(value) -> int:
     return value.size()
 
 def if_then_else(cond, thn, els):
-    global __symbex__
-    return __symbex__.state.solver.If(cond, thn, els)
+    return get_symbex().state.solver.If(cond, thn, els)
 
 # Existential quantifier, returns true iff there definitely exists a value that satisfies 'func'
 # 'func' is a lambda with one parameter returning a bool
 def exists(type, func):
-    global __symbex__
-    value = __symbex__.state.BVS("exists_value", type_size(type))
-    return __symbex__.state.solver.satisfiable(extra_constraints=[func(type_wrap(value, type))])
+    symbex = get_symbex()
+    value = symbex.state.BVS("exists_value", type_size(type))
+    return symbex.state.solver.satisfiable(extra_constraints=[func(type_wrap(value, type))])
 
 # Constant with the given value and type, occasionally necessary
 def constant(value, type):
-    global __symbex__
-    return __symbex__.state.BVV(value, type_size(type))
+    return get_symbex().state.BVV(value, type_size(type))
 
 
 # === Maps ===
@@ -94,11 +94,10 @@ def constant(value, type):
 # and then verification will succeed...
 class Map:
     def __init__(self, key_type, value_type, _map=None):
-        global __symbex__
-
         if _map is None:
             # Start with all candidates
-            candidates = __symbex__.state.maps
+            symbex = get_symbex()
+            candidates = symbex.state.maps
             # Exclude the fractions and packets, which the spec writer is not even aware of
             candidates = filter(lambda c: "fracs_" not in c[1].meta.name and "packet_" not in c[1].meta.name, candidates)
             # Sort by key and value size differences, ensuring the candidates are at least as big as needed
@@ -112,7 +111,7 @@ class Map:
                 candidates = sorted(candidates, key=lambda c: (c[1].meta.key_size - key_size) + (c[1].meta.value_size - value_size))
             # Now get the object; if we called choose on the map instead, it'd remain the same map across states, which would be bad
             obj = __choose__(list(map(lambda c: c[0], candidates)))
-            _map = next(m for (o, m) in __symbex__.state.maps if o.structurally_match(obj))
+            _map = next(m for (o, m) in symbex.state.maps if o.structurally_match(obj))
             # Debug:
             #print(key_type, "->", value_type)
             #for (o, m) in candidates:
@@ -129,21 +128,18 @@ class Map:
         return Map(self._key_type, self._value_type, _map=self._map.oldest_version())
 
     def __contains__(self, key):
-        global __symbex__
-        (_, present) = self._map.get(__symbex__.state, type_unwrap(key, self._map.meta.key_size))
+        (_, present) = self._map.get(get_symbex().state, type_unwrap(key, self._map.meta.key_size))
         return present
 
     def __getitem__(self, key):
-        global __symbex__
-        (value, present) = self._map.get(__symbex__.state, type_unwrap(key, self._map.meta.key_size))
+        (value, present) = self._map.get(get_symbex().state, type_unwrap(key, self._map.meta.key_size))
         if not present:
             raise Exception("Spec called get but element may not be there")
         return type_wrap(value, self._value_type)
 
     # 'pred' is a lambda taking in key, value and returning bool
     def forall(self, pred):
-        global __symbex__
-        return self._map.forall(__symbex__.state, lambda k, v: pred(type_wrap(k, self._key_type), type_wrap(v, self._value_type)))
+        return self._map.forall(get_symbex().state, lambda k, v: pred(type_wrap(k, self._key_type), type_wrap(v, self._value_type)))
 
     # we can't override __len__ because python enforces that it returns an 'int'
     @property
@@ -155,22 +151,22 @@ class Map:
 # Instead of declaring a Map(intptr_t, value_type), declare a Cell(value_type)
 class Cell:
     def __init__(self, value_type):
-        global __symbex__
         # Start with all candidates
-        candidates = __symbex__.state.maps
+        symbex = get_symbex()
+        candidates = symbex.state.maps
         # Exclude maps with key size != ptr
-        candidates = filter(lambda c: c[1].meta.key_size == __symbex__.state.sizes.ptr, candidates)
+        candidates = filter(lambda c: c[1].meta.key_size == symbex.state.sizes.ptr, candidates)
         # Exclude the fractions and packets, which the spec writer is not even aware of
         candidates = filter(lambda c: "fracs_" not in c[1].meta.name and "packet_" not in c[1].meta.name, candidates)
         # Exclude maps with length != 1
-        candidates = filter(lambda c: not __symbex__.state.solver.satisfiable(extra_constraints=[c[1].length() != 1]), candidates)
+        candidates = filter(lambda c: not symbex.state.solver.satisfiable(extra_constraints=[c[1].length() != 1]), candidates)
         # Sort by value size difference, ensuring the candidates are at least as big as needed
         value_size = type_size(value_type)
         candidates = filter(lambda c: c[1].meta.value_size >= value_size, candidates)
         candidates = sorted(candidates, key=lambda c: (c[1].meta.value_size - value_size))
         # Now get the object; if we called choose on the map instead, it'd remain the same map across states, which would be bad
         obj = __choose__(list(map(lambda c: c[0], candidates)))
-        self._map = next(m for (o, m) in __symbex__.state.maps if o.structurally_match(obj))
+        self._map = next(m for (o, m) in symbex.state.maps if o.structurally_match(obj))
         self.value_type = value_type
         # Debug:
         #print("cell", value_type)
@@ -180,13 +176,13 @@ class Cell:
 
     @property
     def value(self):
-        global __symbex__
-        return type_wrap(self._map.get(__symbex__.state, __symbex__.state.BVV(0, __symbex__.state.sizes.ptr))[0], self.value_type)
+        symbex = get_symbex()
+        return type_wrap(self._map.get(symbex.state, symbex.state.BVV(0, symbex.state.sizes.ptr))[0], self.value_type)
 
     @property
     def old_value(self):
-        global __symbex__
-        return type_wrap(self._map.oldest_version().get(__symbex__.state, __symbex__.state.BVV(0, __symbex__.state.sizes.ptr))[0], self.value_type)
+        symbex = get_symbex()
+        return type_wrap(self._map.oldest_version().get(symbex.state, symbex.state.BVV(0, symbex.state.sizes.ptr))[0], self.value_type)
 
 
 # === Config ===
@@ -365,9 +361,8 @@ def ipv4_checksum(header):
 # === Spec wrapper ===
 
 def _spec_wrapper(data):
-    global __symbex__
-    state = __symbex__.state
-    print("PATH", state._value.path._segments)
+    state = get_symbex().state
+    print("PATH", ValueProxy.unwrap(state).path._segments)
 
     received_packet_map = state.maps[data.network.received_addr].oldest_version()
     received_packet = _SpecPacket(state, received_packet_map, data.network.received_length, data.time, _SpecSingleDevice(data.network.received_device))
