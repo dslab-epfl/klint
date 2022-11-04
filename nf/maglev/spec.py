@@ -1,3 +1,6 @@
+from klint.verif.spec_prefix import Device, Map, Time
+from klint.verif.spec_utils import ExpiringSet
+
 Flow = {
     'src_ip': 32,
     'dst_ip': 32,

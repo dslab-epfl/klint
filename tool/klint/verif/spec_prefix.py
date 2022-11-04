@@ -2,10 +2,16 @@
 # It contains core verification-related concepts, including the "_spec_wrapper" that is called by the verification engine.
 # It communicates with the outside world via get/set_symbex.
 
+from collections.abc import Callable
 from typing import Any, Mapping, TypeVar
 
+import claripy
+
 from klint.verif.value_proxy import ValueProxy
-from klint.verif.symbex_data import get_symbex
+from klint.verif.symbex_data import get_symbex, set_symbex
+
+Device = "uint16_t"
+Time = "uint64_t"
 
 # === Typing ===
 # Specs should not need to directly refer to any of these.
@@ -110,7 +116,7 @@ class Map:
                 candidates = filter(lambda c: c[1].meta.value_size >= value_size, candidates)
                 candidates = sorted(candidates, key=lambda c: (c[1].meta.key_size - key_size) + (c[1].meta.value_size - value_size))
             # Now get the object; if we called choose on the map instead, it'd remain the same map across states, which would be bad
-            obj = __choose__(list(map(lambda c: c[0], candidates)))
+            obj = choose(list(map(lambda c: c[0], candidates)))
             _map = next(m for (o, m) in symbex.state.maps if o.structurally_match(obj))
             # Debug:
             #print(key_type, "->", value_type)
@@ -165,7 +171,7 @@ class Cell:
         candidates = filter(lambda c: c[1].meta.value_size >= value_size, candidates)
         candidates = sorted(candidates, key=lambda c: (c[1].meta.value_size - value_size))
         # Now get the object; if we called choose on the map instead, it'd remain the same map across states, which would be bad
-        obj = __choose__(list(map(lambda c: c[0], candidates)))
+        obj = choose(list(map(lambda c: c[0], candidates)))
         self._map = next(m for (o, m) in symbex.state.maps if o.structurally_match(obj))
         self.value_type = value_type
         # Debug:
@@ -183,6 +189,26 @@ class Cell:
     def old_value(self):
         symbex = get_symbex()
         return type_wrap(self._map.oldest_version().get(symbex.state, symbex.state.BVV(0, symbex.state.sizes.ptr))[0], self.value_type)
+
+# TODO: The 'choices' logic makes too many assumptions without checking them;
+#       we need to make sure the requested choices are the same in all paths
+
+def choose(choices: list[ValueProxy[claripy.ast.BV]]) -> ValueProxy[Any]:
+    choices = [ValueProxy.unwrap(c) for c in choices]
+    assert len(choices) != 0
+    symbex = get_symbex()
+    if symbex.choice_index == len(symbex.choices):
+        symbex.choices.append(choices)
+    else:
+        assert [a is b for (a,b) in zip(choices, symbex.choices[symbex.choice_index])], "choices must be the same across all paths"
+    # Exclude those we have used already
+    while any(cs[0] is symbex.choices[symbex.choice_index][0] for cs in symbex.choices[:symbex.choice_index]):
+        print("Dismissing dupe", symbex.choices[symbex.choice_index][0])
+        symbex.choices[symbex.choice_index].pop(0)
+    result = symbex.choices[symbex.choice_index][0]
+    symbex.choice_index = symbex.choice_index + 1
+    set_symbex(symbex)
+    return ValueProxy.wrap(result)
 
 
 # === Config ===
@@ -360,7 +386,7 @@ def ipv4_checksum(header):
 
 # === Spec wrapper ===
 
-def _spec_wrapper(data):
+def _spec_wrapper(spec: Callable[..., None], data):
     state = get_symbex().state
     print("PATH", ValueProxy.unwrap(state).path._segments)
 

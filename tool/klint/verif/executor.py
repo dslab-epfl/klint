@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from angr.state_plugins import SimSolver
 from archinfo.arch_amd64 import ArchAMD64
 import claripy
@@ -54,27 +55,15 @@ class _VerifState:
         return _VerifState(self.solver.constraints.copy(), copy.deepcopy(self.maps._maps), copy.deepcopy(self.path))
 
 
-def verify(all_data: list[StateData], spec: str) -> None:
+def verify(all_data: list[StateData], spec: Callable[..., None]) -> None:
     claripy.ast.base.var_counter = itertools.count(1000000)
-
-    this_folder = Path(__file__).parent.absolute()
-    spec_prefix = (this_folder / "spec_prefix.py").read_text()
-    spec_utils = (this_folder / "spec_utils.py").read_text()
-
-    full_spec_text = spec_prefix + os.linesep + spec_utils + os.linesep + spec
-
-    globals = {
-        # TODO move this somewhere...
-        "Device": "uint16_t",
-        "Time": "uint64_t"
-    }
 
     print("Verifying NF's", len(all_data), "states at", datetime.datetime.now())
     statistics.work_start("verif")
     state_data = [(
         _VerifState(data.constraints, data.maps, data.path), # path is useful for debugging
-        [data] # args
+        data # args
     ) for data in all_data]
-    (choices, results) = symbex.symbex(full_spec_text, "_spec_wrapper", globals, state_data)
+    (choices, results) = symbex.symbex(spec, state_data)
     statistics.work_end()
     print("NF verified! at", datetime.datetime.now())

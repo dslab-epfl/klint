@@ -1,3 +1,6 @@
+from klint.verif.spec_prefix import Device, Map, exists, ipv4_checksum
+from klint.verif.spec_utils import ExpiringSet
+
 Route = {
     "length": "size_t",
     "dest": 32

@@ -9,6 +9,8 @@ T = TypeVar('T')
 class ValueProxy(Generic[T]):
     @staticmethod
     def wrap(value: T) -> 'ValueProxy[T]':
+        if value is None:
+            return None
         if callable(value):
             return lambda *args, **kwargs: ValueProxy.wrap(value(*[ValueProxy.unwrap(arg) for arg in args], **{k: ValueProxy.unwrap(v) for (k, v) in kwargs.items()}))
         return ValueProxy(value)

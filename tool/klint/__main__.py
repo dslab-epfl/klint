@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
 import argparse
+from collections.abc import Callable
+import importlib.util
 import os
 import shutil
 
@@ -21,17 +23,25 @@ def handle_graph(graph: str) -> None:
         file.write(graph)
     graph_counter = graph_counter + 1
 
+def load_spec(spec_path: str) -> Callable[..., None]:
+    spec = importlib.util.spec_from_file_location("spec", spec_path)
+    assert spec is not None, "unable to load spec"
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.spec
+
+
 def verif(data_path, spec_path):
     if spec_path is None:
         print("No specification. Not verifying.")
     else:
-        with open(spec_path, 'r') as spec_file:
-            spec = spec_file.read()
-        verif_executor.verify(verif_persist.load_data(data_path), spec)
+        verif_executor.verify(
+            verif_persist.load_data(data_path),
+            load_spec(spec_path),
+        )
 
     for line in statistics.to_tsv():
         print(line)
-
 
 def handle_libnf(args):
     cached_data_path = args.file + ".symbex-cache"
