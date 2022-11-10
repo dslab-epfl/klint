@@ -35,6 +35,14 @@ tool-test: | tool-venv
 	. $(TOOL_VENV_DIR)/bin/activate && \
 		python -m unittest discover --start-directory $(SELF_DIR)/tool
 
+TOOL_DIST_DIR := $(SELF_DIR)/tool/dist
+
+.PHONY: tool-build
+tool-build: $(TOOL_SRCS) | tool-venv
+	. $(TOOL_VENV_DIR)/bin/activate && \
+		pip install build && \
+		python -m build $(SELF_DIR)/tool
+
 ## others
 
 compile-%: dummy

@@ -1,13 +1,14 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=61.0", "setuptools_scm[toml]>=6.2"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "klint"
-version = "0.0.0"
+dynamic = ["version"]
 description = "Formally verify network functions"
 readme = "ReadMe.md"
 license = { text = "MIT" }
+
 requires-python = ">=3.10"
 
 dependencies = ["angr", "claripy", "pyvex", "z3"]
@@ -17,3 +18,6 @@ klint = "klint.__main__:main"
 
 [tool.setuptools.packages.find]
 include = ["kalm*", "klint*"]
+
+[tool.setuptools_scm]
+root = ".."

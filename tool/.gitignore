@@ -7,3 +7,4 @@ env/
 /venv/
 /build/
 /klint.egg-info/
+/dist/
