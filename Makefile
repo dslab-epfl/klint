@@ -44,6 +44,11 @@ tool-build: $(TOOL_SRCS) | tool-venv
 		pip install build && \
 		python -m build $(TOOL_DIR)
 
+.PHONY: tool-constraints
+tool-constraints: $(TOOL_SRCS) | tool-venv
+	. $(TOOL_VENV_DIR)/bin/activate && \
+		pip freeze --exclude klint > $(TOOL_DIR)/constraints
+
 ## others
 
 compile-%: dummy
