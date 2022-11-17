@@ -1,3 +1,5 @@
+from klint.verif.spec_prefix import Cell, Device, Map, typeof
+
 SpanningTreeState = {
     'update_time': 64,
     'my_id': 64,

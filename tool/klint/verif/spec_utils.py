@@ -1,5 +1,6 @@
-# This file is prefixed to all specifications.
-# It contains helpers that are not key to specifications but may be useful for some of them.
+# contains helpers that are not key to specifications but may be useful for some of them.
+
+from .spec_prefix import Map, Time
 
 # TODO: Ideally, the tool would be able to infer that A->B and B->C maps can be treated as an A->C map,
 # and then this class could disappear for the firewall and just have the the methods inlined into the specs...

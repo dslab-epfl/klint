@@ -1,7 +1,16 @@
-import angr
-import claripy
+from collections.abc import Iterable, Iterator
+from typing import Any, TypeVar
 
-def read_str(state, ptr):
+import angr
+import angr.sim_type
+from angr.state_plugins import SimSolver
+import claripy
+import claripy.ast
+from claripy.ast import Base as Expr
+
+T = TypeVar('T')
+
+def read_str(state, ptr) -> str:
     result = ""
     while True:
         char = state.memory.load(ptr, 1)
@@ -23,19 +32,19 @@ def get_ret_val(state, width):
     loc = cc.return_val(angr.sim_type.SimTypeNum(width or 0, False))
     return loc.get_value(state, stack_base=state.regs.sp - cc.STACKARG_SP_DIFF)
 
-def can_be_true(solver, cond):
+def can_be_true(solver, cond) -> bool:
     return solver.satisfiable(extra_constraints=[cond])
 
-def can_be_false(solver, cond):
+def can_be_false(solver, cond) -> bool:
     return solver.satisfiable(extra_constraints=[~cond])
 
-def definitely_true(solver, cond):
+def definitely_true(solver, cond) -> bool:
     return not can_be_false(solver, cond)
 
-def definitely_false(solver, cond):
+def definitely_false(solver, cond) -> bool:
     return not can_be_true(solver, cond)
 
-def get_if_constant(solver, expr, **kwargs):
+def get_if_constant(solver: SimSolver, expr: Expr, **kwargs) -> Any | None:
     sols = solver.eval_upto(expr, 2, **kwargs)
     if len(sols) == 0:
         raise Exception("Could not evaluate: " + str(expr))
@@ -44,7 +53,7 @@ def get_if_constant(solver, expr, **kwargs):
     return None
 
 
-def pretty_print(expr, nested=False):
+def pretty_print(expr: Expr, nested: bool = False) -> str:
     if expr.op == 'BoolS':
         if expr.args[0].endswith('_-1'):
             return expr.args[0][:-3]
@@ -60,8 +69,7 @@ def pretty_print(expr, nested=False):
         return result[6:-1]
     return result
 
-
-def get_exact_match(solver, item, candidates, assumption=claripy.true, selector=lambda i: i):
+def get_exact_match(solver, item, candidates: Iterable[T], assumption:Expr=claripy.true, selector=lambda i: i) -> T | None:
     for cand in candidates:
         if item.structurally_match(selector(cand)):
             return cand
@@ -99,13 +107,12 @@ def fork_guarded_has(proc, state, ghost_map, key, case_has, case_not):
         return case_not(state)
     return fork_guarded(proc, state, present, case_true, case_false)
 
-
-def structural_eq(a, b):
+def structural_eq(a: T, b: T) -> bool:
     if a is None and b is None:
         return True
     if a is None or b is None:
         return False
-    if isinstance(a, claripy.ast.Base) and isinstance(b, claripy.ast.Base):
+    if isinstance(a, Expr) and isinstance(b, Expr):
         return a.structurally_match(b)
     if hasattr(a, '_asdict') and hasattr(b, '_asdict'): # namedtuple
         ad = a._asdict()
@@ -120,7 +127,7 @@ def structural_eq(a, b):
     return a == b
 
 # returns ([only_left], [both], [only_right])
-def structural_diff(left, right):
+def structural_diff(left: Iterator[T], right: Iterator[T]) -> tuple[list[T], list[T], list[T]]:
     only_left = []
     both = []
     right_found = {r: False for r in right}
@@ -230,7 +237,7 @@ def base_index_offset(state, addr, meta_type, allow_failure=False):
 # Ideally this is something Claripy or Z3 would do...
 
 # Returns a dictionary such that ast == sum(e.ast * m for (e, m) in result.items())
-def _as_mult_add(ast):
+def _as_mult_add(ast) -> dict[Expr, Any]:
     if ast.op == 'Concat' and len(ast.args) == 2 and \
        ast.args[1].op == 'BVV' and ast.args[1].args[0] == 0:
         nested = _as_mult_add(ast.args[0])
@@ -279,7 +286,7 @@ def _as_mult_add(ast):
     return {ast.cache_key: 1}
 
 # group things together, e.g. if we end up with '(0 .. x[62:0])' and 'x', group them iff x[63] == 0
-def _as_mult_add_outer(ast, solver):
+def _as_mult_add_outer(ast, solver: claripy.Solver):
     result = {}
     for (e, m) in _as_mult_add(ast).items():
         if e.ast.op == 'ZeroExt' and e.ast.args[1].op == 'Extract' and e.ast.args[1].args[1] == 0:
@@ -292,7 +299,7 @@ def _as_mult_add_outer(ast, solver):
     return result
 
 # Returns a simplified form of a % b
-def _modulo_simplify(solver, a, b):
+def _modulo_simplify(solver: claripy.Solver, a, b):
     result = 0
     for (e, m) in _as_mult_add_outer(a, solver).items():
         # note that is_true just performs basic checks, so if _as_mult_add decomposed it nicely, we'll skip the modulo entirely
@@ -302,13 +309,13 @@ def _modulo_simplify(solver, a, b):
     return result % b
 
 # Returns a simplified form of a // b
-def _div_simplify(solver, a, b):
+def _div_simplify(solver: claripy.Solver, a: Expr, b: Expr) -> Expr:
     if (a == 0).is_true():
         return a
     if (b == 1).is_true():
         return a
 
-    def make_term(e, m, b):
+    def make_term(e: Expr, m: Expr, b: Expr) -> Expr:
         if (m % b == 0).is_true():
             return e
         return e * m // b
