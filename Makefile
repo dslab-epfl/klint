@@ -11,7 +11,8 @@ dummy:
 
 ## tool
 
-TOOL_VENV_DIR := $(SELF_DIR)/tool/venv
+TOOL_DIR := $(SELF_DIR)/tool
+TOOL_VENV_DIR := $(TOOL_DIR)/venv
 
 .PHONY: tool
 tool: | tool-venv
@@ -19,7 +20,7 @@ tool: | tool-venv
 .PHONY: tool-venv
 tool-venv: $(TOOL_VENV_DIR)/.env-done
 
-TOOL_MODS := $(dir $(wildcard $(SELF_DIR)/tool/*/__init__.py))
+TOOL_MODS := $(dir $(wildcard $(TOOL_DIR)/*/__init__.py))
 TOOL_SRCS := $(shell find $(TOOL_MODS) -type f -name '*.py')
 
 $(TOOL_VENV_DIR)/.venv-created:
@@ -27,21 +28,21 @@ $(TOOL_VENV_DIR)/.venv-created:
 	touch $@
 $(TOOL_VENV_DIR)/.env-done: $(TOOL_SRCS) | $(TOOL_VENV_DIR)/.venv-created
 	. $(TOOL_VENV_DIR)/bin/activate && \
-		pip install $(SELF_DIR)/tool
+		pip install $(TOOL_DIR)
 	touch $@
 
 .PHONY: tool-test
 tool-test: | tool-venv
 	. $(TOOL_VENV_DIR)/bin/activate && \
-		python -m unittest discover --start-directory $(SELF_DIR)/tool
+		python -m unittest discover --start-directory $(TOOL_DIR)
 
-TOOL_DIST_DIR := $(SELF_DIR)/tool/dist
+TOOL_DIST_DIR := $(TOOL_DIR)/dist
 
 .PHONY: tool-build
 tool-build: $(TOOL_SRCS) | tool-venv
 	. $(TOOL_VENV_DIR)/bin/activate && \
 		pip install build && \
-		python -m build $(SELF_DIR)/tool
+		python -m build $(TOOL_DIR)
 
 ## others
 
