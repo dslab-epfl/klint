@@ -1,3 +1,11 @@
+# Klint
+
+Tool to automatically verify the correctness of software network function binaries given a specification, without debug symbols.
+
+From the paper [Automated Verification of Network Function Binaries](https://infoscience.epfl.ch/record/294788) [presented at NSDI'22](https://www.usenix.org/conference/nsdi22/presentation/pirelli).
+
+_(Named after [Hilma af Klint](https://en.wikipedia.org/wiki/Hilma_af_Klint), an abstract painter and mystic, since the tool uses a form of abstract interpretation as well as "ghost" maps)_
+
 ## Repository structure
 
 - `benchmarking` contains the scripts for benchmarks (building upon those from the TinyNF artifact) 
@@ -44,5 +52,4 @@ Then you can use the Makefile to e.g. `make verify-bridge`
 
 ## Reproducing paper results
 
-This project is based on the paper [Automated Verification of Network Function Binaries](https://infoscience.epfl.ch/record/294788) [presented at NSDI'22](https://www.usenix.org/conference/nsdi22/presentation/pirelli).
-You can find its paper state tagged as [`paper`](../../tree/paper).
+You can find the project's paper state tagged as [`paper`](../../tree/paper).
