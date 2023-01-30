@@ -29,6 +29,8 @@ There's also `compile-all` to just compile all NFs, useful when making changes t
 
 ## Writing and verifying your own network function
 
+You need a C11 compiler such as GCC, and Python >= 3.10.
+
 Start from a copy of `nf/nop`, which is a no-op network function.
 Use the existing `nf/*` functions as inspiration.
 All environment interactions must use the abstractions in `env/`, especially memory allocations.
@@ -41,13 +43,6 @@ If you need new data structures, add them in `env/include/structs`, `env/src/str
 Then add Klint contracts in `tool/klint/externals` and add them to the `*_externals` dictionaries in `tool/klint/executor.py`.
 
 You may be interested in a [project report](docs/report-elvric-patrice.pdf) written by undergrads who wrote and verified network functions with Klint.
-
-
-## Quick start
-
-`cd` to this directory, then `cd` into `tool` and `. setup-virtualenv.sh` to set up the required Python virtualenv
-
-Then you can use the Makefile to e.g. `make verify-bridge`
 
 
 ## Reproducing paper results
