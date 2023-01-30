@@ -6,8 +6,8 @@
 # Cached symbolic execution stuff
 *.symbex-cache
 
-# Python environment path file 
-.env
+# Python
+__pycache__/
 
 # VSCode config
 .vscode/

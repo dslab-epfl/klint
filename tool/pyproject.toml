@@ -11,7 +11,7 @@ license = { text = "MIT" }
 
 requires-python = ">=3.10"
 
-dependencies = ["angr", "claripy", "pyvex", "z3"]
+dependencies = ["angr", "claripy", "pyvex", "z3-solver"]
 
 [project.scripts]
 klint = "klint.__main__:main"
