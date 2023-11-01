@@ -3,7 +3,7 @@
 You'll need Python 3, the root Makefile takes care of creating a venv for you.
 
 You can install the tool by using `pip install .` and use it via the `klint` executable or by `import`ing it.
-The list of known good versions of the deps can be found in the `constraints` file, that can use via `pip install -c constraints .`.
+The list of known good versions of the deps can be found in the `constraints` file, that you can use with `pip install -c constraints .`.
 
 Two layers:
 
