@@ -35,7 +35,6 @@
 - `NET` is the network driver name
   - `tinynf` is an adaptation of the TinyNF driver (OSDI'20) for Intel 82599
   - `dpdk` is, well, DPDK
-  - `dpdk-inline` doesn't work, do not use (the goal was to use the DPDK driver but without DPDK itself)
   - Add your own! Just create a `Makefile` within that folder that adds to the `NET_SRCS` variable a list of absolute paths of source files
 
 - `NF_CONFIG` and `OS_CONFIG` are self-explanatory, the NF one is NF-dependent, for the OS one it's just a list of PCI devices, e.g.,
